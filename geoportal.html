@@ -1,0 +1,2362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GeoPortal — Visor satelital abierto</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e14; --panel:#121924; --panel-2:#0d1219; --border:#232d3a;
+    --text:#e7ecf2; --muted:#8a97a8; --accent:#ff8a3d; --accent-dim:#c9642a; --ok:#3ddc97;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; height:100%; background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; overflow:hidden;}
+  #map{position:absolute; inset:0; background:#000;}
+
+  .leaflet-control-attribution{background:rgba(10,14,20,0.75)!important; color:var(--muted)!important; font-size:10px!important; backdrop-filter:blur(4px);}
+  .leaflet-control-attribution a{color:var(--muted)!important;}
+  .leaflet-control-scale-line{background:rgba(10,14,20,0.7)!important; color:var(--text)!important; border-color:var(--border)!important; font-family:'JetBrains Mono',monospace; font-size:10px!important;}
+  .leaflet-control-zoom{display:none;}
+
+  #topbar{position:absolute; top:0; left:0; right:0; z-index:1000; display:flex; align-items:center; gap:8px; padding:12px 60px 0 12px; pointer-events:none;}
+  #topbar > *{pointer-events:auto;}
+  #brand{display:flex; align-items:center; gap:8px; background:rgba(18,25,36,0.85); backdrop-filter:blur(8px); border:1px solid var(--border); border-radius:12px; padding:9px 12px; white-space:nowrap;}
+  #brand .dot{width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px var(--accent); flex:none;}
+  #brand span{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:14px; letter-spacing:0.2px;}
+  #searchWrap{flex:1; display:flex; align-items:center; gap:6px; background:rgba(18,25,36,0.85); backdrop-filter:blur(8px); border:1px solid var(--border); border-radius:12px; padding:4px 4px 4px 12px; min-width:0;}
+  #searchInput{flex:1; min-width:0; background:transparent; border:none; outline:none; color:var(--text); font-size:14px; font-family:'Inter',sans-serif; padding:6px 0;}
+  #searchInput::placeholder{color:var(--muted);}
+  #searchBtn, #locateBtn, #placesBtn, #settingsBtn{flex:none; width:34px; height:34px; border-radius:9px; border:none; background:var(--panel-2); color:var(--muted); display:flex; align-items:center; justify-content:center; cursor:pointer;}
+  #searchBtn:active, #locateBtn:active, #placesBtn:active, #settingsBtn:active{background:var(--accent); color:#0a0e14;}
+  #locateBtn, #placesBtn, #settingsBtn{background:rgba(18,25,36,0.85); border:1px solid var(--border); backdrop-filter:blur(8px);}
+  #settingsBtn{position:absolute; top:12px; right:12px; z-index:1000; width:40px; height:40px; border-radius:12px;}
+
+  #fabDrawer{ position:absolute; inset:0; pointer-events:none; transition:transform .25s ease; z-index:1000; }
+  #fabDrawer > *{ pointer-events:auto; }
+  #fabDrawer.hidden{ transform:translateX(90px); }
+  #fabTab{
+    position:absolute; right:0; top:50%; transform:translateY(-50%); z-index:999;
+    width:22px; height:60px; border-radius:12px 0 0 12px; background:var(--panel); border:1px solid var(--border); border-right:none;
+    color:var(--muted); display:none; align-items:center; justify-content:center; cursor:pointer; font-size:13px;
+  }
+  #fabTab.show{ display:flex; }
+  #windyResetBtn{
+    position:absolute; left:12px; top:70px; z-index:960; display:none;
+    background:rgba(18,25,36,0.9); border:1px solid var(--border); color:var(--text);
+    border-radius:10px; padding:8px 12px; font-size:12px; cursor:pointer;
+  }
+  #windyResetBtn.show{ display:block; }
+
+  #zoomCtrl{position:absolute; right:14px; bottom:226px; z-index:1000; display:flex; flex-direction:column; overflow:hidden; border-radius:14px; border:1px solid var(--border); background:rgba(18,25,36,0.85); backdrop-filter:blur(8px);}
+  #zoomCtrl button{width:44px; height:40px; background:transparent; border:none; color:var(--text); font-size:18px; cursor:pointer; border-bottom:1px solid var(--border);}
+  #zoomCtrl button:last-child{border-bottom:none;}
+
+  #baseFab{position:absolute; right:14px; bottom:154px; z-index:1000; width:52px; height:52px; border-radius:16px; background:var(--accent); color:#0a0e14; border:none; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 20px rgba(255,138,61,0.35); cursor:pointer;}
+  #overlayFab, #toolsFab{position:absolute; right:14px; z-index:1000; width:40px; height:40px; border-radius:13px; background:var(--panel); color:var(--text); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,0.35); cursor:pointer;}
+  #overlayFab{bottom:104px;}
+  #toolsFab{bottom:54px;}
+  #overlayFab.has-active, #toolsFab.has-active{border-color:var(--accent); color:var(--accent);}
+  .fab-badge{position:absolute; top:-4px; right:-4px; background:var(--accent); color:#0a0e14; font-size:9px; font-weight:700; border-radius:8px; min-width:15px; height:15px; display:none; align-items:center; justify-content:center; padding:0 3px; font-family:'JetBrains Mono',monospace;}
+  .has-active .fab-badge{display:flex;}
+
+  #scrim{position:absolute; inset:0; background:rgba(0,0,0,0.35); z-index:1500; opacity:0; pointer-events:none; transition:opacity .2s ease;}
+  #scrim.show{opacity:1; pointer-events:auto;}
+
+  .sheet{position:absolute; z-index:2000; left:0; right:0; bottom:0; max-height:78vh; background:var(--panel); border-top:1px solid var(--border); border-radius:20px 20px 0 0; transform:translateY(100%); transition:transform .28s cubic-bezier(.2,.8,.2,1); display:flex; flex-direction:column; box-shadow:0 -10px 40px rgba(0,0,0,0.5);}
+  .sheet.show{transform:translateY(0);}
+  .sheetHandle{width:40px; height:4px; background:var(--border); border-radius:2px; margin:10px auto 4px;}
+  .sheetHeader{display:flex; align-items:center; justify-content:space-between; padding:8px 18px 12px; border-bottom:1px solid var(--border);}
+  .sheetHeader h2{font-family:'Space Grotesk',sans-serif; font-size:16px; margin:0; font-weight:600;}
+  .sheetClose{background:none; border:none; color:var(--muted); font-size:22px; line-height:1; cursor:pointer; padding:4px 8px;}
+  .sheetBody{overflow-y:auto; padding:10px 14px 20px; -webkit-overflow-scrolling:touch;}
+
+  .collapse{border:1px solid var(--border); border-radius:11px; overflow:hidden; margin-bottom:8px; background:var(--panel-2);}
+  .collapse-header{display:flex; align-items:center; justify-content:space-between; padding:10px 12px; cursor:pointer;}
+  .collapse-header .title{font-size:12.5px; font-weight:600;}
+  .collapse-header .chev{color:var(--muted); font-size:11px; transition:transform .18s ease; flex:none;}
+  .collapse.open .chev{transform:rotate(180deg);}
+  .collapse-body{display:none; padding:0 12px 12px; border-top:1px solid var(--border);}
+  .collapse.open .collapse-body{display:block; padding-top:10px;}
+  .collapse-body .field, .collapse-body .hint, .collapse-body .quick-row, .collapse-body button.primary,
+  .collapse-body #shStatus, .collapse-body #owmStatus, .collapse-body #firmsStatus{margin-bottom:8px;}
+  .collapse-body > *:last-child{margin-bottom:0;}
+
+  .section-label{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin:10px 0 6px;}
+  .section-label:first-child{margin-top:0;}
+
+  .layer-grid, .check-grid{display:flex; flex-direction:column; gap:6px;}
+  .layer-opt, .check-row{display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:var(--panel-2); cursor:pointer;}
+  .layer-opt.active, .check-row.checked{border-color:var(--accent); background:rgba(255,138,61,0.08);}
+  .check-row.disabled{opacity:0.45; cursor:not-allowed;}
+  .layer-opt .swatch{width:24px; height:24px; border-radius:6px; flex:none; background-size:cover; background-position:center; border:1px solid var(--border); background-color:#1a2230;}
+  .layer-opt .meta, .check-row .meta{flex:1; min-width:0;}
+  .layer-opt .name, .check-row .name{font-size:12.5px; font-weight:600;}
+  .layer-opt .desc, .check-row .note{display:none; font-size:11px; color:var(--muted); margin-top:2px;}
+  .layer-opt.active .desc, .check-row.checked .note{display:block;}
+  .layer-opt .radio, .checkbox{width:16px; height:16px; border:2px solid var(--border); flex:none;}
+  .layer-opt .radio{border-radius:50%;}
+  .checkbox{border-radius:5px; display:flex; align-items:center; justify-content:center; color:transparent; font-size:11px; font-weight:700;}
+  .layer-opt.active .radio{border-color:var(--accent); background:var(--accent);}
+  .checkbox.checked{background:var(--accent); border-color:var(--accent); color:#0a0e14;}
+  .layer-opt input[type=date]{
+    flex:none; background:var(--bg); border:1px solid var(--border); border-radius:7px; padding:4px 6px;
+    color:var(--text); font-family:'JetBrains Mono',monospace; font-size:10.5px; outline:none; width:98px;
+  }
+
+
+
+
+
+  .shConnect{background:transparent; border:none; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .shConnect .field{display:flex; flex-direction:column; gap:4px;}
+  .shConnect label{font-size:11px; color:var(--muted);}
+  .shConnect input{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:9px 10px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:12.5px; outline:none;}
+  .shConnect input:focus{border-color:var(--accent);}
+  .shConnect button.primary{background:var(--accent); color:#0a0e14; border:none; border-radius:9px; padding:10px; font-weight:600; font-size:13px; cursor:pointer;}
+  #shStatus, #owmStatus, #firmsStatus, #windyStatus, #pfStatus, #webcamStatus, #waqiStatus, #cesiumStatus{font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px;}
+  #shStatus .dot, #owmStatus .dot, #firmsStatus .dot, #windyStatus .dot, #pfStatus .dot, #webcamStatus .dot, #waqiStatus .dot, #cesiumStatus .dot{width:6px; height:6px; border-radius:50%; background:var(--border); flex:none;}
+  #shStatus.ok .dot, #owmStatus.ok .dot, #firmsStatus.ok .dot, #windyStatus.ok .dot, #pfStatus.ok .dot, #webcamStatus.ok .dot, #waqiStatus.ok .dot, #cesiumStatus.ok .dot{background:var(--ok); box-shadow:0 0 6px var(--ok);}
+  #shStatus.ok, #owmStatus.ok, #firmsStatus.ok, #windyStatus.ok, #pfStatus.ok, #webcamStatus.ok, #waqiStatus.ok, #cesiumStatus.ok{color:var(--ok);}
+  .hint{font-size:10.5px; color:var(--muted); line-height:1.5;}
+
+  .addlayer-row{display:flex; gap:8px;}
+  .addlayer-row input{flex:1; min-width:0;}
+  .addlayer-row button{flex:none; background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:0 12px; font-size:12px; cursor:pointer;}
+  .quick-row{display:flex; gap:8px;}
+  .quick-btn{flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px; font-size:12px; cursor:pointer;}
+  .custom-layer-tag{display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); background:var(--bg); border:1px solid var(--border); border-radius:20px; padding:4px 10px; margin:6px 4px 0 0;}
+
+  .ext-links{display:flex; flex-direction:column; gap:8px; margin-top:2px;}
+  .ext-link{display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:var(--panel-2); text-decoration:none; color:var(--text);}
+  .ext-link .name{font-size:13px; font-weight:500;}
+  .ext-link .arrow{color:var(--muted); font-size:16px;}
+
+  #dateReadout{position:absolute; right:14px; bottom:40px; z-index:900; background:rgba(10,14,20,0.75); backdrop-filter:blur(6px); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text); display:none; white-space:nowrap;}
+  #dateReadout.show{display:block;}
+
+  #zoomHint{position:absolute; left:50%; bottom:40px; transform:translateX(-50%); z-index:900; background:rgba(255,138,61,0.15); border:1px solid var(--accent); color:var(--accent); backdrop-filter:blur(6px); border-radius:20px; padding:6px 14px; font-size:12px; font-weight:500; display:none; white-space:nowrap;}
+  #zoomHint.show{display:block;}
+
+  #telemetry{position:absolute; left:0; right:0; bottom:0; z-index:900; display:flex; gap:14px; align-items:center; padding:8px 14px; background:rgba(10,14,20,0.85); backdrop-filter:blur(8px); border-top:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--muted); overflow-x:auto; white-space:nowrap;}
+  #telemetry b{color:var(--text); font-weight:500;}
+  #telemetry .sep{color:var(--border);}
+
+  /* Compare (swipe) */
+  #compareDivider{position:absolute; top:0; bottom:34px; width:0; z-index:950; display:none; pointer-events:none;}
+  #compareDivider.show{display:block;}
+  #compareDivider .line{position:absolute; top:0; bottom:0; left:0; width:2px; background:var(--accent); box-shadow:0 0 8px rgba(255,138,61,0.6);}
+  #compareDivider .knob{position:absolute; top:50%; left:0; transform:translate(-50%,-50%); width:36px; height:36px; border-radius:50%; background:var(--accent); color:#0a0e14; display:flex; align-items:center; justify-content:center; font-size:16px; pointer-events:auto; cursor:ew-resize; box-shadow:0 4px 14px rgba(0,0,0,0.4);}
+  .compare-tag{position:absolute; top:64px; background:rgba(10,14,20,0.85); border:1px solid var(--border); border-radius:8px; padding:4px 9px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text); z-index:950; display:none;}
+  .compare-tag.show{display:block;}
+  #compareTagA{left:10px;}
+  #compareTagB{right:10px;}
+
+  /* Floating mini toolbars (measure / compare exit) */
+  .mini-toolbar{position:absolute; left:50%; bottom:46px; transform:translateX(-50%); z-index:960; display:none; align-items:center; gap:8px; background:rgba(18,25,36,0.92); backdrop-filter:blur(8px); border:1px solid var(--border); border-radius:14px; padding:8px 10px; max-width:92vw; overflow-x:auto;}
+  .mini-toolbar.show{display:flex;}
+  .mini-toolbar span{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text); white-space:nowrap; padding-right:4px;}
+  .mini-toolbar button{flex:none; background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:6px 10px; font-size:12px; cursor:pointer; white-space:nowrap;}
+  .mini-toolbar button.danger{color:var(--accent); border-color:var(--accent);}
+
+  /* Places list */
+  .place-row{display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:12px; border:1px solid var(--border); background:var(--panel-2); margin-bottom:8px;}
+  .place-main{flex:1; min-width:0; cursor:pointer;}
+  .place-name{font-size:13.5px; font-weight:600;}
+  .place-fire{font-size:11px; color:var(--muted); margin-top:2px;}
+  .place-fire.hot{color:var(--accent);}
+  .place-del, .place-fc{flex:none; background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 6px;}
+
+  @media (min-width:760px){
+    .sheet{left:auto; right:14px; top:80px; bottom:auto; width:380px; max-height:calc(100vh - 140px); border-radius:18px; transform:translateX(420px); transition:transform .28s cubic-bezier(.2,.8,.2,1);}
+    .sheet.show{transform:translateX(0);}
+  }
+</style>
+<link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.143/Build/Cesium/Widgets/widgets.css">
+</head>
+<body>
+
+<div id="map"></div>
+<iframe id="windyFrame" style="position:absolute; border:0; z-index:850; display:none;"></iframe>
+<div id="cesiumContainer" style="position:absolute; border:0; z-index:850; display:none;"></div>
+
+<div id="topbar">
+  <div id="brand"><div class="dot"></div><span>GeoPortal</span></div>
+  <div id="searchWrap">
+    <input id="searchInput" type="text" placeholder="Buscar un lugar..." autocomplete="off"/>
+    <button id="searchBtn" title="Buscar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+  </div>
+  <button id="placesBtn" title="Mis lugares"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>
+  <button id="locateBtn" title="Mi ubicación"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+</div>
+
+<button id="settingsBtn" title="Ajustes">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+</button>
+
+<div id="fabDrawer">
+<div id="zoomCtrl"><button id="zoomIn">+</button><button id="zoomOut">−</button></div>
+<button id="baseFab" title="Capas base"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0a0e14" stroke-width="2" stroke-linejoin="round"><polygon points="12 2 2 8 12 14 22 8 12 2"/><polyline points="2 14 12 20 22 14"/><polyline points="2 11 12 17 22 11"/></svg></button>
+<button id="overlayFab" title="Capas complementarias"><span class="fab-badge" id="overlayCount">0</span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+<button id="toolsFab" title="Herramientas"><span class="fab-badge" id="toolsCount">0</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/></svg></button>
+</div>
+<button id="fabTab" title="Mostrar/ocultar controles">◂</button>
+<button id="windyResetBtn">↺ Sincronizar</button>
+
+<div id="scrim"></div>
+
+<div class="sheet" id="baseSheet">
+  <div class="sheetHandle"></div>
+  <div class="sheetHeader"><h2>Capa base</h2><button class="sheetClose">×</button></div>
+  <div class="sheetBody">
+    <div class="layer-grid" id="baseLayerGrid"></div>
+    <div class="hint" style="margin-top:8px;">Ya puedes elegir hasta hoy. Si un día muy reciente sale en blanco, puede que ese satélite aún no haya pasado por esa zona o que el procesamiento no haya terminado — prueba un día antes.</div>
+    <button class="quick-btn" id="reloadBaseBtn" style="width:100%; margin-top:10px;">🔄 Recargar esta capa (si quedan huecos)</button>
+    <input type="date" id="imgDate" style="display:none;"/>
+  </div>
+</div>
+
+<div class="sheet" id="overlaySheet">
+  <div class="sheetHandle"></div>
+  <div class="sheetHeader"><h2>Capas complementarias</h2><button class="sheetClose">×</button></div>
+  <div class="sheetBody">
+    <div class="collapse open">
+      <div class="collapse-header"><span class="title">Referencia</span><span class="chev">▾</span></div>
+      <div class="collapse-body"><div class="check-grid" id="grpRef"></div></div>
+    </div>
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Cámaras web en directo</span><span class="chev">▾</span></div>
+      <div class="collapse-body"><div class="check-grid" id="grpWebcams"></div></div>
+    </div>
+    <div class="collapse open" id="grpWindyOvWrap" style="display:none;">
+      <div class="collapse-header"><span class="title">Windy — capa mostrada</span><span class="chev">▾</span></div>
+      <div class="collapse-body"><div class="layer-grid" id="grpWindyOv"></div></div>
+    </div>
+    <div class="collapse open" id="grpJaxaWrap" style="display:none;">
+      <div class="collapse-header"><span class="title">JAXA Earth <span id="jaxaCountBadge" style="opacity:.6; font-weight:400;"></span></span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="hint">Más de 100 datasets reales de satélites JAXA (elevación, lluvia, temperatura, vegetación, hielo marino, inundaciones...), sin cuenta ni clave. Funciona sobre el globo 3D y sobre cualquier capa base 2D (no sobre Windy). Se descarga una instantánea de la vista actual — pulsa "Actualizar" tras mover el mapa.</div>
+        <input type="text" id="jaxaSearchInput" placeholder="Buscar dataset (ej. temperatura, hielo, lluvia...)" style="width:100%; box-sizing:border-box; background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:8px 10px; font-size:12.5px; margin-bottom:8px;"/>
+        <div class="layer-grid" id="grpJaxa" style="max-height:320px; overflow-y:auto;"></div>
+      </div>
+    </div>
+    <div class="collapse open">
+      <div class="collapse-header"><span class="title">LiDAR (España y global)</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="hint">Modelos derivados de nubes de puntos LiDAR reales: IGN/PNOA para España, ICV para la Comunitat Valenciana (incluye Alicante), y GEDI de la NASA — un láser a bordo de la Estación Espacial Internacional — para cobertura global de altura de vegetación. Cada capa detecta su nombre real consultando el servicio en directo, así que la primera vez que la actives puede tardar un par de segundos.</div>
+        <div class="check-grid" id="grpLidar"></div>
+      </div>
+    </div>
+    <div class="collapse open">
+      <div class="collapse-header"><span class="title">Térmicas de parapente (KK7)</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="hint">Datos reales de vuelo (no calculados): mapas de calor generados a partir de millones de trazas GPS de parapentistas y aladeltistas de todo el mundo — dónde suelen encontrarse térmicas y las rutas de vuelo más habituales. Fuente: thermal.kk7.ch, licencia CC-BY-NC-SA (uso no comercial).</div>
+        <div class="check-grid" id="grpKk7"></div>
+      </div>
+    </div>
+    <div class="collapse open">
+      <div class="collapse-header"><span class="title">Fenómenos en directo</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="check-grid" id="grpLive"></div>
+      </div>
+    </div>
+    <div class="collapse open">
+      <div class="collapse-header"><span class="title">Cielo y espacio</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="check-grid" id="grpSky"></div>
+      </div>
+    </div>
+    <div class="collapse open">
+      <div class="collapse-header"><span class="title">Biodiversidad</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="hint">Mapa de calor de avistamientos reales, de GBIF (la base de datos de biodiversidad más grande del mundo). Escribe el nombre de una especie (en cualquier idioma, o en latín) y verás dónde se ha registrado en el mundo.</div>
+        <input type="text" id="gbifSearchInput" placeholder="Especie (ej. lobo ibérico, Vulpes vulpes...)" style="width:100%; box-sizing:border-box; background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:8px 10px; font-size:12.5px; margin-bottom:8px;"/>
+        <div class="check-grid" id="grpBio"></div>
+      </div>
+    </div>
+    <div class="collapse open">
+      <div class="collapse-header"><span class="title">Meteorología</span><span class="chev">▾</span></div>
+      <div class="collapse-body"><div class="check-grid" id="grpWx"></div></div>
+    </div>
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Calidad del aire</span><span class="chev">▾</span></div>
+      <div class="collapse-body"><div class="check-grid" id="grpAir"></div></div>
+    </div>
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Riesgos</span><span class="chev">▾</span></div>
+      <div class="collapse-body"><div class="check-grid" id="grpHazard"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="toolsSheet">
+  <div class="sheetHandle"></div>
+  <div class="sheetHeader"><h2>Herramientas</h2><button class="sheetClose">×</button></div>
+  <div class="sheetBody">
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Comparar dos fechas (Sentinel-2)</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="hint" id="compareHint">Conecta tu cuenta Sentinel Hub en Ajustes para usar esta herramienta.</div>
+        <div class="hint" id="compareHint2" style="display:none;">La fecha A es la que tengas puesta ahora mismo en "Sentinel-2 (fecha exacta)" como capa base. Elige aquí una fecha B distinta.</div>
+        <div class="field" id="compareDateField" style="display:none;">
+          <label>Fecha B (a la derecha del deslizador)</label>
+          <input type="date" id="compareDateB"/>
+        </div>
+        <button class="primary" id="compareStartBtn" style="display:none;">Activar comparación</button>
+      </div>
+    </div>
+
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Medir distancia y área</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="hint">Toca puntos sobre el mapa para trazar una línea. Con 3 puntos o más también calcula el área.</div>
+        <button class="primary" id="measureStartBtn">Iniciar medición</button>
+      </div>
+    </div>
+
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Pronóstico puntual (Windy)</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="hint" id="pfHint">Añade tu clave de Point Forecast en Ajustes para usar esta herramienta.</div>
+        <button class="primary" id="pfStartBtn" style="display:none;">Tocar un punto del mapa</button>
+      </div>
+    </div>
+
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Animación de nubes</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="hint" id="animHint" style="display:none;">Cambia la capa base a "MODIS Terra" o "VIIRS SNPP" para usar esta herramienta.</div>
+        <div id="animControls">
+          <div class="field"><label>Fuente</label>
+            <div class="quick-row">
+              <button class="quick-btn" id="animSrcModis" style="border-color:var(--accent); color:var(--accent);">MODIS Terra (~250 m)</button>
+              <button class="quick-btn" id="animSrcViirs">VIIRS SNPP (~375 m)</button>
+            </div>
+          </div>
+          <div class="field"><label>Fecha de inicio</label><input type="date" id="animStartDate"/></div>
+          <div class="field"><label>Duración (días)</label><input type="number" id="animDays" min="3" max="20" value="10"/></div>
+          <button class="primary" id="animPlayBtn">▶ Reproducir</button>
+          <div class="hint">Precarga cada día antes de mostrarlo, así siempre ves el fotograma completo, no a medio cargar. La velocidad es un mínimo — si la red va lenta, espera lo que haga falta en vez de mostrar huecos.</div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Índices espectrales</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="hint">Solo funcionan si ya creaste esas capas (NDVI / NDWI) en tu Configuration Utility con ese mismo nombre.</div>
+        <div class="quick-row">
+          <button class="quick-btn" id="quickNdviBtn">＋ NDVI</button>
+          <button class="quick-btn" id="quickNdwiBtn">＋ NDWI</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="forecastSheet">
+  <div class="sheetHandle"></div>
+  <div class="sheetHeader"><h2 id="forecastTitle">Pronóstico</h2><button class="sheetClose">×</button></div>
+  <div class="sheetBody" id="forecastBody"></div>
+</div>
+
+<div class="sheet" id="placesSheet">
+  <div class="sheetHandle"></div>
+  <div class="sheetHeader"><h2>Mis lugares</h2><button class="sheetClose">×</button></div>
+  <div class="sheetBody">
+    <div class="hint" style="margin-bottom:12px;">Se guardan solo mientras tengas esta página abierta (no persisten al cerrarla).</div>
+    <button class="primary" id="savePlaceBtn" style="width:100%; background:var(--accent); color:#0a0e14; border:none; border-radius:9px; padding:11px; font-weight:600; font-size:13px; cursor:pointer; margin-bottom:14px;">＋ Guardar el centro actual del mapa</button>
+    <button class="quick-btn" id="checkFiresBtn" style="width:100%; margin-bottom:14px;">🔥 Comprobar incendios cerca de mis lugares</button>
+    <div id="placesList"></div>
+  </div>
+</div>
+
+<div class="sheet" id="settingsSheet">
+  <div class="sheetHandle"></div>
+  <div class="sheetHeader"><h2>Ajustes</h2><button class="sheetClose">×</button></div>
+  <div class="sheetBody">
+    <div class="collapse open">
+      <div class="collapse-header"><span class="title">Copernicus Data Space · Sentinel Hub</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div id="shStatus"><div class="dot"></div><span id="shStatusText">No conectado</span></div>
+        <div class="field"><label>Instance ID</label><input id="shInstanceId" type="text" placeholder="p. ej. 3a4f21b6-..." autocomplete="off" value="bdaf2c5a-9b09-40b6-b2f1-b2707e92b93a"/></div>
+        <div class="field"><label>Nombre de la capa</label><input id="shLayerId" type="text" placeholder="TRUE_COLOR" value="TRUE_COLOR" autocomplete="off"/></div>
+        <button class="primary" id="shConnectBtn">Conectar y activar capa</button>
+        <div class="hint">Guardado en este archivo, en tu móvil. No se envía a Anthropic — si compartes el archivo, quien lo abra podría usar tu cuota.</div>
+        <div class="field" style="margin-top:2px; border-top:1px solid var(--border); padding-top:10px;">
+          <label>Añadir otra capa (Landsat, DEM, NDVI...)</label>
+          <div class="addlayer-row">
+            <input id="shExtraName" type="text" placeholder="Nombre a mostrar"/>
+            <input id="shExtraLayerId" type="text" placeholder="ID de capa"/>
+            <button id="shExtraAddBtn">＋</button>
+          </div>
+          <div id="shExtraList"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">OpenWeatherMap</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div id="owmStatus"><div class="dot"></div><span id="owmStatusText">No conectado</span></div>
+        <div class="field"><label>Clave API (gratis)</label><input id="owmKey" type="text" placeholder="Pega tu API key" autocomplete="off" value="314eaea5bb42a3e93bac4de532bb0489"/></div>
+        <button class="primary" id="owmConnectBtn">Guardar clave</button>
+        <div class="hint">Activa nubes, viento, precipitación, temperatura y presión en "Capas complementarias".</div>
+      </div>
+    </div>
+
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">NASA FIRMS (alertas de incendios)</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div id="firmsStatus"><div class="dot"></div><span id="firmsStatusText">No conectado</span></div>
+        <div class="field"><label>MAP_KEY (gratis)</label><input id="firmsKey" type="text" placeholder="Pega tu MAP_KEY" autocomplete="off"/></div>
+        <button class="primary" id="firmsConnectBtn">Guardar clave</button>
+        <div class="hint">Gratis en firms.modaps.eosdis.nasa.gov/api/map_key/. Necesaria solo para "Mis lugares".</div>
+      </div>
+    </div>
+
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Calidad del aire (WAQI)</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div id="waqiStatus"><div class="dot"></div><span id="waqiStatusText">No conectado</span></div>
+        <div class="field"><label>Token (gratis)</label><input id="waqiKey" type="text" placeholder="Pega tu token" autocomplete="off"/></div>
+        <button class="primary" id="waqiConnectBtn">Guardar clave</button>
+        <div class="hint">Gratis en aqicn.org/data-platform/register — solo pide un email. El clásico mapa mundial de calidad del aire (waqi.info), ahora como capa sobre tu mapa.</div>
+      </div>
+    </div>
+
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Espacio aéreo (OpenAIP)</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div id="openaipStatus"><div class="dot"></div><span id="openaipStatusText">No conectado</span></div>
+        <div class="field"><label>API key (gratis)</label><input id="openaipKey" type="text" placeholder="Pega tu API key" autocomplete="off"/></div>
+        <button class="primary" id="openaipConnectBtn">Guardar clave</button>
+        <div class="hint">Gratis en openaip.net (crea cuenta → "API Clients" → genera una key). Necesaria para ver espacios aéreos y aeródromos mundiales — útil si vuelas en parapente. La clave se guarda solo en este navegador, tal cual las demás.</div>
+      </div>
+    </div>
+
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Globo 3D (Cesium ion)</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div id="cesiumStatus"><div class="dot"></div><span id="cesiumStatusText">No conectado</span></div>
+        <div class="field"><label>Access token</label><input id="cesiumKey" type="text" placeholder="Pega tu token" autocomplete="off" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJjZWQxMTE2OC1hZWU5LTQ4ZGEtYThjMy05MmFhOTJlZjNmZDMiLCJpZCI6NDYzMjI5LCJzdWIiOiJjNHJwMyIsImlzcyI6Imh0dHBzOi8vYXBpLmNlc2l1bS5jb20iLCJhdWQiOiJlbGV2YWNpw7NuIiwiaWF0IjoxNzg1NzEyNDg0fQ.Q-G1g9OxaIkUwbX6dKGL-4dQY73bXH1yup01-6uapp0"/></div>
+        <button class="primary" id="cesiumConnectBtn">Guardar clave</button>
+        <div class="hint">Con este token, el globo usa el terreno e imágenes oficiales de Cesium en vez de nuestro intento manual con Esri — es el camino que ellos mismos prueban primero, así que debería ser más fiable.</div>
+      </div>
+    </div>
+
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Windy — todas las APIs</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="hint">Cada API de Windy exige su propia clave — no valen unas para otras, aunque las hayas creado en el mismo proyecto.</div>
+
+        <div class="field" style="border-top:1px solid var(--border); padding-top:10px; margin-top:2px;"><label>Map Forecast (capa base)</label></div>
+        <div id="windyStatus"><div class="dot"></div><span id="windyStatusText">No conectado</span></div>
+        <div class="field"><input id="windyKey" type="text" placeholder="Pega tu API key" autocomplete="off"/></div>
+        <button class="primary" id="windyConnectBtn">Guardar clave</button>
+
+        <div class="field" style="border-top:1px solid var(--border); padding-top:10px; margin-top:10px;"><label>Point Forecast (pronóstico puntual)</label></div>
+        <div id="pfStatus"><div class="dot"></div><span id="pfStatusText">No conectado</span></div>
+        <div class="field"><input id="pfKey" type="text" placeholder="Pega tu API key" autocomplete="off"/></div>
+        <button class="primary" id="pfConnectBtn">Guardar clave</button>
+
+        <div class="field" style="border-top:1px solid var(--border); padding-top:10px; margin-top:10px;"><label>Webcams (cámaras en directo)</label></div>
+        <div id="webcamStatus"><div class="dot"></div><span id="webcamStatusText">No conectado</span></div>
+        <div class="field"><input id="webcamKey" type="text" placeholder="Pega tu API key" autocomplete="off"/></div>
+        <button class="primary" id="webcamConnectBtn">Guardar clave</button>
+
+        <div class="hint">Gratis en api.windy.com/keys — genera una clave por cada servicio.</div>
+      </div>
+    </div>
+
+    <div class="collapse">
+      <div class="collapse-header"><span class="title">Datos completos y descargas</span><span class="chev">▾</span></div>
+      <div class="collapse-body">
+        <div class="ext-links">
+          <a class="ext-link" href="https://browser.dataspace.copernicus.eu/" target="_blank" rel="noopener"><span class="name">Copernicus Browser — Sentinel completo</span><span class="arrow">↗</span></a>
+          <a class="ext-link" href="https://earthexplorer.usgs.gov/" target="_blank" rel="noopener"><span class="name">USGS EarthExplorer — Landsat / DEM</span><span class="arrow">↗</span></a>
+          <a class="ext-link" href="https://qgis.org/" target="_blank" rel="noopener"><span class="name">QGIS — Procesamiento de escritorio</span><span class="arrow">↗</span></a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="dateReadout"></div>
+<div id="zoomHint"></div>
+
+<div id="compareDivider"><div class="line"></div><div class="knob">⇔</div></div>
+<div class="compare-tag" id="compareTagA"></div>
+<div class="compare-tag" id="compareTagB"></div>
+
+<div class="mini-toolbar" id="measureToolbar">
+  <span id="measureReadout">Distancia: 0 m</span>
+  <button id="measureUndoBtn">Deshacer punto</button>
+  <button id="measureClearBtn">Borrar</button>
+  <button id="measureExitBtn" class="danger">Salir</button>
+</div>
+<div class="mini-toolbar" id="pfToolbar">
+  <span>Toca un punto del mapa para ver su pronóstico</span>
+  <button id="pfExitBtn" class="danger">Salir</button>
+</div>
+<div class="mini-toolbar" id="animToolbar">
+  <span id="animReadout">Día 1/10</span>
+  <input type="range" id="animSpeed" min="400" max="3500" step="100" value="1500" style="width:80px;"/>
+  <button id="animPauseBtn">⏸</button>
+  <button id="animExitBtn" class="danger">Salir</button>
+</div>
+<div class="mini-toolbar" id="compareToolbar">
+  <span>Comparando fechas</span>
+  <button id="compareFullABtn">Ver todo A</button>
+  <button id="compareFullBBtn">Ver todo B</button>
+  <button id="compareReloadBtn">🔄 Recargar B</button>
+  <button id="compareExitBtn" class="danger">Salir de comparación</button>
+</div>
+
+<div id="telemetry">
+  <span>LAT <b id="tLat">—</b></span><span class="sep">|</span>
+  <span>LON <b id="tLon">—</b></span><span class="sep">|</span>
+  <span>ZOOM <b id="tZoom">—</b></span><span class="sep">|</span>
+  <span>CAPA <b id="tLayer">—</b></span><span class="sep">|</span>
+  <span>RES <b id="tRes">—</b></span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.143/Build/Cesium/Cesium.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // Persist API keys/IDs on this device across sessions. Works when this file is opened directly
+  // in a real mobile/desktop browser (as you've been doing); if it's ever viewed inside Claude's own
+  // chat preview instead of downloaded, that sandboxed view blocks persistent storage and this fails silently.
+  function lsGet(key, fallback){
+    try{ var v = localStorage.getItem('geoportal_' + key); return v === null ? fallback : v; }
+    catch(e){ return fallback; }
+  }
+  function lsSet(key, val){ try{ localStorage.setItem('geoportal_' + key, val); }catch(e){} }
+
+  (function restoreSavedKeys(){
+    var shId = document.getElementById('shInstanceId'), shLy = document.getElementById('shLayerId');
+    shId.value = lsGet('shInstanceId', shId.value);
+    shLy.value = lsGet('shLayerId', shLy.value);
+    var owm = document.getElementById('owmKey');
+    owm.value = lsGet('owmKey', owm.value);
+    document.getElementById('firmsKey').value = lsGet('firmsKey', '');
+    document.getElementById('windyKey').value = lsGet('windyKey', '');
+    document.getElementById('pfKey').value = lsGet('pfKey', '');
+    document.getElementById('webcamKey').value = lsGet('webcamKey', '');
+    document.getElementById('waqiKey').value = lsGet('waqiKey', '');
+    document.getElementById('openaipKey').value = lsGet('openaipKey', '');
+    document.getElementById('cesiumKey').value = lsGet('cesiumKey', document.getElementById('cesiumKey').value);
+  })();
+
+  function yesterday(){ var d=new Date(); d.setDate(d.getDate()-2); return d.toISOString().slice(0,10); }
+  function todayStr(){ return new Date().toISOString().slice(0,10); }
+  function metersPerPixel(lat, zoom){ return 156543.03392 * Math.cos(lat*Math.PI/180) / Math.pow(2, zoom); }
+
+  var map = L.map('map', { zoomControl:false, attributionControl:true, worldCopyJump:true }).setView([40.4168, -3.7038], 11);
+
+  map.createPane('refPane');     map.getPane('refPane').style.zIndex = 350;
+  map.createPane('comparePane'); map.getPane('comparePane').style.zIndex = 380;
+  map.createPane('wxPane');      map.getPane('wxPane').style.zIndex = 450;
+  map.createPane('hazardPane');  map.getPane('hazardPane').style.zIndex = 500;
+
+  function sizeComparePane(){
+    var cp = map.getPane('comparePane');
+    var s = map.getSize();
+    cp.style.width = s.x + 'px';
+    cp.style.height = s.y + 'px';
+    cp.style.top = '0px';
+    cp.style.left = '0px';
+  }
+  sizeComparePane();
+  map.on('resize', sizeComparePane);
+
+  var currentDate = yesterday();
+
+  function attachTileRetry(layer, maxRetries){
+    var retries = {};
+    layer.on('tileerror', function(e){
+      var key = e.coords.x + '_' + e.coords.y + '_' + e.coords.z;
+      retries[key] = (retries[key] || 0) + 1;
+      if(retries[key] <= (maxRetries || 3) && e.tile){
+        setTimeout(function(){ e.tile.src = e.tile.src; }, 1200 * retries[key]);
+      }
+    });
+    return layer;
+  }
+
+  function gibsLayer(layerName, ext, pane){
+    return attachTileRetry(L.tileLayer('https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/' + layerName + '/default/' + currentDate + '/GoogleMapsCompatible_Level9/{z}/{y}/{x}.' + ext,
+      { maxZoom:9, tileSize:256, noWrap:false, attribution:'NASA EOSDIS GIBS', pane: pane || 'tilePane' }));
+  }
+
+  var baseLayers = {
+    esri: { name:'Satélite de alta resolución', desc:'Esri World Imagery · óptico', res:'~0.3–15 m', dated:false,
+      swatch:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/6/25/32',
+      layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Esri, Maxar, Earthstar Geographics'}) },
+    s2cloudless: { name:'Sentinel-2 sin nubes', desc:'EOX / Copernicus · mosaico anual 10 m', res:'~10 m', dated:false,
+      swatch:'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/6/25/32.jpg',
+      layer: L.tileLayer('https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg', {maxZoom:14, attribution:'Sentinel-2 cloudless by EOX IT Services — Contains modified Copernicus Sentinel data 2020'}) },
+    modis: { name:'MODIS Terra (diario)', desc:'NASA GIBS · color real, actualización diaria', res:'~250 m', dated:true, layer: gibsLayer('MODIS_Terra_CorrectedReflectance_TrueColor','jpg') },
+    viirs: { name:'VIIRS SNPP (diario)', desc:'NASA GIBS · color real, mayor detalle', res:'~375 m', dated:true, layer: gibsLayer('VIIRS_SNPP_CorrectedReflectance_TrueColor','jpg') },
+    nightlights: { name:'Luces nocturnas', desc:'NASA Black Marble · VIIRS 2016', res:'~500 m', dated:false,
+      swatch:'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/GoogleMapsCompatible_Level8/6/25/32.jpg',
+      layer: L.tileLayer('https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg', {maxZoom:8, attribution:'NASA EOSDIS GIBS / Black Marble'}) },
+    topo: { name:'Relieve y topografía', desc:'OpenTopoMap · curvas de nivel', res:'variable', dated:false,
+      swatch:'https://a.tile.opentopomap.org/6/32/25.png',
+      layer: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {maxZoom:17, subdomains:'abc', attribution:'OpenTopoMap (CC-BY-SA)'}) },
+    osm: { name:'Mapa de calles', desc:'OpenStreetMap · referencia', res:'—', dated:false,
+      swatch:'https://a.tile.openstreetmap.org/6/32/25.png',
+      layer: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, subdomains:'abc', attribution:'© OpenStreetMap contributors'}) },
+    windy: { name:'Windy — mapa meteorológico', desc:'windy.com · viento, lluvia, temperatura y más', res:'modelo GFS/ECMWF', dated:false, isIframe:true },
+    globe3d: { name:'Globo 3D (Cesium + JAXA)', desc:'Vista tridimensional · experimental', res:'variable', dated:false, is3D:true }
+  };
+
+  var labelsOverlay = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Esri', pane:'refPane' });
+
+  // ---------- Sentinel Hub ----------
+  var shInstanceId = null, shLayerId = 'TRUE_COLOR';
+  var SH_MIN_ZOOM = 8;
+  var ERROR_TILE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='; // 1x1 transparent fallback (kept neutral; diagnosis via load/error counters instead)
+  function buildSentinelHubLayer(instanceId, layerId, date, pane){
+    return attachTileRetry(L.tileLayer.wms('https://sh.dataspace.copernicus.eu/ogc/wms/' + instanceId, {
+      layers: layerId, format:'image/jpeg', transparent:false, tileSize:512, minZoom:SH_MIN_ZOOM, maxZoom:16,
+      keepBuffer: 2,
+      time: date, pane: pane || 'tilePane',
+      attribution:'Copernicus Sentinel data — Sentinel Hub / Copernicus Data Space Ecosystem'
+    }), 4);
+  }
+
+  var shStatusEl = document.getElementById('shStatus'), shStatusText = document.getElementById('shStatusText');
+  var overpassTimes = { sentinelExact:'10:30', modis:'10:30', viirs:'13:30' };
+
+  function updateDateReadout(){
+    var key = activeBaseKey, l = baseLayers[key];
+    var el = document.getElementById('dateReadout');
+    if(l.dated){
+      var t = overpassTimes[key];
+      el.textContent = currentDate + (t ? ' · ' + t : '');
+      el.classList.add('show');
+    } else { el.textContent=''; el.classList.remove('show'); }
+  }
+  function updateZoomHint(){
+    var l = baseLayers[activeBaseKey], hint = document.getElementById('zoomHint');
+    if(l.minZoom && map.getZoom() < l.minZoom){
+      hint.textContent = 'Acércate (zoom ≥ ' + l.minZoom + ') para cargar "' + l.name + '"';
+      hint.classList.add('show');
+    } else hint.classList.remove('show');
+  }
+
+  function connectSentinelHub(autoSwitch){
+    var id = document.getElementById('shInstanceId').value.trim();
+    var layerName = document.getElementById('shLayerId').value.trim() || 'TRUE_COLOR';
+    if(!id){ shStatusText.textContent = 'Falta el Instance ID'; return; }
+    shInstanceId = id; shLayerId = layerName;
+    lsSet('shInstanceId', id); lsSet('shLayerId', layerName);
+    baseLayers.sentinelExact = { name:'Sentinel-2 (fecha exacta)', desc:'Copernicus Data Space · tu cuenta', res:'~10 m', dated:true, minZoom:SH_MIN_ZOOM,
+      layer: buildSentinelHubLayer(shInstanceId, shLayerId, currentDate) };
+    shStatusEl.classList.add('ok');
+    shStatusText.textContent = 'Conectado' + (autoSwitch ? ' — capa activada' : ' — lista para usar');
+    renderBaseGrid();
+    refreshToolsAvailability();
+    if(autoSwitch) setBase('sentinelExact');
+  }
+  document.getElementById('shConnectBtn').addEventListener('click', function(){ connectSentinelHub(true); });
+
+  document.getElementById('shExtraAddBtn').addEventListener('click', function(){
+    if(!shInstanceId){ shStatusText.textContent = 'Conecta primero tu Instance ID'; return; }
+    var name = document.getElementById('shExtraName').value.trim();
+    var layerId = document.getElementById('shExtraLayerId').value.trim();
+    if(!name || !layerId) return;
+    var key = 'custom_' + layerId.replace(/[^a-zA-Z0-9]/g,'_') + '_' + Date.now();
+    baseLayers[key] = { name:name, desc:'Copernicus Data Space · capa personalizada', res:'variable', dated:true, minZoom:SH_MIN_ZOOM,
+      layer: buildSentinelHubLayer(shInstanceId, layerId, currentDate) };
+    renderBaseGrid();
+    var tag = document.createElement('span'); tag.className = 'custom-layer-tag'; tag.textContent = name;
+    document.getElementById('shExtraList').appendChild(tag);
+    document.getElementById('shExtraName').value=''; document.getElementById('shExtraLayerId').value='';
+  });
+  document.getElementById('quickNdviBtn').addEventListener('click', function(){
+    document.getElementById('shExtraName').value = 'NDVI (vegetación)';
+    document.getElementById('shExtraLayerId').value = 'NDVI';
+    document.getElementById('shExtraAddBtn').click();
+    openSheet('settingsSheet');
+  });
+  document.getElementById('quickNdwiBtn').addEventListener('click', function(){
+    document.getElementById('shExtraName').value = 'NDWI (agua)';
+    document.getElementById('shExtraLayerId').value = 'NDWI';
+    document.getElementById('shExtraAddBtn').click();
+    openSheet('settingsSheet');
+  });
+
+  var activeBaseKey = 's2cloudless';
+  baseLayers[activeBaseKey].layer.addTo(map);
+
+  var windyFrame = document.getElementById('windyFrame');
+  var windyOverlay = 'wind';
+  var WINDY_TOP_OFFSET = 66, WINDY_BOTTOM_OFFSET = 34;
+  var windyKeyVal = null, windyStatusEl, windyStatusText;
+  var windyLastView = null; // {lat, lon, zoom} most recently reported by the isolated iframe
+  var windyLoaded = false;
+
+  function sizeWindyFrame(){
+    windyFrame.style.top = WINDY_TOP_OFFSET + 'px';
+    windyFrame.style.left = '0px';
+    windyFrame.style.width = window.innerWidth + 'px';
+    windyFrame.style.height = Math.max(100, window.innerHeight - WINDY_TOP_OFFSET - WINDY_BOTTOM_OFFSET) + 'px';
+  }
+  window.addEventListener('resize', function(){ if(activeBaseKey === 'windy') sizeWindyFrame(); });
+
+  // Windy's library requires Leaflet 1.4.0 and is incompatible with the modern Leaflet we use for
+  // our own map. Running it inside this iframe keeps its Leaflet version completely separate from ours.
+  function buildWindyFrameDoc(key, lat, lon, zoom){
+    return '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+      '<style>html,body,#windy{margin:0;padding:0;width:100%;height:100%;}</style>' +
+      '<script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"><\/script>' +
+      '<script src="https://api.windy.com/assets/map-forecast/libBoot.js"><\/script>' +
+      '</head><body><div id="windy"></div><script>' +
+      'windyInit({ key:' + JSON.stringify(key) + ', verbose:false, lat:' + lat + ', lon:' + lon + ', zoom:' + zoom + ' }, function(api){' +
+      '  parent.postMessage({source:"geoportal-windy", type:"ready"}, "*");' +
+      '  api.map.on("moveend", function(){' +
+      '    var c = api.map.getCenter();' +
+      '    parent.postMessage({source:"geoportal-windy", type:"view", lat:c.lat, lon:c.lng, zoom:api.map.getZoom()}, "*");' +
+      '  });' +
+      '  window.addEventListener("message", function(e){' +
+      '    if(e.data && e.data.source === "geoportal-host"){' +
+      '      if(e.data.type === "sync"){ api.map.setView([e.data.lat, e.data.lon], e.data.zoom); }' +
+      '      if(e.data.type === "setOverlay"){ api.store.set("overlay", e.data.overlay); }' +
+      '    }' +
+      '  });' +
+      '});' +
+      '<\/script></body></html>';
+  }
+
+  window.addEventListener('message', function(e){
+    if(e.data && e.data.source === 'geoportal-windy'){
+      if(e.data.type === 'view'){ windyLastView = { lat:e.data.lat, lon:e.data.lon, zoom:e.data.zoom }; }
+      if(e.data.type === 'ready'){
+        windyLoaded = true;
+        if(windyOverlay !== 'wind'){
+          windyFrame.contentWindow.postMessage({ source:'geoportal-host', type:'setOverlay', overlay:windyOverlay }, '*');
+        }
+      }
+    }
+  });
+
+  function openWindyFrame(){
+    var c = map.getCenter();
+    windyLoaded = false;
+    windyFrame.srcdoc = buildWindyFrameDoc(windyKeyVal, c.lat, c.lng, Math.min(map.getZoom(), 18));
+  }
+  function syncWindyToOurMap(){
+    var c = map.getCenter();
+    windyFrame.contentWindow.postMessage({ source:'geoportal-host', type:'sync', lat:c.lat, lon:c.lng, zoom:Math.min(map.getZoom(), 18) }, '*');
+  }
+
+  // Only overlay IDs actually confirmed from Windy's own store.getAllowed('overlay') console output
+  // (posted by a developer on Windy's community forum) — nothing fabricated/guessed.
+  var WINDY_REAL_OVERLAYS = [
+    { id:'wind', name:'Viento' }, { id:'gust', name:'Ráfagas' },
+    { id:'rain', name:'Lluvia' }, { id:'rainAccu', name:'Lluvia acumulada' },
+    { id:'snowAccu', name:'Nieve acumulada' }, { id:'snowcover', name:'Cobertura de nieve' },
+    { id:'temp', name:'Temperatura' }, { id:'dewpoint', name:'Punto de rocío' }, { id:'rh', name:'Humedad' },
+    { id:'clouds', name:'Nubes' }, { id:'hclouds', name:'Nubes altas' }, { id:'mclouds', name:'Nubes medias' }, { id:'lclouds', name:'Nubes bajas' },
+    { id:'fog', name:'Niebla' }, { id:'cape', name:'CAPE (tormentas)' },
+    { id:'waves', name:'Oleaje' }, { id:'swell1', name:'Marejada 1' }, { id:'swell2', name:'Marejada 2' },
+    { id:'currents', name:'Corrientes' }, { id:'pm2p5', name:'PM2.5' }, { id:'fires', name:'Incendios (Windy)' },
+    { id:'pressure', name:'Presión' }, { id:'satellite', name:'Satélite' }
+  ];
+  function renderWindyOverlaySelector(){
+    var wrap = document.getElementById('grpWindyOvWrap');
+    var el = document.getElementById('grpWindyOv');
+    if(activeBaseKey !== 'windy'){ wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    el.innerHTML = '';
+    WINDY_REAL_OVERLAYS.forEach(function(o){
+      var row = document.createElement('div');
+      row.className = 'layer-opt' + (o.id === windyOverlay ? ' active' : '');
+      row.innerHTML = '<div class="meta"><div class="name">' + o.name + '</div><div class="desc">windy.com · ' + o.id + '</div></div><div class="radio"></div>';
+      row.addEventListener('click', function(){
+        windyOverlay = o.id;
+        if(windyLoaded) windyFrame.contentWindow.postMessage({ source:'geoportal-host', type:'setOverlay', overlay:o.id }, '*');
+        renderWindyOverlaySelector();
+      });
+      el.appendChild(row);
+    });
+  }
+
+  function setFabDrawerHidden(hidden){
+    document.getElementById('fabDrawer').classList.toggle('hidden', hidden);
+    document.getElementById('fabTab').textContent = hidden ? '◂' : '▸';
+  }
+  document.getElementById('fabTab').addEventListener('click', function(){
+    setFabDrawerHidden(!document.getElementById('fabDrawer').classList.contains('hidden'));
+  });
+  function updateWindyChrome(){
+    var isWindy = activeBaseKey === 'windy';
+    var isGlobe = activeBaseKey === 'globe3d';
+    var immersive = isWindy || isGlobe;
+    document.getElementById('fabTab').classList.toggle('show', immersive);
+    document.getElementById('windyResetBtn').classList.toggle('show', isWindy);
+    setFabDrawerHidden(immersive);
+  }
+  document.getElementById('windyResetBtn').addEventListener('click', function(){
+    if(windyLoaded) syncWindyToOurMap();
+    sizeWindyFrame();
+  });
+
+  windyStatusEl = document.getElementById('windyStatus');
+  windyStatusText = document.getElementById('windyStatusText');
+  document.getElementById('windyConnectBtn').addEventListener('click', function(){
+    var k = document.getElementById('windyKey').value.trim();
+    if(!k) return;
+    windyKeyVal = k;
+    lsSet('windyKey', k);
+    windyStatusEl.classList.add('ok');
+    windyStatusText.textContent = 'Conectado';
+  });
+
+  // ---------- 3D Globe (CesiumJS + JAXA Earth API) ----------
+  var cesiumViewer = null, cesiumTokenVal = null;
+  var cesiumStatusEl = document.getElementById('cesiumStatus'), cesiumStatusText = document.getElementById('cesiumStatusText');
+  document.getElementById('cesiumConnectBtn').addEventListener('click', function(){
+    var k = document.getElementById('cesiumKey').value.trim(); if(!k) return;
+    cesiumTokenVal = k; lsSet('cesiumKey', k);
+    cesiumStatusEl.classList.add('ok'); cesiumStatusText.textContent = 'Conectado';
+  });
+  var CESIUM_TOP_OFFSET = 66, CESIUM_BOTTOM_OFFSET = 34;
+  function sizeCesiumContainer(){
+    var c = document.getElementById('cesiumContainer');
+    c.style.top = CESIUM_TOP_OFFSET + 'px'; c.style.left = '0px';
+    c.style.width = window.innerWidth + 'px';
+    c.style.height = Math.max(100, window.innerHeight - CESIUM_TOP_OFFSET - CESIUM_BOTTOM_OFFSET) + 'px';
+    if(cesiumViewer) cesiumViewer.resize();
+  }
+  window.addEventListener('resize', function(){ if(activeBaseKey === 'globe3d') sizeCesiumContainer(); });
+
+  function initCesium(onReady){
+    if(cesiumViewer){ onReady(); return; }
+    if(typeof Cesium === 'undefined'){
+      alert('La librería CesiumJS no se ha cargado (revisa tu conexión) — vuelve a intentarlo en unos segundos.');
+      return;
+    }
+    var testCanvas = document.createElement('canvas');
+    var gl = testCanvas.getContext('webgl2') || testCanvas.getContext('webgl');
+    if(!gl){
+      alert('Tu navegador no soporta WebGL, imprescindible para el globo 3D. Prueba con otro navegador.');
+      return;
+    }
+    var viewerOptions = {
+      baseLayerPicker:false, geocoder:false, homeButton:false, sceneModePicker:false,
+      navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false
+    };
+    try{
+      if(cesiumTokenVal){
+        Cesium.Ion.defaultAccessToken = cesiumTokenVal;
+        Promise.all([ Cesium.createWorldImageryAsync(), Cesium.createWorldTerrainAsync() ])
+          .then(function(results){
+            viewerOptions.baseLayer = Cesium.ImageryLayer.fromProviderAsync(Promise.resolve(results[0]));
+            viewerOptions.terrainProvider = results[1];
+            cesiumViewer = new Cesium.Viewer('cesiumContainer', viewerOptions);
+            onReady();
+          }).catch(function(err){
+            alert('Error cargando los datos oficiales de Cesium ion: ' + err.message + '\nRevisa que el token sea válido y tenga permisos de "Assets: Read".');
+          });
+      } else {
+        Cesium.Ion.defaultAccessToken = null;
+        viewerOptions.baseLayer = false;
+        cesiumViewer = new Cesium.Viewer('cesiumContainer', viewerOptions);
+        var esriProvider = new Cesium.UrlTemplateImageryProvider({
+          url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          credit:'Esri, Maxar, Earthstar Geographics'
+        });
+        cesiumViewer.imageryLayers.addImageryProvider(esriProvider);
+        onReady();
+      }
+    } catch(err){
+      alert('Error iniciando el globo 3D: ' + err.message);
+      console.error(err);
+    }
+  }
+  function flyCesiumTo(lat, lon, zoom){
+    if(!cesiumViewer) return;
+    var height = Math.max(500, 40000000 / Math.pow(2, zoom)); // rough zoom-to-altitude approximation
+    cesiumViewer.camera.setView({
+      destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 }
+    });
+  }
+  function openCesiumGlobe(){
+    var c = map.getCenter(), z = map.getZoom();
+    sizeCesiumContainer();
+    initCesium(function(){ flyCesiumTo(c.lat, c.lng, z); });
+  }
+  function syncCesiumFromOurMap(){
+    var c = map.getCenter();
+    if(cesiumViewer) flyCesiumTo(c.lat, c.lng, map.getZoom());
+  }
+  function syncOurMapFromCesium(){
+    if(!cesiumViewer) return;
+    var carto = cesiumViewer.camera.positionCartographic;
+    var lat = Cesium.Math.toDegrees(carto.latitude), lon = Cesium.Math.toDegrees(carto.longitude);
+    var zoom = Math.max(2, Math.min(18, Math.log2(40000000 / carto.height)));
+    map.setView([lat, lon], Math.round(zoom));
+  }
+
+  // JAXA Earth API — overlay on top of the 3D globe AND on top of any 2D base layer (except Windy,
+  // which runs in an isolated iframe with no addressable map surface). Uses getDataObject() +
+  // image.createCanvas() (the confirmed correct rendering chain from JAXA's own official example)
+  // to draw a snapshot of the current view. It is NOT a continuous tile layer — you refresh it
+  // manually after moving the map/camera.
+  //
+  // The dataset list itself is NOT hand-typed: it's fetched live from JAXA's own official machine-
+  // readable catalog (the same file JAXA publishes for AI assistants to read), so it always reflects
+  // whatever JAXA currently has published (100+ datasets) instead of a stale hardcoded subset.
+  var jaxaModule = null, jaxaLayer = null, jaxaLeafletLayer = null;
+  function loadJaxaModule(){
+    if(jaxaModule) return Promise.resolve(jaxaModule);
+    return import('https://data.earth.jaxa.jp/api/javascript/v2.0.1/jaxa.earth.esm.js')
+      .then(function(mod){ jaxaModule = mod; return mod; });
+  }
+
+  var JAXA_CATALOG_URL = 'https://data.earth.jaxa.jp/app/mcp/catalog.v2.md';
+  var jaxaCatalog = null, jaxaCatalogState = 'idle'; // idle | loading | ready | error
+
+  // JAXA's catalog lists id/collection/bands/keywords but does not publish a recommended color
+  // range per band. These ranges are reasonable visualization defaults inferred from the band's
+  // physical quantity (matching JAXA's own official examples where available) — not authoritative
+  // per-dataset calibration. Falls back to 0–1 (auto-ish) for anything unrecognized.
+  function guessJaxaRange(band, id, title){
+    var s = (band + ' ' + id + ' ' + title).toUpperCase();
+    var rules = [
+      [/DSM|ELEV/, 0, 6000],
+      [/\bEXT\b|PRECIP/, 0, 20],
+      [/NDVI/, -0.2, 1],
+      [/\bSST\b/, 270, 305],
+      [/\bLST\b/, 250, 320],
+      [/CHLA/, 0, 1],
+      [/\bSMC\b/, 0, 0.5],
+      [/\bSSW\b/, 0, 25],
+      [/AROT|TAUA|T500/, 0, 1],
+      [/\bFNF\b/, 0, 3],
+      [/LCCS|HRLULC/, 0, 220],
+      [/\bIC0\b/, 0, 100],
+      [/\bSPI\b/, -3, 3],
+      [/ETIDX/, 0, 1],
+      [/\bET\b/, 0, 10],
+      [/FLDDPH|RIVDPH/, 0, 10],
+      [/RPRIVDPH/, 0, 100],
+      [/FLDOUT|RIVOUT|OUTFLW/, 0, 1000],
+      [/FLDFRC/, 0, 1]
+    ];
+    for(var i=0;i<rules.length;i++){ if(rules[i][0].test(s)) return {min:rules[i][1], max:rules[i][2]}; }
+    return {min:0, max:1};
+  }
+
+  // Fallback used only if the live catalog fetch fails (e.g. offline) — a small known-good subset.
+  var JAXA_FALLBACK = [
+    { id:'JAXA.EORC_ALOS.PRISM_AW3D30.v3.2_global', title:'Elevación (ALOS DSM 30m)', band:'DSM', keywords:'Elevation, ALOS',
+      collectionUrl:'https://s3.ap-northeast-1.wasabisys.com/je-pds/cog/v1/JAXA.EORC_ALOS.PRISM_AW3D30.v3.2_global/collection.json' },
+    { id:'JAXA.EORC_GSMaP_standard.Gauge.00Z-23Z.v6_daily', title:'Precipitación (GSMaP diario)', band:'PRECIP', keywords:'Precipitation, GSMaP',
+      collectionUrl:'https://s3.ap-northeast-1.wasabisys.com/je-pds/cog/v1/JAXA.EORC_GSMaP_standard.Gauge.00Z-23Z.v6_daily/collection.json' },
+    { id:'JAXA.JASMES_Terra.MODIS-Aqua.MODIS_ndvi.v811_global_monthly', title:'Vegetación (NDVI mensual)', band:'ndvi', keywords:'NDVI, MODIS',
+      collectionUrl:'https://s3.ap-northeast-1.wasabisys.com/je-pds/cog/v1/JAXA.JASMES_Terra.MODIS-Aqua.MODIS_ndvi.v811_global_monthly/collection.json' }
+  ];
+
+  function parseJaxaCatalog(md){
+    var out = [];
+    var listStart = md.indexOf('# Dataset List');
+    if(listStart === -1) return out;
+    var body = md.slice(listStart);
+    var blocks = body.split(/\n## /).slice(1);
+    blocks.forEach(function(block){
+      var lines = ('## ' + block).split('\n');
+      var title = lines[0].replace(/^##\s*/, '').trim();
+      var f = {};
+      lines.forEach(function(line){
+        var m = line.match(/^\*\s*(\w+):\s*(.*)$/);
+        if(m) f[m[1]] = m[2].trim();
+      });
+      if(!f.id || !f.collection || !f.bands) return;
+      var bandList = f.bands.split(',').map(function(b){ return b.trim(); }).filter(Boolean);
+      var band = bandList.find(function(b){ return b.toUpperCase() !== 'MSK'; }) || bandList[0];
+      out.push({
+        // f.collection from the live catalog is already a full collection.json URL — store it as-is
+        // (do NOT re-prefix it later, that was the bug that broke every dynamically-loaded dataset).
+        id: f.id, title: title, collectionUrl: f.collection, band: band,
+        keywords: f.keywords || '', dataProvider: f.dataProvider || '',
+        temporalResolution: f.temporalResolution || '', normal: f.normal === 'true'
+      });
+    });
+    return out;
+  }
+
+  function loadJaxaCatalog(cb){
+    if(jaxaCatalogState === 'ready'){ cb(jaxaCatalog); return; }
+    if(jaxaCatalogState === 'loading') return;
+    jaxaCatalogState = 'loading';
+    renderJaxaSelector();
+    fetch(JAXA_CATALOG_URL).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    }).then(function(md){
+      var parsed = parseJaxaCatalog(md);
+      jaxaCatalog = parsed.length ? parsed : JAXA_FALLBACK;
+      jaxaCatalogState = 'ready';
+      cb(jaxaCatalog);
+    }).catch(function(err){
+      console.error('JAXA catalog fetch failed', err);
+      jaxaCatalog = JAXA_FALLBACK;
+      jaxaCatalogState = 'error';
+      cb(jaxaCatalog);
+    });
+  }
+
+  var jaxaRunToken = 0;
+  function clearJaxaLayers(){
+    if(jaxaLayer){ cesiumViewer.imageryLayers.remove(jaxaLayer); jaxaLayer = null; }
+    if(jaxaLeafletLayer){ map.removeLayer(jaxaLeafletLayer); jaxaLeafletLayer = null; }
+  }
+  function toggleJaxaLayer(dataset){
+    jaxaRunToken++;
+    var myToken = jaxaRunToken;
+    clearJaxaLayers();
+    if(!dataset) return;
+    var use3D = (activeBaseKey === 'globe3d');
+    var west, south, east, north;
+    if(use3D){
+      var rect = cesiumViewer.camera.computeViewRectangle();
+      west = Cesium.Math.toDegrees(rect.west); south = Cesium.Math.toDegrees(rect.south);
+      east = Cesium.Math.toDegrees(rect.east); north = Cesium.Math.toDegrees(rect.north);
+    } else {
+      var b = map.getBounds();
+      west = b.getWest(); south = b.getSouth(); east = b.getEast(); north = b.getNorth();
+    }
+    var range = guessJaxaRange(dataset.band, dataset.id, dataset.title);
+    function attempt(retriesLeft){
+      return loadJaxaModule().then(function(je){
+        if(myToken !== jaxaRunToken) return;
+        return je.getDataObject({
+          collectionUrl: dataset.collectionUrl,
+          band: dataset.band,
+          bbox:[west, south, east, north], width:512, height:512
+        }).then(function(dataObj){
+          if(myToken !== jaxaRunToken) return; // superseded by a newer selection while this was loading
+          var colorMap = new je.image.ColorMap({ min:range.min, max:range.max, colors: je.Colors.JET });
+          var canvas = je.image.createCanvas(dataObj, colorMap);
+          if(use3D){
+            jaxaLayer = cesiumViewer.imageryLayers.addImageryProvider(new Cesium.SingleTileImageryProvider({
+              url: canvas.toDataURL(), rectangle: Cesium.Rectangle.fromDegrees(west, south, east, north)
+            }));
+            jaxaLayer.alpha = 0.8;
+          } else {
+            jaxaLeafletLayer = L.imageOverlay(canvas.toDataURL(), [[south, west],[north, east]], {opacity:0.8}).addTo(map);
+          }
+        });
+      }).catch(function(err){
+        if(myToken !== jaxaRunToken) return;
+        // "Fetch Aborted" from a fresh, first-try request is usually a transient network hiccup
+        // (flaky connection, JAXA's server momentarily slow) rather than a real block — one silent
+        // retry clears most of these without bothering the user.
+        if(retriesLeft > 0 && /abort/i.test(err.message || '')){
+          return new Promise(function(res){ setTimeout(res, 900); }).then(function(){ return attempt(retriesLeft - 1); });
+        }
+        var msg = 'No se pudo cargar "' + dataset.title + '".\n\n'
+          + 'Detalle técnico: ' + err.message + '\n'
+          + 'Fuente: ' + dataset.collectionUrl + '\n\n'
+          + 'Si esto pasa con TODOS los datasets: revisa tu conexión o desactiva temporalmente un bloqueador de anuncios/rastreadores (Brave Shields, uBlock...) para este sitio, ya que a veces bloquean peticiones a dominios de terceros como los de JAXA.\n'
+          + 'Si solo pasa con este dataset en concreto: puede que JAXA no tenga datos para esta zona/fecha, o que el archivo esté temporalmente caído.';
+        alert(msg);
+      });
+    }
+    attempt(1);
+  }
+
+  var jaxaSelected = null, jaxaSearchTerm = '';
+  document.getElementById('jaxaSearchInput').addEventListener('input', function(e){
+    jaxaSearchTerm = e.target.value.trim().toLowerCase();
+    renderJaxaSelector();
+  });
+  function renderJaxaSelector(){
+    var wrap = document.getElementById('grpJaxaWrap');
+    var el = document.getElementById('grpJaxa');
+    var badge = document.getElementById('jaxaCountBadge');
+    if(activeBaseKey === 'windy'){ wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    el.innerHTML = '';
+    if(jaxaCatalogState !== 'ready'){
+      badge.textContent = '';
+      el.innerHTML = '<div class="hint">' + (jaxaCatalogState === 'error' ? '⚠️ No se pudo descargar el catálogo en vivo — usando una lista reducida de respaldo.' : 'Cargando catálogo de JAXA…') + '</div>';
+      loadJaxaCatalog(function(){ renderJaxaSelector(); });
+      if(jaxaCatalogState !== 'error') return;
+    }
+    badge.textContent = '(' + jaxaCatalog.length + ')';
+    var noneRow = document.createElement('div');
+    noneRow.className = 'layer-opt' + (!jaxaSelected ? ' active' : '');
+    noneRow.innerHTML = '<div class="meta"><div class="name">Ninguna</div></div><div class="radio"></div>';
+    noneRow.addEventListener('click', function(){ jaxaSelected = null; toggleJaxaLayer(null); renderJaxaSelector(); });
+    el.appendChild(noneRow);
+    var list = jaxaCatalog;
+    if(jaxaSearchTerm){
+      list = list.filter(function(ds){
+        return (ds.title + ' ' + ds.keywords + ' ' + ds.id).toLowerCase().indexOf(jaxaSearchTerm) !== -1;
+      });
+    }
+    list.slice(0, 200).forEach(function(ds){
+      var row = document.createElement('div');
+      row.className = 'layer-opt' + (jaxaSelected === ds.id ? ' active' : '');
+      var sub = [ds.dataProvider, ds.temporalResolution].filter(Boolean).join(' · ');
+      row.innerHTML = '<div class="meta"><div class="name">' + ds.title + '</div><div class="desc">' + sub + '</div></div><div class="radio"></div>';
+      row.addEventListener('click', function(){ jaxaSelected = ds.id; toggleJaxaLayer(ds); renderJaxaSelector(); });
+      el.appendChild(row);
+    });
+    if(jaxaSearchTerm && !list.length){
+      var empty = document.createElement('div'); empty.className = 'hint'; empty.textContent = 'Sin resultados para "' + jaxaSearchTerm + '".';
+      el.appendChild(empty);
+    }
+    if(jaxaSelected){
+      var ds = jaxaCatalog.filter(function(d){ return d.id === jaxaSelected; })[0];
+      if(ds){
+        var refreshBtn = document.createElement('button');
+        refreshBtn.className = 'quick-btn'; refreshBtn.style.width = '100%'; refreshBtn.style.marginTop = '6px';
+        refreshBtn.textContent = '🔄 Actualizar con la vista actual';
+        refreshBtn.addEventListener('click', function(){ toggleJaxaLayer(ds); });
+        el.appendChild(refreshBtn);
+      }
+    }
+  }
+
+  function setBase(key){
+    if(key === activeBaseKey) return;
+    if(key === 'windy' && !windyKeyVal){
+      alert('Añade tu clave gratuita de Windy en Ajustes primero (consíguela en api.windy.com).');
+      return;
+    }
+    if(baseLayers[activeBaseKey] && baseLayers[activeBaseKey].layer) map.removeLayer(baseLayers[activeBaseKey].layer);
+    // Leaving Windy: sync OUR map to wherever the user navigated inside Windy's own map.
+    if(activeBaseKey === 'windy'){
+      windyFrame.style.display = 'none';
+      if(windyLastView){ map.setView([windyLastView.lat, windyLastView.lon], windyLastView.zoom); }
+    }
+    // Leaving the 3D globe: sync OUR map to wherever the camera ended up.
+    if(activeBaseKey === 'globe3d'){
+      document.getElementById('cesiumContainer').style.display = 'none';
+      syncOurMapFromCesium();
+    }
+    // The JAXA snapshot is tied to a specific view/rendering surface (Cesium canvas vs. our Leaflet
+    // map), so drop it on any base switch — the selection itself is kept, and the "Actualizar" button
+    // in the JAXA panel redraws it for the new base/view with one tap.
+    clearJaxaLayers();
+    if(key === 'modis' || key === 'viirs'){
+      var ln = key === 'modis' ? 'MODIS_Terra_CorrectedReflectance_TrueColor' : 'VIIRS_SNPP_CorrectedReflectance_TrueColor';
+      baseLayers[key].layer = gibsLayer(ln, 'jpg');
+    }
+    activeBaseKey = key;
+    if(key === 'windy'){
+      windyFrame.style.display = 'block';
+      sizeWindyFrame();
+      openWindyFrame();
+    } else if(key === 'globe3d'){
+      document.getElementById('cesiumContainer').style.display = 'block';
+      openCesiumGlobe();
+    } else {
+      baseLayers[key].layer.addTo(map);
+    }
+    renderBaseGrid(); updateTelemetry(); updateDateReadout(); updateZoomHint();
+    renderRef(); renderWx(); renderAirQuality(); renderHazard(); renderLidar(); renderKk7(); renderLive(); renderSky(); renderBio(); renderWebcams(); renderWindyOverlaySelector(); renderJaxaSelector(); refreshToolsAvailability();
+    updateWindyChrome();
+  }
+
+  var gridEl = document.getElementById('baseLayerGrid');
+  var dateInputEl = document.getElementById('imgDate');
+  var baseOrder = ['esri', 'sentinelExact', 's2cloudless', 'windy', 'globe3d', 'modis', 'viirs', 'nightlights', 'topo', 'osm'];
+  function orderedBaseKeys(){
+    var keys = baseOrder.filter(function(k){ return !!baseLayers[k]; });
+    Object.keys(baseLayers).forEach(function(k){ if(keys.indexOf(k) === -1) keys.push(k); });
+    return keys;
+  }
+  function renderBaseGrid(){
+    gridEl.innerHTML = '';
+    orderedBaseKeys().forEach(function(key){
+      var l = baseLayers[key];
+      var el = document.createElement('div');
+      el.className = 'layer-opt' + (key === activeBaseKey ? ' active' : '');
+      el.innerHTML = '<div class="swatch" style="background-image:url(\'' + (l.swatch||'') + '\');"></div>' +
+        '<div class="meta"><div class="name">' + l.name + '</div><div class="desc">' + l.desc + ' · ' + l.res + '</div></div>' +
+        '<div class="radio"></div>';
+      el.addEventListener('click', function(e){ if(e.target === dateInputEl) return; setBase(key); });
+      gridEl.appendChild(el);
+      if(key === activeBaseKey && l.dated){
+        dateInputEl.style.display = 'block';
+        el.insertBefore(dateInputEl, el.querySelector('.radio'));
+      }
+    });
+  }
+  renderBaseGrid();
+
+  var dateInput = document.getElementById('imgDate');
+  dateInput.value = currentDate; dateInput.max = todayStr();
+  dateInput.addEventListener('change', function(){
+    currentDate = dateInput.value;
+    var key = activeBaseKey;
+    if(key === 'modis' || key === 'viirs'){
+      map.removeLayer(baseLayers[key].layer);
+      var ln = key === 'modis' ? 'MODIS_Terra_CorrectedReflectance_TrueColor' : 'VIIRS_SNPP_CorrectedReflectance_TrueColor';
+      baseLayers[key].layer = gibsLayer(ln, 'jpg');
+      baseLayers[key].layer.addTo(map);
+    } else if(baseLayers[key] && baseLayers[key].layer && typeof baseLayers[key].layer.setParams === 'function'){
+      baseLayers[key].layer.setParams({ time: currentDate });
+    }
+    if(firesOn && firesLayer) firesLayer.setParams({ time: currentDate });
+    updateTelemetry(); updateDateReadout();
+  });
+  document.getElementById('reloadBaseBtn').addEventListener('click', function(){
+    var l = baseLayers[activeBaseKey].layer;
+    if(l && typeof l.redraw === 'function') l.redraw();
+  });
+
+  // ---------- overlay checkboxes ----------
+  var overlayCount = 0;
+  function bumpOverlay(delta){
+    overlayCount += delta;
+    document.getElementById('overlayCount').textContent = overlayCount;
+    document.getElementById('overlayFab').classList.toggle('has-active', overlayCount > 0);
+  }
+  function makeCheckRow(container, opts){
+    var row = document.createElement('div');
+    var on = opts.isOn();
+    row.className = 'check-row' + (opts.disabled ? ' disabled' : '') + (on ? ' checked' : '');
+    row.innerHTML = '<div class="meta"><div class="name">' + opts.name + '</div>' +
+      (opts.note ? '<div class="note">' + opts.note + '</div>' : '') + '</div>' +
+      '<div class="checkbox' + (on ? ' checked' : '') + '">' + (on ? '✓' : '') + '</div>';
+    if(!opts.disabled) row.addEventListener('click', function(){ opts.onToggle(); });
+    container.appendChild(row);
+  }
+  function incompatibleHint(el, label){
+    el.innerHTML = '<div class="hint">No disponible con "' + label + '" como capa base.</div>';
+  }
+
+  var labelsOn = false;
+  function renderRef(){
+    var el = document.getElementById('grpRef'); el.innerHTML = '';
+    if(activeBaseKey === 'windy' || activeBaseKey === 'globe3d'){ incompatibleHint(el, baseLayers[activeBaseKey].name); return; }
+    makeCheckRow(el, { name:'Nombres y fronteras', note:'Esri Reference', isOn:function(){ return labelsOn; },
+      onToggle:function(){ labelsOn=!labelsOn; if(labelsOn){ labelsOverlay.addTo(map); bumpOverlay(1);} else { map.removeLayer(labelsOverlay); bumpOverlay(-1);} renderRef(); } });
+  }
+  renderRef();
+
+  // ---------- Webcams (Windy Webcams API v3) — works over any base layer ----------
+  var webcamKeyVal = null, webcamsOn = false, webcamGroup = L.layerGroup();
+  var webcamStatusEl = document.getElementById('webcamStatus'), webcamStatusText = document.getElementById('webcamStatusText');
+  document.getElementById('webcamConnectBtn').addEventListener('click', function(){
+    var k = document.getElementById('webcamKey').value.trim(); if(!k) return;
+    webcamKeyVal = k; lsSet('webcamKey', k);
+    webcamStatusEl.classList.add('ok'); webcamStatusText.textContent = 'Conectado';
+    renderWebcams();
+  });
+  function fetchWebcams(){
+    if(!webcamKeyVal) return;
+    var c = map.getCenter();
+    webcamGroup.clearLayers();
+    fetch('https://api.windy.com/webcams/api/v3/webcams?nearby=' + c.lat + ',' + c.lng + ',50&limit=50&include=images,location',
+      { headers: { 'x-windy-api-key': webcamKeyVal } })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var cams = d.webcams || [];
+        cams.forEach(function(w){
+          if(!w.location) return;
+          var imgs = w.images && w.images.current;
+          var thumb = imgs ? (imgs.thumbnail || imgs.icon) : null;
+          var full = imgs ? (imgs.preview || imgs.thumbnail || imgs.icon) : null;
+          var icon = L.divIcon({ html:'📷', className:'', iconSize:[22,22], iconAnchor:[11,11] });
+          var marker = L.marker([w.location.latitude, w.location.longitude], { icon:icon, pane:'refPane' });
+          var popupHtml = '<div style="font-family:sans-serif;font-size:12px;max-width:180px;">' +
+            '<b>' + (w.title || 'Webcam') + '</b><br>' +
+            (thumb ? '<a href="' + full + '" target="_blank" rel="noopener"><img src="' + thumb + '" style="width:100%;border-radius:6px;margin-top:4px;cursor:pointer;"></a>' : '') +
+            (w.location.city ? '<div style="margin-top:4px;color:#666;">' + w.location.city + ', ' + (w.location.country||'') + '</div>' : '') +
+            '</div>';
+          marker.bindPopup(popupHtml);
+          marker.addTo(webcamGroup);
+        });
+      }).catch(function(){});
+  }
+  map.on('moveend', function(){ if(webcamsOn) fetchWebcams(); });
+  function renderWebcams(){
+    var el = document.getElementById('grpWebcams'); el.innerHTML = '';
+    if(activeBaseKey === 'windy' || activeBaseKey === 'globe3d'){ incompatibleHint(el, baseLayers[activeBaseKey].name); return; }
+    makeCheckRow(el, { name:'Cámaras web cercanas', note: webcamKeyVal ? 'Windy Webcams API · ~50 km alrededor del centro' : 'Añade tu clave en Ajustes', disabled: !webcamKeyVal,
+      isOn:function(){ return webcamsOn; },
+      onToggle:function(){
+        webcamsOn = !webcamsOn;
+        if(webcamsOn){ webcamGroup.addTo(map); fetchWebcams(); bumpOverlay(1); }
+        else { map.removeLayer(webcamGroup); bumpOverlay(-1); }
+        renderWebcams();
+      }});
+    if(webcamsOn){
+      var refreshBtn = document.createElement('button');
+      refreshBtn.className = 'quick-btn'; refreshBtn.style.width = '100%';
+      refreshBtn.textContent = '🔄 Buscar cámaras en la vista actual';
+      refreshBtn.addEventListener('click', fetchWebcams);
+      el.appendChild(refreshBtn);
+    }
+  }
+  renderWebcams();
+
+  var rainviewerLayer=null, rainviewerOn=false;
+  function toggleRainviewer(){
+    rainviewerOn = !rainviewerOn;
+    if(rainviewerOn){
+      fetch('https://api.rainviewer.com/public/weather-maps.json').then(function(r){return r.json();}).then(function(data){
+        var frames=(data.radar && data.radar.past)||[]; var last=frames[frames.length-1];
+        if(last){ rainviewerLayer = attachTileRetry(L.tileLayer('https://tilecache.rainviewer.com'+last.path+'/256/{z}/{x}/{y}/4/1_1.png', {opacity:0.75, attribution:'RainViewer', pane:'wxPane'})); rainviewerLayer.addTo(map); }
+      }).catch(function(){ rainviewerOn=false; bumpOverlay(-1); renderWx(); });
+      bumpOverlay(1);
+    } else { if(rainviewerLayer) map.removeLayer(rainviewerLayer); bumpOverlay(-1); }
+    renderWx();
+  }
+
+  var owmKeyVal=null, owmState={};
+  var owmDefs=[{code:'clouds_new',name:'Nubes'},{code:'precipitation_new',name:'Precipitación'},{code:'wind_new',name:'Viento (textura)'},{code:'temp_new',name:'Temperatura (mapa de calor)'},{code:'pressure_new',name:'Presión atmosférica'}];
+  var owmStatusEl=document.getElementById('owmStatus'), owmStatusText=document.getElementById('owmStatusText');
+  function owmTile(code){
+    var l = attachTileRetry(L.tileLayer('https://tile.openweathermap.org/map/'+code+'/{z}/{x}/{y}.png?appid='+owmKeyVal, {opacity:0.7, attribution:'OpenWeatherMap', pane:'wxPane'}));
+    l.on('tileerror', function(){ owmStatusEl.classList.remove('ok'); owmStatusText.textContent = 'Error cargando capa — clave inválida o aún no activada (puede tardar hasta 2 h tras crearla)'; });
+    return l;
+  }
+
+  // Wind arrows: grid of point samples (OWM current weather), rotated by direction,
+  // colored by temperature (blue=frío, rojo=cálido), tamaño escalado por velocidad.
+  var windArrowsOn = false;
+  var windMarkers = L.layerGroup();
+  function tempToColor(t){
+    var c = Math.max(-10, Math.min(40, t));
+    var hue = 240 - ((c + 10) / 50) * 240;
+    return 'hsl(' + hue.toFixed(0) + ',85%,55%)';
+  }
+  function makeArrowIcon(deg, speed, color){
+    var scale = (0.6 + Math.min(speed / 15, 1) * 0.9).toFixed(2);
+    var html = '<svg width="34" height="34" viewBox="0 0 34 34" style="transform:rotate(' + (deg + 180) + 'deg) scale(' + scale + '); transform-origin:17px 17px; overflow:visible;">' +
+      '<line x1="17" y1="28" x2="17" y2="8" stroke="' + color + '" stroke-width="3" stroke-linecap="round"/>' +
+      '<polygon points="17,3 12,12 22,12" fill="' + color + '"/></svg>';
+    return L.divIcon({ html:html, className:'', iconSize:[34,34], iconAnchor:[17,17] });
+  }
+  function fetchWindGrid(){
+    if(!owmKeyVal) return;
+    windMarkers.clearLayers();
+    var b = map.getBounds();
+    var cols = 5, rows = 4;
+    for(var r=0; r<rows; r++){
+      for(var c=0; c<cols; c++){
+        (function(lat, lng){
+          fetch('https://api.openweathermap.org/data/2.5/weather?lat=' + lat + '&lon=' + lng + '&units=metric&appid=' + owmKeyVal)
+            .then(function(resp){ return resp.json(); })
+            .then(function(d){
+              if(!d.wind || !d.main) return;
+              var deg = d.wind.deg || 0, speed = d.wind.speed || 0, temp = d.main.temp;
+              var icon = makeArrowIcon(deg, speed, tempToColor(temp));
+              L.marker([lat,lng], { icon:icon, pane:'wxPane' })
+                .bindTooltip(temp.toFixed(1) + '°C · ' + speed.toFixed(1) + ' m/s', { direction:'top', offset:[0,-16] })
+                .addTo(windMarkers);
+            }).catch(function(){});
+        })(b.getSouth() + (r+0.5)*(b.getNorth()-b.getSouth())/rows, b.getWest() + (c+0.5)*(b.getEast()-b.getWest())/cols);
+      }
+    }
+  }
+  function toggleWindArrows(){
+    windArrowsOn = !windArrowsOn;
+    if(windArrowsOn){ windMarkers.addTo(map); fetchWindGrid(); bumpOverlay(1); }
+    else { map.removeLayer(windMarkers); bumpOverlay(-1); }
+    renderWx();
+  }
+  function renderWx(){
+    var el = document.getElementById('grpWx'); el.innerHTML = '';
+    if(activeBaseKey === 'windy' || activeBaseKey === 'globe3d'){ incompatibleHint(el, baseLayers[activeBaseKey].name); return; }
+    makeCheckRow(el, { name:'Radar de lluvia', note:'RainViewer · sin clave · solo visible donde llueve ahora', isOn:function(){return rainviewerOn;}, onToggle:toggleRainviewer });
+    makeCheckRow(el, { name:'Viento (flechas)', note: owmKeyVal ? 'Dirección + color=temperatura + tamaño=velocidad' : 'Añade tu clave en Ajustes', disabled: !owmKeyVal,
+      isOn:function(){ return windArrowsOn; }, onToggle: toggleWindArrows });
+    if(windArrowsOn){
+      var refreshRow = document.createElement('button');
+      refreshRow.className = 'quick-btn';
+      refreshRow.style.width = '100%';
+      refreshRow.textContent = '🔄 Actualizar flechas con la vista actual';
+      refreshRow.addEventListener('click', fetchWindGrid);
+      el.appendChild(refreshRow);
+    }
+    owmDefs.forEach(function(d){
+      makeCheckRow(el, { name:d.name, note: owmKeyVal ? 'OpenWeatherMap · solo visible donde hay datos' : 'Añade tu clave en Ajustes', disabled: !owmKeyVal,
+        isOn:function(){ return !!owmState[d.code]; },
+        onToggle:function(){
+          if(owmState[d.code]){ map.removeLayer(owmState[d.code]); owmState[d.code]=null; bumpOverlay(-1); }
+          else { var l=owmTile(d.code); l.addTo(map); owmState[d.code]=l; bumpOverlay(1); }
+          renderWx();
+        }});
+    });
+  }
+  renderWx();
+  document.getElementById('owmConnectBtn').addEventListener('click', function(){
+    var k = document.getElementById('owmKey').value.trim(); if(!k) return;
+    owmKeyVal = k; lsSet('owmKey', k); owmStatusEl.classList.add('ok'); owmStatusText.textContent='Conectado'; renderWx();
+  });
+
+  var firesLayer=null, firesOn=false;
+  function buildFiresLayer(date){
+    return attachTileRetry(L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
+      layers:'VIIRS_SNPP_Thermal_Anomalies_375m_All', format:'image/png', transparent:true, version:'1.3.0', time:date, pane:'hazardPane', attribution:'NASA FIRMS / GIBS'
+    }));
+  }
+  // ---------- Air quality (World Air Quality Index, waqi.info) — real station markers, works over any base ----------
+  var waqiKeyVal = null, aqiStationsOn = false, aqiMarkersGroup = L.layerGroup();
+  var waqiStatusEl = document.getElementById('waqiStatus'), waqiStatusText = document.getElementById('waqiStatusText');
+  document.getElementById('waqiConnectBtn').addEventListener('click', function(){
+    var k = document.getElementById('waqiKey').value.trim(); if(!k) return;
+    waqiKeyVal = k; lsSet('waqiKey', k);
+    waqiStatusEl.classList.add('ok'); waqiStatusText.textContent = 'Conectado';
+    renderAirQuality();
+  });
+
+  var WAQI_LABELS = { pm25:'PM2.5', pm10:'PM10', o3:'Ozono', no2:'NO₂', so2:'SO₂', co:'CO', t:'Temperatura (°C)', h:'Humedad (%)', p:'Presión (hPa)', w:'Viento (m/s)' };
+  function aqiColor(aqi){
+    aqi = Number(aqi);
+    if(isNaN(aqi)) return '#999';
+    if(aqi<=50) return '#9cd84e'; if(aqi<=100) return '#ffde33'; if(aqi<=150) return '#ff9933';
+    if(aqi<=200) return '#cc0033'; if(aqi<=300) return '#660099'; return '#7e0023';
+  }
+  function aqiCategory(aqi){
+    aqi = Number(aqi);
+    if(isNaN(aqi)) return 'Sin datos';
+    if(aqi<=50) return 'Buena'; if(aqi<=100) return 'Moderada'; if(aqi<=150) return 'Dañina (sensibles)';
+    if(aqi<=200) return 'Dañina'; if(aqi<=300) return 'Muy dañina'; return 'Peligrosa';
+  }
+  function aqiFace(aqi){
+    aqi = Number(aqi);
+    if(isNaN(aqi)) return '❓';
+    if(aqi<=50) return '😊'; if(aqi<=100) return '🙂'; if(aqi<=150) return '😐';
+    if(aqi<=200) return '😷'; if(aqi<=300) return '😫'; return '☠️';
+  }
+
+  function loadAqiStationInto(marker, uid){
+    fetch('https://api.waqi.info/feed/@' + uid + '/?token=' + waqiKeyVal)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.status !== 'ok' || !d.data){ marker.setPopupContent('<div style="font-family:sans-serif;font-size:12px;">Sin datos para esta estación.</div>'); return; }
+        var aqi = d.data.aqi, color = aqiColor(aqi), cat = aqiCategory(aqi), face = aqiFace(aqi);
+        var iaqi = d.data.iaqi || {};
+        var rows = Object.keys(WAQI_LABELS).filter(function(k){ return iaqi[k] && iaqi[k].v !== undefined; })
+          .map(function(k){ return '<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>' + WAQI_LABELS[k] + '</span><b>' + iaqi[k].v + '</b></div>'; }).join('');
+        var html = '<div style="font-family:sans-serif;font-size:12px;width:190px;">' +
+          '<div style="font-weight:700;margin-bottom:6px;">' + (d.data.city && d.data.city.name ? d.data.city.name : 'Estación') + '</div>' +
+          '<div style="background:' + color + ';color:#111;border-radius:8px;padding:8px;display:flex;align-items:center;gap:8px;">' +
+            '<span style="font-size:24px;">' + face + '</span>' +
+            '<div><b style="font-size:17px;">' + aqi + '</b> · ' + cat + '</div>' +
+          '</div>' +
+          (rows ? '<div style="margin-top:8px;">' + rows + '</div>' : '') +
+          (d.data.time && d.data.time.s ? '<div style="margin-top:6px;color:#888;font-size:10px;">Actualizado: ' + d.data.time.s + '</div>' : '') +
+          '</div>';
+        marker.setPopupContent(html);
+      }).catch(function(){ marker.setPopupContent('<div style="font-family:sans-serif;font-size:12px;">Error consultando la estación.</div>'); });
+  }
+
+  function fetchAqiStations(){
+    if(!waqiKeyVal) return;
+    var b = map.getBounds();
+    aqiMarkersGroup.clearLayers();
+    fetch('https://api.waqi.info/map/bounds/?latlng=' + b.getSouth() + ',' + b.getWest() + ',' + b.getNorth() + ',' + b.getEast() + '&token=' + waqiKeyVal)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.status !== 'ok') return;
+        (d.data || []).forEach(function(st){
+          var color = aqiColor(st.aqi);
+          var icon = L.divIcon({
+            html:'<div style="width:32px;height:22px;display:flex;align-items:center;justify-content:center;background:' + color + ';color:#111;font-weight:700;font-size:11px;border-radius:6px;border:1px solid rgba(0,0,0,0.3);box-shadow:0 1px 4px rgba(0,0,0,0.4);">' + st.aqi + '</div>',
+            className:'', iconSize:[32,22], iconAnchor:[16,11]
+          });
+          var marker = L.marker([st.lat, st.lon], { icon:icon, pane:'hazardPane', interactive:true, bubblingMouseEvents:false });
+          marker.bindPopup('<div style="font-family:sans-serif;font-size:12px;">Cargando estación...</div>', { maxWidth:220 });
+          marker.on('click', function(){ loadAqiStationInto(marker, st.uid); });
+          marker.addTo(aqiMarkersGroup);
+        });
+      }).catch(function(){});
+  }
+  map.on('moveend', function(){ if(aqiStationsOn) fetchAqiStations(); });
+
+  function renderAirQuality(){
+    var el = document.getElementById('grpAir'); el.innerHTML = '';
+    if(activeBaseKey === 'windy' || activeBaseKey === 'globe3d'){ incompatibleHint(el, baseLayers[activeBaseKey].name); return; }
+    makeCheckRow(el, { name:'Estaciones de calidad del aire', note: waqiKeyVal ? 'WAQI · toca una estación para ver sus datos' : 'Añade tu token en Ajustes', disabled: !waqiKeyVal,
+      isOn:function(){ return aqiStationsOn; },
+      onToggle:function(){
+        aqiStationsOn = !aqiStationsOn;
+        if(aqiStationsOn){ aqiMarkersGroup.addTo(map); fetchAqiStations(); bumpOverlay(1); }
+        else { map.removeLayer(aqiMarkersGroup); bumpOverlay(-1); }
+        renderAirQuality();
+      }});
+    if(aqiStationsOn){
+      var refreshBtn = document.createElement('button');
+      refreshBtn.className = 'quick-btn'; refreshBtn.style.width = '100%';
+      refreshBtn.textContent = '🔄 Buscar estaciones en la vista actual';
+      refreshBtn.addEventListener('click', fetchAqiStations);
+      el.appendChild(refreshBtn);
+    }
+  }
+  renderAirQuality();
+
+  function renderHazard(){
+    var el = document.getElementById('grpHazard'); el.innerHTML = '';
+    if(activeBaseKey === 'windy' || activeBaseKey === 'globe3d'){ incompatibleHint(el, baseLayers[activeBaseKey].name); return; }
+    makeCheckRow(el, { name:'Incendios activos', note:'NASA FIRMS / VIIRS · fecha compartida con la capa base', isOn:function(){return firesOn;},
+      onToggle:function(){
+        firesOn = !firesOn;
+        if(firesOn){ firesLayer = buildFiresLayer(currentDate); firesLayer.addTo(map); bumpOverlay(1); }
+        else { if(firesLayer) map.removeLayer(firesLayer); bumpOverlay(-1); }
+        renderHazard();
+      }});
+  }
+  renderHazard();
+
+  // ---------- LiDAR overlays (España + global) ----------
+  // Real, sourced WMS services — but unlike the JAXA API, these government WMS servers don't publish
+  // a friendly all-in-one catalog, so each one's own GetCapabilities is fetched live and parsed for
+  // its real <Layer><Name> instead of hand-typing a guess (that's exactly the kind of guess that broke
+  // the JAXA layer earlier, so it's not repeated here). Sources:
+  //  - IGN / PNOA-LiDAR (España, nacional): https://pnoa.ign.es/pnoa-lidar/visualizadores-y-servicios-web
+  //  - ICV (Comunitat Valenciana, incluye Alicante): catálogo Terrasit
+  //  - ORNL DAAC (NASA, global): GEDI L3 — láser (LiDAR) espacial a bordo de la ISS, cobertura -52°/+52° lat.
+  var LIDAR_SOURCES = [
+    { id:'ign_mapalidar', title:'Mapa LiDAR (sombreado + edificios + vegetación)', region:'España · IGN/PNOA-LiDAR',
+      wmsUrl:'https://wms-mapa-lidar.idee.es/lidar', match:/lidar/i },
+    { id:'ign_pendientes', title:'Pendientes (derivadas del MDT-LiDAR)', region:'España · IGN/PNOA-LiDAR',
+      wmsUrl:'https://wms-pendientes.idee.es/pendientes', match:/./ },
+    { id:'ign_mdt', title:'Modelo Digital del Terreno (grid LiDAR 5m)', region:'España · IGN/PNOA-LiDAR',
+      wmsUrl:'https://servicios.idee.es/wms-inspire/mdt', match:/grid|elevat|mdt/i },
+    { id:'icv_sombreado', title:'LiDAR sombreado 1m', region:'Comunitat Valenciana / Alicante · ICV',
+      wmsUrl:'https://lidar.icv.gva.es/WMS_MDT1m_CV/WMSLiDAR', match:/./ },
+    { id:'icv_puntos', title:'LiDAR nube de puntos (color)', region:'Comunitat Valenciana / Alicante · ICV',
+      wmsUrl:'https://lidar.icv.gva.es/LIDARWMSServer_CV/WMSLiDAR', match:/./ },
+    { id:'ornl_gedi', title:'Altura del dosel forestal (GEDI, LiDAR espacial NASA-ISS)', region:'Global · entre -52° y +52° de latitud',
+      wmsUrl:'https://webmap.ornl.gov/ogcbroker/wms', match:/1952|gedi|canopy/i, heavy:true }
+  ];
+  var lidarCapCache = {}, lidarActiveLayers = {};
+
+  function fetchWmsCapabilities(wmsUrl){
+    if(lidarCapCache[wmsUrl]) return lidarCapCache[wmsUrl];
+    var capUrl = wmsUrl + (wmsUrl.indexOf('?') === -1 ? '?' : '&') + 'SERVICE=WMS&REQUEST=GetCapabilities';
+    var p = fetch(capUrl).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    }).then(function(xmlText){
+      var xml = new DOMParser().parseFromString(xmlText, 'text/xml');
+      if(xml.querySelector('parsererror')) throw new Error('Respuesta no es XML válido');
+      var version = xml.documentElement.getAttribute('version') || '1.1.1';
+      var layers = [];
+      xml.querySelectorAll('Layer').forEach(function(layerEl){
+        var nameEl = layerEl.querySelector(':scope > Name');
+        if(!nameEl) return;
+        var titleEl = layerEl.querySelector(':scope > Title');
+        layers.push({ name: nameEl.textContent.trim(), title: titleEl ? titleEl.textContent.trim() : nameEl.textContent.trim() });
+      });
+      return { version: version, layers: layers, capUrl: capUrl };
+    });
+    lidarCapCache[wmsUrl] = p;
+    return p;
+  }
+
+  function toggleLidarLayer(src){
+    if(lidarActiveLayers[src.id]){
+      map.removeLayer(lidarActiveLayers[src.id]);
+      delete lidarActiveLayers[src.id];
+      bumpOverlay(-1);
+      renderLidar();
+      return;
+    }
+    fetchWmsCapabilities(src.wmsUrl).then(function(cap){
+      var candidates = cap.layers.filter(function(l){ return src.match.test(l.name) || src.match.test(l.title); });
+      var pick = candidates[0] || cap.layers[0];
+      if(!pick) throw new Error('El servicio no publica ninguna capa en su catálogo');
+      var layer = L.tileLayer.wms(src.wmsUrl, {
+        layers: pick.name, format:'image/png', transparent:true, version: cap.version, opacity:0.75
+      });
+      var errorCount = 0;
+      layer.on('tileerror', function(){
+        errorCount++;
+        if(errorCount === 6){
+          alert('"' + src.title + '" no está cargando teselas correctamente.\n\n'
+            + 'Puede que el nombre de capa detectado ("' + pick.name + '") no sea el correcto, o que este servidor no acepte peticiones repetidas desde el navegador tan rápido.\n\n'
+            + 'Para comprobar el nombre real de la capa, abre esta URL en una pestaña y busca la etiqueta <Name> dentro de <Layer>:\n' + cap.capUrl);
+        }
+      });
+      layer.addTo(map);
+      lidarActiveLayers[src.id] = layer;
+      bumpOverlay(1);
+      renderLidar();
+    }).catch(function(err){
+      alert('No se pudo activar "' + src.title + '": ' + err.message + '\n\n'
+        + 'Fuente: ' + src.wmsUrl + '\n\n'
+        + 'Si el error menciona CORS o "Failed to fetch": este servidor no deja que un navegador lea su catálogo directamente (aunque el servicio en sí exista y funcione, por ejemplo desde QGIS). Puedes comprobarlo abriendo esta URL en una pestaña nueva — si carga ahí pero no aquí, es justamente eso:\n'
+        + src.wmsUrl + '?SERVICE=WMS&REQUEST=GetCapabilities');
+    });
+  }
+
+  function renderLidar(){
+    var el = document.getElementById('grpLidar'); el.innerHTML = '';
+    if(activeBaseKey === 'windy' || activeBaseKey === 'globe3d'){ incompatibleHint(el, baseLayers[activeBaseKey].name); return; }
+    LIDAR_SOURCES.forEach(function(src){
+      makeCheckRow(el, { name: src.title, note: src.region + (src.heavy ? ' · catálogo pesado, tarda unos segundos' : ''),
+        isOn: function(){ return !!lidarActiveLayers[src.id]; },
+        onToggle: function(){ toggleLidarLayer(src); }
+      });
+    });
+  }
+  renderLidar();
+
+  // ---------- KK7 thermal/skyways overlays (paragliding) ----------
+  // thermal.kk7.ch: real crowdsourced thermal/flight-track heatmaps, documented public tile API
+  // (no key required, courtesy "src" tracking param only). CC-BY-NC-SA — non-commercial use.
+  var KK7_LAYERS = [
+    { id:'skyways_all_all', title:'Skyways (rutas de vuelo)', note:'Todos los vuelos registrados, superpuestos', maxNativeZoom:13 },
+    { id:'thermals_all_all', title:'Térmicas (probabilidad de térmica)', note:'Cuanto más caliente el color, más probable encontrar térmica', maxNativeZoom:12 },
+    { id:'certainty_all_all', title:'Certeza del dato', note:'Dónde hay suficientes vuelos para que el mapa sea fiable', maxNativeZoom:12 }
+  ];
+  var kk7ActiveLayers = {};
+  function toggleKk7Layer(def){
+    if(kk7ActiveLayers[def.id]){
+      map.removeLayer(kk7ActiveLayers[def.id]);
+      delete kk7ActiveLayers[def.id];
+      bumpOverlay(-1);
+      renderKk7();
+      return;
+    }
+    var layer = L.tileLayer('https://thermal.kk7.ch/tiles/' + def.id + '/{z}/{x}/{y}.png?src=' + window.location.hostname, {
+      attribution: 'thermal.kk7.ch CC-BY-NC-SA', maxNativeZoom: def.maxNativeZoom, tms: true, opacity: 0.7
+    });
+    var errorCount = 0;
+    layer.on('tileerror', function(){
+      errorCount++;
+      if(errorCount === 6){ alert('"' + def.title + '" no está cargando teselas — puede que el servicio esté temporalmente saturado (es mantenido por una sola persona de forma gratuita). Prueba de nuevo en un rato.'); }
+    });
+    layer.addTo(map);
+    kk7ActiveLayers[def.id] = layer;
+    bumpOverlay(1);
+    renderKk7();
+  }
+  function renderKk7(){
+    var el = document.getElementById('grpKk7'); el.innerHTML = '';
+    if(activeBaseKey === 'windy' || activeBaseKey === 'globe3d'){ incompatibleHint(el, baseLayers[activeBaseKey].name); return; }
+    KK7_LAYERS.forEach(function(def){
+      makeCheckRow(el, { name: def.title, note: def.note,
+        isOn: function(){ return !!kk7ActiveLayers[def.id]; },
+        onToggle: function(){ toggleKk7Layer(def); }
+      });
+    });
+  }
+  renderKk7();
+
+  // ---------- Live phenomena: earthquakes (USGS) + live aircraft (OpenSky) ----------
+  var quakesOn = false, quakesLayer = L.layerGroup();
+  function quakeColor(depth){ return depth > 300 ? '#4b0082' : depth > 100 ? '#7d2ae8' : depth > 50 ? '#e8622a' : depth > 10 ? '#f2a93b' : '#f7d94c'; }
+  function fetchQuakes(){
+    quakesLayer.clearLayers();
+    fetch('https://earthquake.usgs.gov/earthquakefeed/v1.0/summary/2.5_day.geojson')
+      .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(geo){
+        geo.features.forEach(function(f){
+          var c = f.geometry.coordinates, p = f.properties;
+          var mk = L.circleMarker([c[1], c[0]], {
+            radius: Math.max(4, p.mag * 3), color: quakeColor(c[2]), weight: 1, fillOpacity: 0.65
+          }).bindPopup('<b>M ' + p.mag + '</b> · ' + p.place + '<br>Profundidad: ' + c[2] + ' km<br>' + new Date(p.time).toLocaleString());
+          quakesLayer.addLayer(mk);
+        });
+      }).catch(function(err){ alert('No se pudieron cargar los terremotos: ' + err.message); });
+  }
+  var planesOn = false, planesLayer = L.layerGroup(), planesLoading = false;
+  function planeIcon(heading){
+    return L.divIcon({ className:'', html:'<div style="transform:rotate(' + (heading||0) + 'deg); font-size:16px; line-height:16px;">✈️</div>', iconSize:[16,16], iconAnchor:[8,8] });
+  }
+  function fetchPlanes(){
+    if(planesLoading) return;
+    planesLoading = true;
+    var b = map.getBounds();
+    var url = 'https://opensky-network.org/api/states/all?lamin=' + b.getSouth() + '&lomin=' + b.getWest() + '&lamax=' + b.getNorth() + '&lomax=' + b.getEast();
+    fetch(url).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status + (r.status === 429 ? ' (límite diario de OpenSky alcanzado, prueba más tarde)' : ''));
+      return r.json();
+    }).then(function(data){
+      planesLayer.clearLayers();
+      (data.states || []).forEach(function(s){
+        if(s[5] == null || s[6] == null) return; // sin posición
+        var callsign = (s[1] || '').trim() || s[0];
+        var mk = L.marker([s[6], s[5]], { icon: planeIcon(s[10]) })
+          .bindPopup('<b>' + callsign + '</b><br>País: ' + s[2] + '<br>Altitud: ' + (s[7] != null ? Math.round(s[7]) + ' m' : '—') + '<br>Velocidad: ' + (s[9] != null ? Math.round(s[9]*3.6) + ' km/h' : '—'));
+        planesLayer.addLayer(mk);
+      });
+      planesLoading = false;
+    }).catch(function(err){ planesLoading = false; alert('No se pudieron cargar los aviones: ' + err.message); });
+  }
+  function renderLive(){
+    var el = document.getElementById('grpLive'); el.innerHTML = '';
+    if(activeBaseKey === 'windy' || activeBaseKey === 'globe3d'){ incompatibleHint(el, baseLayers[activeBaseKey].name); return; }
+    makeCheckRow(el, { name:'Terremotos (últimas 48h, mag. ≥2,5)', note:'USGS · color = profundidad, tamaño = magnitud', isOn:function(){return quakesOn;},
+      onToggle:function(){
+        quakesOn = !quakesOn;
+        if(quakesOn){ fetchQuakes(); quakesLayer.addTo(map); bumpOverlay(1); } else { map.removeLayer(quakesLayer); bumpOverlay(-1); }
+        renderLive();
+      }});
+    if(quakesOn){
+      var qBtn = document.createElement('button'); qBtn.className='quick-btn'; qBtn.style.cssText='width:100%;margin:2px 0 6px;'; qBtn.textContent='🔄 Actualizar terremotos';
+      qBtn.addEventListener('click', fetchQuakes); el.appendChild(qBtn);
+    }
+    makeCheckRow(el, { name:'Aviones en vuelo ahora', note:'OpenSky Network · solo la vista actual, cuota limitada/día', isOn:function(){return planesOn;},
+      onToggle:function(){
+        planesOn = !planesOn;
+        if(planesOn){ fetchPlanes(); planesLayer.addTo(map); bumpOverlay(1); } else { map.removeLayer(planesLayer); bumpOverlay(-1); }
+        renderLive();
+      }});
+    if(planesOn){
+      var pBtn = document.createElement('button'); pBtn.className='quick-btn'; pBtn.style.cssText='width:100%;margin:2px 0 6px;'; pBtn.textContent='🔄 Actualizar aviones (vista actual)';
+      pBtn.addEventListener('click', fetchPlanes); el.appendChild(pBtn);
+    }
+  }
+  renderLive();
+
+  // ---------- Sky & space: night lights (GIBS VIIRS DNB), aurora forecast (NOAA), airspace (OpenAIP) ----------
+  var nightLightsOn = false, nightLightsLayer = null;
+  function toggleNightLights(){
+    if(nightLightsOn){ if(nightLightsLayer) map.removeLayer(nightLightsLayer); nightLightsOn = false; bumpOverlay(-1); renderSky(); return; }
+    // WMS (not the WMTS/XYZ gibsLayer() helper) — this product isn't guaranteed to publish tiles at
+    // the same TileMatrixSet/zoom as the true-color composites gibsLayer() assumes, and WMS sidesteps
+    // that entirely by rendering to whatever bbox/size is requested, same as the working fires layer.
+    nightLightsLayer = attachTileRetry(L.tileLayer.wms('https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi', {
+      layers:'VIIRS_SNPP_DayNightBand_ENCC', format:'image/jpeg', transparent:false, version:'1.3.0', time:currentDate, attribution:'NASA EOSDIS GIBS'
+    }));
+    var errCount = 0;
+    nightLightsLayer.on('tileerror', function(){
+      errCount++;
+      if(errCount === 8){ alert('"Luces nocturnas" no está cargando bien. El nombre de capa de la NASA puede haber cambiado — dímelo si te pasa y lo reviso.'); }
+    });
+    nightLightsLayer.addTo(map);
+    nightLightsOn = true; bumpOverlay(1); renderSky();
+  }
+
+  var auroraOn = false, auroraLayer = null;
+  function buildAuroraOverlay(){
+    return fetch('https://services.swpc.noaa.gov/json/ovation_aurora_latest.json').then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function(data){
+      var w = 360, h = 181;
+      var canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      var img = ctx.createImageData(w, h);
+      // coordinates come as [lon(0-359), lat(-90..90), value(0-100)], row-major with lon fastest —
+      // shift so column 0 = -180°lon (matches a plain equirectangular image overlay across the globe)
+      data.coordinates.forEach(function(pt){
+        var lon = pt[0], lat = pt[1], val = pt[2];
+        var col = (lon + 180) % 360;
+        var row = 90 - lat;
+        var idx = (row * w + col) * 4;
+        var alpha = Math.min(255, val * 4.2);
+        img.data[idx] = 60; img.data[idx+1] = 220; img.data[idx+2] = 90; img.data[idx+3] = alpha;
+      });
+      ctx.putImageData(img, 0, 0);
+      return L.imageOverlay(canvas.toDataURL(), [[-90,-180],[90,180]], { opacity:0.55 });
+    });
+  }
+  function toggleAurora(){
+    if(auroraOn){ if(auroraLayer) map.removeLayer(auroraLayer); auroraOn = false; bumpOverlay(-1); renderSky(); return; }
+    buildAuroraOverlay().then(function(layer){
+      auroraLayer = layer; auroraLayer.addTo(map); auroraOn = true; bumpOverlay(1); renderSky();
+    }).catch(function(err){ alert('No se pudo cargar la predicción de aurora: ' + err.message); });
+  }
+
+  var openaipKeyVal = null, airspaceOn = false, airspaceLayers = null;
+  var openaipStatusEl = document.getElementById('openaipStatus'), openaipStatusText = document.getElementById('openaipStatusText');
+  document.getElementById('openaipConnectBtn').addEventListener('click', function(){
+    var k = document.getElementById('openaipKey').value.trim(); if(!k) return;
+    openaipKeyVal = k; lsSet('openaipKey', k);
+    openaipStatusEl.classList.add('ok'); openaipStatusText.textContent = 'Conectado';
+    renderSky();
+  });
+  if(lsGet('openaipKey','')){ openaipKeyVal = lsGet('openaipKey',''); openaipStatusEl.classList.add('ok'); openaipStatusText.textContent = 'Conectado'; }
+  function toggleAirspace(){
+    if(airspaceOn){
+      if(airspaceLayers) airspaceLayers.forEach(function(l){ map.removeLayer(l); });
+      airspaceOn = false; bumpOverlay(-1); renderSky(); return;
+    }
+    airspaceLayers = ['airspaces','airports'].map(function(kind){
+      return attachTileRetry(L.tileLayer('https://{s}.api.tiles.openaip.net/api/data/' + kind + '/{z}/{x}/{y}.png?apiKey=' + openaipKeyVal, {
+        subdomains:'12', maxZoom:14, opacity:0.85, attribution:'openAIP.net'
+      }));
+    });
+    airspaceLayers.forEach(function(l){ l.addTo(map); });
+    airspaceOn = true; bumpOverlay(1); renderSky();
+  }
+  function renderSky(){
+    var el = document.getElementById('grpSky'); el.innerHTML = '';
+    if(activeBaseKey === 'windy' || activeBaseKey === 'globe3d'){ incompatibleHint(el, baseLayers[activeBaseKey].name); return; }
+    makeCheckRow(el, { name:'Luces nocturnas (¿dónde ver estrellas?)', note:'NASA VIIRS DNB · imagen de anteanoche, más oscuro = mejor cielo', isOn:function(){return nightLightsOn;}, onToggle: toggleNightLights });
+    makeCheckRow(el, { name:'Predicción de aurora boreal/austral', note:'NOAA OVATION · probabilidad ahora mismo, todo el planeta', isOn:function(){return auroraOn;}, onToggle: toggleAurora });
+    if(!openaipKeyVal){
+      var hint = document.createElement('div'); hint.className = 'hint';
+      hint.textContent = 'Espacio aéreo y aeródromos: necesita una clave gratuita de openAIP — configúrala en Herramientas.';
+      el.appendChild(hint);
+    } else {
+      makeCheckRow(el, { name:'Espacio aéreo y aeródromos', note:'openAIP · zonas restringidas, aeropuertos, mundial', isOn:function(){return airspaceOn;}, onToggle: toggleAirspace });
+    }
+  }
+  renderSky();
+
+  // ---------- Biodiversity (GBIF occurrence density) ----------
+  var bioOn = false, bioLayer = null, bioTaxon = null; // null = todas las especies
+  document.getElementById('gbifSearchInput').addEventListener('keydown', function(e){
+    if(e.key !== 'Enter') return;
+    var q = e.target.value.trim(); if(!q) return;
+    fetch('https://api.gbif.org/v1/species/match?name=' + encodeURIComponent(q))
+      .then(function(r){ return r.json(); })
+      .then(function(match){
+        if(!match.usageKey){ alert('No se ha encontrado ninguna especie para "' + q + '".'); return; }
+        bioTaxon = { key: match.usageKey, name: match.canonicalName || q };
+        if(bioOn) toggleBio(true); // refresca con la nueva especie
+        renderBio();
+      }).catch(function(err){ alert('Error buscando la especie: ' + err.message); });
+  });
+  function toggleBio(forceRefresh){
+    if(bioLayer){ map.removeLayer(bioLayer); bioLayer = null; if(!forceRefresh) bumpOverlay(-1); }
+    if(!forceRefresh && bioOn){ bioOn = false; renderBio(); return; }
+    var url = 'https://api.gbif.org/v2/map/occurrence/density/{z}/{x}/{y}@1x.png?style=classic.point' + (bioTaxon ? '&taxonKey=' + bioTaxon.key : '');
+    bioLayer = L.tileLayer(url, { opacity:0.8, attribution:'GBIF.org' }).addTo(map);
+    if(!forceRefresh){ bioOn = true; bumpOverlay(1); }
+    renderBio();
+  }
+  function renderBio(){
+    var el = document.getElementById('grpBio'); el.innerHTML = '';
+    if(activeBaseKey === 'windy' || activeBaseKey === 'globe3d'){ incompatibleHint(el, baseLayers[activeBaseKey].name); return; }
+    makeCheckRow(el, { name: bioTaxon ? ('Avistamientos: ' + bioTaxon.name) : 'Avistamientos (todas las especies)',
+      note: bioTaxon ? 'Busca otra especie arriba para cambiarla' : 'Escribe una especie arriba para filtrar',
+      isOn:function(){return bioOn;}, onToggle:function(){ toggleBio(false); } });
+  }
+  renderBio();
+
+  // ---------- tools count / availability ----------
+  var toolsCount = 0;
+  function bumpTools(delta){
+    toolsCount += delta;
+    document.getElementById('toolsCount').textContent = toolsCount;
+    document.getElementById('toolsFab').classList.toggle('has-active', toolsCount > 0);
+    var hide = toolsCount > 0;
+    ['baseFab','overlayFab','toolsFab'].forEach(function(id){
+      document.getElementById(id).style.display = hide ? 'none' : 'flex';
+    });
+  }
+  function refreshToolsAvailability(){
+    var connected = !!shInstanceId;
+    var onRightBase = activeBaseKey === 'sentinelExact';
+    var ready = connected && onRightBase;
+    document.getElementById('compareHint').style.display = connected ? 'none' : 'block';
+    document.getElementById('compareHint2').style.display = (connected && !onRightBase) ? 'block' : 'none';
+    if(connected && !onRightBase){
+      document.getElementById('compareHint2').textContent = 'Requiere tener "Sentinel-2 (fecha exacta)" como capa base ahora mismo. Cambia la capa base primero.';
+    } else if(connected){
+      document.getElementById('compareHint2').textContent = 'La fecha A es la que tengas puesta ahora mismo en "Sentinel-2 (fecha exacta)" como capa base. Elige aquí una fecha B distinta.';
+    }
+    document.getElementById('compareDateField').style.display = ready ? 'flex' : 'none';
+    document.getElementById('compareStartBtn').style.display = ready ? 'block' : 'none';
+
+    var animOk = (activeBaseKey === 'modis' || activeBaseKey === 'viirs');
+    document.getElementById('animHint').style.display = animOk ? 'none' : 'block';
+    document.getElementById('animControls').style.display = animOk ? 'block' : 'none';
+    if(animOk){
+      animSource = activeBaseKey;
+      var mBtn = document.getElementById('animSrcModis'), vBtn = document.getElementById('animSrcViirs');
+      mBtn.style.borderColor = animSource === 'modis' ? 'var(--accent)' : '';
+      mBtn.style.color = animSource === 'modis' ? 'var(--accent)' : '';
+      vBtn.style.borderColor = animSource === 'viirs' ? 'var(--accent)' : '';
+      vBtn.style.color = animSource === 'viirs' ? 'var(--accent)' : '';
+    }
+  }
+  refreshToolsAvailability();
+
+  // ---------- Cloud timelapse (MODIS Terra / VIIRS SNPP), double-buffered ----------
+  map.createPane('animPaneA'); map.getPane('animPaneA').style.zIndex = 390;
+  map.createPane('animPaneB'); map.getPane('animPaneB').style.zIndex = 391;
+  var animPaneNames = ['animPaneA', 'animPaneB'];
+  var animSource = 'modis'; // 'modis' | 'viirs'
+  var animFrames = [], animFrameIdx = 0, animSpeedMs = 1500, animPlaying = false, animRunToken = 0;
+  var animBufLayers = [null, null], animTop = 0;
+
+  function animLayerName(){
+    return animSource === 'viirs' ? 'VIIRS_SNPP_CorrectedReflectance_TrueColor' : 'MODIS_Terra_CorrectedReflectance_TrueColor';
+  }
+  function animUrlForDate(d){
+    return 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/' + animLayerName() + '/default/' + d + '/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg';
+  }
+  function buildAnimFrames(startDate, days){
+    var frames = [], d = new Date(startDate + 'T00:00:00');
+    for(var i=0; i<days; i++){ frames.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); }
+    return frames;
+  }
+  function updateAnimReadout(){
+    document.getElementById('animReadout').textContent =
+      (animSource === 'viirs' ? 'VIIRS' : 'MODIS') + ' · Día ' + (animFrameIdx+1) + '/' + animFrames.length + ' · ' + animFrames[animFrameIdx];
+  }
+  // Preloads a frame into the given buffer (0 or 1) and resolves once its tiles have actually loaded
+  // (or after a safety timeout), so we never swap to a half-rendered frame.
+  function preloadFrame(bufIndex, dateStr){
+    return new Promise(function(resolve){
+      if(animBufLayers[bufIndex]) map.removeLayer(animBufLayers[bufIndex]);
+      var layer = L.tileLayer(animUrlForDate(dateStr), { maxZoom:9, tileSize:256, pane:animPaneNames[bufIndex], attribution:'NASA EOSDIS GIBS' });
+      animBufLayers[bufIndex] = layer;
+      var done = false;
+      function finish(){ if(!done){ done = true; resolve(); } }
+      layer.once('load', finish);
+      layer.addTo(map);
+      setTimeout(finish, 4500); // safety net so a stuck tile never freezes playback forever
+    });
+  }
+  function playLoop(myToken){
+    if(!animPlaying || myToken !== animRunToken) return;
+    var nextIdx = (animFrameIdx + 1) % animFrames.length;
+    var loadingBuf = 1 - animTop;
+    var startedAt = Date.now();
+    preloadFrame(loadingBuf, animFrames[nextIdx]).then(function(){
+      if(myToken !== animRunToken) return;
+      var elapsed = Date.now() - startedAt;
+      var wait = Math.max(0, animSpeedMs - elapsed);
+      setTimeout(function(){
+        if(myToken !== animRunToken) return;
+        map.getPane(animPaneNames[loadingBuf]).style.zIndex = 391;
+        map.getPane(animPaneNames[animTop]).style.zIndex = 390;
+        animTop = loadingBuf;
+        animFrameIdx = nextIdx;
+        updateAnimReadout();
+        playLoop(myToken);
+      }, wait);
+    });
+  }
+  function startAnimation(){
+    var startVal = document.getElementById('animStartDate').value;
+    var days = Math.max(3, Math.min(20, parseInt(document.getElementById('animDays').value, 10) || 10));
+    if(!startVal){ alert('Elige una fecha de inicio.'); return; }
+    animFrames = buildAnimFrames(startVal, days);
+    animFrameIdx = 0;
+    animTop = 0;
+    animRunToken++;
+    map.getPane('animPaneA').style.zIndex = 390;
+    map.getPane('animPaneB').style.zIndex = 391;
+    preloadFrame(0, animFrames[0]).then(function(){
+      animPlaying = true;
+      updateAnimReadout();
+      document.getElementById('animToolbar').classList.add('show');
+      document.getElementById('animPauseBtn').textContent = '⏸';
+      playLoop(animRunToken);
+    });
+    bumpTools(1);
+    closeSheets();
+  }
+  function exitAnimation(){
+    animPlaying = false;
+    animRunToken++;
+    animBufLayers.forEach(function(l){ if(l) map.removeLayer(l); });
+    animBufLayers = [null, null];
+    document.getElementById('animToolbar').classList.remove('show');
+    bumpTools(-1);
+  }
+  document.getElementById('animSrcModis').addEventListener('click', function(){
+    animSource = 'modis';
+    this.style.borderColor = 'var(--accent)'; this.style.color = 'var(--accent)';
+    document.getElementById('animSrcViirs').style.borderColor = ''; document.getElementById('animSrcViirs').style.color = '';
+  });
+  document.getElementById('animSrcViirs').addEventListener('click', function(){
+    animSource = 'viirs';
+    this.style.borderColor = 'var(--accent)'; this.style.color = 'var(--accent)';
+    document.getElementById('animSrcModis').style.borderColor = ''; document.getElementById('animSrcModis').style.color = '';
+  });
+  document.getElementById('animPlayBtn').addEventListener('click', startAnimation);
+  document.getElementById('animExitBtn').addEventListener('click', exitAnimation);
+  document.getElementById('animPauseBtn').addEventListener('click', function(){
+    animPlaying = !animPlaying;
+    this.textContent = animPlaying ? '⏸' : '▶';
+    if(animPlaying){ animRunToken++; playLoop(animRunToken); }
+  });
+  document.getElementById('animSpeed').addEventListener('input', function(){
+    animSpeedMs = parseInt(this.value, 10);
+  });
+  (function(){ var d = new Date(); d.setDate(d.getDate() - 11); document.getElementById('animStartDate').value = d.toISOString().slice(0,10); document.getElementById('animStartDate').max = todayStr(); })();
+
+  // ---------- Windy Point Forecast ----------
+  var pfKeyVal = null, pfModeOn = false;
+  var pfStatusEl = document.getElementById('pfStatus'), pfStatusText = document.getElementById('pfStatusText');
+  document.getElementById('pfConnectBtn').addEventListener('click', function(){
+    var k = document.getElementById('pfKey').value.trim();
+    if(!k) return;
+    pfKeyVal = k;
+    lsSet('pfKey', k);
+    pfStatusEl.classList.add('ok');
+    pfStatusText.textContent = 'Conectado';
+    document.getElementById('pfHint').style.display = 'none';
+    document.getElementById('pfStartBtn').style.display = 'block';
+  });
+
+  var COMPASS16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  function windFromDir(u, v){
+    var toward = (Math.atan2(u, v) * 180 / Math.PI + 360) % 360;
+    return (toward + 180) % 360;
+  }
+  function compassLabel(deg){ return COMPASS16[Math.round(deg / 22.5) % 16]; }
+  function kToC(k){ return (typeof k === 'number') ? (k - 273.15) : null; }
+
+  function fetchPointForecast(lat, lon, placeName){
+    var body = {
+      lat: lat, lon: lon, model: 'gfs',
+      parameters: ['temp','wind','windGust','precip','rh','pressure','lclouds','mclouds','hclouds'],
+      levels: ['surface'],
+      key: pfKeyVal
+    };
+    document.getElementById('forecastTitle').textContent = placeName || (lat.toFixed(3) + ', ' + lon.toFixed(3));
+    document.getElementById('forecastBody').innerHTML = '<div class="hint">Cargando previsión...</div>';
+    openSheet('forecastSheet');
+    fetch('https://api.windy.com/api/point-forecast/v2', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    }).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function(d){ renderForecast(d); })
+      .catch(function(err){
+        document.getElementById('forecastBody').innerHTML = '<div class="hint">No se pudo cargar el pronóstico (' + err.message + '). Revisa tu clave o inténtalo de nuevo.</div>';
+      });
+  }
+
+  function renderForecast(d){
+    var ts = d.ts || [];
+    var el = document.getElementById('forecastBody');
+    if(!ts.length){ el.innerHTML = '<div class="hint">Sin datos para este punto en el modelo GFS.</div>'; return; }
+    var html = '<div class="check-grid">';
+    for(var i = 0; i < ts.length && i < 20; i += 2){ // every ~6h, up to ~2.5 days
+      var date = new Date(ts[i]);
+      var hh = ('0'+date.getHours()).slice(-2) + ':00';
+      var dayLabel = date.toLocaleDateString('es-ES', { weekday:'short', day:'numeric' });
+      var temp = kToC(d['temp-surface'] ? d['temp-surface'][i] : null);
+      var u = d['wind_u-surface'] ? d['wind_u-surface'][i] : null;
+      var v = d['wind_v-surface'] ? d['wind_v-surface'][i] : null;
+      var windTxt = '—';
+      if(u !== null && v !== null){
+        var speed = Math.sqrt(u*u + v*v);
+        var dir = windFromDir(u, v);
+        windTxt = speed.toFixed(1) + ' m/s ' + compassLabel(dir);
+      }
+      var gust = d['gust-surface'] ? d['gust-surface'][i] : null;
+      var precip = d['past3hprecip-surface'] ? d['past3hprecip-surface'][i] : null;
+      var rh = d['rh-surface'] ? d['rh-surface'][i] : null;
+      var pressure = d['pressure-surface'] ? d['pressure-surface'][i] : null;
+      var clouds = Math.max(d['lclouds-surface'] ? d['lclouds-surface'][i]||0 : 0,
+                             d['mclouds-surface'] ? d['mclouds-surface'][i]||0 : 0,
+                             d['hclouds-surface'] ? d['hclouds-surface'][i]||0 : 0);
+      html += '<div class="check-row" style="cursor:default;"><div class="meta">' +
+        '<div class="name">' + dayLabel + ' · ' + hh + ' — ' + (temp!==null ? temp.toFixed(0)+'°C' : '—') + '</div>' +
+        '<div class="note">Viento ' + windTxt + (gust!==null ? ' · ráfagas ' + gust.toFixed(1) + ' m/s' : '') +
+        (precip!==null ? ' · lluvia ' + precip.toFixed(1) + ' mm' : '') +
+        (rh!==null ? ' · humedad ' + rh.toFixed(0) + '%' : '') +
+        (pressure!==null ? ' · ' + (pressure/100).toFixed(0) + ' hPa' : '') +
+        ' · nubes ' + clouds.toFixed(0) + '%</div></div></div>';
+    }
+    html += '</div><div class="hint" style="margin-top:10px;">Modelo GFS (global) · Windy Point Forecast API</div>';
+    el.innerHTML = html;
+    // Force the note line visible for every row (normally only shown when "checked")
+    el.querySelectorAll('.check-row .note').forEach(function(n){ n.style.display = 'block'; });
+  }
+
+  function showForecastFor(lat, lng, name){
+    if(!pfKeyVal){ alert('Añade tu clave de Point Forecast en Ajustes primero.'); return; }
+    fetchPointForecast(lat, lng, name);
+  }
+
+  function onPfMapClick(e){ fetchPointForecast(e.latlng.lat, e.latlng.lng); }
+  function startPfMode(){
+    if(!pfKeyVal) return;
+    pfModeOn = true;
+    map.on('click', onPfMapClick);
+    document.getElementById('pfToolbar').classList.add('show');
+    bumpTools(1);
+    closeSheets();
+  }
+  function stopPfMode(){
+    pfModeOn = false;
+    map.off('click', onPfMapClick);
+    document.getElementById('pfToolbar').classList.remove('show');
+    bumpTools(-1);
+  }
+  document.getElementById('pfStartBtn').addEventListener('click', startPfMode);
+  document.getElementById('pfExitBtn').addEventListener('click', stopPfMode);
+
+  // ---------- Compare (swipe) ----------
+  var compareOn=false, compareLayer=null, compareDatePercent=50;
+  var divider = document.getElementById('compareDivider');
+  var tagA = document.getElementById('compareTagA'), tagB = document.getElementById('compareTagB');
+  function applyClip(){
+    var size = map.getSize();
+    var splitX = size.x * (compareDatePercent / 100);
+    var nw = map.containerPointToLayerPoint([0, 0]);
+    var se = map.containerPointToLayerPoint([size.x, size.y]);
+    var split = map.containerPointToLayerPoint([splitX, 0]);
+    var pane = map.getPane('comparePane');
+    pane.style.clip = 'rect(' + nw.y + 'px, ' + se.x + 'px, ' + se.y + 'px, ' + split.x + 'px)';
+    pane.style.clipPath = 'none';
+    divider.style.left = splitX + 'px';
+  }
+  function startDrag(clientX){
+    var rect = map.getContainer().getBoundingClientRect();
+    function move(x){
+      var pct = ((x - rect.left) / rect.width) * 100;
+      pct = Math.max(2, Math.min(98, pct));
+      compareDatePercent = pct;
+      applyClip();
+    }
+    function onMouseMove(e){ move(e.clientX); }
+    function onTouchMove(e){ e.preventDefault(); move(e.touches[0].clientX); }
+    function stop(){
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', stop);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', stop);
+      document.removeEventListener('touchcancel', stop);
+    }
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', stop);
+    document.addEventListener('touchmove', onTouchMove, {passive:false});
+    document.addEventListener('touchend', stop);
+    document.addEventListener('touchcancel', stop);
+  }
+  divider.querySelector('.knob').addEventListener('mousedown', function(e){ startDrag(e.clientX); });
+  divider.querySelector('.knob').addEventListener('touchstart', function(e){ startDrag(e.touches[0].clientX); }, {passive:true});
+
+  function enterCompare(dateB){
+    if(!shInstanceId) return;
+    sizeComparePane();
+    compareLayer = buildSentinelHubLayer(shInstanceId, shLayerId, dateB, 'comparePane');
+    var okCount = 0, errCount = 0;
+    var statusEl = document.querySelector('#compareToolbar span');
+    function updateCompareStatus(){ statusEl.textContent = (compareLoading ? '⏳ ' : '') + 'B (' + dateB + '): ' + okCount + ' ok · ' + errCount + ' error'; }
+    var compareLoading = false;
+    compareLayer.on('loading', function(){ compareLoading = true; updateCompareStatus(); });
+    compareLayer.on('load', function(){ compareLoading = false; updateCompareStatus(); });
+    compareLayer.on('tileload', function(){ okCount++; updateCompareStatus(); });
+    compareLayer.on('tileerror', function(){ errCount++; updateCompareStatus(); });
+    updateCompareStatus();
+    compareLayer.addTo(map);
+    compareOn = true;
+    compareDatePercent = 50;
+    applyClip();
+    divider.classList.add('show');
+    tagA.textContent = 'A: ' + currentDate; tagA.classList.add('show');
+    tagB.textContent = 'B: ' + dateB; tagB.classList.add('show');
+    document.getElementById('compareToolbar').classList.add('show');
+    bumpTools(1);
+    closeSheets();
+  }
+  function exitCompare(){
+    if(compareLayer) map.removeLayer(compareLayer);
+    compareOn = false;
+    divider.classList.remove('show'); tagA.classList.remove('show'); tagB.classList.remove('show');
+    document.getElementById('compareToolbar').classList.remove('show');
+    bumpTools(-1);
+  }
+  document.getElementById('compareStartBtn').addEventListener('click', function(){
+    var dateB = document.getElementById('compareDateB').value || currentDate;
+    if(activeBaseKey !== 'sentinelExact'){
+      alert('Antes de comparar, pon "Sentinel-2 (fecha exacta)" como capa base en el panel de Capa base — así la fecha A será una fecha concreta de verdad, no un mosaico genérico.');
+      return;
+    }
+    if(dateB === currentDate){
+      alert('La fecha B es igual a la fecha A (' + currentDate + ') — verás la misma imagen a ambos lados. Elige una fecha distinta.');
+      return;
+    }
+    enterCompare(dateB);
+  });
+  document.getElementById('compareExitBtn').addEventListener('click', exitCompare);
+  document.getElementById('compareReloadBtn').addEventListener('click', function(){
+    if(compareLayer && typeof compareLayer.redraw === 'function') compareLayer.redraw();
+  });
+  document.getElementById('compareFullABtn').addEventListener('click', function(){ compareDatePercent = 98; applyClip(); });
+  document.getElementById('compareFullBBtn').addEventListener('click', function(){ compareDatePercent = 2; applyClip(); });
+  document.getElementById('compareDateB').max = todayStr();
+  (function(){ var d = new Date(currentDate); d.setDate(d.getDate() - 7); document.getElementById('compareDateB').value = d.toISOString().slice(0,10); })();
+  window.addEventListener('resize', function(){ if(compareOn) applyClip(); });
+  map.on('move zoom zoomend viewreset', function(){ if(compareOn) applyClip(); });
+
+  // ---------- Measure ----------
+  var measureOn=false, measurePts=[], measureGroup=null;
+  function haversine(a,b){
+    var R=6371000, toRad=Math.PI/180;
+    var dLat=(b.lat-a.lat)*toRad, dLng=(b.lng-a.lng)*toRad;
+    var lat1=a.lat*toRad, lat2=b.lat*toRad;
+    var h = Math.pow(Math.sin(dLat/2),2) + Math.cos(lat1)*Math.cos(lat2)*Math.pow(Math.sin(dLng/2),2);
+    return 2*R*Math.asin(Math.sqrt(h));
+  }
+  function polygonAreaM2(pts){
+    if(pts.length<3) return 0;
+    var R=6371000, toRad=Math.PI/180;
+    var lat0 = pts.reduce(function(s,p){return s+p.lat;},0)/pts.length;
+    var xy = pts.map(function(p){ return { x:R*toRad*p.lng*Math.cos(lat0*toRad), y:R*toRad*p.lat }; });
+    var area=0;
+    for(var i=0;i<xy.length;i++){ var j=(i+1)%xy.length; area += xy[i].x*xy[j].y - xy[j].x*xy[i].y; }
+    return Math.abs(area/2);
+  }
+  function formatDist(m){ return m<1000 ? m.toFixed(0)+' m' : (m/1000).toFixed(2)+' km'; }
+  function formatArea(m2){ return m2<10000 ? m2.toFixed(0)+' m²' : (m2/10000).toFixed(2)+' ha'; }
+  function updateMeasureReadout(){
+    var d=0; for(var i=1;i<measurePts.length;i++) d += haversine(measurePts[i-1], measurePts[i]);
+    var txt = 'Distancia: ' + formatDist(d);
+    if(measurePts.length>=3) txt += ' · Área: ' + formatArea(polygonAreaM2(measurePts));
+    document.getElementById('measureReadout').textContent = txt;
+  }
+  function redrawMeasure(){
+    measureGroup.clearLayers();
+    measurePts.forEach(function(p){ L.circleMarker(p, {radius:5, color:'#ff8a3d', weight:2, fillColor:'#ff8a3d', fillOpacity:0.6, pane:'hazardPane'}).addTo(measureGroup); });
+    if(measurePts.length>1) L.polyline(measurePts, {color:'#ff8a3d', weight:2, pane:'hazardPane'}).addTo(measureGroup);
+    if(measurePts.length>2) L.polygon(measurePts, {color:'#ff8a3d', weight:1, fillOpacity:0.08, pane:'hazardPane'}).addTo(measureGroup);
+    updateMeasureReadout();
+  }
+  function onMeasureClick(e){ measurePts.push(e.latlng); redrawMeasure(); }
+  function startMeasure(){
+    measureOn = true; measurePts = [];
+    measureGroup = L.layerGroup().addTo(map);
+    map.on('click', onMeasureClick);
+    document.getElementById('measureToolbar').classList.add('show');
+    updateMeasureReadout();
+    bumpTools(1);
+    closeSheets();
+  }
+  function stopMeasure(){
+    measureOn = false;
+    map.off('click', onMeasureClick);
+    if(measureGroup) map.removeLayer(measureGroup);
+    measurePts = [];
+    document.getElementById('measureToolbar').classList.remove('show');
+    bumpTools(-1);
+  }
+  document.getElementById('measureStartBtn').addEventListener('click', startMeasure);
+  document.getElementById('measureExitBtn').addEventListener('click', stopMeasure);
+  document.getElementById('measureClearBtn').addEventListener('click', function(){ measurePts=[]; redrawMeasure(); });
+  document.getElementById('measureUndoBtn').addEventListener('click', function(){ measurePts.pop(); redrawMeasure(); });
+
+  // ---------- Saved places ----------
+  var savedPlaces = [];
+  var firmsKeyVal = null;
+  var firmsStatusEl = document.getElementById('firmsStatus'), firmsStatusText = document.getElementById('firmsStatusText');
+  document.getElementById('firmsConnectBtn').addEventListener('click', function(){
+    var k = document.getElementById('firmsKey').value.trim(); if(!k) return;
+    firmsKeyVal = k; lsSet('firmsKey', k); firmsStatusEl.classList.add('ok'); firmsStatusText.textContent = 'Conectado';
+  });
+  function renderPlaces(){
+    var el = document.getElementById('placesList'); el.innerHTML = '';
+    if(!savedPlaces.length){ el.innerHTML = '<div class="hint">Sin lugares guardados todavía.</div>'; return; }
+    savedPlaces.forEach(function(p){
+      var row = document.createElement('div'); row.className = 'place-row';
+      var fireHtml = p.fires === null || p.fires === undefined ? '' :
+        '<div class="place-fire' + (p.fires>0?' hot':'') + '">' + (p.fires>0 ? '🔥 ' + p.fires + ' foco(s) cerca' : 'Sin focos detectados') + '</div>';
+      row.innerHTML = '<div class="place-main"><div class="place-name">' + p.name + '</div>' + fireHtml + '</div><button class="place-fc" title="Ver pronóstico">🌤️</button><button class="place-del">✕</button>';
+      row.querySelector('.place-main').addEventListener('click', function(){ map.setView([p.lat, p.lng], 13); closeSheets(); });
+      row.querySelector('.place-fc').addEventListener('click', function(ev){ ev.stopPropagation(); showForecastFor(p.lat, p.lng, p.name); });
+      row.querySelector('.place-del').addEventListener('click', function(ev){ ev.stopPropagation(); savedPlaces = savedPlaces.filter(function(x){ return x.id !== p.id; }); renderPlaces(); });
+      el.appendChild(row);
+    });
+  }
+  document.getElementById('savePlaceBtn').addEventListener('click', function(){
+    var name = window.prompt('Nombre para este lugar:', '');
+    if(!name) return;
+    var c = map.getCenter();
+    savedPlaces.push({ id:Date.now(), name:name, lat:c.lat, lng:c.lng, fires:null });
+    renderPlaces();
+  });
+  document.getElementById('checkFiresBtn').addEventListener('click', function(){
+    if(!firmsKeyVal){ alert('Añade tu MAP_KEY de NASA FIRMS en Ajustes primero.'); return; }
+    if(!savedPlaces.length){ alert('Guarda al menos un lugar primero.'); return; }
+    savedPlaces.forEach(function(p){
+      var d = 0.5;
+      var bbox = [p.lng-d, p.lat-d, p.lng+d, p.lat+d].join(',');
+      fetch('https://firms.modaps.eosdis.nasa.gov/api/area/csv/' + firmsKeyVal + '/VIIRS_SNPP_NRT/' + bbox + '/1')
+        .then(function(r){ return r.text(); })
+        .then(function(txt){
+          var lines = txt.trim().split('\n');
+          p.fires = Math.max(0, lines.length - 1);
+          renderPlaces();
+        }).catch(function(){ p.fires = null; renderPlaces(); });
+    });
+  });
+  renderPlaces();
+
+  document.querySelectorAll('.collapse-header').forEach(function(h){
+    h.addEventListener('click', function(){ h.parentElement.classList.toggle('open'); });
+  });
+
+  // ---------- sheets ----------
+  var scrim = document.getElementById('scrim');
+  var sheetIds = ['baseSheet','overlaySheet','toolsSheet','placesSheet','settingsSheet','forecastSheet'];
+  var sheets = sheetIds.map(function(id){ return document.getElementById(id); });
+  function openSheet(id){ sheets.forEach(function(s){ s.classList.toggle('show', s.id === id); }); scrim.classList.add('show'); }
+  function closeSheets(){ sheets.forEach(function(s){ s.classList.remove('show'); }); scrim.classList.remove('show'); }
+  document.getElementById('baseFab').addEventListener('click', function(){ openSheet('baseSheet'); });
+  document.getElementById('overlayFab').addEventListener('click', function(){ openSheet('overlaySheet'); });
+  document.getElementById('toolsFab').addEventListener('click', function(){ openSheet('toolsSheet'); });
+  document.getElementById('placesBtn').addEventListener('click', function(){ openSheet('placesSheet'); });
+  document.getElementById('settingsBtn').addEventListener('click', function(){ openSheet('settingsSheet'); });
+  document.querySelectorAll('.sheetClose').forEach(function(btn){ btn.addEventListener('click', closeSheets); });
+  scrim.addEventListener('click', closeSheets);
+
+  document.getElementById('zoomIn').addEventListener('click', function(){ map.zoomIn(); });
+  document.getElementById('zoomOut').addEventListener('click', function(){ map.zoomOut(); });
+  L.control.scale({ position:'bottomleft', imperial:false }).addTo(map);
+
+  var searchInput = document.getElementById('searchInput'), searchBtn = document.getElementById('searchBtn'), searchMarker=null;
+  function doSearch(){
+    var q = searchInput.value.trim(); if(!q) return;
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q))
+      .then(function(r){return r.json();}).then(function(results){
+        if(results && results.length){
+          var r = results[0], lat=parseFloat(r.lat), lon=parseFloat(r.lon);
+          if(searchMarker) map.removeLayer(searchMarker);
+          searchMarker = L.circleMarker([lat,lon], {radius:8, color:'#ff8a3d', weight:2, fillColor:'#ff8a3d', fillOpacity:0.3}).addTo(map);
+          map.setView([lat,lon], 13);
+        }
+      }).catch(function(){});
+  }
+  searchBtn.addEventListener('click', doSearch);
+  searchInput.addEventListener('keydown', function(e){ if(e.key==='Enter') doSearch(); });
+
+  document.getElementById('locateBtn').addEventListener('click', function(){
+    if(!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(function(pos){
+      map.setView([pos.coords.latitude, pos.coords.longitude], 14);
+      L.circleMarker([pos.coords.latitude,pos.coords.longitude], {radius:7, color:'#3ddc97', weight:2, fillColor:'#3ddc97', fillOpacity:0.4}).addTo(map);
+    });
+  });
+
+  var tLat=document.getElementById('tLat'), tLon=document.getElementById('tLon'), tZoom=document.getElementById('tZoom'), tLayer=document.getElementById('tLayer'), tRes=document.getElementById('tRes');
+  function updateTelemetry(){
+    var c = map.getCenter(), z = map.getZoom();
+    tLat.textContent = c.lat.toFixed(4)+'°'; tLon.textContent = c.lng.toFixed(4)+'°'; tZoom.textContent = z;
+    tLayer.textContent = baseLayers[activeBaseKey].name;
+    tRes.textContent = metersPerPixel(c.lat, z).toFixed(1) + ' m/px';
+  }
+  map.on('move zoom', updateTelemetry);
+  map.on('zoom', updateZoomHint);
+  updateTelemetry();
+
+  if(document.getElementById('shInstanceId').value.trim()) connectSentinelHub(false);
+  if(document.getElementById('owmKey').value.trim()) document.getElementById('owmConnectBtn').click();
+  if(document.getElementById('firmsKey').value.trim()) document.getElementById('firmsConnectBtn').click();
+  if(document.getElementById('windyKey').value.trim()) document.getElementById('windyConnectBtn').click();
+  if(document.getElementById('pfKey').value.trim()) document.getElementById('pfConnectBtn').click();
+  if(document.getElementById('webcamKey').value.trim()) document.getElementById('webcamConnectBtn').click();
+  if(document.getElementById('waqiKey').value.trim()) document.getElementById('waqiConnectBtn').click();
+  if(document.getElementById('cesiumKey').value.trim()) document.getElementById('cesiumConnectBtn').click();
+  updateDateReadout();
+  updateZoomHint();
+
+})();
+</script>
+</body>
+</html>
