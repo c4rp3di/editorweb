@@ -1,0 +1,1588 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1116">
+<title>🇵🇹 Português</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c232d; --panel3:#232b36;
+    --border:#2a3340; --border2:#3a4454;
+    --text:#e6edf3; --dim:#8b949e; --dim2:#6b7280;
+    --accent:#00c896; --accent-dark:#00a37a;
+    --blue:#3d8bfd; --purple:#8c82ff; --warn:#ffb020; --bad:#ff5c5c;
+    --ok-bg:rgba(0,200,150,.13); --fuzzy-bg:rgba(255,176,32,.15);
+    --bad-bg:rgba(255,92,92,.13); --miss-bg:rgba(139,148,158,.18);
+    --shadow:0 8px 24px rgba(0,0,0,.5);
+    --radius:14px; --radius-sm:10px;
+  }
+  [data-theme="light"]{
+    --bg:#f4f6fa; --panel:#ffffff; --panel2:#eef1f7; --panel3:#e2e7f0;
+    --border:#d8dde6; --border2:#b8c0ce;
+    --text:#1a1f2e; --dim:#5b6478; --dim2:#8b94a8;
+    --accent:#00a37a; --accent-dark:#008a68;
+    --blue:#2563eb; --purple:#6366f1; --warn:#c87f00; --bad:#dc2626;
+    --ok-bg:rgba(0,163,122,.12); --fuzzy-bg:rgba(200,127,0,.14);
+    --bad-bg:rgba(220,38,38,.1); --miss-bg:rgba(139,148,168,.15);
+    --shadow:0 8px 24px rgba(20,30,50,.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh;
+    padding-bottom:calc(70px + env(safe-area-inset-bottom,0));
+    transition:background .25s, color .25s;
+    overscroll-behavior-y:none;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;font-size:inherit;text-align:left}
+  input{font-family:inherit}
+
+  /* ====== Header ====== */
+  header{
+    position:sticky;top:0;z-index:20;
+    background:color-mix(in srgb, var(--bg) 94%, transparent);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--border);
+    padding-top:env(safe-area-inset-top,0);
+  }
+  .hdr{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 14px;min-height:52px;
+  }
+  .hdr .title{font-size:.95rem;font-weight:700;flex:1;display:flex;align-items:center;gap:6px;min-width:0}
+  .hdr .title small{font-size:.55rem;font-weight:600;background:var(--accent);color:#04170f;padding:2px 7px;border-radius:99px}
+  .icon-btn{
+    width:38px;height:38px;border-radius:50%;background:var(--panel);
+    border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+    font-size:1rem;transition:.15s;flex-shrink:0;
+  }
+  .icon-btn:active{transform:scale(.9);background:var(--panel2)}
+  .icon-btn.hidden{display:none}
+
+  /* ====== Main / Layout ====== */
+  main{max-width:680px;margin:0 auto;padding:16px 14px 30px}
+
+  /* ====== Bottom nav ====== */
+  .bottom-nav{
+    position:fixed;bottom:0;left:0;right:0;z-index:30;
+    background:color-mix(in srgb, var(--panel) 96%, transparent);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border-top:1px solid var(--border);
+    padding-bottom:env(safe-area-inset-bottom,0);
+    display:flex;
+  }
+  .bn-btn{
+    flex:1;padding:9px 4px 10px;
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+    font-size:.62rem;font-weight:600;color:var(--dim);
+    transition:.15s;position:relative;
+    min-height:56px;
+  }
+  .bn-btn .ic{font-size:1.35rem;line-height:1;transition:.15s}
+  .bn-btn.active{color:var(--accent)}
+  .bn-btn.active .ic{transform:translateY(-2px)}
+  .bn-btn:active{background:var(--panel2)}
+
+  /* ====== Cards / lists ====== */
+  .section-title{
+    font-size:.7rem;font-weight:700;color:var(--dim);
+    text-transform:uppercase;letter-spacing:.8px;
+    margin:18px 0 10px;
+  }
+  .section-title:first-child{margin-top:0}
+
+  .list{display:flex;flex-direction:column;gap:8px}
+  .card{
+    background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:14px;display:flex;gap:12px;align-items:flex-start;
+    transition:.15s;
+  }
+  .card:active{transform:scale(.99);background:var(--panel2)}
+  .card .c-ic{font-size:1.5rem;line-height:1;flex-shrink:0}
+  .card .c-body{flex:1;min-width:0}
+  .card .c-title{font-size:.9rem;font-weight:600;line-height:1.25;margin-bottom:2px}
+  .card .c-sub{font-size:.7rem;color:var(--dim);line-height:1.35}
+  .card .c-arrow{color:var(--dim);font-size:1.1rem;align-self:center;flex-shrink:0}
+  .card .c-badge{
+    font-size:.58rem;font-weight:700;padding:2px 7px;border-radius:5px;
+    background:var(--panel2);color:var(--dim);border:1px solid var(--border);
+    flex-shrink:0;align-self:flex-start;
+  }
+  .card.a1 .c-badge{color:#87b8ff;border-color:rgba(61,139,253,.3);background:rgba(61,139,253,.12)}
+  .card.a2 .c-badge{color:#b8b2ff;border-color:rgba(140,130,255,.3);background:rgba(140,130,255,.12)}
+  .card.b1 .c-badge{color:#7dffd4;border-color:rgba(0,200,150,.3);background:rgba(0,200,150,.12)}
+  .card.done .c-title::before{content:"✓ ";color:var(--accent);font-weight:700}
+
+  /* ====== Reader ====== */
+  .reader{animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .r-top{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+  .r-back{
+    width:40px;height:40px;border-radius:50%;background:var(--panel);
+    border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+    font-size:1.05rem;flex-shrink:0;transition:.15s;
+  }
+  .r-back:active{transform:scale(.92);background:var(--panel2)}
+  .r-info{flex:1;min-width:0}
+  .r-info .r-title{font-size:.9rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .r-info .r-sub{font-size:.65rem;color:var(--dim);margin-top:1px}
+
+  .r-progress{height:4px;background:var(--panel);border-radius:99px;overflow:hidden;margin-bottom:18px;border:1px solid var(--border)}
+  .r-progress .bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--blue));transition:width .3s}
+
+  .passage{
+    font-size:1.22rem;line-height:1.85;
+    font-family:Georgia,'Times New Roman',serif;
+    letter-spacing:.1px;
+    padding:4px 0;
+    word-break:normal;
+    hyphens:auto;
+  }
+  [data-theme="light"] .passage{color:#1a1f2e}
+
+  .word{
+    display:inline;
+    padding:2px 1px;
+    border-radius:5px;
+    cursor:pointer;
+    transition:background .2s, color .2s;
+    -webkit-touch-callout:none;
+  }
+  .word:active{background:var(--panel2)}
+  .word.correct{background:var(--ok-bg);color:var(--accent);font-weight:600}
+  .word.fuzzy{background:var(--fuzzy-bg);color:var(--warn);font-weight:600}
+  .word.wrong{background:var(--bad-bg);color:var(--bad);text-decoration:line-through;text-decoration-thickness:2px}
+  .word.missed{background:var(--miss-bg);color:var(--dim);opacity:.85}
+  .word.reading{background:rgba(61,139,253,.28);color:var(--blue);font-weight:600}
+
+  .passage-meta{
+    margin-top:14px;padding-top:12px;border-top:1px solid var(--border);
+    font-size:.7rem;color:var(--dim);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  }
+
+  .r-actions{
+    display:flex;gap:8px;margin-top:20px;align-items:center;
+  }
+  .r-actions button{
+    padding:12px 16px;border-radius:12px;font-size:.82rem;font-weight:600;
+    transition:.15s;min-height:48px;flex:1;
+  }
+  .r-actions button:active{transform:scale(.97)}
+  .btn-mic{
+    background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    box-shadow:0 6px 20px rgba(140,130,255,.35);
+    flex:1.2 !important;
+  }
+  .btn-mic.rec{
+    background:linear-gradient(135deg,var(--bad),#b91c1c);
+    animation:pulse 1.2s infinite;
+  }
+  @keyframes pulse{
+    0%,100%{box-shadow:0 6px 20px rgba(255,92,92,.4)}
+    50%{box-shadow:0 6px 32px rgba(255,92,92,.7)}
+  }
+  .btn-ghost{
+    background:var(--panel);border:1px solid var(--border);color:var(--text);
+  }
+  .btn-ghost:active{background:var(--panel2)}
+
+  .r-status{
+    margin-top:12px;padding:10px 14px;border-radius:var(--radius-sm);
+    font-size:.78rem;line-height:1.5;
+  }
+  .r-status.ok{background:var(--ok-bg);color:var(--accent);border:1px solid color-mix(in srgb, var(--accent) 35%, transparent)}
+  .r-status.warn{background:var(--fuzzy-bg);color:var(--warn);border:1px solid color-mix(in srgb, var(--warn) 35%, transparent)}
+  .r-status.bad{background:var(--bad-bg);color:var(--bad);border:1px solid color-mix(in srgb, var(--bad) 35%, transparent)}
+  .r-status.info{background:var(--panel);color:var(--dim);border:1px solid var(--border)}
+
+  .legend{
+    margin-top:14px;display:flex;flex-wrap:wrap;gap:10px;
+    font-size:.65rem;color:var(--dim);
+  }
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+  /* ====== Diccionario flotante ====== */
+  .dict-sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:200;
+    background:var(--panel);border-top:2px solid var(--accent);
+    border-radius:18px 18px 0 0;
+    padding:14px 16px calc(16px + env(safe-area-inset-bottom,0));
+    transform:translateY(110%);transition:transform .25s ease;
+    box-shadow:0 -10px 40px rgba(0,0,0,.5);
+    max-height:70vh;overflow-y:auto;
+  }
+  .dict-sheet.show{transform:translateY(0)}
+  .ds-drag{width:38px;height:4px;background:var(--border2);border-radius:99px;margin:0 auto 12px}
+  .ds-word{font-size:1.35rem;font-weight:700;margin-bottom:4px;color:var(--accent)}
+  .ds-meta{font-size:.72rem;color:var(--dim);margin-bottom:12px;font-style:italic}
+  .ds-trans{font-size:.95rem;margin-bottom:12px;font-weight:500}
+  .ds-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .ds-actions button{
+    padding:9px 14px;border-radius:10px;font-size:.75rem;font-weight:600;min-height:40px;
+  }
+  .ds-def{font-size:.82rem;line-height:1.5;margin-top:8px;color:var(--text);padding:10px 12px;background:var(--panel2);border-radius:10px}
+  .ds-loading{font-size:.75rem;color:var(--dim);font-style:italic}
+
+  /* ====== Progreso ====== */
+  .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px}
+  .stat .lbl{font-size:.62rem;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+  .stat .val{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .stat .val.accent{color:var(--accent)}
+  .stat .val.blue{color:var(--blue)}
+  .stat .val.purple{color:var(--purple)}
+  .stat .val.warn{color:var(--warn)}
+
+  .word-grid{display:flex;flex-wrap:wrap;gap:6px}
+  .word-pill{
+    padding:6px 11px;border-radius:99px;font-size:.72rem;font-weight:500;
+    background:var(--panel);border:1px solid var(--border);cursor:pointer;
+    transition:.15s;
+  }
+  .word-pill:active{background:var(--panel2);transform:scale(.95)}
+  .word-pill.hard{background:var(--bad-bg);border-color:color-mix(in srgb,var(--bad) 30%,transparent);color:var(--bad)}
+
+  /* ====== Ajustes ====== */
+  .setting-block{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px}
+  .setting-block h3{font-size:.85rem;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .setting-block p.sub{font-size:.7rem;color:var(--dim);line-height:1.5;margin-bottom:10px}
+  .btn-row{display:flex;gap:8px}
+  .btn-row button{
+    flex:1;padding:11px;border-radius:var(--radius-sm);font-size:.78rem;font-weight:600;
+    min-height:44px;transition:.15s;
+  }
+  .btn-row button:active{transform:scale(.97)}
+  .btn-primary{background:var(--accent);color:#04170f}
+  [data-theme="light"] .btn-primary{color:#fff}
+  .btn-danger{background:var(--bad-bg);color:var(--bad);border:1px solid color-mix(in srgb,var(--bad) 30%,transparent)}
+
+  /* ====== Empty / toast / modal ====== */
+  .empty{text-align:center;padding:50px 20px;color:var(--dim);font-size:.85rem;line-height:1.5}
+  .empty .big{font-size:2.6rem;margin-bottom:12px;opacity:.5}
+
+  .toast{
+    position:fixed;bottom:calc(82px + env(safe-area-inset-bottom,0));left:50%;
+    transform:translateX(-50%) translateY(80px);
+    background:var(--panel3);border:1px solid var(--border2);color:var(--text);
+    padding:11px 18px;border-radius:99px;font-size:.78rem;font-weight:500;
+    box-shadow:var(--shadow);opacity:0;transition:.28s ease;
+    z-index:150;pointer-events:none;max-width:calc(100vw - 32px);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .modal-bg{
+    position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);
+    display:none;align-items:center;justify-content:center;padding:20px;z-index:300;
+  }
+  .modal-bg.show{display:flex}
+  .modal{
+    background:var(--panel);border:1px solid var(--border);border-radius:16px;
+    padding:20px;max-width:340px;width:100%;box-shadow:var(--shadow);
+  }
+  .modal h3{font-size:1rem;margin-bottom:8px}
+  .modal p{font-size:.8rem;color:var(--dim);line-height:1.5;margin-bottom:16px}
+  .modal .btns{display:flex;gap:8px}
+  .modal .btns button{flex:1;padding:12px;border-radius:10px;font-size:.82rem;font-weight:600;min-height:46px}
+
+  /* ====== Loading spinner ====== */
+  .spin{
+    display:inline-block;width:16px;height:16px;
+    border:2px solid var(--border2);border-top-color:var(--accent);
+    border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr">
+    <div class="title" id="hdrTitle">🇵🇹 Português <small>pt-PT</small></div>
+    <button class="icon-btn" id="themeBtn" aria-label="Tema">🌙</button>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<nav class="bottom-nav" id="nav">
+  <button class="bn-btn active" data-view="learn">
+    <span class="ic">📖</span><span>Aprender</span>
+  </button>
+  <button class="bn-btn" data-view="read">
+    <span class="ic">📚</span><span>Leer</span>
+  </button>
+  <button class="bn-btn" data-view="progress">
+    <span class="ic">📊</span><span>Progreso</span>
+  </button>
+  <button class="bn-btn" data-view="settings">
+    <span class="ic">⚙️</span><span>Ajustes</span>
+  </button>
+</nav>
+
+<div class="dict-sheet" id="dictSheet" aria-hidden="true">
+  <div class="ds-drag"></div>
+  <div id="dictContent"></div>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <p id="modalMsg"></p>
+    <div class="btns">
+      <button class="btn-ghost" id="modalCancel">Cancelar</button>
+      <button class="btn-primary" id="modalOk">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   CORPUS · pt-PT · vocabulario con traducción, IPA y categoría
+   ===================================================================== */
+const CORPUS = {
+  'olá': { es:'hola', cat:'interjección', ipa:'/ɔˈla/' },
+  'bom dia': { es:'buenos días', cat:'expresión', ipa:'/bõ ˈdiɐ/' },
+  'boa tarde': { es:'buenas tardes', cat:'expresión', ipa:'/ˈboɐ ˈtaɾðɨ/' },
+  'boa noite': { es:'buenas noches', cat:'expresión', ipa:'/ˈboɐ ˈnojtsɨ/' },
+  'adeus': { es:'adiós', cat:'interjección', ipa:'/ɐˈdewʃ/' },
+  'até logo': { es:'hasta luego', cat:'expresión', ipa:'/ɐˈtɛ ˈloɣu/' },
+  'obrigado': { es:'gracias (m)', cat:'interjección', ipa:'/obɾiˈɣadu/' },
+  'obrigada': { es:'gracias (f)', cat:'interjección', ipa:'/obɾiˈɣaðɐ/' },
+  'de nada': { es:'de nada', cat:'expresión', ipa:'/dɨ ˈnaðɐ/' },
+  'por favor': { es:'por favor', cat:'expresión', ipa:'/puɾ fɐˈvoɾ/' },
+  'com licença': { es:'disculpe', cat:'expresión', ipa:'/kõ liˈsẽsɐ/' },
+  'desculpe': { es:'perdón', cat:'verbo', ipa:'/dɨʃˈkulpɨ/' },
+  'prazer': { es:'placer', cat:'sustantivo', ipa:'/pɾɐˈzeɾ/' },
+  'tudo bem': { es:'todo bien', cat:'expresión', ipa:'/ˈtudu bẽj̃/' },
+  'um': { es:'uno', cat:'numeral', ipa:'/ũ/' },
+  'dois': { es:'dos', cat:'numeral', ipa:'/dojʃ/' },
+  'três': { es:'tres', cat:'numeral', ipa:'/tɾeʃ/' },
+  'quatro': { es:'cuatro', cat:'numeral', ipa:'/ˈkwatɾu/' },
+  'cinco': { es:'cinco', cat:'numeral', ipa:'/ˈsĩku/' },
+  'seis': { es:'seis', cat:'numeral', ipa:'/sejʃ/' },
+  'sete': { es:'siete', cat:'numeral', ipa:'/ˈsɛtɨ/' },
+  'oito': { es:'ocho', cat:'numeral', ipa:'/ˈojtu/' },
+  'nove': { es:'nueve', cat:'numeral', ipa:'/ˈnɔvɨ/' },
+  'dez': { es:'diez', cat:'numeral', ipa:'/dɛʃ/' },
+  'mãe': { es:'madre', cat:'sustantivo f', ipa:'/mɐ̃j̃/' },
+  'pai': { es:'padre', cat:'sustantivo m', ipa:'/paj/' },
+  'irmão': { es:'hermano', cat:'sustantivo m', ipa:'/iɾˈmɐ̃w̃/' },
+  'irmã': { es:'hermana', cat:'sustantivo f', ipa:'/iɾˈmɐ̃/' },
+  'filho': { es:'hijo', cat:'sustantivo m', ipa:'/ˈfiʎu/' },
+  'filha': { es:'hija', cat:'sustantivo f', ipa:'/ˈfiʎɐ/' },
+  'avô': { es:'abuelo', cat:'sustantivo m', ipa:'/ɐˈvo/' },
+  'avó': { es:'abuela', cat:'sustantivo f', ipa:'/ɐˈvɔ/' },
+  'tio': { es:'tío', cat:'sustantivo m', ipa:'/ˈtiu/' },
+  'tia': { es:'tía', cat:'sustantivo f', ipa:'/ˈtiɐ/' },
+  'casa': { es:'casa', cat:'sustantivo f', ipa:'/ˈkazɐ/' },
+  'quarto': { es:'habitación', cat:'sustantivo m', ipa:'/ˈkwaɾtu/' },
+  'sala': { es:'salón', cat:'sustantivo f', ipa:'/ˈsalɐ/' },
+  'cozinha': { es:'cocina', cat:'sustantivo f', ipa:'/kuˈziɲɐ/' },
+  'casa de banho': { es:'baño', cat:'sustantivo f', ipa:'/ˈkazɐ dɨ ˈbaɲu/' },
+  'porta': { es:'puerta', cat:'sustantivo f', ipa:'/ˈpɔɾtɐ/' },
+  'janela': { es:'ventana', cat:'sustantivo f', ipa:'/ʒɐˈnɛlɐ/' },
+  'mesa': { es:'mesa', cat:'sustantivo f', ipa:'/ˈmezɐ/' },
+  'cadeira': { es:'silla', cat:'sustantivo f', ipa:'/kɐˈðɐjɾɐ/' },
+  'cama': { es:'cama', cat:'sustantivo f', ipa:'/ˈkamɐ/' },
+  'água': { es:'agua', cat:'sustantivo f', ipa:'/ˈaɣwɐ/' },
+  'café': { es:'café', cat:'sustantivo m', ipa:'/kɐˈfɛ/' },
+  'pão': { es:'pan', cat:'sustantivo m', ipa:'/pɐ̃w̃/' },
+  'queijo': { es:'queso', cat:'sustantivo m', ipa:'/ˈkɐjʒu/' },
+  'arroz': { es:'arroz', cat:'sustantivo m', ipa:'/ɐˈʁoʃ/' },
+  'carne': { es:'carne', cat:'sustantivo f', ipa:'/ˈkaɾnɨ/' },
+  'peixe': { es:'pescado', cat:'sustantivo m', ipa:'/ˈpɐjʃɨ/' },
+  'fruta': { es:'fruta', cat:'sustantivo f', ipa:'/ˈfɾutɐ/' },
+  'leite': { es:'leche', cat:'sustantivo m', ipa:'/ˈlɐjtɨ/' },
+  'vinho': { es:'vino', cat:'sustantivo m', ipa:'/ˈviɲu/' },
+  'vermelho': { es:'rojo', cat:'adjetivo', ipa:'/vɨɾˈmeʎu/' },
+  'azul': { es:'azul', cat:'adjetivo', ipa:'/ɐˈzul/' },
+  'verde': { es:'verde', cat:'adjetivo', ipa:'/ˈveɾðɨ/' },
+  'amarelo': { es:'amarillo', cat:'adjetivo', ipa:'/ɐmɐˈɾɛlu/' },
+  'preto': { es:'negro', cat:'adjetivo', ipa:'/ˈpɾetu/' },
+  'branco': { es:'blanco', cat:'adjetivo', ipa:'/ˈbɾɐ̃ku/' },
+  'cinzento': { es:'gris', cat:'adjetivo', ipa:'/sĩˈzẽtu/' },
+  'rosa': { es:'rosa', cat:'adjetivo', ipa:'/ˈʁɔzɐ/' },
+  'laranja': { es:'naranja', cat:'adjetivo', ipa:'/lɐˈɾɐ̃ʒɐ/' },
+  'roxo': { es:'morado', cat:'adjetivo', ipa:'/ˈʁoʃu/' },
+  'segunda-feira': { es:'lunes', cat:'sustantivo f', ipa:'/sɨˈɣũdɐ ˈfɐjɾɐ/' },
+  'terça-feira': { es:'martes', cat:'sustantivo f', ipa:'/ˈtɛɾsɐ ˈfɐjɾɐ/' },
+  'quarta-feira': { es:'miércoles', cat:'sustantivo f', ipa:'/ˈkwaɾtɐ ˈfɐjɾɐ/' },
+  'quinta-feira': { es:'jueves', cat:'sustantivo f', ipa:'/ˈkĩtɐ ˈfɐjɾɐ/' },
+  'sexta-feira': { es:'viernes', cat:'sustantivo f', ipa:'/ˈsɐjʃtɐ ˈfɐjɾɐ/' },
+  'sábado': { es:'sábado', cat:'sustantivo m', ipa:'/ˈsabɐðu/' },
+  'domingo': { es:'domingo', cat:'sustantivo m', ipa:'/duˈmĩɡu/' },
+  'hoje': { es:'hoy', cat:'adverbio', ipa:'/ˈoʒɨ/' },
+  'amanhã': { es:'mañana', cat:'adverbio', ipa:'/ɐmɐˈɲɐ̃/' },
+  'ontem': { es:'ayer', cat:'adverbio', ipa:'/ˈõtɐ̃j̃/' },
+  'ser': { es:'ser', cat:'verbo', ipa:'/seɾ/' },
+  'estar': { es:'estar', cat:'verbo', ipa:'/ɨʃˈtaɾ/' },
+  'ter': { es:'tener', cat:'verbo', ipa:'/teɾ/' },
+  'fazer': { es:'hacer', cat:'verbo', ipa:'/fɐˈzeɾ/' },
+  'ir': { es:'ir', cat:'verbo', ipa:'/iɾ/' },
+  'vir': { es:'venir', cat:'verbo', ipa:'/viɾ/' },
+  'comer': { es:'comer', cat:'verbo', ipa:'/kuˈmeɾ/' },
+  'beber': { es:'beber', cat:'verbo', ipa:'/bɨˈbeɾ/' },
+  'falar': { es:'hablar', cat:'verbo', ipa:'/fɐˈlaɾ/' },
+  'entender': { es:'entender', cat:'verbo', ipa:'/ẽtẽˈdeɾ/' },
+  'saber': { es:'saber', cat:'verbo', ipa:'/sɐˈbeɾ/' },
+  'poder': { es:'poder', cat:'verbo', ipa:'/puˈdeɾ/' },
+  'querer': { es:'querer', cat:'verbo', ipa:'/kɨˈɾeɾ/' },
+  'gostar': { es:'gustar', cat:'verbo', ipa:'/ɡuʃˈtaɾ/' },
+  'trabalhar': { es:'trabajar', cat:'verbo', ipa:'/tɾɐbɐˈʎaɾ/' },
+  'estudar': { es:'estudiar', cat:'verbo', ipa:'/ɨʃtuˈðaɾ/' },
+  'morar': { es:'vivir (residir)', cat:'verbo', ipa:'/muˈɾaɾ/' },
+  'bom': { es:'bueno', cat:'adjetivo', ipa:'/bõ/' },
+  'mau': { es:'malo', cat:'adjetivo', ipa:'/maw/' },
+  'grande': { es:'grande', cat:'adjetivo', ipa:'/ˈɡɾɐ̃dɨ/' },
+  'pequeno': { es:'pequeño', cat:'adjetivo', ipa:'/pɨˈkenu/' },
+  'novo': { es:'nuevo', cat:'adjetivo', ipa:'/ˈnovu/' },
+  'velho': { es:'viejo', cat:'adjetivo', ipa:'/ˈvɛʎu/' },
+  'bonito': { es:'bonito', cat:'adjetivo', ipa:'/buˈnitu/' },
+  'fácil': { es:'fácil', cat:'adjetivo', ipa:'/ˈfasil/' },
+  'difícil': { es:'difícil', cat:'adjetivo', ipa:'/diˈfisil/' },
+  'rua': { es:'calle', cat:'sustantivo f', ipa:'/ˈʁuɐ/' },
+  'praça': { es:'plaza', cat:'sustantivo f', ipa:'/ˈpɾasɐ/' },
+  'parque': { es:'parque', cat:'sustantivo m', ipa:'/ˈpaɾkɨ/' },
+  'escola': { es:'escuela', cat:'sustantivo f', ipa:'/ɨʃˈkɔlɐ/' },
+  'hospital': { es:'hospital', cat:'sustantivo m', ipa:'/uʃpiˈtal/' },
+  'loja': { es:'tienda', cat:'sustantivo f', ipa:'/ˈlɔʒɐ/' },
+  'restaurante': { es:'restaurante', cat:'sustantivo m', ipa:'/ʁɨʃtɐwˈɾɐ̃tɨ/' },
+  'banco': { es:'banco', cat:'sustantivo m', ipa:'/ˈbɐ̃ku/' },
+  'estação': { es:'estación', cat:'sustantivo f', ipa:'/ɨʃtɐˈsɐ̃w̃/' },
+  'aeroporto': { es:'aeropuerto', cat:'sustantivo m', ipa:'/ɐɛɾuˈpoɾtu/' },
+  'cidade': { es:'ciudad', cat:'sustantivo f', ipa:'/siˈðaðɨ/' },
+  'país': { es:'país', cat:'sustantivo m', ipa:'/pɐˈiʃ/' },
+  'mar': { es:'mar', cat:'sustantivo m', ipa:'/maɾ/' },
+  'sol': { es:'sol', cat:'sustantivo m', ipa:'/sɔl/' },
+  'chuva': { es:'lluvia', cat:'sustantivo f', ipa:'/ˈʃuvɐ/' },
+  'tempo': { es:'tiempo', cat:'sustantivo m', ipa:'/ˈtẽpu/' },
+  'dia': { es:'día', cat:'sustantivo m', ipa:'/ˈdiɐ/' },
+  'noite': { es:'noche', cat:'sustantivo f', ipa:'/ˈnojtɨ/' },
+  'tarde': { es:'tarde', cat:'sustantivo f', ipa:'/ˈtaɾðɨ/' },
+  'manhã': { es:'mañana (parte del día)', cat:'sustantivo f', ipa:'/mɐˈɲɐ̃/' },
+  'obrigado pela ajuda': { es:'gracias por la ayuda', cat:'expresión', ipa:'' },
+  'como está': { es:'cómo está', cat:'expresión', ipa:'/ˈkomu ɨʃˈta/' },
+  'como se chama': { es:'cómo se llama', cat:'expresión', ipa:'/ˈkomu sɨ ˈʃɐmɐ/' },
+  'eu': { es:'yo', cat:'pronombre', ipa:'/ew/' },
+  'tu': { es:'tú', cat:'pronombre', ipa:'/tu/' },
+  'você': { es:'usted', cat:'pronombre', ipa:'/vɔˈse/' },
+  'ele': { es:'él', cat:'pronombre', ipa:'/ˈelɨ/' },
+  'ela': { es:'ella', cat:'pronombre', ipa:'/ˈɛlɐ/' },
+  'nós': { es:'nosotros', cat:'pronombre', ipa:'/nɔʃ/' },
+  'eles': { es:'ellos', cat:'pronombre', ipa:'/ˈelɨʃ/' },
+  'elas': { es:'ellas', cat:'pronombre', ipa:'/ˈɛlɐʃ/' },
+  'e': { es:'y', cat:'conjunción', ipa:'/i/' },
+  'ou': { es:'o', cat:'conjunción', ipa:'/o/' },
+  'mas': { es:'pero', cat:'conjunción', ipa:'/maʃ/' },
+  'porque': { es:'porque', cat:'conjunción', ipa:'/puɾˈke/' },
+  'também': { es:'también', cat:'adverbio', ipa:'/tɐ̃ˈbɐ̃j̃/' },
+  'muito': { es:'muy / mucho', cat:'adverbio', ipa:'/ˈmũj̃tu/' },
+  'pouco': { es:'poco', cat:'adverbio', ipa:'/ˈpoku/' },
+  'sim': { es:'sí', cat:'adverbio', ipa:'/sĩ/' },
+  'não': { es:'no', cat:'adverbio', ipa:'/nɐ̃w̃/' },
+  'aqui': { es:'aquí', cat:'adverbio', ipa:'/ɐˈki/' },
+  'ali': { es:'allí', cat:'adverbio', ipa:'/ɐˈli/' },
+  'onde': { es:'dónde', cat:'adverbio', ipa:'/ˈõdɨ/' },
+  'quando': { es:'cuándo', cat:'adverbio', ipa:'/ˈkwɐ̃du/' },
+  'que': { es:'que', cat:'pronombre', ipa:'/kɨ/' },
+  'com': { es:'con', cat:'preposición', ipa:'/kõ/' },
+  'sem': { es:'sin', cat:'preposición', ipa:'/sẽj̃/' },
+  'em': { es:'en', cat:'preposición', ipa:'/ɐ̃j̃/' },
+  'para': { es:'para', cat:'preposición', ipa:'/ˈpɐɾɐ/' },
+  'de': { es:'de', cat:'preposición', ipa:'/dɨ/' },
+  'a': { es:'la / a', cat:'artículo', ipa:'/ɐ/' },
+  'o': { es:'el', cat:'artículo', ipa:'/u/' },
+  'os': { es:'los', cat:'artículo', ipa:'/uʃ/' },
+  'as': { es:'las', cat:'artículo', ipa:'/ɐʃ/' }
+};
+
+/* =====================================================================
+   CLASES · Aprender
+   ===================================================================== */
+const CLASSES = [
+  {
+    id:'c1', icon:'👋', level:'A1', title:'Saludos y presentaciones',
+    desc:'Las primeras palabras para empezar una conversación.',
+    intro:'En portugués europeo, el saludo depende de la hora del día. "Bom dia" hasta mediodía, "boa tarde" hasta el atardecer, y "boa noite" cuando ya es de noche. Para despedirte, "adeus" es definitivo, "até logo" es hasta luego. Cuando alguien te da las gracias, se responde "de nada".',
+    ejemplos:[
+      { pt:'Olá, bom dia!', es:'¡Hola, buenos días!' },
+      { pt:'Como está?', es:'¿Cómo está?' },
+      { pt:'Muito prazer.', es:'Mucho gusto.' },
+      { pt:'Obrigado, até logo!', es:'Gracias, ¡hasta luego!' }
+    ],
+    pasajes:[
+      { texto:'Bom dia! Como está? Eu chamo-me Ana. Muito prazer em conhecer você.' },
+      { texto:'Boa tarde, senhor Silva. Obrigado pela ajuda. Até logo!' }
+    ]
+  },
+  {
+    id:'c2', icon:'📝', level:'A1', title:'El artículo y el género',
+    desc:'Cómo saber si una palabra es masculina o femenina.',
+    intro:'En portugués, cada sustantivo tiene género. Los masculinos usan "o" en singular y "os" en plural; los femeninos usan "a" y "as". Muchas veces termina en -o si es masculino y en -a si es femenino, pero hay excepciones. Los artículos indefinidos son "um" y "uma".',
+    ejemplos:[
+      { pt:'O livro é novo.', es:'El libro es nuevo.' },
+      { pt:'A casa é grande.', es:'La casa es grande.' },
+      { pt:'Os livros são novos.', es:'Los libros son nuevos.' },
+      { pt:'Uma mesa e uma cadeira.', es:'Una mesa y una silla.' }
+    ],
+    pasajes:[
+      { texto:'A casa é grande e a porta é velha. O quarto é pequeno, mas a cozinha é nova.' },
+      { texto:'Um café, por favor. E um pão também. Obrigado!' }
+    ]
+  },
+  {
+    id:'c3', icon:'⚖️', level:'A1', title:'Ser y estar',
+    desc:'Dos verbos para "ser". Cuándo usar cada uno.',
+    intro:'"Ser" se usa para características permanentes o definitorias: nombre, nacionalidad, profesión, personalidad. "Estar" se usa para estados temporales: ubicación, ánimo, condición momentánea. Decir "sou português" (soy portugués) es permanente; decir "estou cansado" (estoy cansado) es temporal.',
+    ejemplos:[
+      { pt:'Eu sou de Lisboa.', es:'Soy de Lisboa.' },
+      { pt:'Ela é professora.', es:'Ella es profesora.' },
+      { pt:'Estou em casa.', es:'Estoy en casa.' },
+      { pt:'Nós estamos felizes.', es:'Nosotros estamos felices.' }
+    ],
+    pasajes:[
+      { texto:'Eu sou espanhol, mas moro em Lisboa. Estou muito contente aqui. A cidade é bonita.' },
+      { texto:'Onde está o café? Está ali, ao lado da escola. É muito bom.' }
+    ]
+  },
+  {
+    id:'c4', icon:'🗣️', level:'A1', title:'Los pronombres personales',
+    desc:'Yo, tú, usted, él, ella... en portugués europeo.',
+    intro:'En portugués europeo, "tu" es informal y "você" es formal, aunque gramaticalmente "você" usa verbos en tercera persona. El plural "vós" casi no se usa; se dice "vocês" para varios interlocutores. Los pronombres de objeto directo e indirecto son un tema avanzado, pero conviene reconocerlos.',
+    ejemplos:[
+      { pt:'Eu falo português.', es:'Yo hablo portugués.' },
+      { pt:'Tu falas espanhol?', es:'¿Tú hablas español?' },
+      { pt:'Você mora aqui?', es:'¿Usted vive aquí?' },
+      { pt:'Nós estudamos juntos.', es:'Nosotros estudiamos juntos.' }
+    ],
+    pasajes:[
+      { texto:'Eu chamo-me Pedro. Tu chamas-te Maria? Ela é a minha irmã. Nós somos de Madrid.' },
+      { texto:'Você fala português? Sim, eu falo um pouco. Eles também falam.' }
+    ]
+  },
+  {
+    id:'c5', icon:'🔄', level:'A1', title:'Verbos regulares en presente',
+    desc:'Las tres conjugaciones: -ar, -er, -ir.',
+    intro:'Los verbos regulares en portugués se dividen en tres grupos según su terminación: -ar (falar), -er (comer), -ir (partir). Cada grupo tiene sus propias terminaciones en presente. Aprendiendo las tres, puedes conjugar cientos de verbos.',
+    ejemplos:[
+      { pt:'Eu falo, tu falas, ele fala.', es:'Yo hablo, tú hablas, él habla.' },
+      { pt:'Eu como, tu comes, ela come.', es:'Yo como, tú comes, ella come.' },
+      { pt:'Nós falamos português.', es:'Nosotros hablamos portugués.' },
+      { pt:'Eles comem às duas.', es:'Ellos comen a las dos.' }
+    ],
+    pasajes:[
+      { texto:'Eu falo português todos os dias. Tu estudas muito. Ele trabalha numa escola.' },
+      { texto:'Nós comemos juntos ao meio-dia. Eles bebem café depois. Vocês entendem tudo.' }
+    ]
+  },
+  {
+    id:'c6', icon:'🕐', level:'A2', title:'Números y hora',
+    desc:'Contar y decir la hora.',
+    intro:'Para decir la hora: "É uma hora", "São duas horas". Con minutos: "São três e vinte" (las tres y veinte), "São cinco menos um quarto" (las cinco menos cuarto). "Meia" es media. Los días se dicen con "segunda-feira", "terça-feira", etc.',
+    ejemplos:[
+      { pt:'Que horas são?', es:'¿Qué hora es?' },
+      { pt:'São três e meia.', es:'Son las tres y media.' },
+      { pt:'É uma hora em ponto.', es:'Es la una en punto.' },
+      { pt:'Hoje é segunda-feira.', es:'Hoy es lunes.' }
+    ],
+    pasajes:[
+      { texto:'Que horas são? São duas e um quarto. A reunião é às três. Hoje é quarta-feira.' },
+      { texto:'O comboio parte às oito e vinte. Chega ao meio-dia. Está na hora!' }
+    ]
+  }
+];
+
+/* =====================================================================
+   TEXTOS · Leer
+   ===================================================================== */
+const TEXTS = [
+  {
+    id:'t1', icon:'☀️', level:'A1', title:'Um dia normal',
+    desc:'La rutina de Maria, contada en presente.',
+    passages:[
+      'Eu chamo-me Maria. Sou de Lisboa e moro num apartamento pequeno no centro da cidade.',
+      'Todos os dias acordo às sete da manhã. Tomo café com leite e como um pão com queijo.',
+      'Depois vou para o trabalho a pé. Trabalho numa loja perto da praça. Às vezes almoço com os meus colegas num restaurante ao lado.',
+      'À tarde volto para casa. Leio um livro ou ouço música. À noite janto com a minha família e vejo televisão. Deito-me às onze.'
+    ]
+  },
+  {
+    id:'t2', icon:'👵', level:'A1', title:'A casa da minha avó',
+    desc:'Recuerdos de la casa de la abuela.',
+    passages:[
+      'A minha avó vive numa casa antiga numa aldeia pequena. A casa é branca, com uma porta azul e janelas verdes.',
+      'No jardim há muitas flores e uma oliveira grande. Ao lado da casa está a cozinha, onde a minha avó faz o melhor pão do mundo.',
+      'Na sala há uma mesa de madeira, cadeiras velhas e muitas fotografias nas paredes. É um lugar calmo e bonito.',
+      'Gosto muito de passar o verão ali. É a minha casa favorita.'
+    ]
+  },
+  {
+    id:'t3', icon:'☕', level:'A2', title:'Um café em Lisboa',
+    desc:'Un diálogo para pedir en un café.',
+    passages:[
+      'Entrei num café pequeno na rua Augusta. Estava cheio, mas encontrei uma mesa ao lado da janela.',
+      'O empregado aproximou-se: — Boa tarde. O que deseja? — Um café e um pastel de nata, por favor, respondi.',
+      'Enquanto esperava, olhei para a rua. Muita gente passava, turistas com mapas, portugueses com pressa.',
+      'O café chegou quente e o pastel estava delicioso. Paguei, agradeci e saí com um sorriso.'
+    ]
+  },
+  {
+    id:'t4', icon:'🏖️', level:'A2', title:'O fim de semana',
+    desc:'Planes para el fin de semana.',
+    passages:[
+      'No sábado de manhã, costumo ir ao mercado comprar fruta e legumes frescos. Gosto de ver as cores e ouvir as pessoas a falar alto.',
+      'À tarde, encontro-me com os amigos num parque perto do rio. Falamos, rimos e às vezes jogamos futebol.',
+      'No domingo, fico em casa a descansar. Leio o jornal, ouço música e preparo o almoço para a semana.',
+      'À noite, vejo um filme ou falo com a minha família por telefone. O fim de semana passa sempre muito depressa.'
+    ]
+  },
+  {
+    id:'t5', icon:'🚆', level:'B1', title:'Viagem ao Porto',
+    desc:'Un relato de viaje al norte de Portugal.',
+    passages:[
+      'Na sexta-feira passada, apanhei o comboio para o Porto. A viagem durou cerca de três horas e a paisagem era magnífica: campos verdes, rios, aldeias pequenas.',
+      'Quando cheguei, a estação de São Bento surpreendeu-me. As paredes estão cobertas de azulejos azuis e brancos que contam a história do país.',
+      'Caminhei até à Ribeira, junto ao rio Douro. As casas coloridas, os barcos no rio, o cheiro do vinho do Porto — tudo parecia um postal.',
+      'À noite, jantei num restaurante típico. Provei o famoso bacalhau e, no fim, um copo de vinho do Porto. Foi uma viagem inesquecível.'
+    ]
+  }
+];
+
+/* =====================================================================
+   UTILIDADES
+   ===================================================================== */
+function normalizar(s){
+  return String(s || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ').trim();
+}
+function similitud(a, b){
+  a = normalizar(a); b = normalizar(b);
+  if(!a || !b) return 0;
+  if(a === b) return 1;
+  const m = a.length, n = b.length;
+  if(Math.abs(m - n) > Math.max(m, n) * 0.8) return 0;
+  const dp = Array.from({length: m+1}, (_, i) => {
+    const row = new Array(n+1); row[0] = i; return row;
+  });
+  for(let j = 0; j <= n; j++) dp[0][j] = j;
+  for(let i = 1; i <= m; i++){
+    for(let j = 1; j <= n; j++){
+      dp[i][j] = Math.min(
+        dp[i-1][j] + 1,
+        dp[i][j-1] + 1,
+        dp[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1)
+      );
+    }
+  }
+  return 1 - dp[m][n] / Math.max(m, n);
+}
+function esc(s){
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function bytesFmt(b){
+  if(b < 1024) return b + ' B';
+  if(b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  return (b/(1024*1024)).toFixed(2) + ' MB';
+}
+
+/* =====================================================================
+   ALINEACIÓN · fuente ↔ reconocido
+   Devuelve un estado por palabra del texto fuente.
+   ===================================================================== */
+function alinear(fuente, reconocido){
+  const F = fuente.map(normalizar);
+  const R = reconocido.map(normalizar);
+  const n = F.length, m = R.length;
+  const states = new Array(n).fill('pending');
+
+  if(m === 0) return states.map(() => 'missed');
+
+  const BIG = 9999;
+  const cost = Array.from({length:n+1}, () => new Array(m+1).fill(0));
+  const path = Array.from({length:n+1}, () => new Array(m+1).fill(''));
+  for(let i=0;i<=n;i++) cost[i][0] = i;
+  for(let j=0;j<=m;j++) cost[0][j] = j;
+
+  for(let i=1;i<=n;i++){
+    for(let j=1;j<=m;j++){
+      const sim = similitud(F[i-1], R[j-1]);
+      const cMatch = cost[i-1][j-1] + (sim > 0.9 ? 0 : sim > 0.6 ? 1 : 3);
+      const cDel = cost[i-1][j] + 2;
+      const cIns = cost[i][j-1] + 2;
+      const min = Math.min(cMatch, cDel, cIns);
+      cost[i][j] = min;
+      path[i][j] = min === cMatch ? 'm' : (min === cDel ? 'd' : 'i');
+    }
+  }
+
+  let i = n, j = m;
+  while(i > 0 || j > 0){
+    const p = path[i][j];
+    if(p === 'm'){
+      const sim = similitud(F[i-1], R[j-1]);
+      states[i-1] = sim > 0.9 ? 'correct' : sim > 0.6 ? 'fuzzy' : 'wrong';
+      i--; j--;
+    } else if(p === 'd'){
+      states[i-1] = 'missed';
+      i--;
+    } else {
+      j--;
+    }
+  }
+  return states;
+}
+
+/* =====================================================================
+   VOZ · TTS y reconocimiento con el parche de estabilidad
+   ===================================================================== */
+let vozPT = null;
+function cargarVoz(){
+  if(typeof speechSynthesis === 'undefined') return;
+  const voces = speechSynthesis.getVoices();
+  vozPT = voces.find(v => v.lang === 'pt-PT')
+       || voces.find(v => v.lang.startsWith('pt-PT'))
+       || voces.find(v => v.lang === 'pt-BR')
+       || voces.find(v => v.lang.startsWith('pt'))
+       || null;
+}
+if(typeof speechSynthesis !== 'undefined'){
+  speechSynthesis.onvoiceschanged = cargarVoz;
+  cargarVoz();
+}
+function hablar(texto){
+  if(!texto || typeof speechSynthesis === 'undefined') return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(texto);
+  u.lang = 'pt-PT';
+  u.rate = 0.9;
+  if(vozPT) u.voice = vozPT;
+  speechSynthesis.speak(u);
+}
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let reconocedorActivo = null;
+let ultimoFin = 0;
+
+function abortarReconocedor(){
+  if(reconocedorActivo){
+    try{ reconocedorActivo.abort(); }catch(_){}
+    reconocedorActivo = null;
+  }
+}
+
+function reconocerVoz(){
+  return new Promise(async (resolve, reject) => {
+    if(!SR){ reject(new Error('no-soportado')); return; }
+    abortarReconocedor();
+    const espera = Math.max(0, 400 - (Date.now() - ultimoFin));
+    if(espera > 0) await sleep(espera);
+
+    const rec = new SR();
+    reconocedorActivo = rec;
+    rec.lang = 'pt-PT';
+    rec.interimResults = true;
+    rec.maxAlternatives = 3;
+    rec.continuous = false;
+
+    let finalizado = false;
+    let finales = [];
+    let ultimoInterino = '';
+
+    const finalizar = (err) => {
+      if(finalizado) return;
+      finalizado = true;
+      ultimoFin = Date.now();
+      if(reconocedorActivo === rec) reconocedorActivo = null;
+      if(err && finales.length === 0) reject(err);
+      else resolve(finales);
+    };
+
+    rec.onresult = e => {
+      let interino = '';
+      for(let i = e.resultIndex; i < e.results.length; i++){
+        const r = e.results[i];
+        if(r.isFinal){
+          const alts = [];
+          for(let k = 0; k < r.length; k++) alts.push(r[k].transcript);
+          finales = finales.concat(alts);
+        } else {
+          interino += r[0].transcript;
+        }
+      }
+      if(interino) ultimoInterino = interino;
+      if(window.__readerOnInterim) window.__readerOnInterim(ultimoInterino);
+    };
+    rec.onerror = e => {
+      const t = e.error || 'error';
+      if(t === 'aborted') finalizar(new Error('aborted'));
+      else if(t === 'no-speech') finalizar(new Error('no-speech'));
+      else finalizar(new Error(t));
+    };
+    rec.onend = () => finalizar();
+
+    try{ rec.start(); }
+    catch(err){ finalizar(err); return; }
+
+    setTimeout(() => {
+      if(!finalizado){
+        try{ rec.stop(); }catch(_){}
+        finalizar(finales.length ? null : new Error('timeout'));
+      }
+    }, 12000);
+  });
+}
+
+/* =====================================================================
+   ESTADO Y PERSISTENCIA
+   ===================================================================== */
+const STORE = {
+  LEARN: 'pt_learn_done',
+  READ: 'pt_read_done',
+  VOCAB: 'pt_vocab',
+  HARD: 'pt_hard',
+  SESSIONS: 'pt_sessions',
+  SETTINGS: 'pt_settings'
+};
+
+const state = {
+  view: 'learn',
+  // reader
+  reading: null,      // { kind:'class'|'text', id, title, sub, passages, idx }
+  passageStates: [],  // estados por palabra del pasaje actual
+  readingMode: false,
+  grabando: false,
+  interimText: '',
+  lastResult: null,
+  // progress
+  learnDone: new Set(),
+  readDone: new Set(),
+  vocab: {},          // palabra normalizada -> { count, lastSeen }
+  hard: {},           // palabra normalizada -> count fallos
+  sessions: [],       // { fecha, correctas, totales, fuente }
+  // ui
+  dictOpen: null,
+  settings: { theme: 'dark' }
+};
+
+function loadAll(){
+  try{
+    const ld = JSON.parse(localStorage.getItem(STORE.LEARN) || '[]');
+    state.learnDone = new Set(ld);
+    const rd = JSON.parse(localStorage.getItem(STORE.READ) || '[]');
+    state.readDone = new Set(rd);
+    state.vocab = JSON.parse(localStorage.getItem(STORE.VOCAB) || '{}');
+    state.hard = JSON.parse(localStorage.getItem(STORE.HARD) || '{}');
+    state.sessions = JSON.parse(localStorage.getItem(STORE.SESSIONS) || '[]');
+    const st = JSON.parse(localStorage.getItem(STORE.SETTINGS) || '{}');
+    if(st.theme) state.settings.theme = st.theme;
+  }catch(_){}
+}
+function save(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(_){} }
+function saveLearn(){ save(STORE.LEARN, [...state.learnDone]); }
+function saveRead(){ save(STORE.READ, [...state.readDone]); }
+function saveVocab(){ save(STORE.VOCAB, state.vocab); }
+function saveHard(){ save(STORE.HARD, state.hard); }
+function saveSessions(){ save(STORE.SESSIONS, state.sessions); }
+function saveSettings(){ save(STORE.SETTINGS, state.settings); }
+
+function registrarVocab(palabra){
+  const k = normalizar(palabra);
+  if(!k) return;
+  state.vocab[k] = state.vocab[k] || { count: 0, lastSeen: 0 };
+  state.vocab[k].count++;
+  state.vocab[k].lastSeen = Date.now();
+  saveVocab();
+}
+function registrarFallo(palabra){
+  const k = normalizar(palabra);
+  if(!k) return;
+  state.hard[k] = (state.hard[k] || 0) + 1;
+  saveHard();
+}
+function limpiarFallo(palabra){
+  const k = normalizar(palabra);
+  if(state.hard[k]){
+    delete state.hard[k];
+    saveHard();
+  }
+}
+function registrarSesion(correctas, totales, fuente){
+  state.sessions.unshift({ fecha: Date.now(), correctas, totales, fuente });
+  if(state.sessions.length > 200) state.sessions.length = 200;
+  saveSessions();
+}
+function calcularRacha(){
+  if(state.sessions.length === 0) return 0;
+  const dias = new Set();
+  state.sessions.forEach(s => {
+    const d = new Date(s.fecha);
+    dias.add(d.toISOString().slice(0,10));
+  });
+  const hoy = new Date();
+  let racha = 0;
+  for(let i = 0; i < 365; i++){
+    const d = new Date(hoy);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0,10);
+    if(dias.has(key)) racha++;
+    else if(i > 0) break;
+  }
+  return racha;
+}
+
+/* =====================================================================
+   TEMA
+   ===================================================================== */
+function aplicarTema(t){
+  document.documentElement.setAttribute('data-theme', t);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content', t === 'light' ? '#f4f6fa' : '#0e1116');
+  const btn = document.getElementById('themeBtn');
+  if(btn) btn.textContent = t === 'light' ? '☀️' : '🌙';
+}
+
+/* =====================================================================
+   RENDER PRINCIPAL
+   ===================================================================== */
+const app = document.getElementById('app');
+const toastEl = document.getElementById('toast');
+const dictSheet = document.getElementById('dictSheet');
+const dictContent = document.getElementById('dictContent');
+const modalBg = document.getElementById('modalBg');
+
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toastEl.classList.remove('show'), 2400);
+}
+
+function confirmar(titulo, msg){
+  return new Promise(resolve => {
+    document.getElementById('modalTitle').textContent = titulo;
+    document.getElementById('modalMsg').textContent = msg;
+    modalBg.classList.add('show');
+    const c = v => {
+      modalBg.classList.remove('show');
+      document.getElementById('modalOk').onclick = null;
+      document.getElementById('modalCancel').onclick = null;
+      resolve(v);
+    };
+    document.getElementById('modalOk').onclick = () => c(true);
+    document.getElementById('modalCancel').onclick = () => c(false);
+  });
+}
+
+function render(){
+  if(state.reading) return renderReader();
+  if(state.view === 'learn') return renderLearn();
+  if(state.view === 'read') return renderRead();
+  if(state.view === 'progress') return renderProgress();
+  if(state.view === 'settings') return renderSettings();
+}
+
+/* ---------- Aprender ---------- */
+function renderLearn(){
+  let html = `<div class="section-title">Clases · ${CLASSES.length}</div><div class="list">`;
+  for(const c of CLASSES){
+    const done = state.learnDone.has(c.id);
+    html += `<button class="card ${c.level.toLowerCase()} ${done?'done':''}" data-class="${c.id}">
+      <span class="c-ic">${c.icon}</span>
+      <div class="c-body">
+        <div class="c-title">${esc(c.title)}</div>
+        <div class="c-sub">${esc(c.desc)}</div>
+      </div>
+      <span class="c-badge">${c.level}</span>
+    </button>`;
+  }
+  html += `</div>`;
+  html += `<div class="section-title">Consejo</div>
+    <div class="card" style="cursor:default">
+      <span class="c-ic">💡</span>
+      <div class="c-body">
+        <div class="c-title">Practica en voz alta</div>
+        <div class="c-sub">Dentro de cada clase, activa el micrófono para leer los pasajes. La app te marcará las palabras que no pronuncies bien.</div>
+      </div>
+    </div>`;
+  app.innerHTML = html;
+}
+
+/* ---------- Leer ---------- */
+function renderRead(){
+  let html = `<div class="section-title">Textos · ${TEXTS.length}</div><div class="list">`;
+  for(const t of TEXTS){
+    const done = state.readDone.has(t.id);
+    html += `<button class="card ${t.level.toLowerCase()} ${done?'done':''}" data-text="${t.id}">
+      <span class="c-ic">${t.icon}</span>
+      <div class="c-body">
+        <div class="c-title">${esc(t.title)}</div>
+        <div class="c-sub">${esc(t.desc)}</div>
+      </div>
+      <span class="c-badge">${t.level}</span>
+    </button>`;
+  }
+  html += `</div>`;
+  app.innerHTML = html;
+}
+
+/* ---------- Progreso ---------- */
+function renderProgress(){
+  const vocabCount = Object.keys(state.vocab).length;
+  const hardCount = Object.keys(state.hard).length;
+  const racha = calcularRacha();
+  const totalSessions = state.sessions.length;
+  const totalCorrectas = state.sessions.reduce((a,s)=>a+s.correctas,0);
+  const totalTotales = state.sessions.reduce((a,s)=>a+s.totales,0);
+  const precision = totalTotales > 0 ? Math.round(totalCorrectas / totalTotales * 100) : 0;
+
+  let html = `<div class="section-title">Resumen</div>
+    <div class="stats-grid">
+      <div class="stat"><div class="lbl">Racha</div><div class="val accent">${racha} <span style="font-size:.75rem;font-weight:500">días</span></div></div>
+      <div class="stat"><div class="lbl">Vocabulario</div><div class="val blue">${vocabCount}</div></div>
+      <div class="stat"><div class="lbl">Precisión</div><div class="val ${precision>=70?'accent':'warn'}">${precision}%</div></div>
+      <div class="stat"><div class="lbl">Clases completadas</div><div class="val">${state.learnDone.size}/${CLASSES.length}</div></div>
+    </div>`;
+
+  if(hardCount > 0){
+    html += `<div class="section-title">Palabras difíciles · ${hardCount}</div>
+      <p style="font-size:.72rem;color:var(--dim);margin-bottom:10px">Estas palabras no las pronunciaste bien. Tócalas para escucharlas.</p>
+      <div class="word-grid">`;
+    const entradas = Object.entries(state.hard).sort((a,b)=>b[1]-a[1]).slice(0, 40);
+    for(const [k, n] of entradas){
+      html += `<button class="word-pill hard" data-hard="${esc(k)}">${esc(k)} · ${n}</button>`;
+    }
+    html += `</div>`;
+  } else {
+    html += `<div class="empty"><div class="big">✨</div>Aún no tienes palabras difíciles.<br>Lee en voz alta y aquí aparecerán las que falles.</div>`;
+  }
+
+  if(vocabCount > 0){
+    html += `<div class="section-title" style="margin-top:22px">Vocabulario reciente</div>
+      <div class="word-grid">`;
+    const rec = Object.entries(state.vocab).sort((a,b)=>b[1].lastSeen-a[1].lastSeen).slice(0, 30);
+    for(const [k] of rec){
+      html += `<button class="word-pill" data-vocab="${esc(k)}">${esc(k)}</button>`;
+    }
+    html += `</div>`;
+  }
+
+  app.innerHTML = html;
+}
+
+/* ---------- Ajustes ---------- */
+function renderSettings(){
+  app.innerHTML = `
+    <div class="section-title">Apariencia</div>
+    <div class="setting-block">
+      <h3>🎨 Tema</h3>
+      <p class="sub">Claro u oscuro. Se guarda en este dispositivo.</p>
+      <div class="btn-row">
+        <button class="btn-ghost" id="setDark">🌙 Oscuro</button>
+        <button class="btn-ghost" id="setLight">☀️ Claro</button>
+      </div>
+    </div>
+
+    <div class="section-title">Almacenamiento</div>
+    <div class="setting-block">
+      <h3>💾 Datos guardados</h3>
+      <p class="sub">
+        Progreso: <b>${state.learnDone.size}</b> clases · <b>${state.readDone.size}</b> textos · <b>${Object.keys(state.vocab).length}</b> palabras
+      </p>
+      <div class="btn-row">
+        <button class="btn-danger" id="resetProg">🗑 Borrar progreso</button>
+      </div>
+    </div>
+
+    <div class="section-title">Sobre la app</div>
+    <div class="setting-block">
+      <h3>🇵🇹 Português pt-PT</h3>
+      <p class="sub" style="margin-bottom:0">
+        Lector asistido con reconocimiento de voz para portugués europeo.
+        Las clases y textos vienen integrados. El diccionario usa la API abierta de Wiktionary.
+        Todo funciona offline excepto la consulta de definiciones ampliadas.
+      </p>
+    </div>
+  `;
+}
+
+/* =====================================================================
+   LECTOR
+   ===================================================================== */
+function abrirLeccionClase(id){
+  const c = CLASSES.find(x => x.id === id);
+  if(!c) return;
+  state.reading = {
+    kind: 'class',
+    id: c.id,
+    title: c.title,
+    sub: `${c.level} · ${c.pasajes.length} pasajes`,
+    passages: c.pasajes.map(p => p.texto),
+    idx: 0,
+    intro: c.intro,
+    ejemplos: c.ejemplos
+  };
+  state.passageStates = [];
+  state.readingMode = false;
+  state.lastResult = null;
+  state.interimText = '';
+  render();
+}
+function abrirTexto(id){
+  const t = TEXTS.find(x => x.id === id);
+  if(!t) return;
+  state.reading = {
+    kind: 'text',
+    id: t.id,
+    title: t.title,
+    sub: `${t.level} · ${t.passages.length} pasajes`,
+    passages: t.passages,
+    idx: 0
+  };
+  state.passageStates = [];
+  state.readingMode = false;
+  state.lastResult = null;
+  state.interimText = '';
+  render();
+}
+
+function tokenizarPassage(texto){
+  // Divide en palabras conservando signos de puntuación como tokens propios.
+  const tokens = texto.match(/[\wÀ-ÿ'’-]+|[^\w\s]+|\s+/g) || [];
+  return tokens.map((t, i) => ({
+    i,
+    raw: t,
+    esPalabra: /[\wÀ-ÿ'’-]+/.test(t) && !/^\s+$/.test(t)
+  }));
+}
+
+function renderReader(){
+  const r = state.reading;
+  if(!r) return;
+  const pasajeActual = r.passages[r.idx];
+  const tokens = tokenizarPassage(pasajeActual);
+  const palabrasIdx = tokens.map((t, i) => t.esPalabra ? i : -1).filter(i => i >= 0);
+  const totalPalabras = palabrasIdx.length;
+
+  if(state.passageStates.length !== totalPalabras){
+    state.passageStates = new Array(totalPalabras).fill('pending');
+  }
+
+  let palabraNum = 0;
+  let htmlPassage = '';
+  for(const t of tokens){
+    if(t.esPalabra){
+      const estado = state.passageStates[palabraNum] || 'pending';
+      htmlPassage += `<span class="word ${estado}" data-word-idx="${palabraNum}" data-raw="${esc(t.raw)}">${esc(t.raw)}</span>`;
+      palabraNum++;
+    } else {
+      htmlPassage += esc(t.raw).replace(/ /g, ' ');
+    }
+  }
+
+  const prog = Math.round((r.idx / r.passages.length) * 100);
+  const esUltimo = r.idx === r.passages.length - 1;
+
+  let intro = '';
+  if(r.kind === 'class' && r.idx === 0 && r.intro){
+    intro = `<div class="r-status info" style="margin-bottom:16px">
+      <b style="font-size:.82rem">📝 Sobre esta clase</b>
+      <p style="margin-top:6px;line-height:1.55">${esc(r.intro)}</p>
+      ${r.ejemplos ? `<div style="margin-top:10px;font-size:.78rem;line-height:1.7">${r.ejemplos.map(e => `<div>🇵🇹 ${esc(e.pt)}</div><div style="color:var(--dim);margin-bottom:4px">🇪🇸 ${esc(e.es)}</div>`).join('')}</div>` : ''}
+    </div>`;
+  }
+
+  let statusHtml = '';
+  if(state.lastResult){
+    const { correctas, totales, fuente } = state.lastResult;
+    const pct = totales > 0 ? Math.round(correctas/totales*100) : 0;
+    const cls = pct >= 80 ? 'ok' : pct >= 55 ? 'warn' : 'bad';
+    const msg = pct >= 80 ? '¡Excelente pronunciación!' : pct >= 55 ? 'Bien, pero hay margen de mejora.' : 'Inténtalo otra vez con calma.';
+    statusHtml = `<div class="r-status ${cls}">
+      <b>${pct}% correctas</b> · ${correctas} de ${totales} palabras
+      <div style="margin-top:4px;font-size:.72rem;opacity:.9">${msg}</div>
+    </div>`;
+  }
+
+  app.innerHTML = `
+    <div class="reader">
+      <div class="r-top">
+        <button class="r-back" id="rBack">←</button>
+        <div class="r-info">
+          <div class="r-title">${esc(r.title)}</div>
+          <div class="r-sub">${esc(r.sub)} · Pasaje ${r.idx+1}/${r.passages.length}</div>
+        </div>
+      </div>
+      <div class="r-progress"><div class="bar" style="width:${prog}%"></div></div>
+
+      ${intro}
+
+      <div class="passage" id="passage">${htmlPassage}</div>
+
+      <div class="legend">
+        <span><i style="background:var(--ok-bg);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)"></i>correcta</span>
+        <span><i style="background:var(--fuzzy-bg);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent)"></i>dudosa</span>
+        <span><i style="background:var(--bad-bg);border:1px solid color-mix(in srgb,var(--bad) 40%,transparent)"></i>mal</span>
+        <span><i style="background:var(--miss-bg);border:1px solid var(--border2)"></i>saltada</span>
+      </div>
+
+      ${statusHtml}
+
+      <div class="r-actions">
+        <button class="btn-ghost" id="rSpeak">🔊 Escuchar</button>
+        <button class="btn-mic ${state.grabando?'rec':''}" id="rMic">
+          ${state.grabando ? '⏹ Parar' : '🎤 Leer'}
+        </button>
+      </div>
+
+      <div class="r-actions" style="margin-top:10px">
+        <button class="btn-ghost" id="rPrev" ${r.idx === 0 ? 'disabled style="opacity:.4"' : ''}>← Anterior</button>
+        <button class="btn-primary" id="rNext">${esUltimo ? '✓ Terminar' : 'Siguiente →'}</button>
+      </div>
+    </div>
+  `;
+
+  // si estamos en modo lectura y hay interim, resaltar
+  if(state.readingMode && state.interimText){
+    aplicarInterino(state.interimText, tokens, palabrasIdx);
+  }
+}
+
+function aplicarInterino(texto, tokens, palabrasIdx){
+  const rec = normalizar(texto).split(' ').filter(Boolean);
+  if(!rec.length) return;
+  // marcar como "reading" las primeras palabras que coincidan con el inicio
+  let ri = 0;
+  for(let pi = 0; pi < palabrasIdx.length; pi++){
+    if(ri >= rec.length) break;
+    const tokIdx = palabrasIdx[pi];
+    const palabra = tokens[tokIdx].raw;
+    const sim = similitud(palabra, rec[ri]);
+    if(sim > 0.6){
+      const el = document.querySelector(`.word[data-word-idx="${pi}"]`);
+      if(el && !el.classList.contains('correct') && !el.classList.contains('fuzzy') && !el.classList.contains('wrong')){
+        el.classList.add('reading');
+      }
+      ri++;
+    }
+  }
+}
+
+function limpiarInterino(){
+  document.querySelectorAll('.word.reading').forEach(el => el.classList.remove('reading'));
+}
+
+function marcarResultado(reconocido){
+  const r = state.reading;
+  const pasaje = r.passages[r.idx];
+  const tokens = tokenizarPassage(pasaje);
+  const palabrasIdx = tokens.map((t, i) => t.esPalabra ? i : -1).filter(i => i >= 0);
+  const palabras = palabrasIdx.map(i => tokens[i].raw);
+
+  // El reconocido viene en un array de alternativas concatenadas.
+  // Tomamos la primera alternativa completa (que es la mejor).
+  const fuente = reconocido.length ? reconocido[0] : '';
+  const recPalabras = normalizar(fuente).split(' ').filter(Boolean);
+
+  const estados = alinear(palabras, recPalabras);
+
+  // Contar y registrar
+  let correctas = 0;
+  for(let i = 0; i < palabras.length; i++){
+    const e = estados[i];
+    if(e === 'correct'){ correctas++; registrarVocab(palabras[i]); limpiarFallo(palabras[i]); }
+    else if(e === 'fuzzy'){ registrarVocab(palabras[i]); }
+    else if(e === 'wrong' || e === 'missed'){ registrarFallo(palabras[i]); }
+  }
+
+  state.passageStates = estados;
+  state.lastResult = { correctas, totales: palabras.length, fuente };
+  registrarSesion(correctas, palabras.length, r.title);
+
+  render();
+}
+
+/* =====================================================================
+   DICCIONARIO
+   ===================================================================== */
+async function abrirDiccionario(palabra){
+  const limpia = palabra.replace(/^[^\wÀ-ÿ]+|[^\wÀ-ÿ]+$/g, '').trim();
+  if(!limpia) return;
+  const key = normalizar(limpia);
+
+  // Buscar en corpus local primero (coincidencia exacta o parcial)
+  let local = CORPUS[key];
+  if(!local){
+    // buscar por lema: quitar plurales comunes
+    const alt = key.replace(/s$/, '').replace(/es$/, '');
+    local = CORPUS[alt];
+  }
+
+  const info = local || {};
+  const cat = info.cat || '';
+  const ipa = info.ipa || '';
+  const es = info.es || '—';
+
+  dictContent.innerHTML = `
+    <div class="ds-word">${esc(limpia)}</div>
+    <div class="ds-meta">${[cat, ipa].filter(Boolean).join(' · ') || '&nbsp;'}</div>
+    <div class="ds-trans">🇪🇸 ${esc(es)}</div>
+    <div id="dsDefWrap"></div>
+    <div class="ds-actions">
+      <button class="btn-ghost" id="dsPlay">🔊 Escuchar</button>
+      <button class="btn-ghost" id="dsClose">Cerrar</button>
+    </div>
+  `;
+  dictSheet.classList.add('show');
+  dictSheet.setAttribute('aria-hidden', 'false');
+  state.dictOpen = limpia;
+
+  document.getElementById('dsPlay').onclick = () => hablar(limpia);
+  document.getElementById('dsClose').onclick = cerrarDiccionario;
+
+  // Wiktionary en vivo (CORS OK con origin=*)
+  const defWrap = document.getElementById('dsDefWrap');
+  if(defWrap){
+    defWrap.innerHTML = '<div class="ds-loading">Buscando definición…</div>';
+    try{
+      const url = `https://pt.wiktionary.org/w/api.php?action=query&titles=${encodeURIComponent(limpia)}&prop=extracts&explaintext=1&format=json&origin=*&redirects=1`;
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 5000);
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(to);
+      if(res.ok){
+        const data = await res.json();
+        const pages = data?.query?.pages || {};
+        const page = Object.values(pages)[0];
+        if(page && page.extract){
+          const txt = page.extract.slice(0, 320).trim();
+          defWrap.innerHTML = `<div class="ds-def">${esc(txt)}${page.extract.length > 320 ? '…' : ''}</div>`;
+        } else {
+          defWrap.innerHTML = '';
+        }
+      } else {
+        defWrap.innerHTML = '';
+      }
+    }catch(_){
+      defWrap.innerHTML = '';
+    }
+  }
+}
+function cerrarDiccionario(){
+  dictSheet.classList.remove('show');
+  dictSheet.setAttribute('aria-hidden', 'true');
+  state.dictOpen = null;
+}
+
+/* =====================================================================
+   EVENTOS
+   ===================================================================== */
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const next = state.settings.theme === 'dark' ? 'light' : 'dark';
+  state.settings.theme = next;
+  saveSettings();
+  aplicarTema(next);
+  render();
+});
+
+document.getElementById('nav').addEventListener('click', e => {
+  const btn = e.target.closest('.bn-btn');
+  if(!btn) return;
+  if(state.grabando) abortarReconocedor();
+  state.reading = null;
+  state.view = btn.dataset.view;
+  document.querySelectorAll('.bn-btn').forEach(b => b.classList.toggle('active', b === btn));
+  render();
+});
+
+app.addEventListener('click', async e => {
+  const t = e.target;
+
+  // Navegación catálogo
+  const cl = t.closest('[data-class]');
+  if(cl){ abrirLeccionClase(cl.dataset.class); return; }
+  const tx = t.closest('[data-text]');
+  if(tx){ abrirTexto(tx.dataset.text); return; }
+
+  // Ajustes
+  if(t.id === 'setDark'){ state.settings.theme = 'dark'; saveSettings(); aplicarTema('dark'); render(); return; }
+  if(t.id === 'setLight'){ state.settings.theme = 'light'; saveSettings(); aplicarTema('light'); render(); return; }
+  if(t.id === 'resetProg'){
+    const ok = await confirmar('Borrar progreso', '¿Borrar todo el progreso (clases, textos, vocabulario, palabras difíciles)?');
+    if(ok){
+      state.learnDone.clear(); state.readDone.clear();
+      state.vocab = {}; state.hard = {}; state.sessions = [];
+      saveLearn(); saveRead(); saveVocab(); saveHard(); saveSessions();
+      toast('🗑 Progreso borrado');
+      render();
+    }
+    return;
+  }
+
+  // Vocab pills
+  const vp = t.closest('[data-vocab]');
+  if(vp){ abrirDiccionario(vp.dataset.vocab); return; }
+  const hp = t.closest('[data-hard]');
+  if(hp){ hablar(hp.dataset.hard); return; }
+
+  // Lector
+  if(t.id === 'rBack'){
+    if(state.grabando){ abortarReconocedor(); state.grabando = false; }
+    state.reading = null;
+    state.passageStates = [];
+    state.lastResult = null;
+    state.interimText = '';
+    render();
+    return;
+  }
+  if(t.id === 'rSpeak'){
+    const r = state.reading;
+    hablar(r.passages[r.idx]);
+    return;
+  }
+  if(t.id === 'rPrev'){
+    if(state.grabando){ abortarReconocedor(); state.grabando = false; }
+    if(state.reading.idx > 0){
+      state.reading.idx--;
+      state.passageStates = [];
+      state.lastResult = null;
+      state.interimText = '';
+      render();
+    }
+    return;
+  }
+  if(t.id === 'rNext'){
+    if(state.grabando){ abortarReconocedor(); state.grabando = false; }
+    const r = state.reading;
+    if(r.idx < r.passages.length - 1){
+      r.idx++;
+      state.passageStates = [];
+      state.lastResult = null;
+      state.interimText = '';
+      render();
+    } else {
+      // terminar
+      if(r.kind === 'class'){ state.learnDone.add(r.id); saveLearn(); }
+      else { state.readDone.add(r.id); saveRead(); }
+      toast('✓ Completado');
+      state.reading = null;
+      state.passageStates = [];
+      state.lastResult = null;
+      state.interimText = '';
+      render();
+    }
+    return;
+  }
+  if(t.id === 'rMic'){
+    if(state.grabando){ return; } // el listener de abajo lo maneja
+    // toggle handled below
+  }
+
+  // Palabra en el pasaje → diccionario
+  const w = t.closest('.word');
+  if(w && !state.grabando){
+    abrirDiccionario(w.dataset.raw);
+    return;
+  }
+});
+
+// Mic toggle (separado para poder usar async)
+app.addEventListener('click', async e => {
+  if(e.target.id !== 'rMic') return;
+  if(state.grabando){
+    abortarReconocedor();
+    return;
+  }
+  const r = state.reading;
+  if(!r) return;
+
+  state.grabando = true;
+  state.lastResult = null;
+  state.passageStates = state.passageStates.map(() => 'pending');
+  state.interimText = '';
+  render();
+
+  window.__readerOnInterim = (texto) => {
+    state.interimText = texto;
+    limpiarInterino();
+    const pasaje = r.passages[r.idx];
+    const tokens = tokenizarPassage(pasaje);
+    const palabrasIdx = tokens.map((t, i) => t.esPalabra ? i : -1).filter(i => i >= 0);
+    aplicarInterino(texto, tokens, palabrasIdx);
+  };
+
+  try{
+    const alts = await reconocerVoz();
+    window.__readerOnInterim = null;
+    limpiarInterino();
+    state.grabando = false;
+    if(alts && alts.length){
+      marcarResultado(alts);
+    } else {
+      toast('🔇 No se detectó voz');
+      render();
+    }
+  }catch(err){
+    window.__readerOnInterim = null;
+    limpiarInterino();
+    state.grabando = false;
+    const m = String(err.message || err);
+    if(m === 'no-soportado') toast('⚠️ Tu navegador no soporta reconocimiento de voz');
+    else if(m === 'not-allowed') toast('🚫 Permiso de micrófono denegado');
+    else if(m === 'no-speech') toast('🔇 No se detectó voz, acércate al micro');
+    else if(m === 'aborted') { /* silencioso */ }
+    else if(m === 'timeout') toast('⏱️ Tiempo agotado, prueba otra vez');
+    else if(m === 'audio-capture') toast('🎤 No hay micrófono disponible');
+    else if(m === 'network') toast('🌐 Error de red');
+    else toast('⚠️ ' + m);
+    render();
+  }
+});
+
+// Cerrar diccionario al tocar fuera
+document.addEventListener('click', e => {
+  if(!dictSheet.classList.contains('show')) return;
+  if(e.target.closest('#dictSheet')) return;
+  if(e.target.closest('.word')) return;
+  if(e.target.closest('[data-vocab]')) return;
+  if(e.target.closest('[data-hard]')) return;
+  cerrarDiccionario();
+}, true);
+
+// Modal
+modalBg.addEventListener('click', e => {
+  if(e.target === modalBg) document.getElementById('modalCancel').click();
+});
+
+/* =====================================================================
+   INIT
+   ===================================================================== */
+loadAll();
+aplicarTema(state.settings.theme);
+render();
+
+// Cargar voces tarde (algunos navegadores tardan)
+setTimeout(cargarVoz, 500);
+setTimeout(cargarVoz, 1500);
+
+// Manejo de visibilidad: abortar reconocimiento si sale de la pestaña
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden && state.grabando){
+    abortarReconocedor();
+  }
+});
+</script>
+</body>
+</html>
