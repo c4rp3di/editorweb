@@ -35,6 +35,14 @@ html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
 .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
 .chip.on .dot{background:var(--amber)}
 
+#flightUI{position:fixed;inset:0;z-index:900;display:none;pointer-events:none}
+#flightUI.show{display:block}
+#flightHint{position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:1000;background:var(--panel);border:1px solid var(--amber);color:var(--amber);border-radius:10px;padding:7px 12px;font-size:12px;pointer-events:none}
+#joyBase{position:fixed;left:18px;bottom:18px;width:112px;height:112px;border-radius:50%;background:rgba(16,25,44,.75);border:1px solid var(--line);pointer-events:auto;touch-action:none}
+#joyKnob{position:absolute;left:36px;top:36px;width:40px;height:40px;border-radius:50%;background:var(--amber);opacity:.9}
+#vertBtns{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:10px;pointer-events:auto}
+#vertBtns button{width:52px;height:52px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--amber);font-size:18px;touch-action:none}
+
 #toasts{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:3000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:min(92vw,480px)}
 .toast{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-size:12.5px;line-height:1.45;box-shadow:var(--shadow);overflow-wrap:anywhere;word-break:break-word}
 .toast.warn{border-color:rgba(255,183,3,.5)}
@@ -77,6 +85,15 @@ html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
   <div class="chip" id="chipTerrain"><span class="dot"></span>Terreno realista</div>
   <div class="chip" id="chipTunnels"><span class="dot"></span>Túneles (subsuelo)</div>
   <div class="chip" id="chipUnderground"><span class="dot"></span>Modo subsuelo</div>
+</div>
+
+<div id="flightUI">
+  <div id="flightHint">🕹️ Arrastra en la pantalla para mirar · joystick para moverte</div>
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <div id="vertBtns">
+    <button id="btnUp">▲</button>
+    <button id="btnDown">▼</button>
+  </div>
 </div>
 
 <div id="toasts"></div>
@@ -182,6 +199,7 @@ async function startViewer(token){
 
     setupTunnelsLayer();
     setupChips();
+    setupFlightControls();
 
   }catch(e){
     toast('err','❌ No se pudo iniciar el visor 3D: '+(e.message||e));
@@ -213,6 +231,7 @@ function toggleTunnels(){
     tunnelActive = viewer.imageryLayers.addImageryProvider(tunnelLayer);
     tunnelActive.alpha=0.85;
     chip.classList.add('on');
+    toast('info','🔍 Este servicio solo dibuja muy de cerca (casi a pie de calle) — acércate bastante.');
   }catch(e){toast('err','❌ Túneles: '+(e.message||e));}
 }
 
@@ -221,12 +240,122 @@ function toggleUndergroundMode(){
   undergroundOn=!undergroundOn;
   chip.classList.toggle('on',undergroundOn);
   if(!viewer) return;
-  // Permite que la cámara "atraviese" el terreno para explorar el subsuelo
   viewer.scene.globe.depthTestAgainstTerrain = !undergroundOn;
-  viewer.scene.screenSpaceCameraController.enableCollisionDetection = !undergroundOn;
   if(undergroundOn){
-    toast('info','🕳️ Modo subsuelo activo: la cámara puede atravesar el terreno.');
+    viewer.scene.screenSpaceCameraController.enableInputs=false;
+    $('flightUI').classList.add('show');
+    startFlightLoop();
+    toast('info','🕹️ Modo vuelo libre: ya puedes atravesar el terreno.');
+  }else{
+    viewer.scene.screenSpaceCameraController.enableInputs=true;
+    $('flightUI').classList.remove('show');
+    stopFlightLoop();
   }
+}
+
+// --- Control de vuelo en primera persona (independiente del orbit-controller de Cesium) ---
+var joyVec={x:0,y:0}, pitchAcc=0, flightRAF=null, lookTouchId=null, lastLook=null;
+
+function setupFlightControls(){
+  var base=$('joyBase'), knob=$('joyKnob');
+  var joyTouchId=null, baseRect=null;
+
+  base.addEventListener('touchstart',function(e){
+    e.preventDefault();
+    var t=e.changedTouches[0];
+    joyTouchId=t.identifier;
+    baseRect=base.getBoundingClientRect();
+  },{passive:false});
+
+  base.addEventListener('touchmove',function(e){
+    e.preventDefault();
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i];
+      if(t.identifier!==joyTouchId) continue;
+      var cx=baseRect.left+baseRect.width/2, cy=baseRect.top+baseRect.height/2;
+      var dx=t.clientX-cx, dy=t.clientY-cy;
+      var max=baseRect.width/2;
+      var d=Math.min(1,Math.hypot(dx,dy)/max);
+      var ang=Math.atan2(dy,dx);
+      joyVec.x=Math.cos(ang)*d; joyVec.y=Math.sin(ang)*d;
+      knob.style.left=(36+joyVec.x*30)+'px'; knob.style.top=(36+joyVec.y*30)+'px';
+    }
+  },{passive:false});
+
+  function endJoy(e){
+    for(var i=0;i<e.changedTouches.length;i++){
+      if(e.changedTouches[i].identifier===joyTouchId){
+        joyTouchId=null; joyVec.x=0; joyVec.y=0;
+        knob.style.left='36px'; knob.style.top='36px';
+      }
+    }
+  }
+  base.addEventListener('touchend',endJoy);
+  base.addEventListener('touchcancel',endJoy);
+
+  var ascending=false, descending=false;
+  function press(btn,setter){
+    btn.addEventListener('touchstart',function(e){e.preventDefault();setter(true);},{passive:false});
+    btn.addEventListener('touchend',function(e){e.preventDefault();setter(false);});
+    btn.addEventListener('touchcancel',function(){setter(false);});
+  }
+  press($('btnUp'),function(v){ascending=v;});
+  press($('btnDown'),function(v){descending=v;});
+
+  // Mirar alrededor: arrastrar en cualquier punto que no sea joystick/botones
+  var flightUI=$('flightUI');
+  flightUI.addEventListener('touchstart',function(e){
+    var t=e.changedTouches[0];
+    if(t.target.closest('#joyBase')||t.target.closest('#vertBtns')) return;
+    lookTouchId=t.identifier; lastLook={x:t.clientX,y:t.clientY};
+  },{passive:false});
+  flightUI.addEventListener('touchmove',function(e){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i];
+      if(t.identifier!==lookTouchId) continue;
+      e.preventDefault();
+      var dx=t.clientX-lastLook.x, dy=t.clientY-lastLook.y;
+      lastLook={x:t.clientX,y:t.clientY};
+      var s=0.0035;
+      viewer.camera.lookRight(dx*s);
+      var dPitch=-dy*s;
+      var newPitch=pitchAcc+dPitch;
+      if(newPitch>1.4) dPitch=1.4-pitchAcc;
+      if(newPitch<-1.4) dPitch=-1.4-pitchAcc;
+      pitchAcc+=dPitch;
+      viewer.camera.lookUp(dPitch);
+    }
+  },{passive:false});
+  function endLook(e){
+    for(var i=0;i<e.changedTouches.length;i++){
+      if(e.changedTouches[i].identifier===lookTouchId) lookTouchId=null;
+    }
+  }
+  flightUI.addEventListener('touchend',endLook);
+  flightUI.addEventListener('touchcancel',endLook);
+
+  window._flightVert=function(){return {ascending:ascending,descending:descending};};
+}
+
+function startFlightLoop(){
+  var last=performance.now();
+  function frame(now){
+    if(!undergroundOn){flightRAF=null;return;}
+    var dt=Math.min(0.1,(now-last)/1000); last=now;
+    var speed=25; // m/s
+    var cam=viewer.camera;
+    if(joyVec.y!==0){ if(joyVec.y<0) cam.moveForward(-joyVec.y*speed*dt); else cam.moveBackward(joyVec.y*speed*dt); }
+    if(joyVec.x!==0){ if(joyVec.x>0) cam.moveRight(joyVec.x*speed*dt); else cam.moveLeft(-joyVec.x*speed*dt); }
+    var v=window._flightVert?window._flightVert():{ascending:false,descending:false};
+    if(v.ascending) cam.moveUp(speed*dt);
+    if(v.descending) cam.moveDown(speed*dt);
+    flightRAF=requestAnimationFrame(frame);
+  }
+  if(!flightRAF) flightRAF=requestAnimationFrame(frame);
+}
+function stopFlightLoop(){
+  if(flightRAF){cancelAnimationFrame(flightRAF);flightRAF=null;}
+  joyVec.x=0;joyVec.y=0;pitchAcc=0;
 }
 
 function toggleTerrainChip(){
