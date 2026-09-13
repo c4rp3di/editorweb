@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+<title>GeoIGN Madrid 3D</title>
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.121/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+<style>
+:root{--bg:#0b1420;--panel:rgba(16,25,44,.96);--line:rgba(255,255,255,.12);--amber:#ffb703;--text:#e8ecf3;--muted:#8b96ab;--shadow:0 10px 30px rgba(0,0,0,.45)}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;overflow:hidden}
+#cesiumContainer{position:absolute;inset:0}
+.cesium-widget-credits{display:none!important}
+
+#topbar{position:fixed;top:0;left:0;right:0;z-index:1000;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow)}
+#topbar h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.2px}
+#topbar h1 b{color:var(--amber)}
+#topbar .sp{flex:1}
+#topbar button{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px 10px;font-size:13px;cursor:pointer}
+#topbar button:hover{border-color:var(--amber)}
+
+#setup{position:fixed;top:52px;right:12px;z-index:1000;width:min(320px,88vw);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow);font-size:13px;display:none}
+#setup.show{display:block}
+#setup h2{font-size:13px;margin:0 0 10px;color:var(--amber)}
+#setup label{display:block;font-size:11.5px;color:var(--muted);margin:10px 0 4px}
+#setup input{width:100%;background:#0d1626;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 9px;font-size:13px}
+#setup .row{display:flex;gap:8px;margin-top:12px}
+#setup .row button{flex:1;background:var(--amber);color:#1a1200;border:none;border-radius:8px;padding:9px;font-weight:700;font-size:13px;cursor:pointer}
+#setup .hint{color:var(--muted);font-size:11px;line-height:1.5;margin-top:10px}
+#setup .hint a{color:var(--amber)}
+
+#layerbar{position:fixed;left:12px;bottom:16px;z-index:1000;display:flex;flex-direction:column;gap:8px}
+.chip{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:var(--shadow);display:flex;align-items:center;gap:8px;white-space:nowrap}
+.chip.on{border-color:var(--amber);color:var(--amber)}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.chip.on .dot{background:var(--amber)}
+
+#toasts{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:3000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:min(92vw,480px)}
+.toast{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-size:12.5px;line-height:1.45;box-shadow:var(--shadow);overflow-wrap:anywhere;word-break:break-word}
+.toast.warn{border-color:rgba(255,183,3,.5)}
+.toast.err{border-color:rgba(251,113,133,.55)}
+.toast.out{opacity:0;transition:all .3s}
+
+#fatal{position:fixed;inset:0;z-index:5000;background:rgba(8,12,20,.92);display:none;align-items:center;justify-content:center;padding:24px;text-align:center}
+#fatal.show{display:flex}
+#fatal .box{max-width:420px}
+#fatal h2{color:#ffb703;margin:0 0 8px}
+#fatal p{color:var(--muted);font-size:13.5px;line-height:1.5}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1>Geo<b>IGN</b> Madrid · 3D</h1>
+  <div class="sp"></div>
+  <button id="btnSetup">⚙ Config</button>
+</div>
+
+<div id="setup">
+  <h2>Cesium ion</h2>
+  <label>Access Token (tuyo, gratis en ion.cesium.com)</label>
+  <input id="inToken" type="text" placeholder="eyJhbGciOiJIUzI1NiIs...">
+  <label>Asset ID de edificios (opcional, tras subir el OBJ del distrito)</label>
+  <input id="inAsset" type="text" placeholder="p.ej. 2547891">
+  <div class="row">
+    <button id="btnApply">Aplicar y cargar</button>
+  </div>
+  <div class="hint">
+    El token es necesario para el terreno y la imagen base. El Asset ID solo hace falta cuando ya hayas subido el modelo real de un distrito a tu cuenta de ion — hasta entonces verás el terreno y la ortofoto sin edificios extruidos.
+    <br><br>Ambos se guardan solo en este navegador (localStorage), nunca se envían a ningún otro sitio.
+  </div>
+</div>
+
+<div id="cesiumContainer"></div>
+
+<div id="layerbar">
+  <div class="chip" id="chipTerrain"><span class="dot"></span>Terreno realista</div>
+  <div class="chip" id="chipTunnels"><span class="dot"></span>Túneles (subsuelo)</div>
+  <div class="chip" id="chipUnderground"><span class="dot"></span>Modo subsuelo</div>
+</div>
+
+<div id="toasts"></div>
+
+<div id="fatal">
+  <div class="box">
+    <h2>⚠️ Problema al iniciar</h2>
+    <p id="fatalMsg">Error desconocido.</p>
+  </div>
+</div>
+
+<script>
+window.addEventListener('error',function(e){
+  console.error('[FATAL]',e.message,e.filename,e.lineno,e.colno,e.error&&e.error.stack);
+  var f=document.getElementById('fatal');
+  if(f&&!f.classList.contains('show')){f.classList.add('show');var m=document.getElementById('fatalMsg');if(m)m.textContent='Error JS: '+(e.message||'desconocido')+' en '+(e.filename||'?')+' (línea '+(e.lineno||'?')+'). Recarga o revisa el código.';}
+},true);
+</script>
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.121/Build/Cesium/Cesium.js" crossorigin="anonymous"></script>
+<script>
+'use strict';
+
+function $(id){return document.getElementById(id);}
+function toast(k,h){var b=$('toasts');while(b.children.length>2)b.removeChild(b.firstChild);var t=document.createElement('div');t.className='toast '+(k||'');t.textContent=h;b.appendChild(t);setTimeout(function(){t.classList.add('out');setTimeout(function(){if(t.parentNode)t.remove();},320);},5600);}
+
+// --- IGN WMTS (ortofoto PNOA) ---
+var IGN_PNOA_URL='https://www.ign.es/wmts/pnoa-ma?';
+
+// --- Madrid: túneles (subsuelo), servicio WMS del Ayuntamiento ---
+var MAD_TUNELES_URL='https://sigma.madrid.es/hosted/services/CARTOGRAFIA/TUNELES/MapServer/WMSServer';
+
+var LS_TOKEN='geoign_md_token', LS_ASSET='geoign_md_asset';
+
+function loadCfg(){
+  return {token:localStorage.getItem(LS_TOKEN)||'', asset:localStorage.getItem(LS_ASSET)||''};
+}
+function saveCfg(token,asset){
+  try{localStorage.setItem(LS_TOKEN,token||'');localStorage.setItem(LS_ASSET,asset||'');}catch(e){}
+}
+
+var viewer=null, tunnelLayer=null, buildingTileset=null, undergroundOn=false;
+
+async function boot(){
+  var cfg=loadCfg();
+  $('inToken').value=cfg.token;
+  $('inAsset').value=cfg.asset;
+
+  if(!cfg.token){
+    $('setup').classList.add('show');
+    toast('warn','⚠️ Pega tu Access Token de Cesium ion (gratis) para empezar.');
+    // Aun así, montamos un visor mínimo sin terreno de pago para que no quede en blanco.
+    await startViewer('');
+    return;
+  }
+  await startViewer(cfg.token);
+  if(cfg.asset) loadBuildings(cfg.asset);
+}
+
+async function startViewer(token){
+  try{
+    if(token) Cesium.Ion.defaultAccessToken=token;
+
+    var terrainProvider;
+    try{
+      terrainProvider = token ? await Cesium.createWorldTerrainAsync() : new Cesium.EllipsoidTerrainProvider();
+    }catch(e){
+      toast('warn','⚠️ No se pudo cargar el terreno de Cesium ion (¿token válido?). Uso terreno plano.');
+      terrainProvider = new Cesium.EllipsoidTerrainProvider();
+    }
+
+    viewer = new Cesium.Viewer('cesiumContainer', {
+      terrainProvider: terrainProvider,
+      baseLayerPicker: false,
+      geocoder: false,
+      homeButton: true,
+      sceneModePicker: false,
+      navigationHelpButton: false,
+      animation: false,
+      timeline: false,
+      fullscreenButton: false,
+      infoBox: true,
+      selectionIndicator: true,
+      imageryProvider: false
+    });
+    viewer.scene.globe.depthTestAgainstTerrain = true;
+
+    // Ortofoto PNOA (IGN) como capa base
+    try{
+      var pnoa = new Cesium.WebMapTileServiceImageryProvider({
+        url: IGN_PNOA_URL + 'service=WMTS&request=GetTile&version=1.0.0&layer=OI.OrthoimageCoverage&style=default&tilematrixset=GoogleMapsCompatible&format=image/jpeg&TileMatrix={TileMatrix}&TileRow={TileRow}&TileCol={TileCol}',
+        layer:'OI.OrthoimageCoverage', style:'default', format:'image/jpeg',
+        tileMatrixSetID:'GoogleMapsCompatible', maximumLevel:19,
+        credit: new Cesium.Credit('© IGN-CNIG PNOA')
+      });
+      viewer.imageryLayers.addImageryProvider(pnoa);
+    }catch(e){toast('err','❌ No se pudo cargar la ortofoto PNOA.');}
+
+    // Cámara inicial: Madrid Centro
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(-3.7038,40.4113,900),
+      orientation:{heading:Cesium.Math.toRadians(20),pitch:Cesium.Math.toRadians(-35)}
+    });
+
+    setupTunnelsLayer();
+    setupChips();
+
+  }catch(e){
+    toast('err','❌ No se pudo iniciar el visor 3D: '+(e.message||e));
+  }
+}
+
+function setupTunnelsLayer(){
+  try{
+    tunnelLayer = new Cesium.WebMapServiceImageryProvider({
+      url: MAD_TUNELES_URL,
+      layers: '0,1,2,3',
+      parameters: {transparent:true, format:'image/png'},
+      credit: new Cesium.Credit('© Ayto. Madrid')
+    });
+  }catch(e){/* se crea al activar el chip */}
+}
+
+var tunnelActive=null;
+function toggleTunnels(){
+  var chip=$('chipTunnels');
+  if(tunnelActive){
+    viewer.imageryLayers.remove(tunnelActive);
+    tunnelActive=null;
+    chip.classList.remove('on');
+    return;
+  }
+  if(!tunnelLayer) setupTunnelsLayer();
+  try{
+    tunnelActive = viewer.imageryLayers.addImageryProvider(tunnelLayer);
+    tunnelActive.alpha=0.85;
+    chip.classList.add('on');
+  }catch(e){toast('err','❌ Túneles: '+(e.message||e));}
+}
+
+function toggleUndergroundMode(){
+  var chip=$('chipUnderground');
+  undergroundOn=!undergroundOn;
+  chip.classList.toggle('on',undergroundOn);
+  if(!viewer) return;
+  // Permite que la cámara "atraviese" el terreno para explorar el subsuelo
+  viewer.scene.globe.depthTestAgainstTerrain = !undergroundOn;
+  viewer.scene.screenSpaceCameraController.enableCollisionDetection = !undergroundOn;
+  if(undergroundOn){
+    toast('info','🕳️ Modo subsuelo activo: la cámara puede atravesar el terreno.');
+  }
+}
+
+function toggleTerrainChip(){
+  // Informativo: el terreno siempre está activo si hay token; este chip explica el estado.
+  var chip=$('chipTerrain');
+  chip.classList.toggle('on');
+}
+
+function setupChips(){
+  $('chipTerrain').addEventListener('click',toggleTerrainChip);
+  $('chipTunnels').addEventListener('click',toggleTunnels);
+  $('chipUnderground').addEventListener('click',toggleUndergroundMode);
+  $('chipTerrain').classList.add('on');
+}
+
+async function loadBuildings(assetId){
+  try{
+    if(buildingTileset){ viewer.scene.primitives.remove(buildingTileset); buildingTileset=null; }
+    var resource = await Cesium.IonResource.fromAssetId(Number(assetId));
+    buildingTileset = await Cesium.Cesium3DTileset.fromUrl(resource);
+    viewer.scene.primitives.add(buildingTileset);
+    toast('info','🏢 Edificios reales cargados (asset '+assetId+').');
+    viewer.flyTo(buildingTileset);
+  }catch(e){
+    toast('err','❌ No se pudo cargar el asset '+assetId+': '+(e.message||e));
+  }
+}
+
+$('btnSetup').addEventListener('click',function(){$('setup').classList.toggle('show');});
+$('btnApply').addEventListener('click',async function(){
+  var token=$('inToken').value.trim();
+  var asset=$('inAsset').value.trim();
+  saveCfg(token,asset);
+  $('setup').classList.remove('show');
+  if(viewer){ viewer.destroy(); viewer=null; }
+  await startViewer(token);
+  if(asset) loadBuildings(asset);
+});
+
+boot();
+</script>
+</body>
+</html>
