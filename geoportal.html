@@ -1660,7 +1660,7 @@
   function quakeColor(depth){ return depth > 300 ? '#4b0082' : depth > 100 ? '#7d2ae8' : depth > 50 ? '#e8622a' : depth > 10 ? '#f2a93b' : '#f7d94c'; }
   function fetchQuakes(){
     quakesLayer.clearLayers();
-    fetch('https://earthquake.usgs.gov/earthquakefeed/v1.0/summary/2.5_day.geojson')
+    fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson')
       .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function(geo){
         geo.features.forEach(function(f){
@@ -1681,10 +1681,7 @@
     planesLoading = true;
     var b = map.getBounds();
     var url = 'https://opensky-network.org/api/states/all?lamin=' + b.getSouth() + '&lomin=' + b.getWest() + '&lamax=' + b.getNorth() + '&lomax=' + b.getEast();
-    fetch(url).then(function(r){
-      if(!r.ok) throw new Error('HTTP ' + r.status + (r.status === 429 ? ' (límite diario de OpenSky alcanzado, prueba más tarde)' : ''));
-      return r.json();
-    }).then(function(data){
+    function render(data){
       planesLayer.clearLayers();
       (data.states || []).forEach(function(s){
         if(s[5] == null || s[6] == null) return; // sin posición
@@ -1694,7 +1691,30 @@
         planesLayer.addLayer(mk);
       });
       planesLoading = false;
-    }).catch(function(err){ planesLoading = false; alert('No se pudieron cargar los aviones: ' + err.message); });
+    }
+    fetch(url).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status + (r.status === 429 ? ' (límite diario de OpenSky alcanzado, prueba más tarde)' : ''));
+      return r.json();
+    }).then(render).catch(function(directErr){
+      // OpenSky's REST API isn't documented for direct browser use (their own examples are all
+      // curl/Python/Java) and most likely doesn't send CORS headers, which browsers require but
+      // curl/scripts don't need — that alone can produce this exact "Failed to fetch". A public
+      // CORS relay is a reasonable one-time fallback attempt before giving up.
+      if(!/failed to fetch/i.test(directErr.message)){
+        planesLoading = false;
+        alert('No se pudieron cargar los aviones: ' + directErr.message);
+        return;
+      }
+      fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(url)).then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).then(render).catch(function(proxyErr){
+        planesLoading = false;
+        alert('No se pudieron cargar los aviones.\n\n'
+          + 'La API de OpenSky Network parece no permitir peticiones directas desde un navegador (solo desde scripts/servidores), y el proxy de respaldo tampoco ha funcionado ahora mismo.\n\n'
+          + 'Esto no se puede arreglar solo con código en esta página — necesitaría un pequeño servidor propio que reenvíe la petición. Aviso si prefieres que quite esta capa o busquemos otra alternativa.');
+      });
+    });
   }
   function renderLive(){
     var el = document.getElementById('grpLive'); el.innerHTML = '';
