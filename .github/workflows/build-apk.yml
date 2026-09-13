@@ -35,13 +35,9 @@ jobs:
           mkdir -p android-app/app/src/main/res/values
           for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do mkdir -p "android-app/app/src/main/res/mipmap-$d"; done
           if [ -f apk-build/icon.png ]; then
-            convert apk-build/icon.png -resize 48x48   android-app/app/src/main/res/mipmap-mdpi/ic_launcher.png
-            convert apk-build/icon.png -resize 72x72   android-app/app/src/main/res/mipmap-hdpi/ic_launcher.png
-            convert apk-build/icon.png -resize 96x96   android-app/app/src/main/res/mipmap-xhdpi/ic_launcher.png
-            convert apk-build/icon.png -resize 144x144 android-app/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
-            convert apk-build/icon.png -resize 192x192 android-app/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
             for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-              cp "android-app/app/src/main/res/mipmap-$d/ic_launcher.png" "android-app/app/src/main/res/mipmap-$d/ic_launcher_round.png"
+              cp apk-build/icon.png "android-app/app/src/main/res/mipmap-$d/ic_launcher.png"
+              cp apk-build/icon.png "android-app/app/src/main/res/mipmap-$d/ic_launcher_round.png"
             done
           fi
           cat > android-app/settings.gradle << 'GEOF'
