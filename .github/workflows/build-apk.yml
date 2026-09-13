@@ -34,7 +34,6 @@ jobs:
           mkdir -p "android-app/app/src/main/java/$PKG_PATH"
           mkdir -p android-app/app/src/main/res/values
           for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do mkdir -p "android-app/app/src/main/res/mipmap-$d"; done
-
           if [ -f apk-build/icon.png ]; then
             convert apk-build/icon.png -resize 48x48   android-app/app/src/main/res/mipmap-mdpi/ic_launcher.png
             convert apk-build/icon.png -resize 72x72   android-app/app/src/main/res/mipmap-hdpi/ic_launcher.png
@@ -45,100 +44,87 @@ jobs:
               cp "android-app/app/src/main/res/mipmap-$d/ic_launcher.png" "android-app/app/src/main/res/mipmap-$d/ic_launcher_round.png"
             done
           fi
-
-          cat > android-app/settings.gradle << 'EOF'
-rootProject.name = "app"
-include ':app'
-EOF
-
-          cat > android-app/build.gradle << 'EOF'
-buildscript {
-    repositories { google(); mavenCentral() }
-    dependencies { classpath 'com.android.tools.build:gradle:8.5.0' }
-}
-allprojects {
-    repositories { google(); mavenCentral() }
-}
-EOF
-
-          cat > android-app/app/build.gradle << EOF
-apply plugin: 'com.android.application'
-android {
-    namespace '$APP_PACKAGE'
-    compileSdk 34
-    defaultConfig {
-        applicationId '$APP_PACKAGE'
-        minSdk 21
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
-    }
-}
-EOF
-
-          cat > android-app/app/src/main/AndroidManifest.xml << EOF
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
-    <application
-        android:label="@string/app_name"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round">
-        <activity android:name=".MainActivity"
-            android:exported="true"
-            android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-</manifest>
-EOF
-
-          cat > "android-app/app/src/main/java/$PKG_PATH/MainActivity.java" << EOF
-package $APP_PACKAGE;
-
-import android.app.Activity;
-import android.os.Bundle;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.webkit.WebSettings;
-import android.view.ViewGroup;
-
-public class MainActivity extends Activity {
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        WebView webView = new WebView(this);
-        webView.setLayoutParams(new ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        webView.setWebViewClient(new WebViewClient());
-        webView.loadUrl("$APP_URL");
-        setContentView(webView);
-    }
-}
-EOF
-
-          python3 - << 'PYEOF2'
-import html, os
-nombre = html.escape(os.environ.get('APP_NAME', 'App'))
-with open('android-app/app/src/main/res/values/strings.xml', 'w') as f:
-    f.write('<resources>
-    <string name="app_name">' + nombre + '</string>
-</resources>
-')
-PYEOF2
-
+          cat > android-app/settings.gradle << 'GEOF'
+          rootProject.name = "app"
+          include ':app'
+          GEOF
+          cat > android-app/build.gradle << 'GEOF'
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.5.0' }
+          }
+          allprojects {
+              repositories { google(); mavenCentral() }
+          }
+          GEOF
+          cat > android-app/app/build.gradle << GEOF
+          apply plugin: 'com.android.application'
+          android {
+              namespace '$APP_PACKAGE'
+              compileSdk 34
+              defaultConfig {
+                  applicationId '$APP_PACKAGE'
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+          }
+          GEOF
+          cat > android-app/app/src/main/AndroidManifest.xml << GEOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:label="@string/app_name"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher_round">
+                  <activity android:name=".MainActivity"
+                      android:exported="true"
+                      android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          GEOF
+          cat > "android-app/app/src/main/java/$PKG_PATH/MainActivity.java" << GEOF
+          package $APP_PACKAGE;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.webkit.WebSettings;
+          import android.view.ViewGroup;
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  WebView webView = new WebView(this);
+                  webView.setLayoutParams(new ViewGroup.LayoutParams(
+                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.loadUrl("$APP_URL");
+                  setContentView(webView);
+              }
+          }
+          GEOF
+          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/&amp;/g; s/</&lt;/g; s/>/&gt;/g')
+          cat > android-app/app/src/main/res/values/strings.xml << EOF2
+          <resources>
+              <string name="app_name">$NOMBRE_ESCAPADO</string>
+          </resources>
+          EOF2
       - name: Compilar APK
         working-directory: android-app
         run: |
           gradle wrapper --gradle-version 8.7
           ./gradlew assembleDebug --no-daemon
-
       - name: Crear release con el APK
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
