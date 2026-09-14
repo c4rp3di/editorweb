@@ -12,7 +12,7 @@ on:
         description: 'URL a envolver'
         required: true
       app_permisos:
-        description: 'Permisos separados por coma: camara,microfono,ubicacion,almacenamiento,notificaciones,sensores'
+        description: 'Permisos separados por coma'
         required: false
         default: ''
 jobs:
@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -47,35 +48,145 @@ jobs:
               cp apk-build/icon.png "android-app/app/src/main/res/mipmap-$d/ic_launcher_round.png"
             done
           fi
+
           PERMS_XML=""
           PERMS_JAVA_LIST=""
-          add_perm() {
-            PERMS_XML="$PERMS_XML
-              <uses-permission android:name="$1" />"
-            if [ -n "$PERMS_JAVA_LIST" ]; then PERMS_JAVA_LIST="$PERMS_JAVA_LIST, "; fi
-            PERMS_JAVA_LIST="$PERMS_JAVA_LIST"$1""
-          }
-          case ",$APP_PERMISOS," in *,camara,*) add_perm "android.permission.CAMERA" ;; esac
-          case ",$APP_PERMISOS," in *,microfono,*) add_perm "android.permission.RECORD_AUDIO" ;; esac
-          case ",$APP_PERMISOS," in *,ubicacion,*) add_perm "android.permission.ACCESS_FINE_LOCATION" ;; esac
-          case ",$APP_PERMISOS," in *,notificaciones,*) add_perm "android.permission.POST_NOTIFICATIONS" ;; esac
-          case ",$APP_PERMISOS," in *,sensores,*) add_perm "android.permission.BODY_SENSORS" ;; esac
           DOWNLOAD_CODE=""
-          case ",$APP_PERMISOS," in *,almacenamiento,*)
-            add_perm "android.permission.WRITE_EXTERNAL_STORAGE"
-            DOWNLOAD_CODE='
+          NOTIFICATION_INIT=""
+
+          # $1 = nombre, $2 = maxSdkVersion opcional
+          add_perm() {
+            if [ -n "$2" ]; then
+              PERMS_XML="$PERMS_XML
+        <uses-permission android:name=\"$1\" android:maxSdkVersion=\"$2\" />"
+            else
+              PERMS_XML="$PERMS_XML
+        <uses-permission android:name=\"$1\" />"
+            fi
+          }
+
+          # $1 = nombre — se añade a la lista de permisos pedidos en runtime
+          add_runtime() {
+            if [ -n "$PERMS_JAVA_LIST" ]; then PERMS_JAVA_LIST="$PERMS_JAVA_LIST, "; fi
+            PERMS_JAVA_LIST="$PERMS_JAVA_LIST\"$1\""
+          }
+
+          case ",$APP_PERMISOS," in
+            *,camara,*)
+              add_perm "android.permission.CAMERA"
+              add_runtime "android.permission.CAMERA"
+              ;;
+          esac
+
+          case ",$APP_PERMISOS," in
+            *,microfono,*)
+              add_perm "android.permission.RECORD_AUDIO"
+              add_runtime "android.permission.RECORD_AUDIO"
+              ;;
+          esac
+
+          case ",$APP_PERMISOS," in
+            *,galeria,*)
+              add_perm "android.permission.READ_EXTERNAL_STORAGE" "32"
+              add_perm "android.permission.READ_MEDIA_IMAGES"
+              add_perm "android.permission.READ_MEDIA_VIDEO"
+              add_perm "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+              add_runtime "android.permission.READ_EXTERNAL_STORAGE"
+              add_runtime "android.permission.READ_MEDIA_IMAGES"
+              add_runtime "android.permission.READ_MEDIA_VIDEO"
+              ;;
+          esac
+
+          case ",$APP_PERMISOS," in
+            *,audio,*)
+              add_perm "android.permission.READ_MEDIA_AUDIO"
+              add_runtime "android.permission.READ_MEDIA_AUDIO"
+              ;;
+          esac
+
+          case ",$APP_PERMISOS," in
+            *,ubicacion,*)
+              add_perm "android.permission.ACCESS_FINE_LOCATION"
+              add_perm "android.permission.ACCESS_COARSE_LOCATION"
+              add_runtime "android.permission.ACCESS_FINE_LOCATION"
+              add_runtime "android.permission.ACCESS_COARSE_LOCATION"
+              ;;
+          esac
+
+          case ",$APP_PERMISOS," in
+            *,notificaciones,*)
+              add_perm "android.permission.POST_NOTIFICATIONS"
+              add_runtime "android.permission.POST_NOTIFICATIONS"
+              NOTIFICATION_INIT='
+              if (android.os.Build.VERSION.SDK_INT >= 26) {
+                  android.app.NotificationChannel canal = new android.app.NotificationChannel(
+                      "webview_default", "Notificaciones", android.app.NotificationManager.IMPORTANCE_DEFAULT);
+                  ((android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(canal);
+              }'
+              ;;
+          esac
+
+          case ",$APP_PERMISOS," in
+            *,vibracion,*) add_perm "android.permission.VIBRATE" ;;
+          esac
+
+          case ",$APP_PERMISOS," in
+            *,wakelock,*) add_perm "android.permission.WAKE_LOCK" ;;
+          esac
+
+          case ",$APP_PERMISOS," in
+            *,bluetooth,*)
+              add_perm "android.permission.BLUETOOTH" "30"
+              add_perm "android.permission.BLUETOOTH_ADMIN" "30"
+              add_perm "android.permission.BLUETOOTH_CONNECT"
+              add_perm "android.permission.BLUETOOTH_SCAN"
+              add_runtime "android.permission.BLUETOOTH_CONNECT"
+              add_runtime "android.permission.BLUETOOTH_SCAN"
+              ;;
+          esac
+
+          case ",$APP_PERMISOS," in
+            *,nfc,*) add_perm "android.permission.NFC" ;;
+          esac
+
+          case ",$APP_PERMISOS," in
+            *,sensores,*)
+              add_perm "android.permission.BODY_SENSORS"
+              add_runtime "android.permission.BODY_SENSORS"
+              ;;
+          esac
+
+          case ",$APP_PERMISOS," in
+            *,actividad,*)
+              add_perm "android.permission.ACTIVITY_RECOGNITION"
+              add_runtime "android.permission.ACTIVITY_RECOGNITION"
+              ;;
+          esac
+
+          case ",$APP_PERMISOS," in
+            *,descargas,*)
+              add_perm "android.permission.WRITE_EXTERNAL_STORAGE" "28"
+              DOWNLOAD_CODE='
               webView.setDownloadListener((dlUrl, userAgent, contentDisposition, mimetype, contentLength) -> {
                   android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(dlUrl));
                   request.setMimeType(mimetype);
                   request.addRequestHeader("User-Agent", userAgent);
-                  request.setTitle(android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype));
+                  String nombreArchivo = android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype);
+                  request.setTitle(nombreArchivo);
                   request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                  request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype));
+                  request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, nombreArchivo);
                   android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
                   dm.enqueue(request);
               });'
-            ;;
+              ;;
           esac
+
+          case ",$APP_PERMISOS," in
+            *,almacenamientototal,*)
+              add_perm "android.permission.MANAGE_EXTERNAL_STORAGE"
+              ;;
+          esac
+
           cat > android-app/settings.gradle << 'GEOF'
           rootProject.name = "app"
           include ':app'
@@ -101,18 +212,25 @@ jobs:
                   versionCode 1
                   versionName "1.0"
               }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
           }
           GEOF
           cat > android-app/app/src/main/AndroidManifest.xml << GEOF
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />$PERMS_XML
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />$PERMS_XML
               <application
                   android:label="@string/app_name"
                   android:icon="@mipmap/ic_launcher"
-                  android:roundIcon="@mipmap/ic_launcher_round">
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:usesCleartextTraffic="false">
                   <activity android:name=".MainActivity"
                       android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
                       android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
@@ -125,47 +243,104 @@ jobs:
           cat > "android-app/app/src/main/java/$PKG_PATH/MainActivity.java" << GEOF
           package $APP_PACKAGE;
           import android.app.Activity;
+          import android.app.AlertDialog;
           import android.content.Intent;
+          import android.content.pm.PackageManager;
           import android.net.Uri;
+          import android.os.Build;
           import android.os.Bundle;
+          import android.os.Message;
+          import android.util.Log;
+          import android.view.ViewGroup;
+          import android.webkit.ConsoleMessage;
           import android.webkit.GeolocationPermissions;
+          import android.webkit.JsPromptResult;
+          import android.webkit.JsResult;
           import android.webkit.PermissionRequest;
           import android.webkit.ValueCallback;
           import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
-          import android.webkit.WebSettings;
-          import android.view.ViewGroup;
+          import java.util.ArrayList;
+          import java.util.List;
           public class MainActivity extends Activity {
               private static final String[] PERMS = { $PERMS_JAVA_LIST };
+              private static final int RUNTIME_PERMS_CODE = 1001;
               private static final int FILE_CHOOSER_CODE = 51426;
               private ValueCallback<Uri[]> filePathCallback;
+              private WebView webView;
+              private String urlPendiente;
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                      WebView.setWebContentsDebuggingEnabled(true);
+                  }$NOTIFICATION_INIT
+                  urlPendiente = "$APP_URL";
                   if (PERMS.length > 0) {
-                      requestPermissions(PERMS, 1001);
+                      requestPermissions(PERMS, RUNTIME_PERMS_CODE);
+                  } else {
+                      cargarWebView();
                   }
-                  WebView webView = new WebView(this);
+              }
+
+              private void cargarWebView() {
+                  webView = new WebView(this);
                   webView.setLayoutParams(new ViewGroup.LayoutParams(
                       ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
                   WebSettings settings = webView.getSettings();
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
+                  settings.setDatabaseEnabled(true);
                   settings.setGeolocationEnabled(true);
-                  settings.setAllowFileAccess(true);
-                  webView.setWebViewClient(new WebViewClient());
+                  settings.setAllowFileAccess(false);
+                  settings.setAllowContentAccess(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
+                          String host = request.getUrl().getHost();
+                          if (host != null && host.equals(Uri.parse("$APP_URL").getHost())) {
+                              return false;
+                          }
+                          startActivity(new Intent(Intent.ACTION_VIEW, request.getUrl()));
+                          return true;
+                      }
+                  });
                   webView.setWebChromeClient(new WebChromeClient() {
                       @Override
                       public void onPermissionRequest(final PermissionRequest request) {
-                          runOnUiThread(() -> request.grant(request.getResources()));
+                          runOnUiThread(() -> {
+                              String[] recursos = request.getResources();
+                              List<String> permitidos = new ArrayList<>();
+                              for (String r : recursos) {
+                                  if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(r)
+                                      && tienePermiso("android.permission.CAMERA")) {
+                                      permitidos.add(r);
+                                  } else if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r)
+                                      && tienePermiso("android.permission.RECORD_AUDIO")) {
+                                      permitidos.add(r);
+                                  } else if (PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID.equals(r)) {
+                                      permitidos.add(r);
+                                  }
+                              }
+                              if (permitidos.isEmpty()) {
+                                  request.deny();
+                              } else {
+                                  request.grant(permitidos.toArray(new String[0]));
+                              }
+                          });
                       }
                       @Override
                       public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-                          callback.invoke(origin, true, false);
+                          boolean concedido = tienePermiso("android.permission.ACCESS_FINE_LOCATION")
+                              || tienePermiso("android.permission.ACCESS_COARSE_LOCATION");
+                          callback.invoke(origin, concedido, false);
                       }
                       @Override
-                      public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> callback, WebChromeClient.FileChooserParams params) {
+                      public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> callback, FileChooserParams params) {
                           filePathCallback = callback;
                           Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
                           intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -173,10 +348,82 @@ jobs:
                           startActivityForResult(Intent.createChooser(intent, "Elegir archivo"), FILE_CHOOSER_CODE);
                           return true;
                       }
+                      @Override
+                      public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
+                          WebView temporal = new WebView(MainActivity.this);
+                          temporal.setWebViewClient(new WebViewClient() {
+                              @Override
+                              public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
+                                  startActivity(new Intent(Intent.ACTION_VIEW, request.getUrl()));
+                                  temporal.destroy();
+                                  return true;
+                              }
+                          });
+                          WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+                          transport.setWebView(temporal);
+                          resultMsg.sendToTarget();
+                          return true;
+                      }
+                      @Override
+                      public boolean onJsAlert(WebView view, String url, String message, final JsResult result) {
+                          new AlertDialog.Builder(MainActivity.this)
+                              .setMessage(message)
+                              .setPositiveButton("OK", (d, w) -> result.confirm())
+                              .setCancelable(false).show();
+                          return true;
+                      }
+                      @Override
+                      public boolean onJsConfirm(WebView view, String url, String message, final JsResult result) {
+                          new AlertDialog.Builder(MainActivity.this)
+                              .setMessage(message)
+                              .setPositiveButton("OK", (d, w) -> result.confirm())
+                              .setNegativeButton("Cancelar", (d, w) -> result.cancel())
+                              .setCancelable(false).show();
+                          return true;
+                      }
+                      @Override
+                      public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, final JsPromptResult result) {
+                          final android.widget.EditText input = new android.widget.EditText(MainActivity.this);
+                          input.setText(defaultValue);
+                          new AlertDialog.Builder(MainActivity.this)
+                              .setMessage(message)
+                              .setView(input)
+                              .setPositiveButton("OK", (d, w) -> result.confirm(input.getText().toString()))
+                              .setNegativeButton("Cancelar", (d, w) -> result.cancel())
+                              .setCancelable(false).show();
+                          return true;
+                      }
+                      @Override
+                      public void onConsoleMessage(ConsoleMessage m) {
+                          Log.d("WebView", m.message() + " @ línea " + m.lineNumber());
+                      }
                   });$DOWNLOAD_CODE
-                  webView.loadUrl("$APP_URL");
+                  webView.loadUrl(urlPendiente);
                   setContentView(webView);
               }
+
+              private boolean tienePermiso(String permiso) {
+                  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
+                  return checkSelfPermission(permiso) == PackageManager.PERMISSION_GRANTED;
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                  if (requestCode == RUNTIME_PERMS_CODE) {
+                      cargarWebView();
+                  }
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (webView != null && webView.canGoBack()) {
+                      webView.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+
               @Override
               protected void onActivityResult(int requestCode, int resultCode, Intent data) {
                   super.onActivityResult(requestCode, resultCode, data);
@@ -191,7 +438,7 @@ jobs:
               }
           }
           GEOF
-          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/&amp;/g; s/</&lt;/g; s/>/&gt;/g')
+          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
           cat > android-app/app/src/main/res/values/strings.xml << EOF2
           <resources>
               <string name="app_name">$NOMBRE_ESCAPADO</string>
