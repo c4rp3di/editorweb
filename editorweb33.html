@@ -8191,8 +8191,9 @@ jobs:
                           return true;
                       }
                       @Override
-                      public void onConsoleMessage(ConsoleMessage m) {
+                      public boolean onConsoleMessage(ConsoleMessage m) {
                           Log.d("WebView", m.message() + " @ línea " + m.lineNumber());
+                          return true
                       }
                   });$DOWNLOAD_CODE
                   webView.loadUrl(urlPendiente);
