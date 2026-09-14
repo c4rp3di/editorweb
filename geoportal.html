@@ -1691,33 +1691,48 @@
     if(planesLoading) return;
     planesLoading = true;
     var c = map.getCenter();
-    // radius in nautical miles from map center to the visible edge, capped at adsb.lol's 250 nm max
     var edgeKm = c.distanceTo(map.getBounds().getNorthEast()) / 1000;
     var distNm = Math.min(250, Math.max(5, Math.round(edgeKm / 1.852)));
     var url = 'https://api.adsb.lol/v2/point/' + c.lat + '/' + c.lng + '/' + distNm;
-    fetch(url).then(function(r){
-      if(!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    }).then(function(data){
+    function render(data){
       planesLayer.clearLayers();
       (data.ac || []).forEach(function(a){
         if(a.lat == null || a.lon == null) return;
         var callsign = (a.flight || '').trim() || a.hex;
         var alt = a.alt_baro; if(alt === 'ground') alt = 0;
         var mk = L.marker([a.lat, a.lon], { icon: planeIcon(a.track) })
-          .bindPopup('<b>' + callsign + '</b>' + (a.r ? ' · ' + a.r : '') + (a.t ? ' · ' + a.t : '')
-            + '<br>Altitud: ' + (alt != null ? Math.round(alt) + ' ft' : '—')
-            + '<br>Velocidad: ' + (a.gs != null ? Math.round(a.gs) + ' kt' : '—'));
+          .bindPopup('<b>' + callsign + '</b>' + (a.r ? ' \u00b7 ' + a.r : '') + (a.t ? ' \u00b7 ' + a.t : '')
+            + '<br>Altitud: ' + (alt != null ? Math.round(alt) + ' ft' : '\u2014')
+            + '<br>Velocidad: ' + (a.gs != null ? Math.round(a.gs) + ' kt' : '\u2014'));
         planesLayer.addLayer(mk);
       });
       planesLoading = false;
-    }).catch(function(err){
-      planesLoading = false;
-      alert('No se pudieron cargar los aviones: ' + err.message + '\n\nFuente: adsb.lol (red comunitaria de receptores ADS-B) — si no hay cobertura de receptores en esta zona, no devolverá aviones aunque haya tráfico real.');
-    });
+    }
+    // Dos APIs distintas (OpenSky, adsb.lol) han fallado igual desde el navegador \u2014 casi seguro
+    // que ninguna deja leer la respuesta directamente (CORS). Se intenta en directo y, si falla, con
+    // dos proxies publicos distintos antes de avisar de verdad.
+    var proxies = [
+      function(u){ return u; },
+      function(u){ return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
+      function(u){ return 'https://corsproxy.io/?url=' + encodeURIComponent(u); }
+    ];
+    function tryProxy(i){
+      if(i >= proxies.length){
+        planesLoading = false;
+        alert('No se pudieron cargar los aviones desde ningun origen (directo ni proxies).\n\n'
+          + 'Esto suele ser un bloqueo CORS del lado del servidor de datos, no de tu conexion \u2014 no se puede arreglar solo con codigo en esta pagina estatica, haria falta un servidor propio de por medio.');
+        return;
+      }
+      fetch(proxies[i](url)).then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).then(render).catch(function(){ tryProxy(i + 1); });
+    }
+    tryProxy(0);
   }
+
   // Maritime traffic — real AIS data via aisstream.io websocket (needs the user's own free key,
-  // same pattern as openAIP: no public no-key AIS source exists, see chat explanation).
+  // same pattern as openAIP: no public no-key AIS source exists).
   var aisstreamKeyVal = null, shipsOn = false, shipsSocket = null, shipsLayer = L.layerGroup(), shipMarkers = {};
   if(lsGet('aisstreamKey','')) aisstreamKeyVal = lsGet('aisstreamKey','');
   function shipIcon(){ return L.divIcon({ className:'', html:'<div style="font-size:15px; line-height:15px;">🚢</div>', iconSize:[15,15], iconAnchor:[7,7] }); }
@@ -1730,6 +1745,9 @@
     };
     shipsSocket.onmessage = function(ev){
       var msg; try { msg = JSON.parse(ev.data); } catch(e){ return; }
+      // AIS Stream devuelve errores como mensaje normal, no como evento de error — si no se
+      // comprueba esto explícitamente, un fallo (p.ej. clave incorrecta) se queda en silencio.
+      if(msg.error){ alert('AIS Stream respondió con un error: ' + msg.error); return; }
       if(msg.MessageType !== 'PositionReport') return;
       var md = msg.MetaData || {}, pr = (msg.Message || {}).PositionReport || {};
       var lat = md.latitude != null ? md.latitude : pr.Latitude, lon = md.longitude != null ? md.longitude : pr.Longitude;
@@ -1741,13 +1759,21 @@
       shipMarkers[mmsi] = mk; shipsLayer.addLayer(mk);
     };
     shipsSocket.onerror = function(){ alert('Error de conexión con AIS Stream. Comprueba que la clave guardada en Herramientas sea correcta.'); };
+    shipsSocket.onclose = function(ev){
+      // un cierre casi inmediato (código != 1000) normalmente significa que la clave no es válida
+      // o la cuenta no está verificada — no barcos en la zona actual, no es lo mismo que un fallo
+      if(shipsOn && ev.code !== 1000){
+        alert('AIS Stream cerró la conexión (código ' + ev.code + (ev.reason ? ': ' + ev.reason : '') + ').\n\nSi acabas de crear la clave, comprueba que la cuenta esté verificada (revisa tu email) y que la hayas pegado bien en Herramientas.');
+      }
+    };
   }
   function toggleShips(){
     shipsOn = !shipsOn;
     if(shipsOn){ shipsLayer.addTo(map); openShipsSocket(); bumpOverlay(1); }
-    else { if(shipsSocket) shipsSocket.close(); shipsSocket = null; map.removeLayer(shipsLayer); shipMarkers = {}; bumpOverlay(-1); }
+    else { if(shipsSocket) shipsSocket.close(1000); shipsSocket = null; map.removeLayer(shipsLayer); shipMarkers = {}; bumpOverlay(-1); }
     renderLive();
   }
+
   function renderLive(){
     var el = document.getElementById('grpLive'); el.innerHTML = '';
     if(activeBaseKey === 'windy' || activeBaseKey === 'globe3d'){
@@ -1845,18 +1871,21 @@
     { id:20580, name:'Telescopio espacial Hubble' },
     { id:48274, name:'Tiangong (estación espacial china)' }
   ];
-  var satsOn = false, satsLayer = L.layerGroup(), satsInterval = null;
+  var satsOn = false, satsLayer = L.layerGroup(), satsInterval = null, satMarkers = {};
   function satIcon(){ return L.divIcon({ className:'', html:'<div style="font-size:18px; line-height:18px;">🛰️</div>', iconSize:[18,18], iconAnchor:[9,9] }); }
   function fetchSatellites(){
-    satsLayer.clearLayers();
     SATELLITES.forEach(function(sat){
       fetch('https://api.wheretheiss.at/v1/satellites/' + sat.id).then(function(r){
         if(!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       }).then(function(d){
-        L.marker([d.latitude, d.longitude], { icon: satIcon() })
-          .bindPopup('<b>' + sat.name + '</b><br>Altitud: ' + Math.round(d.altitude) + ' km<br>Velocidad: ' + Math.round(d.velocity) + ' km/h<br>' + d.visibility)
-          .addTo(satsLayer);
+        var popup = '<b>' + sat.name + '</b><br>Altitud: ' + Math.round(d.altitude) + ' km<br>Velocidad: ' + Math.round(d.velocity) + ' km/h<br>' + d.visibility;
+        if(satMarkers[sat.id]){
+          // mover el marcador existente en vez de borrar+recrear — evita el parpadeo
+          satMarkers[sat.id].setLatLng([d.latitude, d.longitude]).setPopupContent(popup);
+        } else {
+          satMarkers[sat.id] = L.marker([d.latitude, d.longitude], { icon: satIcon() }).bindPopup(popup).addTo(satsLayer);
+        }
       }).catch(function(){ /* un satélite fallando no debe romper los demás */ });
     });
   }
@@ -1949,6 +1978,11 @@
     makeCheckRow(el, { name: bioTaxon ? ('Avistamientos: ' + bioTaxon.name) : 'Avistamientos (todas las especies)',
       note: bioTaxon ? 'Busca otra especie arriba para cambiarla' : 'Escribe una especie arriba para filtrar',
       isOn:function(){return bioOn;}, onToggle:function(){ toggleBio(false); } });
+    if(bioOn){
+      var legend = document.createElement('div'); legend.className = 'hint';
+      legend.textContent = 'Cada punto es un registro real (observación, foto o ejemplar de museo). Más puntos juntos = más avistamientos en esa zona, no significa "más población". Sin especie elegida, verás TODOS los reinos a la vez (plantas, hongos, animales...), que abruma casi cualquier zona — busca una especie arriba para que tenga sentido. Al no ser capa vectorial, no puedes tocar un punto para ver el detalle; para eso hay que entrar en gbif.org.';
+      el.appendChild(legend);
+    }
   }
   renderBio();
 
