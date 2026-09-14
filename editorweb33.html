@@ -7823,7 +7823,7 @@ if (!nombreArchivo) {
     // necesita la URL ya publicada, el nombre y un icono.
     const APK_WORKFLOW_PATH = '.github/workflows/build-apk.yml';
 
-            const APK_WORKFLOW_YAML = `name: Build APK
+                const APK_WORKFLOW_YAML = `name: Build APK
 on:
   workflow_dispatch:
     inputs:
@@ -8251,7 +8251,6 @@ jobs:
           APK_PATH=$(find android-app -name "*.apk" | head -n1)
           gh release create "$TAG" "$APK_PATH" --title "APK $TAG" --notes "Generado automáticamente por el editor"
 `;
-
     async function contentsApiGitHub(cfg, ruta, opciones) {
         const headers = Object.assign({
             'Authorization': 'Bearer ' + cfg.token,
