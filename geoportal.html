@@ -1763,7 +1763,10 @@
       // un cierre casi inmediato (código != 1000) normalmente significa que la clave no es válida
       // o la cuenta no está verificada — no barcos en la zona actual, no es lo mismo que un fallo
       if(shipsOn && ev.code !== 1000){
-        alert('AIS Stream cerró la conexión (código ' + ev.code + (ev.reason ? ': ' + ev.reason : '') + ').\n\nSi acabas de crear la clave, comprueba que la cuenta esté verificada (revisa tu email) y que la hayas pegado bien en Herramientas.');
+        var msg1006 = 'AIS Stream ha cerrado la conexión de golpe (código 1006), sin mandar ningún mensaje antes.\n\n'
+          + 'Esto coincide con un problema conocido y abierto ahora mismo en su propio repositorio: están bloqueando o limitando conexiones desde IPs compartidas de navegador/hosting — no es tu clave ni un fallo de esta app. No hay nada que arreglar en el código; solo queda esperar a que lo resuelvan de su lado o probar en otro momento.';
+        var msgOther = 'AIS Stream cerró la conexión (código ' + ev.code + (ev.reason ? ': ' + ev.reason : '') + ').\n\nSi acabas de crear la clave, comprueba que la cuenta esté verificada (revisa tu email) y que la hayas pegado bien en Herramientas.';
+        alert(ev.code === 1006 ? msg1006 : msgOther);
       }
     };
   }
@@ -1924,8 +1927,8 @@
       airspaceOn = false; bumpOverlay(-1); renderSky(); return;
     }
     airspaceLayers = ['airspaces','airports'].map(function(kind){
-      return attachTileRetry(L.tileLayer('https://{s}.api.tiles.openaip.net/api/data/' + kind + '/{z}/{x}/{y}.png?apiKey=' + openaipKeyVal, {
-        subdomains:'12', maxZoom:14, opacity:0.85, attribution:'openAIP.net'
+      return attachTileRetry(L.tileLayer('https://api.tiles.openaip.net/api/data/' + kind + '/{z}/{x}/{y}.png?apiKey=' + openaipKeyVal, {
+        maxZoom:14, opacity:0.85, attribution:'openAIP.net', tms:true
       }));
     });
     airspaceLayers.forEach(function(l){ l.addTo(map); });
