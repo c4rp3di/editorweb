@@ -2871,9 +2871,13 @@ let estilosAnalisisDesactualizado = true;
             const seleccion = [];
             if (document.getElementById('permApkCamara')?.checked) seleccion.push('camara');
             if (document.getElementById('permApkMicro')?.checked) seleccion.push('microfono');
+            if (document.getElementById('permApkGaleria')?.checked) seleccion.push('galeria');
+            if (document.getElementById('permApkAudio')?.checked) seleccion.push('audio');
             if (document.getElementById('permApkUbicacion')?.checked) seleccion.push('ubicacion');
             if (document.getElementById('permApkAlmacenamiento')?.checked) seleccion.push('almacenamiento');
             if (document.getElementById('permApkNotificaciones')?.checked) seleccion.push('notificaciones');
+            if (document.getElementById('permApkVibracion')?.checked) seleccion.push('vibracion');
+            if (document.getElementById('permApkWakeLock')?.checked) seleccion.push('wakelock');
             if (document.getElementById('permApkSensores')?.checked) seleccion.push('sensores');
             cerrarModalConValor(seleccion);
         } else {
@@ -2897,8 +2901,9 @@ let estilosAnalisisDesactualizado = true;
         clearTimeout(borradorTimeout);
         borradorTimeout = setTimeout(() => {
             try {
+                const contenidoActual = (typeof obtenerDocumentoCompletoActual === 'function' ? obtenerDocumentoCompletoActual() : textarea.value);
                 localStorage.setItem('webCreatorBorrador', JSON.stringify({
-                    contenido: textarea.value,
+                    contenido: contenidoActual,
                     proyecto: proyectoActivo,
                     version: versionActiva,
                     fecha: new Date().toISOString()
@@ -4736,7 +4741,8 @@ function actualizarVistaPrevia() {
 
     abrirPreviewBtn.addEventListener('click', function() {
         if (!textarea.value.trim()) { mostrarToast('⚠️ El editor está vacío'); return; }
-        const blob = new Blob([textarea.value], { type: 'text/html' });
+        const htmlCompleto = (typeof obtenerDocumentoCompletoActual === 'function' ? obtenerDocumentoCompletoActual() : textarea.value);
+        const blob = new Blob([htmlCompleto], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         window.open(url, '_blank');
         setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -5046,7 +5052,7 @@ function actualizarVistaPrevia() {
                     <div style="font-size:0.78rem; color:#b0b0d0; margin-bottom:6px;">Elige destino para cada bloque:</div>
                     ${bloques.map(b => `
                         <div class="refactor-row" data-idx="${b.idx}">
-                            <span class="rf-tag">${b.icon} ${b.tag} (línea ${b.line})</span>
+                            <span class="rf-tag">${b.icon} ${escaparHtml(b.tag)} (línea ${b.line})</span>
                             <select class="rf-select" data-idx="${b.idx}">
                                 <option value="">Mantener en HTML</option>
                                 <option value="${b.type === 'style' ? 'css/style.css' : 'js/script.js'}" selected>${b.type === 'style' ? 'css/style.css' : 'js/script.js'}</option>
@@ -5124,7 +5130,10 @@ function actualizarVistaPrevia() {
         Object.keys(refactorLibrerias).forEach(idx => {
             if (refactorLibrerias[idx] !== 'descargar') return;
             const bloque = estructura[idx];
-            if (bloque && bloque.srcValor) rutas.add(bloque.srcValor.replace(/^\.?\//, '') + '  (descargado)');
+            if (bloque && bloque.srcValor) {
+                const nombreArchivo = (bloque.srcValor.split('/').pop() || 'libreria.js').split('?')[0].split('#')[0] || 'libreria.js';
+                rutas.add('libs/' + nombreArchivo);
+            }
         });
         const ordenadas = [...rutas].sort();
         arbolEl.textContent = 'proyecto/\n' + ordenadas.map(r => '├── ' + r).join('\n');
@@ -5138,7 +5147,9 @@ function actualizarVistaPrevia() {
     }
 
     function profundidadRuta(ruta) {
-        return ruta.split('/').length - 1;
+        const limpio = String(ruta || '').replace(/^\.?\/+/, '');
+        const segmentos = limpio.split('/').filter(s => s !== '');
+        return Math.max(0, segmentos.length - 1);
     }
 
     function reescribirUrlsCss(css, ruta) {
@@ -5274,13 +5285,20 @@ function actualizarVistaPrevia() {
 
             const archivosLibrerias = [];
             const avisosDescarga = [];
+            const reemplazosDescarga = [];
             for (const item of librosADescargar) {
-                const rutaEnZip = item.bloque.srcValor.replace(/^\.?\//, '');
+                const nombreArchivo = (item.bloque.srcValor.split('/').pop() || 'libreria.js').split('?')[0].split('#')[0] || 'libreria.js';
+                const rutaEnZip = 'libs/' + nombreArchivo;
                 try {
                     const resp = await fetch(item.libreria.cdn);
                     if (!resp.ok) throw new Error('HTTP ' + resp.status);
                     const contenido = await resp.text();
                     archivosLibrerias.push({ nombre: rutaEnZip, contenido });
+                    reemplazosDescarga.push({
+                        startIndex: item.bloque.startIndex,
+                        endIndex: item.bloque.endIndex,
+                        texto: `<script src="${rutaEnZip}"><` + '/script>'
+                    });
                 } catch (err) {
                     avisosDescarga.push(item.libreria.nombre);
                 }
@@ -5301,6 +5319,7 @@ function actualizarVistaPrevia() {
                 const nuevaEtiqueta = `<script src="${item.libreria.cdn}"><` + '/script>';
                 reemplazosHtml.push({ startIndex: item.bloque.startIndex, endIndex: item.bloque.endIndex, texto: nuevaEtiqueta });
             });
+            reemplazosDescarga.forEach(r => reemplazosHtml.push(r));
 
             let restante = html;
             reemplazosHtml.sort((a, b) => b.startIndex - a.startIndex).forEach(r => {
@@ -5839,7 +5858,7 @@ function actualizarVistaPrevia() {
         if (!nombre || nombre.trim() === '') { mostrarToast('⚠️ El nombre no puede estar vacío'); return; }
         nombre = nombre.trim();
         if (proyectos[nombre]) { mostrarToast('⚠️ Ya existe un proyecto con ese nombre'); return; }
-        const contenido = textarea.value.trim() || '<!DOCTYPE html>\n<html>\n<head>\n  <title>Mi web</title>\n</head>\n<body>\n</body>\n</html>';
+        const contenido = ((typeof obtenerDocumentoCompletoActual === 'function' ? obtenerDocumentoCompletoActual() : textarea.value).trim()) || '<!DOCTYPE html>\n<html>\n<head>\n  <title>Mi web</title>\n</head>\n<body>\n</body>\n</html>';
         const version = 'v1.0';
         proyectos[nombre] = {
             fecha: new Date().toISOString().slice(0, 10),
@@ -5909,7 +5928,7 @@ function actualizarVistaPrevia() {
             await crearProyecto(nombre.trim());
             return;
         }
-        const contenido = textarea.value.trim();
+        const contenido = (typeof obtenerDocumentoCompletoActual === 'function' ? obtenerDocumentoCompletoActual() : textarea.value).trim();
         if (contenido === '') { mostrarToast('⚠️ El editor está vacío'); return; }
         const p = proyectos[proyectoActivo];
         if (!p) { mostrarToast('⚠️ Error: proyecto no encontrado'); return; }
@@ -6888,7 +6907,7 @@ if (!nombreArchivo) {
                 <div class="struct-item ${activeClass}" data-index="${s.idx}" data-profundidad="${s.profundidad}" data-padre="${s.padreIdx ?? ''}">
                     ${controlColapso}
                     <span class="icon">${s.icon}</span>
-                    <span class="tag-name">${tagVisible}</span>
+                    <span class="tag-name">${escaparHtml(tagVisible)}</span>
                     <span class="badge-type ${badgeClass}">${badgeText}</span>
                     <button class="btn-flecha" data-idx="${s.idx}">→</button>
                     <span class="line-info">${infoLinea}</span>
@@ -7829,7 +7848,7 @@ on:
         description: 'URL a envolver'
         required: true
       app_permisos:
-        description: 'Permisos separados por coma: camara,microfono,ubicacion,almacenamiento,notificaciones,sensores'
+        description: 'Permisos separados por coma'
         required: false
         default: ''
 jobs:
@@ -7864,156 +7883,215 @@ jobs:
               cp apk-build/icon.png "android-app/app/src/main/res/mipmap-$d/ic_launcher_round.png"
             done
           fi
+
           PERMS_XML=""
           PERMS_JAVA_LIST=""
           add_perm() {
             PERMS_XML="$PERMS_XML
-              <uses-permission android:name=\"$1\" />"
-            if [ -n "$PERMS_JAVA_LIST" ]; then PERMS_JAVA_LIST="$PERMS_JAVA_LIST, "; fi
-            PERMS_JAVA_LIST="$PERMS_JAVA_LIST\"$1\""
+                        <uses-permission android:name=\"$1\" />"
+            if [ "$2" = "runtime" ]; then
+              if [ -n "$PERMS_JAVA_LIST" ]; then PERMS_JAVA_LIST="$PERMS_JAVA_LIST, "; fi
+              PERMS_JAVA_LIST="$PERMS_JAVA_LIST\"$1\""
+            fi
           }
-          case ",$APP_PERMISOS," in *,camara,*) add_perm "android.permission.CAMERA" ;; esac
-          case ",$APP_PERMISOS," in *,microfono,*) add_perm "android.permission.RECORD_AUDIO" ;; esac
-          case ",$APP_PERMISOS," in *,ubicacion,*) add_perm "android.permission.ACCESS_FINE_LOCATION" ;; esac
-          case ",$APP_PERMISOS," in *,notificaciones,*) add_perm "android.permission.POST_NOTIFICATIONS" ;; esac
-          case ",$APP_PERMISOS," in *,sensores,*) add_perm "android.permission.BODY_SENSORS" ;; esac
+          case ",$APP_PERMISOS," in *,camara,*) add_perm "android.permission.CAMERA" runtime ;; esac
+          case ",$APP_PERMISOS," in *,microfono,*) add_perm "android.permission.RECORD_AUDIO" runtime ;; esac
+          case ",$APP_PERMISOS," in *,galeria,*) add_perm "android.permission.READ_MEDIA_IMAGES" runtime; add_perm "android.permission.READ_MEDIA_VIDEO" runtime ;; esac
+          case ",$APP_PERMISOS," in *,audio,*) add_perm "android.permission.READ_MEDIA_AUDIO" runtime ;; esac
+          case ",$APP_PERMISOS," in *,ubicacion,*) add_perm "android.permission.ACCESS_FINE_LOCATION" runtime ;; esac
+          case ",$APP_PERMISOS," in *,notificaciones,*) add_perm "android.permission.POST_NOTIFICATIONS" runtime ;; esac
+          case ",$APP_PERMISOS," in *,vibracion,*) add_perm "android.permission.VIBRATE" ;; esac
+          case ",$APP_PERMISOS," in *,wakelock,*) add_perm "android.permission.WAKE_LOCK" ;; esac
+          case ",$APP_PERMISOS," in *,sensores,*) add_perm "android.permission.BODY_SENSORS" runtime ;; esac
+
           DOWNLOAD_CODE=""
           case ",$APP_PERMISOS," in *,almacenamiento,*)
             add_perm "android.permission.WRITE_EXTERNAL_STORAGE"
             DOWNLOAD_CODE='
-              webView.setDownloadListener((dlUrl, userAgent, contentDisposition, mimetype, contentLength) -> {
-                  android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(dlUrl));
-                  request.setMimeType(mimetype);
-                  request.addRequestHeader("User-Agent", userAgent);
-                  request.setTitle(android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype));
-                  request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                  request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype));
-                  android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-                  dm.enqueue(request);
-              });'
+                        webView.setDownloadListener((dlUrl, userAgent, contentDisposition, mimetype, contentLength) -> {
+                            android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(dlUrl));
+                            request.setMimeType(mimetype);
+                            request.addRequestHeader("User-Agent", userAgent);
+                            request.setTitle(android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype));
+                            request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                            request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype));
+                            android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                            dm.enqueue(request);
+                        });'
             ;;
           esac
-          cat > android-app/settings.gradle << 'GEOF'
-          rootProject.name = "app"
-          include ':app'
-          GEOF
-          cat > android-app/build.gradle << 'GEOF'
-          buildscript {
-              repositories { google(); mavenCentral() }
-              dependencies { classpath 'com.android.tools.build:gradle:8.5.0' }
-          }
-          allprojects {
-              repositories { google(); mavenCentral() }
-          }
-          GEOF
-          cat > android-app/app/build.gradle << GEOF
-          apply plugin: 'com.android.application'
-          android {
-              namespace '$APP_PACKAGE'
-              compileSdk 34
-              defaultConfig {
-                  applicationId '$APP_PACKAGE'
-                  minSdk 23
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-              }
-          }
-          GEOF
-          cat > android-app/app/src/main/AndroidManifest.xml << GEOF
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />$PERMS_XML
-              <application
-                  android:label="@string/app_name"
-                  android:icon="@mipmap/ic_launcher"
-                  android:roundIcon="@mipmap/ic_launcher_round">
-                  <activity android:name=".MainActivity"
-                      android:exported="true"
-                      android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          GEOF
-          cat > "android-app/app/src/main/java/$PKG_PATH/MainActivity.java" << GEOF
-          package $APP_PACKAGE;
-          import android.app.Activity;
-          import android.content.Intent;
-          import android.net.Uri;
-          import android.os.Bundle;
-          import android.webkit.GeolocationPermissions;
-          import android.webkit.PermissionRequest;
-          import android.webkit.ValueCallback;
-          import android.webkit.WebChromeClient;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import android.webkit.WebSettings;
-          import android.view.ViewGroup;
-          public class MainActivity extends Activity {
-              private static final String[] PERMS = { $PERMS_JAVA_LIST };
-              private static final int FILE_CHOOSER_CODE = 51426;
-              private ValueCallback<Uri[]> filePathCallback;
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  if (PERMS.length > 0) {
-                      requestPermissions(PERMS, 1001);
-                  }
-                  WebView webView = new WebView(this);
-                  webView.setLayoutParams(new ViewGroup.LayoutParams(
-                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setGeolocationEnabled(true);
-                  settings.setAllowFileAccess(true);
-                  webView.setWebViewClient(new WebViewClient());
-                  webView.setWebChromeClient(new WebChromeClient() {
-                      @Override
-                      public void onPermissionRequest(final PermissionRequest request) {
-                          runOnUiThread(() -> request.grant(request.getResources()));
-                      }
-                      @Override
-                      public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-                          callback.invoke(origin, true, false);
-                      }
-                      @Override
-                      public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> callback, WebChromeClient.FileChooserParams params) {
-                          filePathCallback = callback;
-                          Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                          intent.addCategory(Intent.CATEGORY_OPENABLE);
-                          intent.setType("*/*");
-                          startActivityForResult(Intent.createChooser(intent, "Elegir archivo"), FILE_CHOOSER_CODE);
-                          return true;
-                      }
-                  });$DOWNLOAD_CODE
-                  webView.loadUrl("$APP_URL");
-                  setContentView(webView);
-              }
-              @Override
-              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-                  super.onActivityResult(requestCode, resultCode, data);
-                  if (requestCode == FILE_CHOOSER_CODE && filePathCallback != null) {
-                      Uri[] result = null;
-                      if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-                          result = new Uri[]{ data.getData() };
-                      }
-                      filePathCallback.onReceiveValue(result);
-                      filePathCallback = null;
-                  }
-              }
-          }
-          GEOF
+
+          WAKELOCK_CODE=""
+          case ",$APP_PERMISOS," in *,wakelock,*)
+            WAKELOCK_CODE='
+                        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);'
+            ;;
+          esac
+
+          cat > android-app/settings.gradle <<'          GEOF'
+                    rootProject.name = "app"
+                    include ':app'
+                    GEOF
+
+          cat > android-app/build.gradle <<'          GEOF'
+                    buildscript {
+                        repositories { google(); mavenCentral() }
+                        dependencies { classpath 'com.android.tools.build:gradle:8.5.0' }
+                    }
+                    allprojects {
+                        repositories { google(); mavenCentral() }
+                    }
+                    GEOF
+
+          cat > android-app/app/build.gradle <<'          GEOF'
+                    apply plugin: 'com.android.application'
+                    android {
+                        namespace '__APP_PACKAGE__'
+                        compileSdk 34
+                        defaultConfig {
+                            applicationId '__APP_PACKAGE__'
+                            minSdk 23
+                            targetSdk 34
+                            versionCode 1
+                            versionName "1.0"
+                        }
+                    }
+                    GEOF
+
+          cat > android-app/app/src/main/AndroidManifest.xml <<'          GEOF'
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+                        <uses-permission android:name="android.permission.INTERNET" />__PERMS_XML__
+                        <application
+                            android:label="@string/app_name"
+                            android:icon="@mipmap/ic_launcher"
+                            android:roundIcon="@mipmap/ic_launcher_round">
+                            <activity android:name=".MainActivity"
+                                android:exported="true"
+                                android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                                <intent-filter>
+                                    <action android:name="android.intent.action.MAIN" />
+                                    <category android:name="android.intent.category.LAUNCHER" />
+                                </intent-filter>
+                            </activity>
+                        </application>
+                    </manifest>
+                    GEOF
+
+          cat > "android-app/app/src/main/java/$PKG_PATH/MainActivity.java" <<'          GEOF'
+                    package __APP_PACKAGE__;
+                    import android.app.Activity;
+                    import android.content.Intent;
+                    import android.net.Uri;
+                    import android.os.Bundle;
+                    import android.webkit.GeolocationPermissions;
+                    import android.webkit.PermissionRequest;
+                    import android.webkit.ValueCallback;
+                    import android.webkit.WebChromeClient;
+                    import android.webkit.WebView;
+                    import android.webkit.WebViewClient;
+                    import android.webkit.WebSettings;
+                    import android.view.ViewGroup;
+                    public class MainActivity extends Activity {
+                        private static final String[] PERMS = { __PERMS_JAVA_LIST__ };
+                        private static final int FILE_CHOOSER_CODE = 51426;
+                        private ValueCallback<Uri[]> filePathCallback;
+                        @Override
+                        protected void onCreate(Bundle savedInstanceState) {
+                            super.onCreate(savedInstanceState);
+                            if (PERMS.length > 0) {
+                                requestPermissions(PERMS, 1001);
+                            }__WAKELOCK_CODE__
+                            WebView webView = new WebView(this);
+                            webView.setLayoutParams(new ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                            WebSettings settings = webView.getSettings();
+                            settings.setJavaScriptEnabled(true);
+                            settings.setDomStorageEnabled(true);
+                            settings.setGeolocationEnabled(true);
+                            settings.setAllowFileAccess(true);
+                            webView.setWebViewClient(new WebViewClient());
+                            webView.setWebChromeClient(new WebChromeClient() {
+                                @Override
+                                public void onPermissionRequest(final PermissionRequest request) {
+                                    runOnUiThread(() -> request.grant(request.getResources()));
+                                }
+                                @Override
+                                public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
+                                    callback.invoke(origin, true, false);
+                                }
+                                @Override
+                                public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> callback, WebChromeClient.FileChooserParams params) {
+                                    filePathCallback = callback;
+                                    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                                    intent.setType("*/*");
+                                    startActivityForResult(Intent.createChooser(intent, "Elegir archivo"), FILE_CHOOSER_CODE);
+                                    return true;
+                                }
+                            });__DOWNLOAD_CODE__
+                            webView.loadUrl("__APP_URL__");
+                            setContentView(webView);
+                        }
+                        @Override
+                        protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+                            super.onActivityResult(requestCode, resultCode, data);
+                            if (requestCode == FILE_CHOOSER_CODE && filePathCallback != null) {
+                                Uri[] result = null;
+                                if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                                    result = new Uri[]{ data.getData() };
+                                }
+                                filePathCallback.onReceiveValue(result);
+                                filePathCallback = null;
+                            }
+                        }
+                    }
+                    GEOF
+
           NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
-          cat > android-app/app/src/main/res/values/strings.xml << EOF2
-          <resources>
-              <string name="app_name">$NOMBRE_ESCAPADO</string>
-          </resources>
-          EOF2
+
+          cat > android-app/app/src/main/res/values/strings.xml <<'          GEOF'
+                    <resources>
+                        <string name="app_name">__NOMBRE_ESCAPADO__</string>
+                    </resources>
+                    GEOF
+
+          export APP_PACKAGE APP_URL PERMS_XML PERMS_JAVA_LIST DOWNLOAD_CODE WAKELOCK_CODE NOMBRE_ESCAPADO PKG_PATH
+          python3 <<'          PYEOF'
+          import os
+          reemplazos = {
+              '__APP_PACKAGE__': os.environ.get('APP_PACKAGE', ''),
+              '__APP_URL__': os.environ.get('APP_URL', ''),
+              '__PERMS_XML__': os.environ.get('PERMS_XML', ''),
+              '__PERMS_JAVA_LIST__': os.environ.get('PERMS_JAVA_LIST', ''),
+              '__DOWNLOAD_CODE__': os.environ.get('DOWNLOAD_CODE', ''),
+              '__WAKELOCK_CODE__': os.environ.get('WAKELOCK_CODE', ''),
+              '__NOMBRE_ESCAPADO__': os.environ.get('NOMBRE_ESCAPADO', ''),
+          }
+          archivos = [
+              'android-app/settings.gradle',
+              'android-app/build.gradle',
+              'android-app/app/build.gradle',
+              'android-app/app/src/main/AndroidManifest.xml',
+              'android-app/app/src/main/java/' + os.environ['PKG_PATH'] + '/MainActivity.java',
+              'android-app/app/src/main/res/values/strings.xml',
+          ]
+          PREFIJO = ' ' * 10
+          for ruta in archivos:
+              with open(ruta, encoding='utf-8') as f:
+                  contenido = f.read()
+              for token, valor in reemplazos.items():
+                  contenido = contenido.replace(token, valor)
+              # Quita la sangría de 10 espacios que exige el bloque YAML pero que no
+              # pertenece al contenido real del archivo (imprescindible para XML: la
+              # declaración <?xml ...?> debe ser literalmente el primer carácter).
+              lineas = contenido.split('\n')
+              lineas = [l[len(PREFIJO):] if l.startswith(PREFIJO) else l for l in lineas]
+              contenido = '\n'.join(lineas)
+              with open(ruta, 'w', encoding='utf-8') as f:
+                  f.write(contenido)
+          print("Sustitución completada")
+                    PYEOF
       - name: Compilar APK
         working-directory: android-app
         run: |
@@ -8132,14 +8210,49 @@ jobs:
             modalResolveFn = resolve;
             modalTitulo.textContent = '📦 Permisos de la app';
             modalMensaje.innerHTML = `
-                <p style="font-size:0.85rem; color:#b0b0d0; margin-bottom:8px;">Marca solo lo que tu página necesite usar:</p>
-                <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkCamara"> 📷 Cámara</label>
-                <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkMicro"> 🎙️ Micrófono</label>
-                <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkUbicacion"> 📍 Ubicación</label>
-                <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkAlmacenamiento"> 💾 Almacenamiento (guardar descargas)</label>
-                <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkNotificaciones"> 🔔 Notificaciones</label>
-                <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkSensores"> 🧭 Sensores corporales</label>
-                <p style="font-size:0.68rem; color:#8a8ab0; margin-top:8px;">📁 Elegir archivos y 📶 Internet ya vienen incluidos siempre.</p>
+                <p style="font-size:0.8rem; color:#b0b0d0; margin-bottom:10px;">Marca solo lo que tu web necesite. Los permisos se declaran en el APK y se piden al usuario en el primer arranque.</p>
+
+                <details open style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">📷 Medios</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkCamara"> 📷 Cámara <span style="color:#8a8ab0; font-size:0.65rem;">(getUserMedia, input capture)</span></label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkMicro"> 🎙️ Micrófono <span style="color:#8a8ab0; font-size:0.65rem;">(getUserMedia audio)</span></label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkGaleria"> 🖼️ Leer galería <span style="color:#8a8ab0; font-size:0.65rem;">(imágenes y vídeos del usuario)</span></label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkAudio"> 🎵 Leer audio <span style="color:#8a8ab0; font-size:0.65rem;">(archivos de audio del usuario)</span></label>
+                    </div>
+                </details>
+
+                <details style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">📍 Ubicación</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkUbicacion"> 📍 Ubicación (primer plano)</label>
+                    </div>
+                </details>
+
+                <details style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">🔔 Sistema</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkNotificaciones"> 🔔 Notificaciones <span style="color:#e59aa6; font-size:0.65rem;">(soporte limitado en WebView)</span></label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkVibracion"> 📳 Vibración <span style="color:#8a8ab0; font-size:0.65rem;">(navigator.vibrate)</span></label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkWakeLock"> 💡 Mantener pantalla encendida</label>
+                    </div>
+                </details>
+
+                <details style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">🧭 Sensores</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkSensores"> ❤️ Sensores corporales <span style="color:#8a8ab0; font-size:0.65rem;">(ritmo cardíaco, wearables)</span></label>
+                    </div>
+                </details>
+
+                <details style="background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">⚙️ Avanzado</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkAlmacenamiento"> 💾 Permitir descargas <span style="color:#8a8ab0; font-size:0.65rem;">(se guardan en la carpeta Descargas)</span></label>
+                    </div>
+                </details>
+
+                <p style="font-size:0.68rem; color:#8a8ab0; margin-top:10px;">📁 Elegir archivos e 📶 Internet ya vienen incluidos siempre.</p>
             `;
             modalInput.style.display = 'none';
             modalChoices.style.display = 'none';
@@ -8283,7 +8396,13 @@ jobs:
         const permisos = await pedirPermisosApk();
         if (permisos === null) return;
 
-        const paquete = 'com.' + slugPublicar(cfg.owner).replace(/-/g, '') + '.' + slugPublicar(nombreApp).replace(/-/g, '');
+        // Los segmentos de un paquete Java no pueden empezar por un dígito
+        // (p.ej. si el usuario de GitHub es "123user"); se antepone "a" si hace falta.
+        const segmentoPaquete = texto => {
+            const s = slugPublicar(texto).replace(/-/g, '');
+            return /^[0-9]/.test(s) ? ('a' + s) : s;
+        };
+        const paquete = 'com.' + segmentoPaquete(cfg.owner) + '.' + segmentoPaquete(nombreApp);
 
         mostrarToast('📦 Preparando la compilación…');
         try {
@@ -9352,7 +9471,7 @@ jobs:
                 problemasBody.innerHTML = '<div class="estilos-vacio">✅ No se encontraron problemas.</div>';
             } else {
                 problemasBody.innerHTML = this.problemas.map(p => 
-                    `<div class="problema-item ${p.nivel}"><span class="p-icon">${p.nivel === 'error' ? '❌' : p.nivel === 'warn' ? '⚠️' : 'ℹ️'}</span><span class="p-texto">${p.texto}</span></div>`
+                    `<div class="problema-item ${p.nivel}"><span class="p-icon">${p.nivel === 'error' ? '❌' : p.nivel === 'warn' ? '⚠️' : 'ℹ️'}</span><span class="p-texto">${escaparHtml(p.texto)}</span></div>`
                 ).join('');
             }
 
@@ -9375,14 +9494,14 @@ jobs:
                     const esAgrupado = s.nombre.includes(', ');
                     
                     html += `
-                        <div class="selector-item ${active}" data-selector="${s.nombre.replace(/"/g, '&quot;')}">
+                        <div class="selector-item ${active}" data-selector="${escaparHtml(s.nombre)}">
                             <span class="sel-indent">${indent}</span>
                             ${hijos ? `<span class="sel-hijos">${hijos}</span>` : ''}
                             <span class="sel-icon">${icon}</span>
-                            <span class="sel-nombre">${s.nombre}</span>
+                            <span class="sel-nombre">${escaparHtml(s.nombre)}</span>
                             ${esAgrupado ? '<span class="sel-badge" style="background:#4a6a8b;">📦</span>' : ''}
                             ${s.esInline ? '<span class="sel-badge" style="background:#8b6a4a;">inline</span>' : ''}
-                            ${s.esAtRule ? `<span class="sel-badge" style="background:#4a6a8b;">@${s.atRule}</span>` : ''}
+                            ${s.esAtRule ? `<span class="sel-badge" style="background:#4a6a8b;">@${escaparHtml(s.atRule)}</span>` : ''}
                             ${badge ? `<span class="sel-badge">${badge}</span>` : ''}
                         </div>
                     `;
@@ -9457,7 +9576,7 @@ jobs:
             
             let html = `
                 <div class="reglas-header">
-                    <span class="reglas-titulo">${icono} ${selector.nombre}</span>
+                    <span class="reglas-titulo">${icono} ${escaparHtml(selector.nombre)}</span>
                     <span class="reglas-info">línea ${selector.linea}</span>
                 </div>
             `;
@@ -9468,7 +9587,7 @@ jobs:
                         📦 Variables usadas:
                         ${variablesEnSelector.map(p => 
                             `<span style="font-family:'Fira Code',monospace;background:#1a1a32;padding:1px 6px;border-radius:4px;margin:2px;font-size:0.6rem;color:#9ad0e0;">
-                                ${p.nombre}: ${p.valor}
+                                ${escaparHtml(p.nombre)}: ${escaparHtml(p.valor)}
                             </span>`
                         ).join(' ')}
                     </div>
@@ -9493,9 +9612,9 @@ jobs:
                     const esVar = p.valor.includes('var(--');
                     html += `
                         <tr>
-                            <td class="prop-nombre">${p.nombre}</td>
-                            <td class="prop-valor" data-propiedad="${p.nombre}" data-valor="${p.valor}" data-idx="${idx}" style="${esVar ? 'color:#9ad0e0;' : ''}">
-                                ${p.valor}
+                            <td class="prop-nombre">${escaparHtml(p.nombre)}</td>
+                            <td class="prop-valor" data-propiedad="${escaparHtml(p.nombre)}" data-valor="${escaparHtml(p.valor)}" data-idx="${idx}" style="${esVar ? 'color:#9ad0e0;' : ''}">
+                                ${escaparHtml(p.valor)}
                                 ${esVar ? ' 📦' : ''}
                             </td>
                             <td class="prop-acciones">
@@ -9980,8 +10099,8 @@ jobs:
                 <h3 style="font-size:1rem;margin-bottom:12px;">📦 Variables CSS (${variables.length})</h3>
                 ${variables.map(v => `
                     <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #2a2a4a;font-family:'Fira Code',monospace;font-size:0.7rem;">
-                        <span style="color:#cbc8f0;">${v.nombre}</span>
-                        <span style="color:#7fe0bc;">${v.valor}</span>
+                        <span style="color:#cbc8f0;">${escaparHtml(v.nombre)}</span>
+                        <span style="color:#7fe0bc;">${escaparHtml(v.valor)}</span>
                     </div>
                 `).join('')}
                 <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
