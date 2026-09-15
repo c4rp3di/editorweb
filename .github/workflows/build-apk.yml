@@ -52,10 +52,10 @@ jobs:
           PERMS_JAVA_LIST=""
           add_perm() {
             PERMS_XML="$PERMS_XML
-                        <uses-permission android:name="$1" />"
+                        <uses-permission android:name=\"$1\" />"
             if [ "$2" = "runtime" ]; then
               if [ -n "$PERMS_JAVA_LIST" ]; then PERMS_JAVA_LIST="$PERMS_JAVA_LIST, "; fi
-              PERMS_JAVA_LIST="$PERMS_JAVA_LIST"$1""
+              PERMS_JAVA_LIST="$PERMS_JAVA_LIST\"$1\""
             fi
           }
           case ",$APP_PERMISOS," in *,camara,*) add_perm "android.permission.CAMERA" runtime ;; esac
@@ -212,7 +212,7 @@ jobs:
                     }
                     GEOF
 
-          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/&amp;/g; s/</&lt;/g; s/>/&gt;/g')
+          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
 
           cat > android-app/app/src/main/res/values/strings.xml <<'          GEOF'
                     <resources>
@@ -249,11 +249,9 @@ jobs:
               # Quita la sangría de 10 espacios que exige el bloque YAML pero que no
               # pertenece al contenido real del archivo (imprescindible para XML: la
               # declaración <?xml ...?> debe ser literalmente el primer carácter).
-              lineas = contenido.split('
-')
+              lineas = contenido.split('\n')
               lineas = [l[len(PREFIJO):] if l.startswith(PREFIJO) else l for l in lineas]
-              contenido = '
-'.join(lineas)
+              contenido = '\n'.join(lineas)
               with open(ruta, 'w', encoding='utf-8') as f:
                   f.write(contenido)
           print("Sustitución completada")
