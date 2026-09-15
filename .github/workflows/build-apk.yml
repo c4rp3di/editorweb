@@ -26,9 +26,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Instalar plataforma y build-tools
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+      - name: Aceptar licencias e instalar plataforma y build-tools
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
       - name: Generar proyecto Android
         env:
           APP_NAME: ${{ github.event.inputs.app_name }}
