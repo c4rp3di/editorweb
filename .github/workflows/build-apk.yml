@@ -1,5 +1,4 @@
 name: Build APK
-run-name: Build APK ${{ inputs.build_id }}
 on:
   workflow_dispatch:
     inputs:
@@ -27,21 +26,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Configurar SDK de Android
-        run: |
-          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
-          CMDLINE_TOOLS_BIN=$(find /usr/local/lib/android/sdk/cmdline-tools -maxdepth 3 -name sdkmanager -exec dirname {} ; | sort -V | tail -1)
-          if [ -z "$CMDLINE_TOOLS_BIN" ]; then
-            echo "::error::No se encontró sdkmanager bajo /usr/local/lib/android/sdk/cmdline-tools"
-            exit 1
-          fi
-          echo "SDK cmdline-tools encontrado en: $CMDLINE_TOOLS_BIN"
-          echo "$CMDLINE_TOOLS_BIN" >> "$GITHUB_PATH"
-      - name: Aceptar licencias e instalar plataforma y build-tools
-        run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+      - uses: android-actions/setup-android@v3
+      - name: Instalar plataforma y build-tools
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
       - name: Generar proyecto Android
         env:
           APP_NAME: ${{ github.event.inputs.app_name }}
@@ -65,14 +52,16 @@ jobs:
           PERMS_JAVA_LIST=""
           add_perm() {
             PERMS_XML="$PERMS_XML
-                        <uses-permission android:name=\"$1\" />"
+                        <uses-permission android:name="$1" />"
             if [ "$2" = "runtime" ]; then
               if [ -n "$PERMS_JAVA_LIST" ]; then PERMS_JAVA_LIST="$PERMS_JAVA_LIST, "; fi
-              PERMS_JAVA_LIST="$PERMS_JAVA_LIST\"$1\""
+              PERMS_JAVA_LIST="$PERMS_JAVA_LIST"$1""
             fi
           }
           case ",$APP_PERMISOS," in *,camara,*) add_perm "android.permission.CAMERA" runtime ;; esac
           case ",$APP_PERMISOS," in *,microfono,*) add_perm "android.permission.RECORD_AUDIO" runtime ;; esac
+          case ",$APP_PERMISOS," in *,galeria,*) add_perm "android.permission.READ_MEDIA_IMAGES" runtime; add_perm "android.permission.READ_MEDIA_VIDEO" runtime ;; esac
+          case ",$APP_PERMISOS," in *,audio,*) add_perm "android.permission.READ_MEDIA_AUDIO" runtime ;; esac
           case ",$APP_PERMISOS," in *,ubicacion,*) add_perm "android.permission.ACCESS_FINE_LOCATION" runtime ;; esac
           case ",$APP_PERMISOS," in *,notificaciones,*) add_perm "android.permission.POST_NOTIFICATIONS" runtime ;; esac
           case ",$APP_PERMISOS," in *,vibracion,*) add_perm "android.permission.VIBRATE" ;; esac
@@ -81,6 +70,9 @@ jobs:
 
           DOWNLOAD_CODE=""
           case ",$APP_PERMISOS," in *,almacenamiento,*)
+            add_perm "android.permission.READ_EXTERNAL_STORAGE" runtime
+            add_perm "android.permission.WRITE_EXTERNAL_STORAGE" runtime
+            add_perm "android.permission.FOREGROUND_SERVICE"
             DOWNLOAD_CODE='
                         webView.setDownloadListener((dlUrl, userAgent, contentDisposition, mimetype, contentLength) -> {
                             android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(dlUrl));
@@ -121,11 +113,29 @@ jobs:
                     apply plugin: 'com.android.application'
                     android {
                         namespace '__APP_PACKAGE__'
-                        compileSdk 34
+                        compileSdk 35
                         defaultConfig {
                             applicationId '__APP_PACKAGE__'
                             minSdk 23
-                            targetSdk 34
+                            targetSdk 35
+                            versionCode 1
+                            versionName "1.0"
+                        }
+                        compileOptions {
+                            sourceCompatibility JavaVersion.VERSION_1_8
+                            targetCompatibility JavaVersion.VERSION_1_8
+                        }
+                    }
+                    dependencies {
+                        implementation 'androidx.core:core-ktx:1.12.0'
+                    }                        compileOptions {
+                            sourceCompatibility JavaVersion.VERSION_1_8
+                            targetCompatibility JavaVersion.VERSION_1_8
+                        }
+                    }
+                    dependencies {
+                        implementation 'androidx.core:core-ktx:1.12.0'
+                    }
                             versionCode 1
                             versionName "1.0"
                         }
@@ -135,14 +145,18 @@ jobs:
           cat > android-app/app/src/main/AndroidManifest.xml <<'          GEOF'
                     <?xml version="1.0" encoding="utf-8"?>
                     <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-                        <uses-permission android:name="android.permission.INTERNET" />__PERMS_XML__
+                        <uses-permission android:name="android.permission.INTERNET" />
+                        <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />__PERMS_XML__
                         <application
                             android:label="@string/app_name"
                             android:icon="@mipmap/ic_launcher"
-                            android:roundIcon="@mipmap/ic_launcher_round">
+                            android:roundIcon="@mipmap/ic_launcher_round"
+                            android:usesCleartextTraffic="true"
+                            android:requestLegacyExternalStorage="true">
                             <activity android:name=".MainActivity"
                                 android:exported="true"
-                                android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                                android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+                                android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|uiMode">
                                 <intent-filter>
                                     <action android:name="android.intent.action.MAIN" />
                                     <category android:name="android.intent.category.LAUNCHER" />
@@ -158,8 +172,6 @@ jobs:
                     import android.content.Intent;
                     import android.net.Uri;
                     import android.os.Bundle;
-                    import android.os.Build;
-                    import android.content.pm.PackageManager;
                     import android.webkit.GeolocationPermissions;
                     import android.webkit.PermissionRequest;
                     import android.webkit.ValueCallback;
@@ -170,76 +182,15 @@ jobs:
                     import android.view.ViewGroup;
                     public class MainActivity extends Activity {
                         private static final String[] PERMS = { __PERMS_JAVA_LIST__ };
-                        private static final int PERMISSION_REQUEST_CODE = 1001;
                         private static final int FILE_CHOOSER_CODE = 51426;
                         private ValueCallback<Uri[]> filePathCallback;
-                        private WebView webView;
-                        private PermissionRequest pendingWebPermissionRequest;
-                        private String pendingGeoOrigin;
-                        private GeolocationPermissions.Callback pendingGeoCallback;
-
-                        private boolean tienePermiso(String permiso) {
-                            return Build.VERSION.SDK_INT < 23 || checkSelfPermission(permiso) == PackageManager.PERMISSION_GRANTED;
-                        }
-
-                        private boolean tienePermisoDeclarado(String permiso) {
-                            try { return getPackageManager().checkPermission(permiso, getPackageName()) == PackageManager.PERMISSION_GRANTED; }
-                            catch (Exception e) { return false; }
-                        }
-
-                        private String permisoAndroidParaRecurso(String recurso) {
-                            if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(recurso)) return "android.permission.CAMERA";
-                            if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(recurso)) return "android.permission.RECORD_AUDIO";
-                            return null;
-                        }
-
-                        private void procesarSolicitudWebView(PermissionRequest request) {
-                            java.util.ArrayList<String> recursosConcedibles = new java.util.ArrayList<>();
-                            java.util.ArrayList<String> permisosFaltantes = new java.util.ArrayList<>();
-                            for (String recurso : request.getResources()) {
-                                String permiso = permisoAndroidParaRecurso(recurso);
-                                if (permiso == null || !tienePermisoDeclarado(permiso)) continue;
-                                if (tienePermiso(permiso)) recursosConcedibles.add(recurso);
-                                else if (!permisosFaltantes.contains(permiso)) permisosFaltantes.add(permiso);
-                            }
-                            if (permisosFaltantes.isEmpty()) {
-                                if (recursosConcedibles.isEmpty()) request.deny();
-                                else request.grant(recursosConcedibles.toArray(new String[0]));
-                            } else if (Build.VERSION.SDK_INT >= 23) {
-                                pendingWebPermissionRequest = request;
-                                requestPermissions(permisosFaltantes.toArray(new String[0]), PERMISSION_REQUEST_CODE);
-                            } else {
-                                request.deny();
-                            }
-                        }
-
-                        private void resolverSolicitudWebView() {
-                            PermissionRequest request = pendingWebPermissionRequest;
-                            pendingWebPermissionRequest = null;
-                            if (request == null) return;
-                            java.util.ArrayList<String> recursosConcedibles = new java.util.ArrayList<>();
-                            for (String recurso : request.getResources()) {
-                                String permiso = permisoAndroidParaRecurso(recurso);
-                                if (permiso != null && tienePermiso(permiso)) recursosConcedibles.add(recurso);
-                            }
-                            if (!recursosConcedibles.isEmpty()) request.grant(recursosConcedibles.toArray(new String[0]));
-                            else request.deny();
-                        }
-
-                        private void resolverGeolocalizacion() {
-                            if (pendingGeoCallback == null || pendingGeoOrigin == null) return;
-                            boolean concedido = tienePermiso("android.permission.ACCESS_FINE_LOCATION") || tienePermiso("android.permission.ACCESS_COARSE_LOCATION");
-                            GeolocationPermissions.Callback cb = pendingGeoCallback;
-                            String origin = pendingGeoOrigin;
-                            pendingGeoCallback = null;
-                            pendingGeoOrigin = null;
-                            cb.invoke(origin, concedido, false);
-                        }
-
                         @Override
                         protected void onCreate(Bundle savedInstanceState) {
-                            super.onCreate(savedInstanceState);__WAKELOCK_CODE__
-                            webView = new WebView(this);
+                            super.onCreate(savedInstanceState);
+                            if (PERMS.length > 0) {
+                                requestPermissions(PERMS, 1001);
+                            }__WAKELOCK_CODE__
+                            WebView webView = new WebView(this);
                             webView.setLayoutParams(new ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
                             WebSettings settings = webView.getSettings();
@@ -251,27 +202,17 @@ jobs:
                             webView.setWebChromeClient(new WebChromeClient() {
                                 @Override
                                 public void onPermissionRequest(final PermissionRequest request) {
-                                    runOnUiThread(() -> procesarSolicitudWebView(request));
+                                    runOnUiThread(() -> request.grant(request.getResources()));
                                 }
                                 @Override
                                 public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-                                    if (tienePermiso("android.permission.ACCESS_FINE_LOCATION") || tienePermiso("android.permission.ACCESS_COARSE_LOCATION")) {
-                                        callback.invoke(origin, true, false);
-                                    } else if (Build.VERSION.SDK_INT >= 23 && tienePermisoDeclarado("android.permission.ACCESS_FINE_LOCATION")) {
-                                        pendingGeoOrigin = origin;
-                                        pendingGeoCallback = callback;
-                                        requestPermissions(new String[]{"android.permission.ACCESS_FINE_LOCATION"}, PERMISSION_REQUEST_CODE);
-                                    } else {
-                                        callback.invoke(origin, false, false);
-                                    }
+                                    callback.invoke(origin, true, false);
                                 }
                                 @Override
                                 public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> callback, WebChromeClient.FileChooserParams params) {
-                                    if (filePathCallback != null) filePathCallback.onReceiveValue(null);
                                     filePathCallback = callback;
                                     Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
                                     intent.addCategory(Intent.CATEGORY_OPENABLE);
-                                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
                                     intent.setType("*/*");
                                     startActivityForResult(Intent.createChooser(intent, "Elegir archivo"), FILE_CHOOSER_CODE);
                                     return true;
@@ -280,15 +221,6 @@ jobs:
                             webView.loadUrl("__APP_URL__");
                             setContentView(webView);
                         }
-
-                        @Override
-                        public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-                            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-                            if (requestCode != PERMISSION_REQUEST_CODE) return;
-                            resolverSolicitudWebView();
-                            resolverGeolocalizacion();
-                        }
-
                         @Override
                         protected void onActivityResult(int requestCode, int resultCode, Intent data) {
                             super.onActivityResult(requestCode, resultCode, data);
@@ -304,7 +236,7 @@ jobs:
                     }
                     GEOF
 
-          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/&amp;/g; s/</&lt;/g; s/>/&gt;/g')
 
           cat > android-app/app/src/main/res/values/strings.xml <<'          GEOF'
                     <resources>
@@ -341,9 +273,11 @@ jobs:
               # Quita la sangría de 10 espacios que exige el bloque YAML pero que no
               # pertenece al contenido real del archivo (imprescindible para XML: la
               # declaración <?xml ...?> debe ser literalmente el primer carácter).
-              lineas = contenido.split('\n')
+              lineas = contenido.split('
+')
               lineas = [l[len(PREFIJO):] if l.startswith(PREFIJO) else l for l in lineas]
-              contenido = '\n'.join(lineas)
+              contenido = '
+'.join(lineas)
               with open(ruta, 'w', encoding='utf-8') as f:
                   f.write(contenido)
           print("Sustitución completada")
@@ -356,10 +290,8 @@ jobs:
       - name: Crear release con el APK
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BUILD_ID: ${{ github.event.inputs.build_id }}
         run: |
           set -e
-          TAG="apk-${BUILD_ID}"
-          APK_PATH="android-app/app/build/outputs/apk/debug/app-debug.apk"
-          if [ ! -f "$APK_PATH" ]; then echo "::error::No se encontró el APK esperado en $APK_PATH"; exit 1; fi
+          TAG="apk-$(date +%s)"
+          APK_PATH=$(find android-app -name "*.apk" | head -n1)
           gh release create "$TAG" "$APK_PATH" --title "APK $TAG" --notes "Generado automáticamente por el editor"
