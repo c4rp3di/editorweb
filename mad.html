@@ -35,13 +35,16 @@ html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
 .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
 .chip.on .dot{background:var(--amber)}
 
-#flightUI{position:fixed;inset:0;z-index:900;display:none;pointer-events:none}
+#flightUI{position:fixed;inset:0;z-index:1600;display:none;pointer-events:none}
 #flightUI.show{display:block}
-#flightHint{position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:1000;background:var(--panel);border:1px solid var(--amber);color:var(--amber);border-radius:10px;padding:7px 12px;font-size:12px;pointer-events:none}
+#flightHint{position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:1600;background:var(--panel);border:1px solid var(--amber);color:var(--amber);border-radius:10px;padding:7px 12px;font-size:12px;pointer-events:none}
 #joyBase{position:fixed;left:18px;bottom:18px;width:112px;height:112px;border-radius:50%;background:rgba(16,25,44,.75);border:1px solid var(--line);pointer-events:auto;touch-action:none}
 #joyKnob{position:absolute;left:36px;top:36px;width:40px;height:40px;border-radius:50%;background:var(--amber);opacity:.9}
 #vertBtns{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:10px;pointer-events:auto}
 #vertBtns button{width:52px;height:52px;border-radius:50%;background:var(--panel);border:1px solid var(--line);color:var(--amber);font-size:18px;touch-action:none}
+#btnExitFlight{position:fixed;top:56px;right:12px;z-index:1600;background:rgba(251,113,133,.15);border:1px solid rgba(251,113,133,.6);color:#fb7185;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;pointer-events:auto;display:none}
+#btnExitFlight.show{display:block}
+#layerbar.hide-flight{display:none}
 
 #toasts{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:3000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:min(92vw,480px)}
 .toast{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-size:12.5px;line-height:1.45;box-shadow:var(--shadow);overflow-wrap:anywhere;word-break:break-word}
@@ -86,6 +89,8 @@ html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
   <div class="chip" id="chipTunnels"><span class="dot"></span>Túneles (subsuelo)</div>
   <div class="chip" id="chipUnderground"><span class="dot"></span>Modo subsuelo</div>
 </div>
+
+<button id="btnExitFlight">✕ Salir del vuelo</button>
 
 <div id="flightUI">
   <div id="flightHint">🕹️ Arrastra en la pantalla para mirar · joystick para moverte</div>
@@ -243,15 +248,36 @@ function toggleUndergroundMode(){
   viewer.scene.globe.depthTestAgainstTerrain = !undergroundOn;
   if(undergroundOn){
     viewer.scene.screenSpaceCameraController.enableInputs=false;
+    viewer.scene.globe.translucency.enabled=true;
+    viewer.scene.globe.translucency.frontFaceAlpha=0.35;
+    viewer.scene.globe.translucency.backFaceAlpha=0.0;
     $('flightUI').classList.add('show');
+    $('layerbar').classList.add('hide-flight');
+    $('btnExitFlight').classList.add('show');
     startFlightLoop();
-    toast('info','🕹️ Modo vuelo libre: ya puedes atravesar el terreno.');
+    toast('info','🕹️ Modo vuelo libre, terreno translúcido. Si te pierdes, pulsa "✕ Salir del vuelo" arriba.');
   }else{
-    viewer.scene.screenSpaceCameraController.enableInputs=true;
-    $('flightUI').classList.remove('show');
-    stopFlightLoop();
+    exitFlightMode();
   }
 }
+
+function exitFlightMode(){
+  if(!viewer) return;
+  undergroundOn=false;
+  $('chipUnderground').classList.remove('on');
+  viewer.scene.globe.depthTestAgainstTerrain=true;
+  viewer.scene.globe.translucency.enabled=false;
+  viewer.scene.screenSpaceCameraController.enableInputs=true;
+  $('flightUI').classList.remove('show');
+  $('layerbar').classList.remove('hide-flight');
+  $('btnExitFlight').classList.remove('show');
+  stopFlightLoop();
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(-3.7038,40.4113,900),
+    orientation:{heading:Cesium.Math.toRadians(20),pitch:Cesium.Math.toRadians(-35)}
+  });
+}
+$('btnExitFlight').addEventListener('click',exitFlightMode);
 
 // --- Control de vuelo en primera persona (independiente del orbit-controller de Cesium) ---
 var joyVec={x:0,y:0}, pitchAcc=0, flightRAF=null, lookTouchId=null, lastLook=null;
