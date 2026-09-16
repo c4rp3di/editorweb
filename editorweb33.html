@@ -427,6 +427,139 @@
             from { opacity: 0; transform: translateX(-50%) scale(0.9); }
             to { opacity: 0.9; transform: translateX(-50%) scale(1); }
         }
+/* ===== PANEL DE ARCHIVOS ===== */
+.editor-con-archivos {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    position: relative;
+}
+.archivos-panel {
+    background: #1a1a2e;
+    border: 1px solid #3a3a5a;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    width: 140px;
+    min-width: 100px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+.archivos-panel.oculto {
+    display: none;
+}
+.archivos-panel-flecha {
+    background: transparent;
+    border: none;
+    color: #8a8aaa;
+    cursor: pointer;
+    font-size: 0.7rem;
+    padding: 0 2px;
+}
+.archivos-panel-flecha:hover {
+    color: #f0eef8;
+}
+.archivos-panel-pestanita {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #20203b;
+    border: 1px solid #3a3a5a;
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    padding: 10px 3px;
+    cursor: pointer;
+    z-index: 5;
+    font-size: 0.7rem;
+    color: #8a8aaa;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    letter-spacing: 1px;
+}
+.archivos-panel-pestanita:hover {
+    background: #2a2a4a;
+    color: #f0eef8;
+}
+.archivos-panel-pestanita.visible {
+    display: block;
+}
+.archivos-panel-header {
+    padding: 5px 8px;
+    background: #20203b;
+    border-bottom: 1px solid #3a3a5a;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #b0b0d0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.archivos-panel-lista {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+.archivo-item {
+    padding: 4px 8px;
+    font-size: 0.65rem;
+    font-family: 'Fira Code', monospace;
+    color: #b0b0d0;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.archivo-item:hover {
+    background: #2a2a4a;
+}
+.archivo-item.active {
+    background: #2a2a5a;
+    border-left-color: #6c5ce7;
+    color: #f0eef8;
+}
+.archivo-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-right: 4px;
+}
+.archivo-item-nombre {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.archivo-item-borrar {
+    background: transparent;
+    border: none;
+    color: #6a6a8a;
+    cursor: pointer;
+    font-size: 0.65rem;
+    padding: 0 2px;
+    flex-shrink: 0;
+    line-height: 1;
+}
+.archivo-item-borrar:hover {
+    color: #e59aa6;
+}
+.archivos-panel-vacio {
+    padding: 10px 8px;
+    font-size: 0.6rem;
+    color: #6a6a8a;
+    text-align: center;
+}
+@media (max-width: 600px) {
+    .archivos-panel {
+        width: 110px;
+        min-width: 90px;
+    }
+}
 
         /* ===== TOOLBAR EDITOR ===== */
         .editor-toolbar {
@@ -2231,13 +2364,30 @@
         <!-- PANEL EDITOR -->
         <div class="panel" id="panelEditor">
             <div class="editor-wrapper">
-                <div class="editor-container">
+    <div class="editor-con-archivos">
+<div class="archivos-panel oculto" id="archivosPanel">
+    <div class="archivos-panel-header">
+        <span>📁 Archivos</span>
+        <span style="display:flex;gap:2px;align-items:center;">
+            <button type="button" class="archivos-panel-flecha" id="archivosPanelFuncionalidades" title="Funcionalidades Android" style="display:none;">⚙️</button>
+            <button type="button" class="archivos-panel-flecha" id="archivosPanelGenerar" title="Generar código Android" style="display:none;">⚡</button>
+            <button type="button" class="archivos-panel-flecha" id="archivosPanelNuevo" title="Nuevo archivo">➕</button>
+            <button type="button" class="archivos-panel-flecha" id="archivosPanelCerrar" title="Ocultar panel">◀</button>
+        </span>
+    </div>
+    <div class="archivos-panel-lista" id="archivosPanelLista">
+        <div class="archivos-panel-vacio">Sin archivos</div>
+    </div>
+</div>
+<div class="archivos-panel-pestanita" id="archivosPanelPestanita" title="Mostrar panel de archivos">📁</div>
+    <div class="editor-container">
                     <div class="line-numbers" id="lineNumbers"></div>
                     <div class="editor-textarea-wrap">
                         <textarea id="codigoHtml" placeholder="&lt;!-- Escribe o pega tu código HTML aquí --&gt;" spellcheck="false" wrap="off"></textarea>
                         <div class="isolated-indicator" id="isolatedIndicator">🔍 Aislado: <span id="isolatedName"></span></div>
                     </div>
                 </div>
+</div>
             </div>
             <div class="editor-toolbar">
                 <div class="editor-toolbar-row editor-toolbar-row-primary">
@@ -2755,6 +2905,7 @@
 
     // ================== ESTADO ==================
     let proyectos = {};
+    let tipoProyectoPendiente = null;
     let proyectoActivo = null;
     let versionActiva = null;
     let codigoCompleto = '';
@@ -2868,23 +3019,22 @@ let estilosAnalisisDesactualizado = true;
             const val = modalInput.value.trim();
             cerrarModalConValor(val === '' ? null : val);
         } else if (modalModo === 'permisos') {
-    const seleccion = [];
-    if (document.getElementById('permApkCamara')?.checked) seleccion.push('camara');
-    if (document.getElementById('permApkMicro')?.checked) seleccion.push('microfono');
-    if (document.getElementById('permApkGaleria')?.checked) seleccion.push('galeria');
-    if (document.getElementById('permApkAudio')?.checked) seleccion.push('audio');
-    if (document.getElementById('permApkUbicacion')?.checked) seleccion.push('ubicacion');
-    if (document.getElementById('permApkNotificaciones')?.checked) seleccion.push('notificaciones');
-    if (document.getElementById('permApkVibracion')?.checked) seleccion.push('vibracion');
-    if (document.getElementById('permApkWakeLock')?.checked) seleccion.push('wakelock');
-    if (document.getElementById('permApkBluetooth')?.checked) seleccion.push('bluetooth');
-    if (document.getElementById('permApkNfc')?.checked) seleccion.push('nfc');
-    if (document.getElementById('permApkSensoresSalud')?.checked) seleccion.push('sensores');
-    if (document.getElementById('permApkActividad')?.checked) seleccion.push('actividad');
-    if (document.getElementById('permApkDescargas')?.checked) seleccion.push('descargas');
-    if (document.getElementById('permApkAlmacenamientoTotal')?.checked) seleccion.push('almacenamientototal');
-    cerrarModalConValor(seleccion);
-} else {
+            const seleccion = [];
+            if (document.getElementById('permApkCamara')?.checked) seleccion.push('camara');
+            if (document.getElementById('permApkMicro')?.checked) seleccion.push('microfono');
+            if (document.getElementById('permApkGaleria')?.checked) seleccion.push('galeria');
+            if (document.getElementById('permApkAudio')?.checked) seleccion.push('audio');
+            if (document.getElementById('permApkUbicacion')?.checked) seleccion.push('ubicacion');
+            if (document.getElementById('permApkAlmacenamiento')?.checked) seleccion.push('almacenamiento');
+            if (document.getElementById('permApkNotificaciones')?.checked) seleccion.push('notificaciones');
+            if (document.getElementById('permApkVibracion')?.checked) seleccion.push('vibracion');
+            if (document.getElementById('permApkWakeLock')?.checked) seleccion.push('wakelock');
+            if (document.getElementById('permApkSensores')?.checked) seleccion.push('sensores');
+            cerrarModalConValor(seleccion);
+        } else if (modalModo === 'funcionalidades-android') {
+            const seleccion = FUNCIONALIDADES_ANDROID_IDS.filter(id => document.getElementById('funcAndroid-' + id)?.checked);
+            cerrarModalConValor(seleccion);
+        } else {
             cerrarModalConValor(true);
         }
     });
@@ -2905,12 +3055,17 @@ let estilosAnalisisDesactualizado = true;
         clearTimeout(borradorTimeout);
         borradorTimeout = setTimeout(() => {
             try {
-                localStorage.setItem('webCreatorBorrador', JSON.stringify({
-                    contenido: textarea.value,
-                    proyecto: proyectoActivo,
-                    version: versionActiva,
-                    fecha: new Date().toISOString()
-                }));
+                if (proyectoActivo && archivoActivo && proyectos[proyectoActivo] && proyectos[proyectoActivo].archivos) {
+    guardarArchivoActivoEnProyecto();
+}
+const contenidoActual = (typeof obtenerDocumentoCompletoActual === 'function' ? obtenerDocumentoCompletoActual() : textarea.value);
+localStorage.setItem('webCreatorBorrador', JSON.stringify({
+    contenido: contenidoActual,
+    proyecto: proyectoActivo,
+    version: versionActiva,
+    archivoActivo: archivoActivo,
+    fecha: new Date().toISOString()
+}));
             } catch (e) { /* no crítico */ }
         }, 800);
     }
@@ -2995,13 +3150,17 @@ let estilosAnalisisDesactualizado = true;
         lineNumbers.scrollTop = this.scrollTop;
     });
 
-    textarea.addEventListener('input', function() {
-    estilosAnalisisDesactualizado = true;
-        // Fuera del modo de sección aislada, el textarea es la fuente de verdad.
-        if (seccionAislada === null) codigoCompleto = textarea.value;
-        actualizarNumerosLinea();
-        actualizarContador();
-        guardarBorrador();
+textarea.addEventListener('input', function() {
+estilosAnalisisDesactualizado = true;
+    // Fuera del modo de sección aislada, el textarea es la fuente de verdad.
+    if (seccionAislada === null) codigoCompleto = textarea.value;
+    // Si hay un proyecto android con archivos, guardar el cambio en el archivo activo.
+    if (proyectoActivo && archivoActivo && proyectos[proyectoActivo] && proyectos[proyectoActivo].archivos) {
+        proyectos[proyectoActivo].archivos[archivoActivo] = textarea.value;
+    }
+    actualizarNumerosLinea();
+    actualizarContador();
+    guardarBorrador();
         // Actualizar estructura y estilos si la pestaña de estilos está activa
         if (document.getElementById('panelEstilos').classList.contains('active')) {
             clearTimeout(estilosTimeout);
@@ -4744,7 +4903,8 @@ function actualizarVistaPrevia() {
 
     abrirPreviewBtn.addEventListener('click', function() {
         if (!textarea.value.trim()) { mostrarToast('⚠️ El editor está vacío'); return; }
-        const blob = new Blob([textarea.value], { type: 'text/html' });
+        const htmlCompleto = (typeof obtenerDocumentoCompletoActual === 'function' ? obtenerDocumentoCompletoActual() : textarea.value);
+        const blob = new Blob([htmlCompleto], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         window.open(url, '_blank');
         setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -5054,7 +5214,7 @@ function actualizarVistaPrevia() {
                     <div style="font-size:0.78rem; color:#b0b0d0; margin-bottom:6px;">Elige destino para cada bloque:</div>
                     ${bloques.map(b => `
                         <div class="refactor-row" data-idx="${b.idx}">
-                            <span class="rf-tag">${b.icon} ${b.tag} (línea ${b.line})</span>
+                            <span class="rf-tag">${b.icon} ${escaparHtml(b.tag)} (línea ${b.line})</span>
                             <select class="rf-select" data-idx="${b.idx}">
                                 <option value="">Mantener en HTML</option>
                                 <option value="${b.type === 'style' ? 'css/style.css' : 'js/script.js'}" selected>${b.type === 'style' ? 'css/style.css' : 'js/script.js'}</option>
@@ -5132,7 +5292,10 @@ function actualizarVistaPrevia() {
         Object.keys(refactorLibrerias).forEach(idx => {
             if (refactorLibrerias[idx] !== 'descargar') return;
             const bloque = estructura[idx];
-            if (bloque && bloque.srcValor) rutas.add(bloque.srcValor.replace(/^\.?\//, '') + '  (descargado)');
+            if (bloque && bloque.srcValor) {
+                const nombreArchivo = (bloque.srcValor.split('/').pop() || 'libreria.js').split('?')[0].split('#')[0] || 'libreria.js';
+                rutas.add('libs/' + nombreArchivo);
+            }
         });
         const ordenadas = [...rutas].sort();
         arbolEl.textContent = 'proyecto/\n' + ordenadas.map(r => '├── ' + r).join('\n');
@@ -5146,7 +5309,9 @@ function actualizarVistaPrevia() {
     }
 
     function profundidadRuta(ruta) {
-        return ruta.split('/').length - 1;
+        const limpio = String(ruta || '').replace(/^\.?\/+/, '');
+        const segmentos = limpio.split('/').filter(s => s !== '');
+        return Math.max(0, segmentos.length - 1);
     }
 
     function reescribirUrlsCss(css, ruta) {
@@ -5282,13 +5447,20 @@ function actualizarVistaPrevia() {
 
             const archivosLibrerias = [];
             const avisosDescarga = [];
+            const reemplazosDescarga = [];
             for (const item of librosADescargar) {
-                const rutaEnZip = item.bloque.srcValor.replace(/^\.?\//, '');
+                const nombreArchivo = (item.bloque.srcValor.split('/').pop() || 'libreria.js').split('?')[0].split('#')[0] || 'libreria.js';
+                const rutaEnZip = 'libs/' + nombreArchivo;
                 try {
                     const resp = await fetch(item.libreria.cdn);
                     if (!resp.ok) throw new Error('HTTP ' + resp.status);
                     const contenido = await resp.text();
                     archivosLibrerias.push({ nombre: rutaEnZip, contenido });
+                    reemplazosDescarga.push({
+                        startIndex: item.bloque.startIndex,
+                        endIndex: item.bloque.endIndex,
+                        texto: `<script src="${rutaEnZip}"><` + '/script>'
+                    });
                 } catch (err) {
                     avisosDescarga.push(item.libreria.nombre);
                 }
@@ -5309,6 +5481,7 @@ function actualizarVistaPrevia() {
                 const nuevaEtiqueta = `<script src="${item.libreria.cdn}"><` + '/script>';
                 reemplazosHtml.push({ startIndex: item.bloque.startIndex, endIndex: item.bloque.endIndex, texto: nuevaEtiqueta });
             });
+            reemplazosDescarga.forEach(r => reemplazosHtml.push(r));
 
             let restante = html;
             reemplazosHtml.sort((a, b) => b.startIndex - a.startIndex).forEach(r => {
@@ -5353,15 +5526,21 @@ function actualizarVistaPrevia() {
     let proyectosDB = null;
     let persistenciaIndexedDB = false;
 
-    function validarProyectosPersistidos(parsed) {
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
-        return Object.entries(parsed).every(([nombre, proyecto]) => {
-            if (!nombre || !proyecto || typeof proyecto !== 'object' || Array.isArray(proyecto)) return false;
-            if (!proyecto.versiones || typeof proyecto.versiones !== 'object' || Array.isArray(proyecto.versiones)) return false;
-            return Object.values(proyecto.versiones).every(v => v && typeof v === 'object' && typeof v.contenido === 'string');
-        });
-    }
-
+function validarProyectosPersistidos(parsed) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+    return Object.entries(parsed).every(([nombre, proyecto]) => {
+        if (!nombre || !proyecto || typeof proyecto !== 'object' || Array.isArray(proyecto)) return false;
+        if (!proyecto.versiones || typeof proyecto.versiones !== 'object' || Array.isArray(proyecto.versiones)) return false;
+        const versionesOk = Object.values(proyecto.versiones).every(v => v && typeof v === 'object' && typeof v.contenido === 'string');
+        if (!versionesOk) return false;
+        if (proyecto.archivos !== undefined) {
+            if (typeof proyecto.archivos !== 'object' || Array.isArray(proyecto.archivos)) return false;
+            const archivosOk = Object.values(proyecto.archivos).every(v => typeof v === 'string');
+            if (!archivosOk) return false;
+        }
+        return true;
+    });
+}
     function abrirProyectosDB() {
         return new Promise((resolve, reject) => {
             if (!('indexedDB' in window)) { reject(new Error('IndexedDB no disponible')); return; }
@@ -5536,13 +5715,15 @@ function actualizarVistaPrevia() {
             const versiones = p.versiones || {};
             const vKeys = Object.keys(versiones);
             const activo = proyectoActivo === nombre ? 'active' : '';
+const tipo = p.tipo || 'web';
+const iconoTipo = tipo === 'android' ? '📱' : '🌐';
             const nombreAttr = escaparHtml(nombre);
             const nombreTexto = escaparHtml(nombre);
             html += `
                 <div class="proyecto-item ${activo}" data-proyecto="${nombreAttr}">
                     <div class="proy-header">
                         <div class="proy-nombre">
-                            📁 ${nombreTexto}
+                            ${iconoTipo} ${nombreTexto}
                             <span class="fecha">${escaparHtml(p.fecha || '')}</span>
                         </div>
                         <div class="proy-actions">
@@ -5843,19 +6024,32 @@ function actualizarVistaPrevia() {
         importarVersionInput.value = '';
     });
 
-    async function crearProyecto(nombre) {
+    async function crearProyecto(nombre, tipo) {
+        tipo = tipo || 'web';
         if (!nombre || nombre.trim() === '') { mostrarToast('⚠️ El nombre no puede estar vacío'); return; }
         nombre = nombre.trim();
         if (proyectos[nombre]) { mostrarToast('⚠️ Ya existe un proyecto con ese nombre'); return; }
-        const contenido = textarea.value.trim() || '<!DOCTYPE html>\n<html>\n<head>\n  <title>Mi web</title>\n</head>\n<body>\n</body>\n</html>';
+        const contenido = ((typeof obtenerDocumentoCompletoActual === 'function' ? obtenerDocumentoCompletoActual() : textarea.value).trim()) || '';
         const version = 'v1.0';
-        proyectos[nombre] = {
-            fecha: new Date().toISOString().slice(0, 10),
-            versiones: {
-                [version]: { contenido: contenido, descripcion: 'Versión inicial' }
-            },
-            ultimaVersion: version
-        };
+        const proyectoNuevo = {
+    tipo: tipo,
+    fecha: new Date().toISOString().slice(0, 10),
+    versiones: {
+        [version]: { contenido: contenido, descripcion: 'Versión inicial' }
+    },
+    ultimaVersion: version
+};
+
+if (tipo === 'android') {
+    proyectoNuevo.archivos = {
+        'MainActivity.kt': '// Escribe aquí tu código Kotlin\n',
+        'AndroidManifest.xml': '<?xml version="1.0" encoding="utf-8"?>\n<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n</manifest>\n',
+        'build.gradle': '// Configuración de compilación\n'
+    };
+    proyectoNuevo.funcionalidades = [];
+}
+
+proyectos[nombre] = proyectoNuevo;
         await guardarProyectos();
         renderProyectos();
         proyectoActivo = nombre;
@@ -5871,41 +6065,58 @@ function actualizarVistaPrevia() {
         isolatedIndicator.classList.remove('active');
         actualizarBadgeProyecto(`Proyecto: ${nombre} (${version})`);
         mostrarToast(`✅ Proyecto "${nombre}" creado`);
-        document.querySelector('[data-tab="editor"]').click();
-        analizarEstructura();
+                document.querySelector('[data-tab="editor"]').click();
+actualizarPanelArchivosSegunProyecto();
+cargarArchivoActivoEnEditor();
+analizarEstructura();
     }
 
     function cargarProyecto(nombre) {
-        if (!proyectos[nombre]) { mostrarToast('⚠️ Proyecto no encontrado'); return; }
-        const p = proyectos[nombre];
-        const vKeys = Object.keys(p.versiones);
-        if (vKeys.length === 0) { mostrarToast('⚠️ El proyecto no tiene versiones'); return; }
-        const ultima = p.ultimaVersion || vKeys[vKeys.length - 1];
-        cargarVersion(nombre, ultima);
-    }
+    if (!proyectos[nombre]) { mostrarToast('⚠️ Proyecto no encontrado'); return; }
+    const p = proyectos[nombre];
+    if (p.tipo === 'android' && !Array.isArray(p.funcionalidades)) p.funcionalidades = [];
+    const vKeys = Object.keys(p.versiones);
+    if (vKeys.length === 0) { mostrarToast('⚠️ El proyecto no tiene versiones'); return; }
+    const ultima = p.ultimaVersion || vKeys[vKeys.length - 1];
+    cargarVersion(nombre, ultima);
+actualizarPanelArchivosSegunProyecto();
+    const tipo = p.tipo || 'web';
+    actualizarBadgeProyecto('Proyecto: ' + nombre + ' (' + versionActiva + ') · ' + (tipo === 'android' ? '📱 Android' : '🌐 Web'));
+}
 
     function cargarVersion(nombre, version) {
         if (!proyectos[nombre] || !proyectos[nombre].versiones[version]) {
             mostrarToast('⚠️ Versión no encontrada');
             return;
         }
-        const contenido = proyectos[nombre].versiones[version].contenido;
-        proyectoActivo = nombre;
-        versionActiva = version;
+        const versionData = proyectos[nombre].versiones[version];
+const contenido = versionData.contenido;
+proyectoActivo = nombre;
+versionActiva = version;
+if (proyectos[nombre].tipo === 'android' && versionData.archivos) {
+    proyectos[nombre].archivos = JSON.parse(JSON.stringify(versionData.archivos));
+}
         codigoCompleto = contenido;
         seccionAislada = null;
         textoOriginalAislado = '';
         textarea.value = contenido;
-        actualizarContador();
-        actualizarNumerosLinea();
-        historialReiniciar();
-        mostrarTodoBtn.style.display = 'none';
-        isolatedIndicator.classList.remove('active');
-        actualizarBadgeProyecto(`Proyecto: ${nombre} (${version})`);
-        renderProyectos();
-        mostrarToast(`📂 Cargado: ${nombre} - ${version}`);
-        document.querySelector('[data-tab="editor"]').click();
-        analizarEstructura();
+actualizarContador();
+actualizarNumerosLinea();
+historialReiniciar();
+mostrarTodoBtn.style.display = 'none';
+isolatedIndicator.classList.remove('active');
+actualizarBadgeProyecto(`Proyecto: ${nombre} (${version})`);
+renderProyectos();
+mostrarToast(`📂 Cargado: ${nombre} - ${version}`);
+document.querySelector('[data-tab="editor"]').click();
+actualizarPanelArchivosSegunProyecto();
+// En proyectos android, mostrar el primer archivo en el editor
+if (archivosProyecto.length > 0) {
+    archivoActivo = archivosProyecto[0].ruta;
+    renderizarArchivosPanel();
+    cargarArchivoActivoEnEditor();
+}
+analizarEstructura();
     }
 
     async function guardarVersion() {
@@ -5917,18 +6128,30 @@ function actualizarVistaPrevia() {
             await crearProyecto(nombre.trim());
             return;
         }
-        const contenido = textarea.value.trim();
-        if (contenido === '') { mostrarToast('⚠️ El editor está vacío'); return; }
         const p = proyectos[proyectoActivo];
-        if (!p) { mostrarToast('⚠️ Error: proyecto no encontrado'); return; }
-        const numVersion = Object.keys(p.versiones).length + 1;
-        const nuevaVersion = siguienteVersion(p);
-        const descripcion = await pedirTexto('Guardar versión', 'Descripción:', `Versión ${numVersion}`);
-        if (descripcion === null) return;
-        p.versiones[nuevaVersion] = {
-            contenido: contenido,
-            descripcion: descripcion || `Versión ${numVersion}`
-        };
+if (!p) { mostrarToast('⚠️ Error: proyecto no encontrado'); return; }
+const esAndroid = p.tipo === 'android' && p.archivos;
+if (esAndroid) {
+    if (archivoActivo) guardarArchivoActivoEnProyecto();
+}
+const contenido = (typeof obtenerDocumentoCompletoActual === 'function' ? obtenerDocumentoCompletoActual() : textarea.value).trim();
+if (!esAndroid && contenido === '') { mostrarToast('⚠️ El editor está vacío'); return; }
+const numVersion = Object.keys(p.versiones).length + 1;
+const nuevaVersion = siguienteVersion(p);
+const descripcion = await pedirTexto('Guardar versión', 'Descripción:', `Versión ${numVersion}`);
+if (descripcion === null) return;
+if (esAndroid) {
+    p.versiones[nuevaVersion] = {
+        contenido: contenido,
+        archivos: JSON.parse(JSON.stringify(p.archivos)),
+        descripcion: descripcion || `Versión ${numVersion}`
+    };
+} else {
+    p.versiones[nuevaVersion] = {
+        contenido: contenido,
+        descripcion: descripcion || `Versión ${numVersion}`
+    };
+}
         p.ultimaVersion = nuevaVersion;
         versionActiva = nuevaVersion;
         if (seccionAislada === null) {
@@ -5946,10 +6169,19 @@ function actualizarVistaPrevia() {
     }
 
     nuevoProyectoBtn.addEventListener('click', async function() {
-        const nombre = await pedirTexto('Nuevo proyecto', 'Nombre:');
-        if (nombre !== null && nombre.trim() !== '') await crearProyecto(nombre.trim());
-    });
+    const nombre = await pedirTexto('Nuevo proyecto', 'Nombre:');
+    if (nombre === null || nombre.trim() === '') return;
 
+    const eleccionTipo = await pedirEleccion(
+        'Tipo de proyecto',
+        '¿Qué quieres crear?',
+        ['🌐 Web', '📱 App Android']
+    );
+    if (eleccionTipo === null) return;
+
+    const tipo = eleccionTipo === 0 ? 'web' : 'android';
+    await crearProyecto(nombre.trim(), tipo);
+});
     guardarVersionBtn.addEventListener('click', guardarVersion);
 
     limpiarEditorBtn.addEventListener('click', async function() {
@@ -6896,7 +7128,7 @@ if (!nombreArchivo) {
                 <div class="struct-item ${activeClass}" data-index="${s.idx}" data-profundidad="${s.profundidad}" data-padre="${s.padreIdx ?? ''}">
                     ${controlColapso}
                     <span class="icon">${s.icon}</span>
-                    <span class="tag-name">${tagVisible}</span>
+                    <span class="tag-name">${escaparHtml(tagVisible)}</span>
                     <span class="badge-type ${badgeClass}">${badgeText}</span>
                     <button class="btn-flecha" data-idx="${s.idx}">→</button>
                     <span class="line-info">${infoLinea}</span>
@@ -7823,7 +8055,7 @@ if (!nombreArchivo) {
     // necesita la URL ya publicada, el nombre y un icono.
     const APK_WORKFLOW_PATH = '.github/workflows/build-apk.yml';
 
-                const APK_WORKFLOW_YAML = `name: Build APK
+    const APK_WORKFLOW_YAML = String.raw`name: Build APK
 on:
   workflow_dispatch:
     inputs:
@@ -7845,16 +8077,27 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Instalar plataforma y build-tools
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+      - name: Configurar SDK de Android
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          CMDLINE_TOOLS_BIN=$(find /usr/local/lib/android/sdk/cmdline-tools -maxdepth 3 -name sdkmanager -exec dirname {} \; | sort -V | tail -1)
+          if [ -z "$CMDLINE_TOOLS_BIN" ]; then
+            echo "::error::No se encontró sdkmanager bajo /usr/local/lib/android/sdk/cmdline-tools"
+            exit 1
+          fi
+          echo "SDK cmdline-tools encontrado en: $CMDLINE_TOOLS_BIN"
+          echo "$CMDLINE_TOOLS_BIN" >> "$GITHUB_PATH"
+      - name: Aceptar licencias e instalar plataforma y build-tools
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
       - name: Generar proyecto Android
         env:
           APP_NAME: \${{ github.event.inputs.app_name }}
@@ -7873,371 +8116,241 @@ jobs:
               cp apk-build/icon.png "android-app/app/src/main/res/mipmap-$d/ic_launcher_round.png"
             done
           fi
+
           PERMS_XML=""
           PERMS_JAVA_LIST=""
-          DOWNLOAD_CODE=""
-          NOTIFICATION_INIT=""
           add_perm() {
-            local nombre="$1"
-            local maxsdk="$2"
-            if [ -n "$maxsdk" ]; then
-              PERMS_XML=$(printf '%s    <uses-permission android:name="%s" android:maxSdkVersion="%s" />\\n' "$PERMS_XML" "$nombre" "$maxsdk")
-            else
-              PERMS_XML=$(printf '%s    <uses-permission android:name="%s" />\\n' "$PERMS_XML" "$nombre")
+            PERMS_XML="$PERMS_XML
+                        <uses-permission android:name=\"$1\" />"
+            if [ "$2" = "runtime" ]; then
+              if [ -n "$PERMS_JAVA_LIST" ]; then PERMS_JAVA_LIST="$PERMS_JAVA_LIST, "; fi
+              PERMS_JAVA_LIST="$PERMS_JAVA_LIST\"$1\""
             fi
           }
-          add_runtime() {
-            if [ -n "$PERMS_JAVA_LIST" ]; then
-              PERMS_JAVA_LIST="$PERMS_JAVA_LIST, \\"$1\\""
-            else
-              PERMS_JAVA_LIST="\\"$1\\""
-            fi
+          case ",$APP_PERMISOS," in *,camara,*) add_perm "android.permission.CAMERA" runtime ;; esac
+          case ",$APP_PERMISOS," in *,microfono,*) add_perm "android.permission.RECORD_AUDIO" runtime; add_perm "android.permission.MODIFY_AUDIO_SETTINGS" ;; esac
+          case ",$APP_PERMISOS," in *,galeria,*) add_perm "android.permission.READ_MEDIA_IMAGES" runtime; add_perm "android.permission.READ_MEDIA_VIDEO" runtime ;; esac
+          case ",$APP_PERMISOS," in *,audio,*) add_perm "android.permission.READ_MEDIA_AUDIO" runtime ;; esac
+          case ",$APP_PERMISOS," in *,ubicacion,*) add_perm "android.permission.ACCESS_FINE_LOCATION" runtime ;; esac
+          case ",$APP_PERMISOS," in *,notificaciones,*) add_perm "android.permission.POST_NOTIFICATIONS" runtime ;; esac
+          case ",$APP_PERMISOS," in *,vibracion,*) add_perm "android.permission.VIBRATE" ;; esac
+          case ",$APP_PERMISOS," in *,wakelock,*) add_perm "android.permission.WAKE_LOCK" ;; esac
+          case ",$APP_PERMISOS," in *,sensores,*) add_perm "android.permission.BODY_SENSORS" runtime ;; esac
+
+          DOWNLOAD_CODE=""
+          case ",$APP_PERMISOS," in *,almacenamiento,*)
+            add_perm "android.permission.WRITE_EXTERNAL_STORAGE"
+            DOWNLOAD_CODE='
+                        webView.setDownloadListener((dlUrl, userAgent, contentDisposition, mimetype, contentLength) -> {
+                            try {
+                                android.net.Uri parsedUri = Uri.parse(dlUrl);
+                                String scheme = parsedUri.getScheme();
+                                if (!"http".equals(scheme) && !"https".equals(scheme)) {
+                                    // DownloadManager solo admite http/https. Un blob: o data:
+                                    // (típico de descargas generadas por JS, p.ej. new Blob(...))
+                                    // provoca IllegalArgumentException si se le pasa directo.
+                                    android.widget.Toast.makeText(MainActivity.this, "Esta descarga no se puede guardar todavía desde la app", android.widget.Toast.LENGTH_LONG).show();
+                                    return;
+                                }
+                                android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(parsedUri);
+                                request.setMimeType(mimetype);
+                                request.addRequestHeader("User-Agent", userAgent);
+                                request.setTitle(android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype));
+                                request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                                request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype));
+                                android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                                dm.enqueue(request);
+                            } catch (Exception e) {
+                                android.widget.Toast.makeText(MainActivity.this, "No se pudo iniciar la descarga", android.widget.Toast.LENGTH_LONG).show();
+                            }
+                        });'
+            ;;
+          esac
+
+          WAKELOCK_CODE=""
+          case ",$APP_PERMISOS," in *,wakelock,*)
+            WAKELOCK_CODE='
+                        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);'
+            ;;
+          esac
+
+          AUDIO_CODE=""
+          case ",$APP_PERMISOS," in *,microfono,*)
+            AUDIO_CODE='
+                        // Sin esto, Android concede el permiso pero no entrega el
+                        // hardware del micrófono al WebView: navigator.mediaDevices
+                        // .getUserMedia({audio:true}) falla con NotReadableError
+                        // aunque el permiso aparezca como concedido en Ajustes.
+                        ((android.media.AudioManager) getSystemService(AUDIO_SERVICE))
+                            .setMode(android.media.AudioManager.MODE_IN_COMMUNICATION);'
+            ;;
+          esac
+
+          cat > android-app/settings.gradle <<'          GEOF'
+                    rootProject.name = "app"
+                    include ':app'
+                    GEOF
+
+          cat > android-app/build.gradle <<'          GEOF'
+                    buildscript {
+                        repositories { google(); mavenCentral() }
+                        dependencies { classpath 'com.android.tools.build:gradle:8.5.0' }
+                    }
+                    allprojects {
+                        repositories { google(); mavenCentral() }
+                    }
+                    GEOF
+
+          cat > android-app/app/build.gradle <<'          GEOF'
+                    apply plugin: 'com.android.application'
+                    android {
+                        namespace '__APP_PACKAGE__'
+                        compileSdk 34
+                        defaultConfig {
+                            applicationId '__APP_PACKAGE__'
+                            minSdk 23
+                            targetSdk 34
+                            versionCode 1
+                            versionName "1.0"
+                        }
+                    }
+                    GEOF
+
+          cat > android-app/app/src/main/AndroidManifest.xml <<'          GEOF'
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+                        <uses-permission android:name="android.permission.INTERNET" />__PERMS_XML__
+                        <application
+                            android:label="@string/app_name"
+                            android:icon="@mipmap/ic_launcher"
+                            android:roundIcon="@mipmap/ic_launcher_round">
+                            <activity android:name=".MainActivity"
+                                android:exported="true"
+                                android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                                <intent-filter>
+                                    <action android:name="android.intent.action.MAIN" />
+                                    <category android:name="android.intent.category.LAUNCHER" />
+                                </intent-filter>
+                            </activity>
+                        </application>
+                    </manifest>
+                    GEOF
+
+          cat > "android-app/app/src/main/java/$PKG_PATH/MainActivity.java" <<'          GEOF'
+                    package __APP_PACKAGE__;
+                    import android.app.Activity;
+                    import android.content.Intent;
+                    import android.net.Uri;
+                    import android.os.Bundle;
+                    import android.webkit.GeolocationPermissions;
+                    import android.webkit.PermissionRequest;
+                    import android.webkit.ValueCallback;
+                    import android.webkit.WebChromeClient;
+                    import android.webkit.WebView;
+                    import android.webkit.WebViewClient;
+                    import android.webkit.WebSettings;
+                    import android.view.ViewGroup;
+                    public class MainActivity extends Activity {
+                        private static final String[] PERMS = { __PERMS_JAVA_LIST__ };
+                        private static final int FILE_CHOOSER_CODE = 51426;
+                        private ValueCallback<Uri[]> filePathCallback;
+                        @Override
+                        protected void onCreate(Bundle savedInstanceState) {
+                            super.onCreate(savedInstanceState);
+                            if (PERMS.length > 0) {
+                                requestPermissions(PERMS, 1001);
+                            }__WAKELOCK_CODE__ __AUDIO_CODE__
+                            WebView webView = new WebView(this);
+                            webView.setLayoutParams(new ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                            WebSettings settings = webView.getSettings();
+                            settings.setJavaScriptEnabled(true);
+                            settings.setDomStorageEnabled(true);
+                            settings.setGeolocationEnabled(true);
+                            settings.setAllowFileAccess(true);
+                            webView.setWebViewClient(new WebViewClient());
+                            webView.setWebChromeClient(new WebChromeClient() {
+                                @Override
+                                public void onPermissionRequest(final PermissionRequest request) {
+                                    runOnUiThread(() -> request.grant(request.getResources()));
+                                }
+                                @Override
+                                public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
+                                    callback.invoke(origin, true, false);
+                                }
+                                @Override
+                                public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> callback, WebChromeClient.FileChooserParams params) {
+                                    filePathCallback = callback;
+                                    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                                    intent.setType("*/*");
+                                    startActivityForResult(Intent.createChooser(intent, "Elegir archivo"), FILE_CHOOSER_CODE);
+                                    return true;
+                                }
+                            });__DOWNLOAD_CODE__
+                            webView.loadUrl("__APP_URL__");
+                            setContentView(webView);
+                        }
+                        @Override
+                        protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+                            super.onActivityResult(requestCode, resultCode, data);
+                            if (requestCode == FILE_CHOOSER_CODE && filePathCallback != null) {
+                                Uri[] result = null;
+                                if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                                    result = new Uri[]{ data.getData() };
+                                }
+                                filePathCallback.onReceiveValue(result);
+                                filePathCallback = null;
+                            }
+                        }
+                    }
+                    GEOF
+
+          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+
+          cat > android-app/app/src/main/res/values/strings.xml <<'          GEOF'
+                    <resources>
+                        <string name="app_name">__NOMBRE_ESCAPADO__</string>
+                    </resources>
+                    GEOF
+
+          export APP_PACKAGE APP_URL PERMS_XML PERMS_JAVA_LIST DOWNLOAD_CODE WAKELOCK_CODE AUDIO_CODE NOMBRE_ESCAPADO PKG_PATH
+          python3 <<'          PYEOF'
+          import os
+          reemplazos = {
+              '__APP_PACKAGE__': os.environ.get('APP_PACKAGE', ''),
+              '__APP_URL__': os.environ.get('APP_URL', ''),
+              '__PERMS_XML__': os.environ.get('PERMS_XML', ''),
+              '__PERMS_JAVA_LIST__': os.environ.get('PERMS_JAVA_LIST', ''),
+              '__DOWNLOAD_CODE__': os.environ.get('DOWNLOAD_CODE', ''),
+              '__WAKELOCK_CODE__': os.environ.get('WAKELOCK_CODE', ''),
+              '__AUDIO_CODE__': os.environ.get('AUDIO_CODE', ''),
+              '__NOMBRE_ESCAPADO__': os.environ.get('NOMBRE_ESCAPADO', ''),
           }
-          case ",$APP_PERMISOS," in
-            *,camara,*)
-              add_perm "android.permission.CAMERA" ""
-              add_runtime "android.permission.CAMERA"
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,microfono,*)
-              add_perm "android.permission.RECORD_AUDIO" ""
-              add_runtime "android.permission.RECORD_AUDIO"
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,galeria,*)
-              add_perm "android.permission.READ_EXTERNAL_STORAGE" "32"
-              add_perm "android.permission.READ_MEDIA_IMAGES" ""
-              add_perm "android.permission.READ_MEDIA_VIDEO" ""
-              add_perm "android.permission.READ_MEDIA_VISUAL_USER_SELECTED" ""
-              add_runtime "android.permission.READ_EXTERNAL_STORAGE"
-              add_runtime "android.permission.READ_MEDIA_IMAGES"
-              add_runtime "android.permission.READ_MEDIA_VIDEO"
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,audio,*)
-              add_perm "android.permission.READ_MEDIA_AUDIO" ""
-              add_runtime "android.permission.READ_MEDIA_AUDIO"
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,ubicacion,*)
-              add_perm "android.permission.ACCESS_FINE_LOCATION" ""
-              add_perm "android.permission.ACCESS_COARSE_LOCATION" ""
-              add_runtime "android.permission.ACCESS_FINE_LOCATION"
-              add_runtime "android.permission.ACCESS_COARSE_LOCATION"
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,notificaciones,*)
-              add_perm "android.permission.POST_NOTIFICATIONS" ""
-              add_runtime "android.permission.POST_NOTIFICATIONS"
-              NOTIFICATION_INIT=$'\\n        if (android.os.Build.VERSION.SDK_INT >= 26) {\\n            android.app.NotificationChannel canal = new android.app.NotificationChannel(\\n                "webview_default", "Notificaciones", android.app.NotificationManager.IMPORTANCE_DEFAULT);\\n            ((android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(canal);\\n        }'
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,vibracion,*)
-              add_perm "android.permission.VIBRATE" ""
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,wakelock,*)
-              add_perm "android.permission.WAKE_LOCK" ""
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,bluetooth,*)
-              add_perm "android.permission.BLUETOOTH" "30"
-              add_perm "android.permission.BLUETOOTH_ADMIN" "30"
-              add_perm "android.permission.BLUETOOTH_CONNECT" ""
-              add_perm "android.permission.BLUETOOTH_SCAN" ""
-              add_runtime "android.permission.BLUETOOTH_CONNECT"
-              add_runtime "android.permission.BLUETOOTH_SCAN"
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,nfc,*)
-              add_perm "android.permission.NFC" ""
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,sensores,*)
-              add_perm "android.permission.BODY_SENSORS" ""
-              add_runtime "android.permission.BODY_SENSORS"
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,actividad,*)
-              add_perm "android.permission.ACTIVITY_RECOGNITION" ""
-              add_runtime "android.permission.ACTIVITY_RECOGNITION"
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,descargas,*)
-              add_perm "android.permission.WRITE_EXTERNAL_STORAGE" "28"
-              DOWNLOAD_CODE=$'\\n        webView.setDownloadListener((dlUrl, userAgent, contentDisposition, mimetype, contentLength) -> {\\n            android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(dlUrl));\\n            request.setMimeType(mimetype);\\n            request.addRequestHeader("User-Agent", userAgent);\\n            String nombreArchivo = android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype);\\n            request.setTitle(nombreArchivo);\\n            request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);\\n            request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, nombreArchivo);\\n            android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);\\n            dm.enqueue(request);\\n        });'
-              ;;
-          esac
-          case ",$APP_PERMISOS," in
-            *,almacenamientototal,*)
-              add_perm "android.permission.MANAGE_EXTERNAL_STORAGE" ""
-              ;;
-          esac
-          cat > android-app/settings.gradle << 'GEOF'
-          rootProject.name = "app"
-          include ':app'
-          GEOF
-          cat > android-app/build.gradle << 'GEOF'
-          buildscript {
-              repositories { google(); mavenCentral() }
-              dependencies { classpath 'com.android.tools.build:gradle:8.5.0' }
-          }
-          allprojects {
-              repositories { google(); mavenCentral() }
-          }
-          GEOF
-          cat > android-app/app/build.gradle << GEOF
-          apply plugin: 'com.android.application'
-          android {
-              namespace '$APP_PACKAGE'
-              compileSdk 34
-              defaultConfig {
-                  applicationId '$APP_PACKAGE'
-                  minSdk 23
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
-          GEOF
-          cat > android-app/app/src/main/AndroidManifest.xml << GEOF
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-          $PERMS_XML    <application
-                  android:label="@string/app_name"
-                  android:icon="@mipmap/ic_launcher"
-                  android:roundIcon="@mipmap/ic_launcher_round"
-                  android:usesCleartextTraffic="false">
-                  <activity android:name=".MainActivity"
-                      android:exported="true"
-                      android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
-                      android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          GEOF
-          cat > "android-app/app/src/main/java/$PKG_PATH/MainActivity.java" << GEOF
-          package $APP_PACKAGE;
-          import android.app.Activity;
-          import android.app.AlertDialog;
-          import android.content.Intent;
-          import android.content.pm.PackageManager;
-          import android.net.Uri;
-          import android.os.Build;
-          import android.os.Bundle;
-          import android.os.Message;
-          import android.util.Log;
-          import android.view.ViewGroup;
-          import android.webkit.ConsoleMessage;
-          import android.webkit.GeolocationPermissions;
-          import android.webkit.JsPromptResult;
-          import android.webkit.JsResult;
-          import android.webkit.PermissionRequest;
-          import android.webkit.ValueCallback;
-          import android.webkit.WebChromeClient;
-          import android.webkit.WebResourceRequest;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import java.util.ArrayList;
-          import java.util.List;
-          public class MainActivity extends Activity {
-              private static final String[] PERMS = { $PERMS_JAVA_LIST };
-              private static final int RUNTIME_PERMS_CODE = 1001;
-              private static final int FILE_CHOOSER_CODE = 51426;
-              private ValueCallback<Uri[]> filePathCallback;
-              private WebView webView;
-              private String urlPendiente;
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                      WebView.setWebContentsDebuggingEnabled(true);
-                  }$NOTIFICATION_INIT
-                  urlPendiente = "$APP_URL";
-                  if (PERMS.length > 0) {
-                      requestPermissions(PERMS, RUNTIME_PERMS_CODE);
-                  } else {
-                      cargarWebView();
-                  }
-              }
-              private void cargarWebView() {
-                  webView = new WebView(this);
-                  webView.setLayoutParams(new ViewGroup.LayoutParams(
-                      ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setDatabaseEnabled(true);
-                  settings.setGeolocationEnabled(true);
-                  settings.setAllowFileAccess(false);
-                  settings.setAllowContentAccess(true);
-                  settings.setMediaPlaybackRequiresUserGesture(false);
-                  webView.setWebViewClient(new WebViewClient() {
-                      @Override
-                      public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
-                          String host = request.getUrl().getHost();
-                          if (host != null && host.equals(Uri.parse("$APP_URL").getHost())) {
-                              return false;
-                          }
-                          startActivity(new Intent(Intent.ACTION_VIEW, request.getUrl()));
-                          return true;
-                      }
-                  });
-                  webView.setWebChromeClient(new WebChromeClient() {
-                      @Override
-                      public void onPermissionRequest(final PermissionRequest request) {
-                          runOnUiThread(() -> {
-                              String[] recursos = request.getResources();
-                              List<String> permitidos = new ArrayList<>();
-                              for (String r : recursos) {
-                                  if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(r)
-                                      && tienePermiso("android.permission.CAMERA")) {
-                                      permitidos.add(r);
-                                  } else if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r)
-                                      && tienePermiso("android.permission.RECORD_AUDIO")) {
-                                      permitidos.add(r);
-                                  } else if (PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID.equals(r)) {
-                                      permitidos.add(r);
-                                  }
-                              }
-                              if (permitidos.isEmpty()) {
-                                  request.deny();
-                              } else {
-                                  request.grant(permitidos.toArray(new String[0]));
-                              }
-                          });
-                      }
-                      @Override
-                      public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-                          boolean concedido = tienePermiso("android.permission.ACCESS_FINE_LOCATION")
-                              || tienePermiso("android.permission.ACCESS_COARSE_LOCATION");
-                          callback.invoke(origin, concedido, false);
-                      }
-                      @Override
-                      public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> callback, FileChooserParams params) {
-                          filePathCallback = callback;
-                          Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                          intent.addCategory(Intent.CATEGORY_OPENABLE);
-                          intent.setType("*/*");
-                          startActivityForResult(Intent.createChooser(intent, "Elegir archivo"), FILE_CHOOSER_CODE);
-                          return true;
-                      }
-                      @Override
-                      public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
-                          WebView temporal = new WebView(MainActivity.this);
-                          temporal.setWebViewClient(new WebViewClient() {
-                              @Override
-                              public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
-                                  startActivity(new Intent(Intent.ACTION_VIEW, request.getUrl()));
-                                  temporal.destroy();
-                                  return true;
-                              }
-                          });
-                          WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
-                          transport.setWebView(temporal);
-                          resultMsg.sendToTarget();
-                          return true;
-                      }
-                      @Override
-                      public boolean onJsAlert(WebView view, String url, String message, final JsResult result) {
-                          new AlertDialog.Builder(MainActivity.this)
-                              .setMessage(message)
-                              .setPositiveButton("OK", (d, w) -> result.confirm())
-                              .setCancelable(false).show();
-                          return true;
-                      }
-                      @Override
-                      public boolean onJsConfirm(WebView view, String url, String message, final JsResult result) {
-                          new AlertDialog.Builder(MainActivity.this)
-                              .setMessage(message)
-                              .setPositiveButton("OK", (d, w) -> result.confirm())
-                              .setNegativeButton("Cancelar", (d, w) -> result.cancel())
-                              .setCancelable(false).show();
-                          return true;
-                      }
-                      @Override
-                      public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, final JsPromptResult result) {
-                          final android.widget.EditText input = new android.widget.EditText(MainActivity.this);
-                          input.setText(defaultValue);
-                          new AlertDialog.Builder(MainActivity.this)
-                              .setMessage(message)
-                              .setView(input)
-                              .setPositiveButton("OK", (d, w) -> result.confirm(input.getText().toString()))
-                              .setNegativeButton("Cancelar", (d, w) -> result.cancel())
-                              .setCancelable(false).show();
-                          return true;
-                      }
-                      @Override
-                      public boolean onConsoleMessage(ConsoleMessage m) {
-                          Log.d("WebView", m.message() + " @ línea " + m.lineNumber());
-                          return true
-                      }
-                  });$DOWNLOAD_CODE
-                  webView.loadUrl(urlPendiente);
-                  setContentView(webView);
-              }
-              private boolean tienePermiso(String permiso) {
-                  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
-                  return checkSelfPermission(permiso) == PackageManager.PERMISSION_GRANTED;
-              }
-              @Override
-              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-                  if (requestCode == RUNTIME_PERMS_CODE) {
-                      cargarWebView();
-                  }
-              }
-              @Override
-              public void onBackPressed() {
-                  if (webView != null && webView.canGoBack()) {
-                      webView.goBack();
-                  } else {
-                      super.onBackPressed();
-                  }
-              }
-              @Override
-              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-                  super.onActivityResult(requestCode, resultCode, data);
-                  if (requestCode == FILE_CHOOSER_CODE && filePathCallback != null) {
-                      Uri[] result = null;
-                      if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-                          result = new Uri[]{ data.getData() };
-                      }
-                      filePathCallback.onReceiveValue(result);
-                      filePathCallback = null;
-                  }
-              }
-          }
-          GEOF
-          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/\\&amp;/g; s/</\\&lt;/g; s/>/\\&gt;/g')
-          cat > android-app/app/src/main/res/values/strings.xml << EOF2
-          <resources>
-              <string name="app_name">$NOMBRE_ESCAPADO</string>
-          </resources>
-          EOF2
+          archivos = [
+              'android-app/settings.gradle',
+              'android-app/build.gradle',
+              'android-app/app/build.gradle',
+              'android-app/app/src/main/AndroidManifest.xml',
+              'android-app/app/src/main/java/' + os.environ['PKG_PATH'] + '/MainActivity.java',
+              'android-app/app/src/main/res/values/strings.xml',
+          ]
+          PREFIJO = ' ' * 10
+          for ruta in archivos:
+              with open(ruta, encoding='utf-8') as f:
+                  contenido = f.read()
+              for token, valor in reemplazos.items():
+                  contenido = contenido.replace(token, valor)
+              # Quita la sangría de 10 espacios que exige el bloque YAML pero que no
+              # pertenece al contenido real del archivo (imprescindible para XML: la
+              # declaración <?xml ...?> debe ser literalmente el primer carácter).
+              lineas = contenido.split('\n')
+              lineas = [l[len(PREFIJO):] if l.startswith(PREFIJO) else l for l in lineas]
+              contenido = '\n'.join(lineas)
+              with open(ruta, 'w', encoding='utf-8') as f:
+                  f.write(contenido)
+          print("Sustitución completada")
+                    PYEOF
       - name: Compilar APK
         working-directory: android-app
         run: |
@@ -8251,7 +8364,8 @@ jobs:
           TAG="apk-$(date +%s)"
           APK_PATH=$(find android-app -name "*.apk" | head -n1)
           gh release create "$TAG" "$APK_PATH" --title "APK $TAG" --notes "Generado automáticamente por el editor"
-`;
+`.replace(/\\\$\{\{/g, '${{');
+
     async function contentsApiGitHub(cfg, ruta, opciones) {
         const headers = Object.assign({
             'Authorization': 'Bearer ' + cfg.token,
@@ -8348,70 +8462,408 @@ jobs:
         }
     }
 
+    // ================== B4 · Menú de funcionalidades Android ==================
+    // Las 22 casillas, agrupadas en las 5 familias del documento B4.
+    // Sirven tanto para guardar la selección en proyectos[nombre].funcionalidades
+    // como para saber qué generadores ejecutar al pulsar "⚡ Generar".
+    const FUNCIONALIDADES_ANDROID_IDS = [
+        'varias-pantallas', 'menu-lateral', 'barra-inferior', 'modo-oscuro',
+        'saf', 'preferencias', 'base-datos',
+        'formularios', 'camara', 'galeria', 'microfono', 'notificaciones', 'vibracion',
+        'descargar', 'enviar', 'conexion', 'abrir-enlaces',
+        'pantalla-encendida', 'brujula', 'acelerometro', 'ubicacion', 'huella'
+    ];
+
+    function pedirFuncionalidadesAndroid(seleccionActual) {
+        const marcadas = new Set(seleccionActual || []);
+        const chk = id => marcadas.has(id) ? 'checked' : '';
+        return new Promise(resolve => {
+            modalModo = 'funcionalidades-android';
+            modalResolveFn = resolve;
+            modalTitulo.textContent = '⚙️ Funcionalidades Android';
+            modalMensaje.innerHTML = `
+                <p style="font-size:0.8rem; color:#b0b0d0; margin-bottom:10px;">Marca lo que necesite tu app. Al pulsar ⚡ Generar se crea el código Kotlin/XML/Gradle correspondiente.</p>
+                <p style="font-size:0.68rem; color:#e5c99a; margin-bottom:10px;">🚧 De momento solo generan código real: Vibración, Pantalla encendida, Abrir enlaces, Preferencias y Modo oscuro. El resto se guarda para más adelante.</p>
+
+                <details open style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">👁️ Ver y navegar</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-varias-pantallas" ${chk('varias-pantallas')}> Varias pantallas</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-menu-lateral" ${chk('menu-lateral')}> Menú lateral</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-barra-inferior" ${chk('barra-inferior')}> Barra inferior</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-modo-oscuro" ${chk('modo-oscuro')}> ✅ Modo oscuro</label>
+                    </div>
+                </details>
+
+                <details style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">💾 Guardar y leer</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-saf" ${chk('saf')}> Archivos (SAF)</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-preferencias" ${chk('preferencias')}> ✅ Preferencias</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-base-datos" ${chk('base-datos')}> Base de datos</label>
+                    </div>
+                </details>
+
+                <details style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">📋 Pedir datos al usuario</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-formularios" ${chk('formularios')}> Formularios</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-camara" ${chk('camara')}> Cámara</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-galeria" ${chk('galeria')}> Galería</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-microfono" ${chk('microfono')}> Micrófono</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-notificaciones" ${chk('notificaciones')}> Notificaciones</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-vibracion" ${chk('vibracion')}> ✅ Vibración</label>
+                    </div>
+                </details>
+
+                <details style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">🌐 Internet</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-descargar" ${chk('descargar')}> Descargar</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-enviar" ${chk('enviar')}> Enviar</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-conexion" ${chk('conexion')}> Comprobar conexión</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-abrir-enlaces" ${chk('abrir-enlaces')}> ✅ Abrir enlaces</label>
+                    </div>
+                </details>
+
+                <details style="background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">📟 Hardware</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-pantalla-encendida" ${chk('pantalla-encendida')}> ✅ Pantalla encendida</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-brujula" ${chk('brujula')}> Brújula</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-acelerometro" ${chk('acelerometro')}> Acelerómetro</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-ubicacion" ${chk('ubicacion')}> Ubicación</label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-huella" ${chk('huella')}> Huella</label>
+                    </div>
+                </details>
+            `;
+            modalInput.style.display = 'none';
+            modalChoices.style.display = 'none';
+            modalConfirmar.style.display = 'inline-flex';
+            modalConfirmar.textContent = 'Guardar';
+            modalCancelar.style.display = 'inline-flex';
+            modalCancelar.textContent = 'Cancelar';
+            modalOverlay.classList.add('visible');
+        });
+    }
+
+    // ---- Capa 1 · Plantillas base ----
+    // Funciones puras: devuelven texto, no dependen ni modifican estado externo.
+    function plantillaMainActivityBase() {
+        return `package com.tuapp.miapp
+
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+// [IMPORTS:FUNCIONALIDADES]
+
+class MainActivity : AppCompatActivity() {
+
+    // [PROPIEDADES:FUNCIONALIDADES]
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // [ONCREATE:FUNCIONALIDADES]
+        setContentView(R.layout.activity_main)
+    }
+
+    // [METODOS:FUNCIONALIDADES]
+}
+`;
+    }
+
+    function plantillaManifestBase() {
+        return `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- [PERMISOS:FUNCIONALIDADES] -->
+
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.MiApp">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>
+`;
+    }
+
+    function plantillaBuildGradleBase() {
+        return `plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.tuapp.miapp'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.tuapp.miapp"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildFeatures {
+        viewBinding true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    // [DEPENDENCIAS:FUNCIONALIDADES]
+}
+`;
+    }
+
+    function plantillaLayoutBase() {
+        return `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/app_name"
+        android:textSize="20sp" />
+
+</LinearLayout>
+`;
+    }
+
+    function plantillaStringsBase() {
+        return `<resources>
+    <string name="app_name">Mi App</string>
+</resources>
+`;
+    }
+
+    function plantillaThemesBase() {
+        return `<resources>
+    <style name="Theme.MiApp" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
+</resources>
+`;
+    }
+
+    // ---- Utilidades de inserción idempotente ----
+    // Insertan un bloque justo antes de un comentario-marcador dentro de la
+    // plantilla, y no tocan nada si el marcador ya no está (evita romper un
+    // archivo que el usuario haya editado a mano y le haya quitado el marcador).
+    function insertarEnMarcador(contenido, marcador, textoNuevo) {
+        if (!contenido || contenido.indexOf(marcador) === -1) return contenido;
+        return contenido.replace(marcador, textoNuevo + '\n' + marcador);
+    }
+
+    function agregarPermiso(manifest, permiso) {
+        if (manifest.indexOf('"android.permission.' + permiso + '"') !== -1) return manifest;
+        const linea = '    <uses-permission android:name="android.permission.' + permiso + '" />';
+        return insertarEnMarcador(manifest, '<!-- [PERMISOS:FUNCIONALIDADES] -->', linea);
+    }
+
+    // ---- Capa 2 · Generadores de la Tanda 1 ----
+    // Cada uno recibe `archivos` (el objeto ruta → contenido) y lo modifica
+    // in place. Todos comprueban antes de escribir, así que ejecutarlos varias
+    // veces sobre el mismo `archivos` no duplica nada.
+
+    function generarVibracion(archivos) {
+        archivos['AndroidManifest.xml'] = agregarPermiso(archivos['AndroidManifest.xml'], 'VIBRATE');
+
+        let mainKt = archivos['MainActivity.kt'];
+        if (mainKt.indexOf('fun vibrar(') === -1) {
+            mainKt = insertarEnMarcador(mainKt, '// [IMPORTS:FUNCIONALIDADES]',
+                'import android.content.Context\nimport android.os.Build\nimport android.os.VibrationEffect\nimport android.os.Vibrator\nimport android.os.VibratorManager');
+            mainKt = insertarEnMarcador(mainKt, '// [METODOS:FUNCIONALIDADES]',
+                '    // Funcionalidad: vibracion\n' +
+                '    private fun vibrar(duracionMs: Long = 200) {\n' +
+                '        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {\n' +
+                '            val manager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager\n' +
+                '            manager.defaultVibrator\n' +
+                '        } else {\n' +
+                '            @Suppress("DEPRECATION")\n' +
+                '            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator\n' +
+                '        }\n' +
+                '        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {\n' +
+                '            vibrator.vibrate(VibrationEffect.createOneShot(duracionMs, VibrationEffect.DEFAULT_AMPLITUDE))\n' +
+                '        } else {\n' +
+                '            @Suppress("DEPRECATION")\n' +
+                '            vibrator.vibrate(duracionMs)\n' +
+                '        }\n' +
+                '    }\n');
+        }
+        archivos['MainActivity.kt'] = mainKt;
+    }
+
+    function generarPantallaEncendida(archivos) {
+        let mainKt = archivos['MainActivity.kt'];
+        if (mainKt.indexOf('FLAG_KEEP_SCREEN_ON') === -1) {
+            mainKt = insertarEnMarcador(mainKt, '// [IMPORTS:FUNCIONALIDADES]', 'import android.view.WindowManager');
+            mainKt = insertarEnMarcador(mainKt, '// [ONCREATE:FUNCIONALIDADES]',
+                '        // Funcionalidad: pantalla-encendida\n' +
+                '        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)');
+        }
+        archivos['MainActivity.kt'] = mainKt;
+    }
+
+    function generarAbrirEnlaces(archivos) {
+        let mainKt = archivos['MainActivity.kt'];
+        if (mainKt.indexOf('fun abrirEnlace(') === -1) {
+            mainKt = insertarEnMarcador(mainKt, '// [IMPORTS:FUNCIONALIDADES]', 'import android.content.Intent\nimport android.net.Uri');
+            mainKt = insertarEnMarcador(mainKt, '// [METODOS:FUNCIONALIDADES]',
+                '    // Funcionalidad: abrir-enlaces\n' +
+                '    private fun abrirEnlace(url: String) {\n' +
+                '        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))\n' +
+                '        startActivity(intent)\n' +
+                '    }\n');
+        }
+        archivos['MainActivity.kt'] = mainKt;
+    }
+
+    function generarPreferencias(archivos) {
+        let mainKt = archivos['MainActivity.kt'];
+        if (mainKt.indexOf('lateinit var prefs') === -1) {
+            mainKt = insertarEnMarcador(mainKt, '// [IMPORTS:FUNCIONALIDADES]', 'import android.content.SharedPreferences');
+            mainKt = insertarEnMarcador(mainKt, '// [PROPIEDADES:FUNCIONALIDADES]',
+                '    // Funcionalidad: preferencias\n' +
+                '    private lateinit var prefs: SharedPreferences');
+            mainKt = insertarEnMarcador(mainKt, '// [ONCREATE:FUNCIONALIDADES]',
+                '        prefs = getSharedPreferences("datos_app", MODE_PRIVATE)');
+            mainKt = insertarEnMarcador(mainKt, '// [METODOS:FUNCIONALIDADES]',
+                '    private fun guardarPreferencia(clave: String, valor: String) {\n' +
+                '        prefs.edit().putString(clave, valor).apply()\n' +
+                '    }\n\n' +
+                '    private fun leerPreferencia(clave: String, porDefecto: String = ""): String {\n' +
+                '        return prefs.getString(clave, porDefecto) ?: porDefecto\n' +
+                '    }\n');
+        }
+        archivos['MainActivity.kt'] = mainKt;
+    }
+
+    function generarModoOscuro(archivos) {
+        let mainKt = archivos['MainActivity.kt'];
+        if (mainKt.indexOf('setDefaultNightMode') === -1) {
+            mainKt = insertarEnMarcador(mainKt, '// [IMPORTS:FUNCIONALIDADES]', 'import androidx.appcompat.app.AppCompatDelegate');
+            mainKt = insertarEnMarcador(mainKt, '// [ONCREATE:FUNCIONALIDADES]',
+                '        // Funcionalidad: modo-oscuro\n' +
+                '        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)');
+        }
+        archivos['MainActivity.kt'] = mainKt;
+    }
+
+    // ---- Capa 3 · Orquestador ----
+    // Reconstruye `archivos` desde cero (plantillas base) y aplica, en orden,
+    // el generador de cada funcionalidad marcada. Al partir siempre de la
+    // plantilla base, el resultado es idempotente: generar dos veces con la
+    // misma selección da exactamente el mismo resultado.
+    const GENERADORES = {
+        'vibracion': generarVibracion,
+        'pantalla-encendida': generarPantallaEncendida,
+        'abrir-enlaces': generarAbrirEnlaces,
+        'preferencias': generarPreferencias,
+        'modo-oscuro': generarModoOscuro
+    };
+
+    function generarProyectoAndroid(proyecto) {
+        const archivos = {};
+        archivos['MainActivity.kt'] = plantillaMainActivityBase();
+        archivos['AndroidManifest.xml'] = plantillaManifestBase();
+        archivos['build.gradle'] = plantillaBuildGradleBase();
+        archivos['res/layout/activity_main.xml'] = plantillaLayoutBase();
+        archivos['res/values/strings.xml'] = plantillaStringsBase();
+        archivos['res/values/themes.xml'] = plantillaThemesBase();
+
+        const funciones = (proyecto && proyecto.funcionalidades) || [];
+        funciones.forEach(id => {
+            const generador = GENERADORES[id];
+            if (generador) generador(archivos);
+        });
+
+        return archivos;
+    }
+
     // Pide una imagen al usuario mediante un <input type="file"> temporal.
     function pedirPermisosApk() {
-    return new Promise(resolve => {
-        modalModo = 'permisos';
-        modalResolveFn = resolve;
-        modalTitulo.textContent = '📦 Permisos de la app';
-        modalMensaje.innerHTML = `
-            <p style="font-size:0.8rem; color:#b0b0d0; margin-bottom:10px;">Marca solo lo que tu web necesite. Los permisos se declaran en el APK y se piden al usuario en el primer arranque.</p>
+        return new Promise(resolve => {
+            modalModo = 'permisos';
+            modalResolveFn = resolve;
+            modalTitulo.textContent = '📦 Permisos de la app';
+            modalMensaje.innerHTML = `
+                <p style="font-size:0.8rem; color:#b0b0d0; margin-bottom:10px;">Marca solo lo que tu web necesite. Los permisos se declaran en el APK y se piden al usuario en el primer arranque.</p>
 
-            <details open style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
-                <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">📷 Medios</summary>
-                <div style="padding:0 10px 10px;">
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkCamara"> 📷 Cámara <span style="color:#8a8ab0; font-size:0.65rem;">(getUserMedia, input capture)</span></label>
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkMicro"> 🎙️ Micrófono <span style="color:#8a8ab0; font-size:0.65rem;">(getUserMedia audio)</span></label>
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkGaleria"> 🖼️ Leer galería <span style="color:#8a8ab0; font-size:0.65rem;">(imágenes y vídeos del usuario)</span></label>
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkAudio"> 🎵 Leer audio <span style="color:#8a8ab0; font-size:0.65rem;">(archivos de audio del usuario)</span></label>
-                </div>
-            </details>
+                <details open style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">📷 Medios</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkCamara"> 📷 Cámara <span style="color:#8a8ab0; font-size:0.65rem;">(getUserMedia, input capture)</span></label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkMicro"> 🎙️ Micrófono <span style="color:#8a8ab0; font-size:0.65rem;">(getUserMedia audio)</span></label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkGaleria"> 🖼️ Leer galería <span style="color:#8a8ab0; font-size:0.65rem;">(imágenes y vídeos del usuario)</span></label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkAudio"> 🎵 Leer audio <span style="color:#8a8ab0; font-size:0.65rem;">(archivos de audio del usuario)</span></label>
+                    </div>
+                </details>
 
-            <details style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
-                <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">📍 Ubicación</summary>
-                <div style="padding:0 10px 10px;">
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkUbicacion"> 📍 Ubicación (primer plano)</label>
-                </div>
-            </details>
+                <details style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">📍 Ubicación</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkUbicacion"> 📍 Ubicación (primer plano)</label>
+                    </div>
+                </details>
 
-            <details style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
-                <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">🔔 Sistema</summary>
-                <div style="padding:0 10px 10px;">
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkNotificaciones"> 🔔 Notificaciones <span style="color:#e59aa6; font-size:0.65rem;">(soporte limitado en WebView)</span></label>
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkVibracion"> 📳 Vibración <span style="color:#8a8ab0; font-size:0.65rem;">(navigator.vibrate)</span></label>
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkWakeLock"> 💡 Mantener pantalla encendida</label>
-                </div>
-            </details>
+                <details style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">🔔 Sistema</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkNotificaciones"> 🔔 Notificaciones <span style="color:#e59aa6; font-size:0.65rem;">(soporte limitado en WebView)</span></label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkVibracion"> 📳 Vibración <span style="color:#8a8ab0; font-size:0.65rem;">(navigator.vibrate)</span></label>
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkWakeLock"> 💡 Mantener pantalla encendida</label>
+                    </div>
+                </details>
 
-            <details style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
-                <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">🔌 Hardware</summary>
-                <div style="padding:0 10px 10px;">
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkBluetooth"> 📶 Bluetooth <span style="color:#8a8ab0; font-size:0.65rem;">(Web Bluetooth)</span></label>
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkNfc"> 📡 NFC <span style="color:#8a8ab0; font-size:0.65rem;">(Web NFC)</span></label>
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkSensoresSalud"> ❤️ Sensores de salud <span style="color:#8a8ab0; font-size:0.65rem;">(ritmo cardíaco, wearables)</span></label>
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkActividad"> 🏃 Reconocimiento de actividad <span style="color:#8a8ab0; font-size:0.65rem;">(podómetro)</span></label>
-                </div>
-            </details>
+                <details style="margin-bottom:8px; background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">🧭 Sensores</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkSensores"> ❤️ Sensores corporales <span style="color:#8a8ab0; font-size:0.65rem;">(ritmo cardíaco, wearables)</span></label>
+                    </div>
+                </details>
 
-            <details style="background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
-                <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">⚙️ Avanzado</summary>
-                <div style="padding:0 10px 10px;">
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkDescargas"> 💾 Permitir descargas <span style="color:#8a8ab0; font-size:0.65rem;">(el navegador del sistema las gestiona)</span></label>
-                    <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkAlmacenamientoTotal"> 📂 Acceso total al almacenamiento <span style="color:#e59aa6; font-size:0.65rem;">(⚠️ Play Store lo rechaza salvo casos justificados)</span></label>
-                </div>
-            </details>
+                <details style="background:#1a1a32; border-radius:8px; border:1px solid #3a3a5a;">
+                    <summary style="padding:8px; cursor:pointer; font-weight:600; font-size:0.8rem;">⚙️ Avanzado</summary>
+                    <div style="padding:0 10px 10px;">
+                        <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="permApkAlmacenamiento"> 💾 Permitir descargas <span style="color:#8a8ab0; font-size:0.65rem;">(se guardan en la carpeta Descargas)</span></label>
+                    </div>
+                </details>
 
-            <p style="font-size:0.68rem; color:#8a8ab0; margin-top:10px;">📁 Elegir archivos e 📶 Internet ya vienen incluidos siempre.</p>
-        `;
-        modalInput.style.display = 'none';
-        modalChoices.style.display = 'none';
-        modalConfirmar.style.display = 'inline-flex';
-        modalConfirmar.textContent = 'Continuar';
-        modalCancelar.style.display = 'inline-flex';
-        modalCancelar.textContent = 'Cancelar';
-        modalOverlay.classList.add('visible');
-    });
-}
+                <p style="font-size:0.68rem; color:#8a8ab0; margin-top:10px;">📁 Elegir archivos e 📶 Internet ya vienen incluidos siempre.</p>
+            `;
+            modalInput.style.display = 'none';
+            modalChoices.style.display = 'none';
+            modalConfirmar.style.display = 'inline-flex';
+            modalConfirmar.textContent = 'Continuar';
+            modalCancelar.style.display = 'inline-flex';
+            modalCancelar.textContent = 'Cancelar';
+            modalOverlay.classList.add('visible');
+        });
+    }
 
     function pedirImagen() {
         return new Promise(resolve => {
@@ -8545,7 +8997,13 @@ jobs:
         const permisos = await pedirPermisosApk();
         if (permisos === null) return;
 
-        const paquete = 'com.' + slugPublicar(cfg.owner).replace(/-/g, '') + '.' + slugPublicar(nombreApp).replace(/-/g, '');
+        // Los segmentos de un paquete Java no pueden empezar por un dígito
+        // (p.ej. si el usuario de GitHub es "123user"); se antepone "a" si hace falta.
+        const segmentoPaquete = texto => {
+            const s = slugPublicar(texto).replace(/-/g, '');
+            return /^[0-9]/.test(s) ? ('a' + s) : s;
+        };
+        const paquete = 'com.' + segmentoPaquete(cfg.owner) + '.' + segmentoPaquete(nombreApp);
 
         mostrarToast('📦 Preparando la compilación…');
         try {
@@ -8864,6 +9322,211 @@ jobs:
             mostrarToast('❌ No se pudieron limpiar todos los datos de la app');
         }
     });
+// ================== PANEL DE ARCHIVOS ==================
+const archivosPanel = document.getElementById('archivosPanel');
+const archivosPanelLista = document.getElementById('archivosPanelLista');
+const archivosPanelCerrar = document.getElementById('archivosPanelCerrar');
+
+function mostrarPanelArchivos(mostrar) {
+    if (!archivosPanel) return;
+    archivosPanel.classList.toggle('oculto', !mostrar);
+}
+
+// Archivos del proyecto activo (vacío hasta que se cargue uno android)
+let archivosProyecto = [];
+let archivoActivo = null;
+function renderizarArchivosPanel() {
+    if (!archivosPanelLista) return;
+    if (!archivosProyecto || archivosProyecto.length === 0) {
+        archivosPanelLista.innerHTML = '<div class="archivos-panel-vacio">Sin archivos</div>';
+        return;
+    }
+    archivosPanelLista.innerHTML = archivosProyecto.map(a => {
+    const activo = a.ruta === archivoActivo ? 'active' : '';
+    return `<div class="archivo-item ${activo}" data-ruta="${a.ruta}">
+        <span class="archivo-item-nombre">${a.ruta}</span>
+        <button type="button" class="archivo-item-borrar" data-ruta="${a.ruta}" title="Eliminar archivo">✕</button>
+    </div>`;
+}).join('');
+
+archivosPanelLista.querySelectorAll('.archivo-item').forEach(el => {
+    el.addEventListener('click', function(e) {
+        if (e.target.closest('.archivo-item-borrar')) return;
+        const ruta = this.dataset.ruta;
+        if (archivoActivo && archivoActivo !== ruta) {
+            guardarArchivoActivoEnProyecto();
+        }
+        archivoActivo = ruta;
+        renderizarArchivosPanel();
+        cargarArchivoActivoEnEditor();
+    });
+    el.addEventListener('dblclick', async function(e) {
+        if (e.target.closest('.archivo-item-borrar')) return;
+        const ruta = this.dataset.ruta;
+        if (proyectoActivo !== null && archivoActivo !== null && proyectos[proyectoActivo] && proyectos[proyectoActivo].archivos) {
+            guardarArchivoActivoEnProyecto();
+        }
+        const nueva = await pedirTexto('Renombrar archivo', 'Nuevo nombre:', ruta);
+        if (!nueva || nueva.trim() === '' || nueva.trim() === ruta) return;
+        const p = proyectos[proyectoActivo];
+        if (!p || !p.archivos) return;
+        if (p.archivos[nueva.trim()] !== undefined) { mostrarToast('⚠️ Ya existe ese archivo'); return; }
+        p.archivos[nueva.trim()] = p.archivos[ruta];
+        delete p.archivos[ruta];
+        if (archivoActivo === ruta) archivoActivo = nueva.trim();
+        archivosProyecto = Object.keys(p.archivos).map(r => ({ ruta: r }));
+        renderizarArchivosPanel();
+        mostrarToast('✏️ Renombrado a ' + nueva.trim());
+    });
+});
+
+archivosPanelLista.querySelectorAll('.archivo-item-borrar').forEach(btn => {
+    btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        const ruta = this.dataset.ruta;
+        const ok = await pedirConfirmacion('Eliminar archivo', '¿Eliminar "' + ruta + '"?');
+        if (!ok) return;
+        const p = proyectos[proyectoActivo];
+        if (!p || !p.archivos) return;
+        delete p.archivos[ruta];
+        archivosProyecto = Object.keys(p.archivos).map(r => ({ ruta: r }));
+        if (archivoActivo === ruta) {
+            archivoActivo = archivosProyecto.length > 0 ? archivosProyecto[0].ruta : null;
+            if (archivoActivo) cargarArchivoActivoEnEditor();
+            else { textarea.value = ''; codigoCompleto = ''; actualizarContador(); actualizarNumerosLinea(true); }
+        }
+        renderizarArchivosPanel();
+        mostrarToast('🗑 Eliminado: ' + ruta);
+    });
+});
+}
+const archivosPanelPestanita = document.getElementById('archivosPanelPestanita');
+
+archivosPanelCerrar?.addEventListener('click', () => {
+    mostrarPanelArchivos(false);
+    actualizarPestanitaArchivos();
+});
+document.getElementById('archivosPanelNuevo')?.addEventListener('click', async () => {
+    if (!proyectoActivo || !proyectos[proyectoActivo] || !proyectos[proyectoActivo].archivos) {
+        mostrarToast('⚠️ Solo disponible en proyectos android');
+        return;
+    }
+    const ruta = await pedirTexto('Nuevo archivo', 'Nombre (ej. utils.kt):', '');
+    if (!ruta || ruta.trim() === '') return;
+    const limpia = ruta.trim();
+    const p = proyectos[proyectoActivo];
+    if (p.archivos[limpia] !== undefined) { mostrarToast('⚠️ Ya existe ese archivo'); return; }
+    if (archivoActivo) guardarArchivoActivoEnProyecto();
+    p.archivos[limpia] = '';
+    archivosProyecto = Object.keys(p.archivos).map(r => ({ ruta: r }));
+    archivoActivo = limpia;
+    renderizarArchivosPanel();
+    cargarArchivoActivoEnEditor();
+    mostrarToast('➕ Creado: ' + limpia);
+});
+archivosPanelPestanita?.addEventListener('click', () => {
+    mostrarPanelArchivos(true);
+    actualizarPestanitaArchivos();
+});
+
+document.getElementById('archivosPanelFuncionalidades')?.addEventListener('click', async () => {
+    if (!proyectoActivo || !proyectos[proyectoActivo] || proyectos[proyectoActivo].tipo !== 'android') {
+        mostrarToast('⚠️ Solo disponible en proyectos android');
+        return;
+    }
+    const p = proyectos[proyectoActivo];
+    const seleccion = await pedirFuncionalidadesAndroid(p.funcionalidades || []);
+    if (seleccion === null) return; // cancelado, no se toca nada
+    p.funcionalidades = seleccion;
+    await guardarProyectos();
+    mostrarToast('⚙️ Funcionalidades guardadas (' + seleccion.length + ')');
+});
+
+document.getElementById('archivosPanelGenerar')?.addEventListener('click', async () => {
+    if (!proyectoActivo || !proyectos[proyectoActivo] || proyectos[proyectoActivo].tipo !== 'android') {
+        mostrarToast('⚠️ Solo disponible en proyectos android');
+        return;
+    }
+    const p = proyectos[proyectoActivo];
+    const ok = await pedirConfirmacion('Generar código Android', 'Esto reemplaza MainActivity.kt, AndroidManifest.xml, build.gradle y los recursos generados, según las funcionalidades marcadas en ⚙️. ¿Continuar?');
+    if (!ok) return;
+    p.archivos = generarProyectoAndroid(p);
+    archivoActivo = 'MainActivity.kt';
+    archivosProyecto = Object.keys(p.archivos).map(r => ({ ruta: r }));
+    renderizarArchivosPanel();
+    cargarArchivoActivoEnEditor();
+    await guardarProyectos();
+    mostrarToast('⚡ Código Android generado (' + archivosProyecto.length + ' archivos)');
+});
+
+function actualizarPestanitaArchivos() {
+    if (!archivosPanelPestanita) return;
+    const panelVisible = archivosPanel && !archivosPanel.classList.contains('oculto');
+    archivosPanelPestanita.classList.toggle('visible', !panelVisible && debeMostrarsePestanita());
+}
+
+function debeMostrarsePestanita() {
+    if (!proyectos[proyectoActivo]) return false;
+    const tipo = proyectos[proyectoActivo].tipo || 'web';
+    return tipo === 'android';
+}
+function guardarArchivoActivoEnProyecto() {
+    if (!proyectoActivo || !archivoActivo) return;
+    const p = proyectos[proyectoActivo];
+    if (!p || !p.archivos) return;
+    p.archivos[archivoActivo] = textarea.value;
+}
+
+function cargarArchivoActivoEnEditor() {
+    if (!proyectoActivo || !archivoActivo) return;
+    const p = proyectos[proyectoActivo];
+    if (!p || !p.archivos) return;
+    const contenido = p.archivos[archivoActivo] || '';
+    textarea.value = contenido;
+    codigoCompleto = contenido;
+    actualizarContador();
+    actualizarNumerosLinea(true);
+    historialReiniciar();
+    mostrarToast('📄 ' + archivoActivo);
+}
+
+function actualizarBotonesAndroid(mostrar) {
+    const btnFunc = document.getElementById('archivosPanelFuncionalidades');
+    const btnGenerar = document.getElementById('archivosPanelGenerar');
+    if (btnFunc) btnFunc.style.display = mostrar ? '' : 'none';
+    if (btnGenerar) btnGenerar.style.display = mostrar ? '' : 'none';
+}
+
+function actualizarPanelArchivosSegunProyecto() {
+    if (!proyectos[proyectoActivo]) {
+        archivosProyecto = [];
+        archivoActivo = null;
+        renderizarArchivosPanel();
+        mostrarPanelArchivos(false);
+        actualizarBotonesAndroid(false);
+        actualizarPestanitaArchivos();
+        return;
+    }
+    const tipo = proyectos[proyectoActivo].tipo || 'web';
+    if (tipo === 'android') {
+        const p = proyectos[proyectoActivo];
+        if (!Array.isArray(p.funcionalidades)) p.funcionalidades = [];
+        archivosProyecto = Object.keys(p.archivos || {}).map(ruta => ({ ruta }));
+        archivoActivo = archivosProyecto.length > 0 ? archivosProyecto[0].ruta : null;
+        renderizarArchivosPanel();
+        mostrarPanelArchivos(true);
+        actualizarBotonesAndroid(true);
+    } else {
+        archivosProyecto = [];
+        archivoActivo = null;
+        renderizarArchivosPanel();
+        mostrarPanelArchivos(false);
+        actualizarBotonesAndroid(false);
+    }
+    actualizarPestanitaArchivos();
+}
+
+renderizarArchivosPanel();
 
     // ================== TABS ==================
     tabBtns.forEach(btn => {
@@ -9614,7 +10277,7 @@ jobs:
                 problemasBody.innerHTML = '<div class="estilos-vacio">✅ No se encontraron problemas.</div>';
             } else {
                 problemasBody.innerHTML = this.problemas.map(p => 
-                    `<div class="problema-item ${p.nivel}"><span class="p-icon">${p.nivel === 'error' ? '❌' : p.nivel === 'warn' ? '⚠️' : 'ℹ️'}</span><span class="p-texto">${p.texto}</span></div>`
+                    `<div class="problema-item ${p.nivel}"><span class="p-icon">${p.nivel === 'error' ? '❌' : p.nivel === 'warn' ? '⚠️' : 'ℹ️'}</span><span class="p-texto">${escaparHtml(p.texto)}</span></div>`
                 ).join('');
             }
 
@@ -9637,14 +10300,14 @@ jobs:
                     const esAgrupado = s.nombre.includes(', ');
                     
                     html += `
-                        <div class="selector-item ${active}" data-selector="${s.nombre.replace(/"/g, '&quot;')}">
+                        <div class="selector-item ${active}" data-selector="${escaparHtml(s.nombre)}">
                             <span class="sel-indent">${indent}</span>
                             ${hijos ? `<span class="sel-hijos">${hijos}</span>` : ''}
                             <span class="sel-icon">${icon}</span>
-                            <span class="sel-nombre">${s.nombre}</span>
+                            <span class="sel-nombre">${escaparHtml(s.nombre)}</span>
                             ${esAgrupado ? '<span class="sel-badge" style="background:#4a6a8b;">📦</span>' : ''}
                             ${s.esInline ? '<span class="sel-badge" style="background:#8b6a4a;">inline</span>' : ''}
-                            ${s.esAtRule ? `<span class="sel-badge" style="background:#4a6a8b;">@${s.atRule}</span>` : ''}
+                            ${s.esAtRule ? `<span class="sel-badge" style="background:#4a6a8b;">@${escaparHtml(s.atRule)}</span>` : ''}
                             ${badge ? `<span class="sel-badge">${badge}</span>` : ''}
                         </div>
                     `;
@@ -9719,7 +10382,7 @@ jobs:
             
             let html = `
                 <div class="reglas-header">
-                    <span class="reglas-titulo">${icono} ${selector.nombre}</span>
+                    <span class="reglas-titulo">${icono} ${escaparHtml(selector.nombre)}</span>
                     <span class="reglas-info">línea ${selector.linea}</span>
                 </div>
             `;
@@ -9730,7 +10393,7 @@ jobs:
                         📦 Variables usadas:
                         ${variablesEnSelector.map(p => 
                             `<span style="font-family:'Fira Code',monospace;background:#1a1a32;padding:1px 6px;border-radius:4px;margin:2px;font-size:0.6rem;color:#9ad0e0;">
-                                ${p.nombre}: ${p.valor}
+                                ${escaparHtml(p.nombre)}: ${escaparHtml(p.valor)}
                             </span>`
                         ).join(' ')}
                     </div>
@@ -9755,9 +10418,9 @@ jobs:
                     const esVar = p.valor.includes('var(--');
                     html += `
                         <tr>
-                            <td class="prop-nombre">${p.nombre}</td>
-                            <td class="prop-valor" data-propiedad="${p.nombre}" data-valor="${p.valor}" data-idx="${idx}" style="${esVar ? 'color:#9ad0e0;' : ''}">
-                                ${p.valor}
+                            <td class="prop-nombre">${escaparHtml(p.nombre)}</td>
+                            <td class="prop-valor" data-propiedad="${escaparHtml(p.nombre)}" data-valor="${escaparHtml(p.valor)}" data-idx="${idx}" style="${esVar ? 'color:#9ad0e0;' : ''}">
+                                ${escaparHtml(p.valor)}
                                 ${esVar ? ' 📦' : ''}
                             </td>
                             <td class="prop-acciones">
@@ -10242,8 +10905,8 @@ jobs:
                 <h3 style="font-size:1rem;margin-bottom:12px;">📦 Variables CSS (${variables.length})</h3>
                 ${variables.map(v => `
                     <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #2a2a4a;font-family:'Fira Code',monospace;font-size:0.7rem;">
-                        <span style="color:#cbc8f0;">${v.nombre}</span>
-                        <span style="color:#7fe0bc;">${v.valor}</span>
+                        <span style="color:#cbc8f0;">${escaparHtml(v.nombre)}</span>
+                        <span style="color:#7fe0bc;">${escaparHtml(v.valor)}</span>
                     </div>
                 `).join('')}
                 <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
