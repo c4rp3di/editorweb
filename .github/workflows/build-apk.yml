@@ -85,14 +85,27 @@ jobs:
             add_perm "android.permission.WRITE_EXTERNAL_STORAGE"
             DOWNLOAD_CODE='
                         webView.setDownloadListener((dlUrl, userAgent, contentDisposition, mimetype, contentLength) -> {
-                            android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(dlUrl));
-                            request.setMimeType(mimetype);
-                            request.addRequestHeader("User-Agent", userAgent);
-                            request.setTitle(android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype));
-                            request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                            request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype));
-                            android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-                            dm.enqueue(request);
+                            try {
+                                android.net.Uri parsedUri = Uri.parse(dlUrl);
+                                String scheme = parsedUri.getScheme();
+                                if (!"http".equals(scheme) && !"https".equals(scheme)) {
+                                    // DownloadManager solo admite http/https. Un blob: o data:
+                                    // (típico de descargas generadas por JS, p.ej. new Blob(...))
+                                    // provoca IllegalArgumentException si se le pasa directo.
+                                    android.widget.Toast.makeText(MainActivity.this, "Esta descarga no se puede guardar todavía desde la app", android.widget.Toast.LENGTH_LONG).show();
+                                    return;
+                                }
+                                android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(parsedUri);
+                                request.setMimeType(mimetype);
+                                request.addRequestHeader("User-Agent", userAgent);
+                                request.setTitle(android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype));
+                                request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                                request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, android.webkit.URLUtil.guessFileName(dlUrl, contentDisposition, mimetype));
+                                android.app.DownloadManager dm = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                                dm.enqueue(request);
+                            } catch (Exception e) {
+                                android.widget.Toast.makeText(MainActivity.this, "No se pudo iniciar la descarga", android.widget.Toast.LENGTH_LONG).show();
+                            }
                         });'
             ;;
           esac
