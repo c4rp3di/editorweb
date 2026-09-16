@@ -7834,7 +7834,7 @@ if (!nombreArchivo) {
     // necesita la URL ya publicada, el nombre y un icono.
     const APK_WORKFLOW_PATH = '.github/workflows/build-apk.yml';
 
-    const APK_WORKFLOW_YAML = `name: Build APK
+    const APK_WORKFLOW_YAML = String.raw`name: Build APK
 on:
   workflow_dispatch:
     inputs:
@@ -7866,7 +7866,7 @@ jobs:
         run: |
           echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
-          CMDLINE_TOOLS_BIN=$(find /usr/local/lib/android/sdk/cmdline-tools -maxdepth 3 -name sdkmanager -exec dirname {} \\; | sort -V | tail -1)
+          CMDLINE_TOOLS_BIN=$(find /usr/local/lib/android/sdk/cmdline-tools -maxdepth 3 -name sdkmanager -exec dirname {} \; | sort -V | tail -1)
           if [ -z "$CMDLINE_TOOLS_BIN" ]; then
             echo "::error::No se encontró sdkmanager bajo /usr/local/lib/android/sdk/cmdline-tools"
             exit 1
@@ -7900,10 +7900,10 @@ jobs:
           PERMS_JAVA_LIST=""
           add_perm() {
             PERMS_XML="$PERMS_XML
-                        <uses-permission android:name=\\"$1\\" />"
+                        <uses-permission android:name=\"$1\" />"
             if [ "$2" = "runtime" ]; then
               if [ -n "$PERMS_JAVA_LIST" ]; then PERMS_JAVA_LIST="$PERMS_JAVA_LIST, "; fi
-              PERMS_JAVA_LIST="$PERMS_JAVA_LIST\\"$1\\""
+              PERMS_JAVA_LIST="$PERMS_JAVA_LIST\"$1\""
             fi
           }
           case ",$APP_PERMISOS," in *,camara,*) add_perm "android.permission.CAMERA" runtime ;; esac
@@ -8060,7 +8060,7 @@ jobs:
                     }
                     GEOF
 
-          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/\\&amp;/g; s/</\\&lt;/g; s/>/\\&gt;/g')
+          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
 
           cat > android-app/app/src/main/res/values/strings.xml <<'          GEOF'
                     <resources>
@@ -8097,9 +8097,9 @@ jobs:
               # Quita la sangría de 10 espacios que exige el bloque YAML pero que no
               # pertenece al contenido real del archivo (imprescindible para XML: la
               # declaración <?xml ...?> debe ser literalmente el primer carácter).
-              lineas = contenido.split('\\n')
+              lineas = contenido.split('\n')
               lineas = [l[len(PREFIJO):] if l.startswith(PREFIJO) else l for l in lineas]
-              contenido = '\\n'.join(lineas)
+              contenido = '\n'.join(lineas)
               with open(ruta, 'w', encoding='utf-8') as f:
                   f.write(contenido)
           print("Sustitución completada")
@@ -8117,7 +8117,7 @@ jobs:
           TAG="apk-$(date +%s)"
           APK_PATH=$(find android-app -name "*.apk" | head -n1)
           gh release create "$TAG" "$APK_PATH" --title "APK $TAG" --notes "Generado automáticamente por el editor"
-`;
+`.replace(/\\\$\{\{/g, '${{');
 
     async function contentsApiGitHub(cfg, ruta, opciones) {
         const headers = Object.assign({
