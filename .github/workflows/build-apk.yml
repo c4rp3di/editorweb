@@ -26,9 +26,21 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Instalar plataforma y build-tools
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+      - name: Configurar SDK de Android
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          CMDLINE_TOOLS_BIN=$(find /usr/local/lib/android/sdk/cmdline-tools -maxdepth 3 -name sdkmanager -exec dirname {} \; | sort -V | tail -1)
+          if [ -z "$CMDLINE_TOOLS_BIN" ]; then
+            echo "::error::No se encontró sdkmanager bajo /usr/local/lib/android/sdk/cmdline-tools"
+            exit 1
+          fi
+          echo "SDK cmdline-tools encontrado en: $CMDLINE_TOOLS_BIN"
+          echo "$CMDLINE_TOOLS_BIN" >> "$GITHUB_PATH"
+      - name: Aceptar licencias e instalar plataforma y build-tools
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
       - name: Generar proyecto Android
         env:
           APP_NAME: ${{ github.event.inputs.app_name }}
@@ -52,10 +64,10 @@ jobs:
           PERMS_JAVA_LIST=""
           add_perm() {
             PERMS_XML="$PERMS_XML
-                        <uses-permission android:name="$1" />"
+                        <uses-permission android:name=\"$1\" />"
             if [ "$2" = "runtime" ]; then
               if [ -n "$PERMS_JAVA_LIST" ]; then PERMS_JAVA_LIST="$PERMS_JAVA_LIST, "; fi
-              PERMS_JAVA_LIST="$PERMS_JAVA_LIST"$1""
+              PERMS_JAVA_LIST="$PERMS_JAVA_LIST\"$1\""
             fi
           }
           case ",$APP_PERMISOS," in *,camara,*) add_perm "android.permission.CAMERA" runtime ;; esac
@@ -70,9 +82,7 @@ jobs:
 
           DOWNLOAD_CODE=""
           case ",$APP_PERMISOS," in *,almacenamiento,*)
-            add_perm "android.permission.READ_EXTERNAL_STORAGE" runtime
-            add_perm "android.permission.WRITE_EXTERNAL_STORAGE" runtime
-            add_perm "android.permission.FOREGROUND_SERVICE"
+            add_perm "android.permission.WRITE_EXTERNAL_STORAGE"
             DOWNLOAD_CODE='
                         webView.setDownloadListener((dlUrl, userAgent, contentDisposition, mimetype, contentLength) -> {
                             android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(dlUrl));
@@ -113,29 +123,11 @@ jobs:
                     apply plugin: 'com.android.application'
                     android {
                         namespace '__APP_PACKAGE__'
-                        compileSdk 35
+                        compileSdk 34
                         defaultConfig {
                             applicationId '__APP_PACKAGE__'
                             minSdk 23
-                            targetSdk 35
-                            versionCode 1
-                            versionName "1.0"
-                        }
-                        compileOptions {
-                            sourceCompatibility JavaVersion.VERSION_1_8
-                            targetCompatibility JavaVersion.VERSION_1_8
-                        }
-                    }
-                    dependencies {
-                        implementation 'androidx.core:core-ktx:1.12.0'
-                    }                        compileOptions {
-                            sourceCompatibility JavaVersion.VERSION_1_8
-                            targetCompatibility JavaVersion.VERSION_1_8
-                        }
-                    }
-                    dependencies {
-                        implementation 'androidx.core:core-ktx:1.12.0'
-                    }
+                            targetSdk 34
                             versionCode 1
                             versionName "1.0"
                         }
@@ -145,18 +137,14 @@ jobs:
           cat > android-app/app/src/main/AndroidManifest.xml <<'          GEOF'
                     <?xml version="1.0" encoding="utf-8"?>
                     <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-                        <uses-permission android:name="android.permission.INTERNET" />
-                        <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />__PERMS_XML__
+                        <uses-permission android:name="android.permission.INTERNET" />__PERMS_XML__
                         <application
                             android:label="@string/app_name"
                             android:icon="@mipmap/ic_launcher"
-                            android:roundIcon="@mipmap/ic_launcher_round"
-                            android:usesCleartextTraffic="true"
-                            android:requestLegacyExternalStorage="true">
+                            android:roundIcon="@mipmap/ic_launcher_round">
                             <activity android:name=".MainActivity"
                                 android:exported="true"
-                                android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-                                android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|uiMode">
+                                android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
                                 <intent-filter>
                                     <action android:name="android.intent.action.MAIN" />
                                     <category android:name="android.intent.category.LAUNCHER" />
@@ -236,7 +224,7 @@ jobs:
                     }
                     GEOF
 
-          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/&amp;/g; s/</&lt;/g; s/>/&gt;/g')
+          NOMBRE_ESCAPADO=$(printf '%s' "$APP_NAME" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
 
           cat > android-app/app/src/main/res/values/strings.xml <<'          GEOF'
                     <resources>
@@ -273,11 +261,9 @@ jobs:
               # Quita la sangría de 10 espacios que exige el bloque YAML pero que no
               # pertenece al contenido real del archivo (imprescindible para XML: la
               # declaración <?xml ...?> debe ser literalmente el primer carácter).
-              lineas = contenido.split('
-')
+              lineas = contenido.split('\n')
               lineas = [l[len(PREFIJO):] if l.startswith(PREFIJO) else l for l in lineas]
-              contenido = '
-'.join(lineas)
+              contenido = '\n'.join(lineas)
               with open(ruta, 'w', encoding='utf-8') as f:
                   f.write(contenido)
           print("Sustitución completada")
