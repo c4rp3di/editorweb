@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test de permisos — EditorWeb</title>
+<style>
+  :root{color-scheme: dark;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#14141c;color:#e8e8f0;padding:16px;}
+  h1{font-size:1.2rem;margin:0 0 4px;}
+  .sub{color:#9a9ab0;font-size:0.85rem;margin-bottom:18px;}
+  .card{background:#1e1e2a;border:1px solid #2c2c3a;border-radius:10px;padding:14px;margin-bottom:10px;}
+  .card h2{font-size:0.95rem;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .card p{font-size:0.8rem;color:#a0a0b8;margin:2px 0 10px;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  button{background:#3a3af0;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:0.85rem;cursor:pointer;}
+  button.sec{background:#2c2c3a;}
+  button.warn{background:#a33;}
+  button:active{opacity:0.8;}
+  .estado{font-size:0.8rem;padding:3px 9px;border-radius:20px;font-weight:600;}
+  .ok{background:#123;color:#6f6;background:#173a1e;}
+  .fail{background:#3a1717;color:#f77;}
+  .pend{background:#2c2c3a;color:#9a9ab0;}
+  .detalle{font-size:0.72rem;color:#7a7a90;margin-top:6px;word-break:break-all;white-space:pre-wrap;}
+  .warnbox{background:#3a2a10;border:1px solid #6a4a10;border-radius:8px;padding:10px;font-size:0.78rem;color:#f0c070;margin-bottom:10px;}
+  textarea{width:100%;min-height:180px;background:#0f0f16;color:#cfcfe0;border:1px solid #2c2c3a;border-radius:8px;font-size:0.72rem;font-family:monospace;padding:10px;margin-top:8px;}
+  .toolbar{position:sticky;top:0;background:#14141c;padding-bottom:10px;z-index:10;}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>🧪 Test de permisos nativos</h1>
+  <div class="sub">Pruébalo dentro del APK instalado (no en un navegador normal) para ver el comportamiento real.</div>
+  <div class="row">
+    <button id="btnTodas">▶️ Ejecutar pruebas seguras</button>
+    <button class="sec" id="btnCopiar">📋 Copiar informe</button>
+  </div>
+</div>
+
+<div id="lista"></div>
+
+<div class="card">
+  <h2>⬇️ Descarga (blob) <span id="est-descarga" class="estado pend">pendiente</span></h2>
+  <div class="warnbox">⚠️ Si tu APK todavía no tiene el parche del crash de "almacenamiento", esto puede cerrar la app. Es intencional: así confirmas si el parche ya está aplicado.</div>
+  <button class="warn" id="btn-descarga">Probar descarga blob</button>
+  <div class="detalle" id="det-descarga"></div>
+</div>
+
+<div class="card">
+  <h2>📄 Informe</h2>
+  <p>Copia este texto y pégalo donde lo necesites.</p>
+  <textarea id="informe" readonly></textarea>
+</div>
+
+<script>
+const resultados = {};
+
+const pruebas = [
+  { id: 'info', nombre: '📱 Información del dispositivo', desc: 'User agent y plataforma', fn: pruebaInfo },
+  { id: 'camara', nombre: '📷 Cámara', desc: 'getUserMedia video', fn: () => pruebaMedia('camara', {video:true}) },
+  { id: 'microfono', nombre: '🎙️ Micrófono', desc: 'getUserMedia audio', fn: () => pruebaMedia('microfono', {audio:true}) },
+  { id: 'ubicacion', nombre: '📍 Ubicación', desc: 'navigator.geolocation', fn: pruebaUbicacion },
+  { id: 'vibracion', nombre: '📳 Vibración', desc: 'navigator.vibrate', fn: pruebaVibracion },
+  { id: 'notificaciones', nombre: '🔔 Notificaciones', desc: 'Notification API', fn: pruebaNotificaciones },
+  { id: 'compartir', nombre: '📤 Compartir', desc: 'navigator.share', fn: pruebaCompartir },
+  { id: 'portapapeles', nombre: '📋 Portapapeles', desc: 'navigator.clipboard', fn: pruebaPortapapeles },
+  { id: 'archivo', nombre: '📁 Selector de archivo', desc: 'input[type=file] — comprueba que existe la API, no dispara el picker automáticamente', fn: pruebaArchivo },
+  { id: 'sensores', nombre: '📈 Sensores de movimiento', desc: 'DeviceMotionEvent', fn: pruebaSensores },
+];
+
+const lista = document.getElementById('lista');
+pruebas.forEach(p => {
+  const div = document.createElement('div');
+  div.className = 'card';
+  div.innerHTML = `
+    <h2>${p.nombre} <span class="estado pend" id="est-${p.id}">pendiente</span></h2>
+    <p>${p.desc}</p>
+    <button class="sec" id="btn-${p.id}">Probar</button>
+    <div class="detalle" id="det-${p.id}"></div>
+  `;
+  lista.appendChild(div);
+  document.getElementById(`btn-${p.id}`).addEventListener('click', () => ejecutar(p));
+});
+
+function marcar(id, ok, mensaje) {
+  const est = document.getElementById(`est-${id}`);
+  const det = document.getElementById(`det-${id}`);
+  est.textContent = ok ? '✅ OK' : '❌ Falla';
+  est.className = 'estado ' + (ok ? 'ok' : 'fail');
+  det.textContent = mensaje || '';
+  resultados[id] = { ok, mensaje: mensaje || '' };
+  actualizarInforme();
+}
+
+async function ejecutar(p) {
+  document.getElementById(`est-${p.id}`).textContent = '⏳ probando…';
+  document.getElementById(`est-${p.id}`).className = 'estado pend';
+  try {
+    await p.fn();
+  } catch (e) {
+    marcar(p.id, false, 'Excepción JS: ' + (e && e.message ? e.message : String(e)));
+  }
+}
+
+function pruebaInfo() {
+  const info = `UA: ${navigator.userAgent}\nPlataforma: ${navigator.platform || 'n/d'}\nIdioma: ${navigator.language}\nPantalla: ${screen.width}x${screen.height}`;
+  marcar('info', true, info);
+}
+
+function pruebaMedia(id, constraints) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    marcar(id, false, 'getUserMedia no existe en este contexto');
+    return;
+  }
+  return navigator.mediaDevices.getUserMedia(constraints).then(stream => {
+    stream.getTracks().forEach(t => t.stop());
+    marcar(id, true, 'Permiso concedido y stream obtenido correctamente');
+  }).catch(e => {
+    marcar(id, false, `${e.name}: ${e.message}`);
+  });
+}
+
+function pruebaUbicacion() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      marcar('ubicacion', false, 'navigator.geolocation no existe');
+      resolve();
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => { marcar('ubicacion', true, `lat: ${pos.coords.latitude.toFixed(4)}, lon: ${pos.coords.longitude.toFixed(4)}`); resolve(); },
+      err => { marcar('ubicacion', false, `Código ${err.code}: ${err.message}`); resolve(); },
+      { timeout: 8000 }
+    );
+  });
+}
+
+function pruebaVibracion() {
+  if (!navigator.vibrate) {
+    marcar('vibracion', false, 'navigator.vibrate no existe en este contexto');
+    return;
+  }
+  const ok = navigator.vibrate(200);
+  marcar('vibracion', !!ok, ok ? 'Llamada aceptada (si no notaste vibración, revisa el permiso VIBRATE en el manifiesto)' : 'El navegador rechazó la llamada');
+}
+
+function pruebaNotificaciones() {
+  if (!('Notification' in window)) {
+    marcar('notificaciones', false, 'Notification API no existe en este contexto (frecuente dentro de WebView)');
+    return;
+  }
+  return Notification.requestPermission().then(perm => {
+    if (perm === 'granted') {
+      try {
+        new Notification('Prueba EditorWeb', { body: 'Si ves esto, las notificaciones funcionan' });
+        marcar('notificaciones', true, 'Permiso concedido y notificación disparada');
+      } catch (e) {
+        marcar('notificaciones', false, 'Permiso concedido pero falló al crear la notificación: ' + e.message);
+      }
+    } else {
+      marcar('notificaciones', false, 'Permiso: ' + perm);
+    }
+  });
+}
+
+function pruebaCompartir() {
+  if (!navigator.share) {
+    marcar('compartir', false, 'navigator.share no existe en este contexto');
+    return;
+  }
+  return navigator.share({ title: 'Prueba', text: 'Compartido desde el test de EditorWeb' })
+    .then(() => marcar('compartir', true, 'Diálogo de compartir completado'))
+    .catch(e => marcar('compartir', false, `${e.name}: ${e.message} (cancelar cuenta como fallo aquí)`));
+}
+
+function pruebaPortapapeles() {
+  if (!navigator.clipboard || !navigator.clipboard.writeText) {
+    marcar('portapapeles', false, 'navigator.clipboard no existe en este contexto');
+    return;
+  }
+  return navigator.clipboard.writeText('Prueba EditorWeb ' + Date.now())
+    .then(() => marcar('portapapeles', true, 'Texto copiado correctamente'))
+    .catch(e => marcar('portapapeles', false, e.message));
+}
+
+function pruebaArchivo() {
+  const soportado = 'File' in window && 'FileReader' in window;
+  const input = document.createElement('input');
+  const tipoOk = 'type' in input;
+  marcar('archivo', soportado && tipoOk, soportado ? 'API de archivos disponible (el picker real depende de onShowFileChooser en el WebView)' : 'API de archivos no disponible');
+}
+
+function pruebaSensores() {
+  return new Promise(resolve => {
+    if (!('DeviceMotionEvent' in window)) {
+      marcar('sensores', false, 'DeviceMotionEvent no existe en este contexto');
+      resolve();
+      return;
+    }
+    let recibido = false;
+    const handler = (e) => {
+      recibido = true;
+      window.removeEventListener('devicemotion', handler);
+      marcar('sensores', true, `Datos recibidos: x=${e.acceleration?.x?.toFixed?.(2)} y=${e.acceleration?.y?.toFixed?.(2)} z=${e.acceleration?.z?.toFixed?.(2)}`);
+      resolve();
+    };
+    window.addEventListener('devicemotion', handler);
+    setTimeout(() => {
+      if (!recibido) {
+        window.removeEventListener('devicemotion', handler);
+        marcar('sensores', false, 'No llegó ningún evento devicemotion en 3s (¿permiso BODY_SENSORS ausente o sensor no disponible?)');
+        resolve();
+      }
+    }, 3000);
+  });
+}
+
+// Prueba de descarga — separada y con advertencia, ver texto en la tarjeta
+document.getElementById('btn-descarga').addEventListener('click', () => {
+  try {
+    const contenido = 'Prueba de descarga generada por EditorWeb test-permisos.html\n' + new Date().toISOString();
+    const blob = new Blob([contenido], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'prueba-editorweb.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    document.getElementById('est-descarga').textContent = '✅ Disparada';
+    document.getElementById('est-descarga').className = 'estado ok';
+    document.getElementById('det-descarga').textContent = 'Si la app no se cerró y ves la notificación de descarga, el parche funciona.';
+  } catch (e) {
+    document.getElementById('est-descarga').textContent = '❌ Falla';
+    document.getElementById('est-descarga').className = 'estado fail';
+    document.getElementById('det-descarga').textContent = e.message;
+  }
+});
+
+document.getElementById('btnTodas').addEventListener('click', async () => {
+  for (const p of pruebas) {
+    await ejecutar(p);
+  }
+});
+
+document.getElementById('btnCopiar').addEventListener('click', () => {
+  actualizarInforme();
+  const texto = document.getElementById('informe').value;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(texto).catch(() => {});
+  }
+  const btn = document.getElementById('btnCopiar');
+  const original = btn.textContent;
+  btn.textContent = '✅ Copiado';
+  setTimeout(() => { btn.textContent = original; }, 1500);
+});
+
+function actualizarInforme() {
+  const lineas = [`Informe de permisos — ${new Date().toLocaleString()}`, ''];
+  pruebas.forEach(p => {
+    const r = resultados[p.id];
+    const estado = !r ? '⏳ no ejecutada' : (r.ok ? '✅ OK' : '❌ FALLA');
+    lineas.push(`${p.nombre}: ${estado}`);
+    if (r && r.mensaje) lineas.push(`   ${r.mensaje}`);
+  });
+  document.getElementById('informe').value = lineas.join('\n');
+}
+
+actualizarInforme();
+</script>
+</body>
+</html>
