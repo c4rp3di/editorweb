@@ -206,42 +206,45 @@
                 android:layout_marginTop="12dp" />
         </LinearLayout>
 
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fabCarpeta"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_margin="16dp"
-            android:src="@android:drawable/ic_menu_gallery"
-            android:contentDescription="Elegir carpeta"
-            app:backgroundTint="@color/primario"
-            app:tint="@android:color/white" />
+<LinearLayout
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="bottom|end"
+    android:layout_margin="16dp"
+    android:orientation="vertical"
+    android:gravity="end">
 
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fabCrear"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_margin="16dp"
-            android:layout_marginBottom="88dp"
-            android:src="@android:drawable/ic_input_add"
-            android:contentDescription="Crear"
-            app:backgroundTint="@color/acento"
-            app:tint="@android:color/white"
-            app:fabSize="mini" />
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabPegar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:src="@android:drawable/ic_menu_add"
+        android:contentDescription="Pegar aquí"
+        app:backgroundTint="#F39C12"
+        app:tint="@android:color/white"
+        app:fabSize="mini"
+        android:visibility="gone" />
 
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fabPegar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_margin="16dp"
-            android:layout_marginBottom="136dp"
-            android:src="@android:drawable/ic_menu_add"
-            android:contentDescription="Pegar aquí"
-            app:backgroundTint="#F39C12"
-            app:tint="@android:color/white"
-            app:fabSize="mini"
-            android:visibility="gone" />
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabCrear"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:src="@android:drawable/ic_input_add"
+        android:contentDescription="Crear"
+        app:backgroundTint="@color/acento"
+        app:tint="@android:color/white"
+        app:fabSize="mini" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabCarpeta"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@android:drawable/ic_menu_gallery"
+        android:contentDescription="Elegir carpeta"
+        app:backgroundTint="@color/primario"
+        app:tint="@android:color/white" />
+</LinearLayout>
     </FrameLayout>
 </LinearLayout>
