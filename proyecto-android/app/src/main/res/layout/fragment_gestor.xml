@@ -176,7 +176,7 @@
             android:layout_height="match_parent"
             android:clipToPadding="false"
             android:paddingTop="6dp"
-            android:paddingBottom="90dp"
+            android:paddingBottom="180dp"
             android:scrollbars="vertical" />
 
         <LinearLayout
