@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/accionAbrir" android:title="Abrir" />
+    <item android:id="@+id/accionEditar" android:title="Editar texto" />
+    <item android:id="@+id/accionRenombrar" android:title="Renombrar" />
+    <item android:id="@+id/accionMover" android:title="Mover a…" />
+    <item android:id="@+id/accionCopiar" android:title="Copiar a…" />
+    <item android:id="@+id/accionCompartir" android:title="Compartir" />
+    <item android:id="@+id/accionInfo" android:title="Información" />
+    <item android:id="@+id/accionBorrar" android:title="Borrar" />
+</menu>
