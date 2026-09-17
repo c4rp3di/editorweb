@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'com.ejemplo.text'
+    namespace 'com.ejemplo.prueba'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.ejemplo.text"
+        applicationId "com.ejemplo.prueba"
         minSdk 24
         targetSdk 34
         versionCode 1
