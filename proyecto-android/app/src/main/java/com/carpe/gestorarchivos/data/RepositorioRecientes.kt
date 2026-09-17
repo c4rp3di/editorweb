@@ -1,18 +1,18 @@
-package com.carpe.gestorarchivos.data
+package com.tunombre.gestorarchivos.data
 
 import android.content.Context
-import android.net.Uri
+import java.io.File
 
 class RepositorioRecientes(context: Context) {
 
     private val prefs = context.getSharedPreferences("gestor_prefs", Context.MODE_PRIVATE)
 
-    fun guardarUltimaCarpeta(uri: Uri) {
-        prefs.edit().putString("ultima_carpeta", uri.toString()).apply()
+    fun guardarUltimaCarpeta(carpeta: File) {
+        prefs.edit().putString("ultima_carpeta", carpeta.absolutePath).apply()
     }
 
-    fun leerUltimaCarpeta(): Uri? {
-        val s = prefs.getString("ultima_carpeta", null) ?: return null
-        return runCatching { Uri.parse(s) }.getOrNull()
+    fun leerUltimaCarpeta(): File? {
+        val ruta = prefs.getString("ultima_carpeta", null) ?: return null
+        return runCatching { File(ruta) }.getOrNull()
     }
 }
