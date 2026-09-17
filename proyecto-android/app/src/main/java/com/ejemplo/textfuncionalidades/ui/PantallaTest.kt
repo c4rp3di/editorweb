@@ -53,7 +53,7 @@ class PantallaTest : Fragment() {
             "Probar abrir enlace"         to { probarAbrirEnlace() },
             "Probar notificación"         to { probarNotificacion() },
             "Probar base de datos"        to { probarBaseDatos() },
-            "Probar preferencias (helper)"to { probarPreferenciasHelper() },
+            "Probar preferencias (helper)" to { probarPreferenciasHelper() },
             "Probar menú lateral"         to { probarMenuLateral() },
             "Probar ubicación"            to { probarUbicacion() },
             "Probar cámara"               to { probarCamara() },
