@@ -20,7 +20,8 @@ class MainActivity : AppCompatActivity() {
         // [ONCREATE:FUNCIONALIDADES]
         setContentView(R.layout.activity_main)
                 if (savedInstanceState == null) mostrarPantalla(PantallaEjemplo())
-                vibrar(500)
+                android.widget.Toast.makeText(this, "¡Ejecutando vibrar!", android.widget.Toast.LENGTH_LONG).show()
+vibrar(2000)
 // [ONCREATE_FIN:FUNCIONALIDADES]
     }
 
