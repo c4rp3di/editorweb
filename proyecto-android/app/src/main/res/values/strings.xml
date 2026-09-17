@@ -1,3 +1,7 @@
 <resources>
-    <string name="app_name">Textfuncionalidades</string>
+    <string name="app_name">Gestor de Archivos</string>
+    <string name="seleccionados">%d seleccionados</string>
+    <string name="sin_carpeta">Sin carpeta</string>
+    <string name="carpeta_vacia">Esta carpeta está vacía</string>
+    <string name="elige_carpeta">Toca «Elegir carpeta» para empezar</string>
 </resources>
