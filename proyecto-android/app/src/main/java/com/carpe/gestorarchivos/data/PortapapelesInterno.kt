@@ -1,28 +1,28 @@
-package com.carpe.gestorarchivos.data
+package com.tunombre.gestorarchivos.data
 
-import android.net.Uri
+import java.io.File
 
 object PortapapelesInterno {
     enum class Modo { MOVER, COPIAR }
 
     var modo: Modo? = null
         private set
-    var uris: List<Uri> = emptyList()
+    var archivos: List<File> = emptyList()
         private set
     var descripcion: String = ""
         private set
 
-    fun establecer(modo: Modo, uris: List<Uri>, descripcion: String) {
+    fun establecer(modo: Modo, archivos: List<File>, descripcion: String) {
         this.modo = modo
-        this.uris = uris
+        this.archivos = archivos
         this.descripcion = descripcion
     }
 
     fun vaciar() {
         modo = null
-        uris = emptyList()
+        archivos = emptyList()
         descripcion = ""
     }
 
-    val hayContenido: Boolean get() = uris.isNotEmpty()
+    val hayContenido: Boolean get() = archivos.isNotEmpty()
 }
