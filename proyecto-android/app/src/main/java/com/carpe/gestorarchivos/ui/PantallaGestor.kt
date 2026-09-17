@@ -1,8 +1,11 @@
-package com.carpe.gestorarchivos.ui
+package com.tunombre.gestorarchivos.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,28 +14,28 @@ import android.widget.ImageView
 import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.FileProvider
 import androidx.core.widget.doAfterTextChanged
-import androidx.documentfile.provider.DocumentFile
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.carpe.gestorarchivos.R
-import com.carpe.gestorarchivos.data.AdaptadorArchivos
-import com.carpe.gestorarchivos.data.ArchivoItem
-import com.carpe.gestorarchivos.data.GestorArchivos
-import com.carpe.gestorarchivos.data.PortapapelesInterno
-import com.carpe.gestorarchivos.data.RepositorioFavoritos
-import com.carpe.gestorarchivos.data.RepositorioRecientes
+import com.tunombre.gestorarchivos.R
+import com.tunombre.gestorarchivos.data.AdaptadorArchivos
+import com.tunombre.gestorarchivos.data.ArchivoItem
+import com.tunombre.gestorarchivos.data.GestorArchivos
+import com.tunombre.gestorarchivos.data.PortapapelesInterno
+import com.tunombre.gestorarchivos.data.RepositorioFavoritos
+import com.tunombre.gestorarchivos.data.RepositorioRecientes
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 class PantallaGestor : Fragment() {
 
-    private var carpetaActual: DocumentFile? = null
+    private var carpetaActual: File? = null
     private lateinit var adaptador: AdaptadorArchivos
     private lateinit var recycler: RecyclerView
     private lateinit var textoRuta: TextView
@@ -57,16 +60,8 @@ class PantallaGestor : Fragment() {
     private var busquedaRecursiva = false
     private var todosLosItems: List<ArchivoItem> = emptyList()
 
-    private var pendienteMover: DocumentFile? = null
-    private var pendienteCopiar: DocumentFile? = null
-
-    private val lanzadorCarpeta = registerForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri -> uri?.let { abrirCarpetaDesdeUri(it, persistir = true) } }
-
-    private val lanzadorElegirDestino = registerForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri -> uri?.let { manejarDestinoElegido(it) } }
+    private var pendienteMover: File? = null
+    private var pendienteCopiar: File? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, contenedor: ViewGroup?, estado: Bundle?
@@ -101,7 +96,7 @@ class PantallaGestor : Fragment() {
         vista.findViewById<View>(R.id.botonOrdenar).setOnClickListener { mostrarMenuOrden() }
         botonFavoritos.setOnClickListener { mostrarMenuFavoritos() }
         vista.findViewById<FloatingActionButton>(R.id.fabCarpeta).setOnClickListener {
-            lanzadorCarpeta.launch(null)
+            abrirAjustesPermisoOInicio()
         }
         vista.findViewById<FloatingActionButton>(R.id.fabCrear).setOnClickListener {
             mostrarMenuCrear()
@@ -130,17 +125,43 @@ class PantallaGestor : Fragment() {
 
         configurarBarraSeleccion(vista)
 
-        val ultima = repositorio.leerUltimaCarpeta()
-        if (ultima != null) {
-            try {
-                val tree = DocumentFile.fromTreeUri(requireContext(), ultima)
-                if (tree != null && tree.exists() && tree.canRead()) carpetaActual = tree
-            } catch (_: Exception) {}
+        // Arrancar en la raíz del almacenamiento interno
+        if (tienePermisoArchivos()) {
+            val raiz = Environment.getExternalStorageDirectory()
+            val ultima = repositorio.leerUltimaCarpeta()
+            val inicio = if (ultima != null && ultima.exists() && ultima.canRead()) ultima else raiz
+            carpetaActual = inicio
+        } else {
+            carpetaActual = null
         }
         refrescar()
         actualizarEstadoFabPegar()
         actualizarIconoFavorito()
         return vista
+    }
+
+    private fun tienePermisoArchivos(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else true
+    }
+
+    private fun abrirAjustesPermisoOInicio() {
+        if (tienePermisoArchivos()) {
+            val raiz = Environment.getExternalStorageDirectory()
+            carpetaActual = raiz
+            entradaBusqueda.setText("")
+            refrescar()
+            actualizarIconoFavorito()
+            return
+        }
+        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+        intent.data = Uri.parse("package:" + requireContext().packageName)
+        try {
+            startActivity(intent)
+        } catch (_: Exception) {
+            startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+        }
     }
 
     private fun configurarBarraSeleccion(vista: View) {
@@ -169,31 +190,19 @@ class PantallaGestor : Fragment() {
         }
     }
 
-    private fun abrirCarpetaDesdeUri(uri: Uri, persistir: Boolean) {
-        if (persistir) {
-            requireContext().contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-            repositorio.guardarUltimaCarpeta(uri)
-        }
-        carpetaActual = DocumentFile.fromTreeUri(requireContext(), uri)
-        entradaBusqueda.setText("")
-        refrescar()
-        actualizarIconoFavorito()
-    }
-
     private fun abrirItem(item: ArchivoItem) {
-        val doc = DocumentFile.fromSingleUri(requireContext(), item.uri) ?: return
-        if (doc.isDirectory) {
-            carpetaActual = doc
+        if (item.esCarpeta) {
+            carpetaActual = item.archivo
             entradaBusqueda.setText("")
             refrescar()
             actualizarIconoFavorito()
             return
         }
-        if (esTexto(doc)) { abrirEditorTexto(doc); return }
-        abrirConAppExterna(doc)
+        if (esTexto(item)) {
+            abrirEditorTexto(item.archivo)
+            return
+        }
+        abrirConAppExterna(item.archivo)
     }
 
     private fun subirNivel() {
@@ -208,19 +217,29 @@ class PantallaGestor : Fragment() {
     }
 
     private fun refrescar() {
+        if (!tienePermisoArchivos()) {
+            todosLosItems = emptyList()
+            adaptador.actualizar(emptyList())
+            textoRuta.text = "Sin permiso de archivos"
+            estadoVacio.visibility = View.VISIBLE
+            iconoVacio.text = "🔒"
+            textoVacio.text = "Toca el botón morado para conceder acceso a los archivos"
+            return
+        }
         val carpeta = carpetaActual
         if (carpeta == null || !carpeta.exists() || !carpeta.canRead()) {
             todosLosItems = emptyList()
             adaptador.actualizar(emptyList())
-            textoRuta.text = getString(R.string.sin_carpeta)
+            textoRuta.text = "Sin carpeta"
             estadoVacio.visibility = View.VISIBLE
             iconoVacio.text = "📂"
-            textoVacio.text = getString(R.string.elige_carpeta)
+            textoVacio.text = "No se puede acceder a esta carpeta"
             return
         }
         todosLosItems = GestorArchivos.listar(carpeta)
         aplicarFiltro()
-        textoRuta.text = "📂 " + rutaLegible(carpeta)
+        textoRuta.text = "📂 " + carpeta.absolutePath
+        repositorio.guardarUltimaCarpeta(carpeta)
     }
 
     private fun aplicarFiltro() {
@@ -234,54 +253,40 @@ class PantallaGestor : Fragment() {
         val ordenados = ordenar(base)
         adaptador.actualizar(ordenados)
 
-        val vacioReal = carpetaActual == null
+        val vacioReal = carpetaActual == null || !tienePermisoArchivos()
         estadoVacio.visibility = if (ordenados.isEmpty()) View.VISIBLE else View.GONE
         iconoVacio.text = when {
+            !tienePermisoArchivos() -> "🔒"
             vacioReal -> "📂"
             busqueda.isNotEmpty() -> "🔍"
             else -> "📁"
         }
         textoVacio.text = when {
-            vacioReal -> getString(R.string.elige_carpeta)
+            !tienePermisoArchivos() -> "Toca el botón morado para conceder acceso a los archivos"
+            vacioReal -> "No hay carpeta seleccionada"
             busqueda.isNotEmpty() -> "Sin resultados para «$busqueda»"
             else -> getString(R.string.carpeta_vacia)
         }
     }
 
-    private fun buscarRecursivo(carpeta: DocumentFile?, termino: String): List<ArchivoItem> {
+    private fun buscarRecursivo(carpeta: File?, termino: String): List<ArchivoItem> {
         if (carpeta == null) return emptyList()
         val resultados = mutableListOf<ArchivoItem>()
-        val cola = ArrayDeque<DocumentFile>()
+        val cola = ArrayDeque<File>()
         cola.add(carpeta)
         var iteraciones = 0
         val maxIteraciones = 5000
         while (cola.isNotEmpty() && iteraciones < maxIteraciones) {
             val actual = cola.removeFirst()
             iteraciones++
-            actual.listFiles().forEach { doc ->
-                if (doc.isDirectory) cola.add(doc)
-                val nombre = doc.name ?: return@forEach
-                if (nombre.contains(termino, ignoreCase = true)) {
-                    resultados.add(
-                        ArchivoItem(
-                            nombre = nombre,
-                            esCarpeta = doc.isDirectory,
-                            uri = doc.uri,
-                            tamano = if (doc.isFile) doc.length() else 0,
-                            mime = doc.type,
-                            ultimaModificacion = doc.lastModified()
-                        )
-                    )
+            actual.listFiles()?.forEach { hijo ->
+                if (hijo.isDirectory) cola.add(hijo)
+                if (hijo.name.contains(termino, ignoreCase = true)) {
+                    resultados.add(ArchivoItem.desde(hijo))
                 }
             }
         }
         return resultados
-    }
-
-    private fun rutaLegible(doc: DocumentFile): String {
-        val nombre = doc.name ?: "(raíz)"
-        val padre = doc.parentFile?.name
-        return if (padre.isNullOrEmpty()) nombre else "$padre / $nombre"
     }
 
     private fun ordenar(items: List<ArchivoItem>): List<ArchivoItem> {
@@ -330,7 +335,7 @@ class PantallaGestor : Fragment() {
 
     private fun mostrarMenuCrear() {
         val carpeta = carpetaActual ?: run {
-            Toast.makeText(requireContext(), "Elige una carpeta primero", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "No hay carpeta seleccionada", Toast.LENGTH_SHORT).show()
             return
         }
         val opciones = arrayOf("📁 Nueva carpeta", "📝 Nuevo archivo de texto")
@@ -346,7 +351,7 @@ class PantallaGestor : Fragment() {
                 } else {
                     pedirNombre("Nuevo archivo", "archivo.txt") { nombre ->
                         val nombreFinal = if (nombre.contains(".")) nombre else "$nombre.txt"
-                        val nuevo = GestorArchivos.crearArchivo(carpeta, nombreFinal, "text/plain")
+                        val nuevo = GestorArchivos.crearArchivo(carpeta, nombreFinal)
                         if (nuevo == null) {
                             Toast.makeText(requireContext(), "Ya existe o no se pudo crear", Toast.LENGTH_SHORT).show()
                         } else {
@@ -360,32 +365,35 @@ class PantallaGestor : Fragment() {
     }
 
     private fun mostrarMenuContextual(item: ArchivoItem, ancla: View) {
-        val doc = DocumentFile.fromSingleUri(requireContext(), item.uri) ?: return
         val menu = PopupMenu(requireContext(), ancla)
         menu.inflate(R.menu.menu_contextual_archivo)
 
-        if (!esTexto(doc)) menu.menu.findItem(R.id.accionEditar).isVisible = false
-        if (doc.isDirectory) menu.menu.findItem(R.id.accionAbrir).isVisible = false
+        if (!esTexto(item)) menu.menu.findItem(R.id.accionEditar).isVisible = false
+        if (item.esCarpeta) menu.menu.findItem(R.id.accionAbrir).isVisible = false
 
         menu.setOnMenuItemClickListener { m ->
             when (m.itemId) {
                 R.id.accionAbrir -> abrirItem(item)
-                R.id.accionEditar -> abrirEditorTexto(doc)
-                R.id.accionRenombrar -> pedirNombre("Renombrar", doc.name ?: "") { nuevo ->
-                    if (GestorArchivos.renombrar(doc, nuevo)) refrescar()
+                R.id.accionEditar -> abrirEditorTexto(item.archivo)
+                R.id.accionRenombrar -> pedirNombre("Renombrar", item.nombre) { nuevo ->
+                    if (GestorArchivos.renombrar(item.archivo, nuevo)) refrescar()
                     else Toast.makeText(requireContext(), "No se pudo renombrar", Toast.LENGTH_SHORT).show()
                 }
                 R.id.accionMover -> {
-                    pendienteMover = doc
-                    lanzadorElegirDestino.launch(null)
+                    pendienteMover = item.archivo
+                    Toast.makeText(requireContext(), "Navega a la carpeta destino y mantén pulsado en vacío para pegar", Toast.LENGTH_LONG).show()
+                    PortapapelesInterno.establecer(PortapapelesInterno.Modo.MOVER, listOf(item.archivo), item.nombre)
+                    actualizarEstadoFabPegar()
                 }
                 R.id.accionCopiar -> {
-                    pendienteCopiar = doc
-                    lanzadorElegirDestino.launch(null)
+                    pendienteCopiar = item.archivo
+                    Toast.makeText(requireContext(), "Navega a la carpeta destino y pulsa Pegar", Toast.LENGTH_LONG).show()
+                    PortapapelesInterno.establecer(PortapapelesInterno.Modo.COPIAR, listOf(item.archivo), item.nombre)
+                    actualizarEstadoFabPegar()
                 }
-                R.id.accionCompartir -> GestorArchivos.compartir(requireContext(), doc)
-                R.id.accionInfo -> mostrarInfo(doc)
-                R.id.accionBorrar -> confirmarBorrar(doc)
+                R.id.accionCompartir -> GestorArchivos.compartir(requireContext(), item.archivo)
+                R.id.accionInfo -> mostrarInfo(item)
+                R.id.accionBorrar -> confirmarBorrar(item)
             }
             true
         }
@@ -402,24 +410,19 @@ class PantallaGestor : Fragment() {
             .setTitle("Favoritos")
             .setItems(opciones.toTypedArray()) { _, i ->
                 if (i < favoritos.size) {
-                    val uri = favoritos[i].uri
-                    try {
-                        val tree = DocumentFile.fromTreeUri(requireContext(), uri)
-                        if (tree != null && tree.exists() && tree.canRead()) {
-                            carpetaActual = tree
-                            entradaBusqueda.setText("")
-                            refrescar()
-                            actualizarIconoFavorito()
-                        } else {
-                            Toast.makeText(requireContext(), "Ya no hay acceso a esa carpeta", Toast.LENGTH_SHORT).show()
-                        }
-                    } catch (_: Exception) {
-                        Toast.makeText(requireContext(), "Error al abrir favorito", Toast.LENGTH_SHORT).show()
+                    val ruta = favoritos[i].ruta
+                    val carpeta = File(ruta)
+                    if (carpeta.exists() && carpeta.canRead()) {
+                        carpetaActual = carpeta
+                        entradaBusqueda.setText("")
+                        refrescar()
+                        actualizarIconoFavorito()
+                    } else {
+                        Toast.makeText(requireContext(), "Ya no existe esa carpeta", Toast.LENGTH_SHORT).show()
                     }
                 } else {
                     val actual = carpetaActual ?: return@setItems
-                    val uri = actual.uri
-                    val añadido = repositorioFavoritos.alternar(uri, actual.name ?: "Carpeta")
+                    val añadido = repositorioFavoritos.alternar(actual.absolutePath, actual.name)
                     Toast.makeText(
                         requireContext(),
                         if (añadido) "Añadido a favoritos" else "Quitado de favoritos",
@@ -432,8 +435,8 @@ class PantallaGestor : Fragment() {
     }
 
     private fun actualizarIconoFavorito() {
-        val uri = carpetaActual?.uri ?: return
-        val esFav = repositorioFavoritos.esFavorito(uri)
+        val carpeta = carpetaActual ?: return
+        val esFav = repositorioFavoritos.esFavorito(carpeta.absolutePath)
         botonFavoritos.setImageResource(
             if (esFav) android.R.drawable.btn_star_big_on
             else android.R.drawable.btn_star_big_off
@@ -445,9 +448,9 @@ class PantallaGestor : Fragment() {
     }
 
     private fun iniciarOperacionLote(seleccion: List<ArchivoItem>, esMover: Boolean) {
-        val uris = seleccion.map { it.uri }
+        val archivos = seleccion.map { it.archivo }
         val modo = if (esMover) PortapapelesInterno.Modo.MOVER else PortapapelesInterno.Modo.COPIAR
-        PortapapelesInterno.establecer(modo, uris, "${seleccion.size} elemento(s)")
+        PortapapelesInterno.establecer(modo, archivos, "${seleccion.size} elemento(s)")
         Toast.makeText(
             requireContext(),
             "Navega a la carpeta destino y pulsa Pegar (${seleccion.size})",
@@ -463,13 +466,12 @@ class PantallaGestor : Fragment() {
             return
         }
         val modo = PortapapelesInterno.modo ?: return
-        val uris = PortapapelesInterno.uris
+        val archivos = PortapapelesInterno.archivos
         var ok = 0; var fail = 0
-        uris.forEach { u ->
-            val doc = DocumentFile.fromSingleUri(requireContext(), u) ?: run { fail++; return@forEach }
+        archivos.forEach { f ->
             val exito = if (modo == PortapapelesInterno.Modo.MOVER)
-                GestorArchivos.mover(requireContext(), doc, destino)
-            else GestorArchivos.copiar(requireContext(), doc, destino)
+                GestorArchivos.mover(f, destino)
+            else GestorArchivos.copiar(f, destino)
             if (exito) ok++ else fail++
         }
         Toast.makeText(
@@ -489,17 +491,28 @@ class PantallaGestor : Fragment() {
     private fun compartirLote(seleccion: List<ArchivoItem>) {
         if (seleccion.isEmpty()) return
         if (seleccion.size == 1) {
-            val doc = DocumentFile.fromSingleUri(requireContext(), seleccion[0].uri) ?: return
-            GestorArchivos.compartir(requireContext(), doc)
+            GestorArchivos.compartir(requireContext(), seleccion[0].archivo)
             return
         }
-        val uris = seleccion.map { it.uri }
-        val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-            type = "*/*"
-            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        try {
+            val uris = ArrayList<Uri>()
+            seleccion.forEach { item ->
+                val uri = FileProvider.getUriForFile(
+                    requireContext(),
+                    requireContext().packageName + ".fileprovider",
+                    item.archivo
+                )
+                uris.add(uri)
+            }
+            val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                type = "*/*"
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(intent, "Compartir ${seleccion.size} archivos"))
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "No se pudo compartir", Toast.LENGTH_SHORT).show()
         }
-        startActivity(Intent.createChooser(intent, "Compartir ${seleccion.size} archivos"))
     }
 
     private fun confirmarBorrarLote(seleccion: List<ArchivoItem>) {
@@ -509,8 +522,7 @@ class PantallaGestor : Fragment() {
             .setPositiveButton("Borrar") { _, _ ->
                 var ok = 0; var fail = 0
                 seleccion.forEach { item ->
-                    val doc = DocumentFile.fromSingleUri(requireContext(), item.uri)
-                    if (doc != null && GestorArchivos.borrar(doc)) ok++ else fail++
+                    if (GestorArchivos.borrar(item.archivo)) ok++ else fail++
                 }
                 Toast.makeText(
                     requireContext(),
@@ -524,52 +536,28 @@ class PantallaGestor : Fragment() {
             .show()
     }
 
-    private fun manejarDestinoElegido(uri: Uri) {
-        requireContext().contentResolver.takePersistableUriPermission(
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        )
-        val destino = DocumentFile.fromTreeUri(requireContext(), uri)
-        val origenPendiente = pendienteMover ?: pendienteCopiar
-        val eraMover = pendienteMover != null
-        pendienteMover = null; pendienteCopiar = null
-        origenPendiente ?: return
-        destino ?: return
-
-        val ok = if (eraMover) GestorArchivos.mover(requireContext(), origenPendiente, destino)
-                 else GestorArchivos.copiar(requireContext(), origenPendiente, destino)
-        Toast.makeText(
-            requireContext(),
-            if (ok) (if (eraMover) "Movido correctamente" else "Copiado correctamente")
-            else "No se pudo completar la operación",
-            Toast.LENGTH_SHORT
-        ).show()
-        refrescar()
-    }
-
-    private fun mostrarInfo(doc: DocumentFile) {
+    private fun mostrarInfo(item: ArchivoItem) {
         val fecha = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-            .format(Date(doc.lastModified()))
-        val tamano = if (doc.isDirectory) "—"
-                     else ArchivoItem(doc.name ?: "", false, doc.uri, doc.length()).tamanoLegible
+            .format(Date(item.ultimaModificacion))
+        val tamano = if (item.esCarpeta) "—" else item.tamanoLegible
         AlertDialog.Builder(requireContext())
-            .setTitle(doc.name ?: "(sin nombre)")
+            .setTitle(item.nombre)
             .setMessage(
-                "Tipo: ${if (doc.isDirectory) "Carpeta" else (doc.type ?: "desconocido")}\n" +
+                "Tipo: ${if (item.esCarpeta) "Carpeta" else (item.mime ?: "desconocido")}\n" +
                 "Tamaño: $tamano\n" +
                 "Modificado: $fecha\n" +
-                "URI:\n${doc.uri}"
+                "Ruta:\n${item.archivo.absolutePath}"
             )
             .setPositiveButton("Cerrar", null)
             .show()
     }
 
-    private fun confirmarBorrar(doc: DocumentFile) {
+    private fun confirmarBorrar(item: ArchivoItem) {
         AlertDialog.Builder(requireContext())
             .setTitle("¿Borrar?")
-            .setMessage("Se borrará \"${doc.name}\"${if (doc.isDirectory) " y todo su contenido" else ""}.")
+            .setMessage("Se borrará \"${item.nombre}\"${if (item.esCarpeta) " y todo su contenido" else ""}.")
             .setPositiveButton("Borrar") { _, _ ->
-                if (GestorArchivos.borrar(doc)) refrescar()
+                if (GestorArchivos.borrar(item.archivo)) refrescar()
                 else Toast.makeText(requireContext(), "No se pudo borrar", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancelar", null)
@@ -593,42 +581,52 @@ class PantallaGestor : Fragment() {
             .show()
     }
 
-    private fun esTexto(doc: DocumentFile): Boolean {
-        val mime = doc.type ?: ""
+    private fun esTexto(item: ArchivoItem): Boolean {
+        val mime = item.mime ?: ""
         if (mime.startsWith("text/")) return true
-        val ext = (doc.name ?: "").substringAfterLast('.', "").lowercase()
+        val ext = item.nombre.substringAfterLast('.', "").lowercase()
         return ext in listOf(
             "txt","md","log","json","xml","csv","html","htm","css","js",
             "kt","java","py","sh","yml","yaml","ini","conf","properties"
         )
     }
 
-    private fun abrirEditorTexto(doc: DocumentFile) {
-        val contenido = GestorArchivos.leerTexto(requireContext(), doc)
+    private fun abrirEditorTexto(archivo: File) {
+        val contenido = GestorArchivos.leerTexto(archivo)
         if (contenido == null) {
             Toast.makeText(requireContext(), "No se pudo leer el archivo", Toast.LENGTH_SHORT).show()
             return
         }
-        val editor = PantallaEditorTexto.nueva(doc.uri, doc.name ?: "archivo.txt", contenido)
+        val editor = PantallaEditorTexto.nueva(archivo.absolutePath, archivo.name, contenido)
         parentFragmentManager.beginTransaction()
             .replace(R.id.contenedorPantallas, editor)
             .addToBackStack("editor")
             .commit()
     }
 
-    private fun abrirConAppExterna(doc: DocumentFile) {
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(doc.uri, doc.type ?: "*/*")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        try { startActivity(intent) }
-        catch (e: Exception) {
+    private fun abrirConAppExterna(archivo: File) {
+        try {
+            val uri = FileProvider.getUriForFile(
+                requireContext(),
+                requireContext().packageName + ".fileprovider",
+                archivo
+            )
+            val item = ArchivoItem.desde(archivo)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, item.mime ?: "*/*")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
             Toast.makeText(requireContext(), "No hay app para abrir este tipo de archivo", Toast.LENGTH_SHORT).show()
         }
     }
 
     override fun onResume() {
         super.onResume()
+        if (tienePermisoArchivos() && carpetaActual == null) {
+            carpetaActual = Environment.getExternalStorageDirectory()
+        }
         refrescar()
         actualizarEstadoFabPegar()
         actualizarIconoFavorito()
