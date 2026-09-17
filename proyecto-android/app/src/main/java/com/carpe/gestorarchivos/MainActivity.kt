@@ -1,4 +1,4 @@
-package com.tunombre.gestorarchivos
+package com.carpe.gestorarchivos
 
 import android.content.Intent
 import android.net.Uri
@@ -8,7 +8,7 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import com.tunombre.gestorarchivos.ui.PantallaGestor
+import com.carpe.gestorarchivos.ui.PantallaGestor
 
 class MainActivity : AppCompatActivity() {
 
