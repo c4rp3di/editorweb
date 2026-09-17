@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'com.ejemplo.textfuncionalidades'
+    namespace 'com.carpe.gestorarchivos'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.ejemplo.textfuncionalidades"
+        applicationId "com.carpe.gestorarchivos"
         minSdk 24
         targetSdk 34
         versionCode 1
@@ -32,8 +32,7 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
-        implementation 'androidx.fragment:fragment-ktx:1.8.4'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'androidx.documentfile:documentfile:1.0.1'
-    implementation 'androidx.biometric:biometric:1.1.0'
-// [DEPENDENCIAS:FUNCIONALIDADES]
+    implementation 'androidx.fragment:fragment-ktx:1.8.4'
 }
