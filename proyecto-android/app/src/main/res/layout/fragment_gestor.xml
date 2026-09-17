@@ -237,7 +237,7 @@
             android:layout_gravity="bottom|end"
             android:layout_margin="16dp"
             android:layout_marginBottom="152dp"
-            android:src="@android:drawable/ic_menu_paste"
+            android:src="@android:drawable/ic_menu_add""
             android:contentDescription="Pegar aquí"
             app:backgroundTint="#F39C12"
             app:tint="@android:color/white"
