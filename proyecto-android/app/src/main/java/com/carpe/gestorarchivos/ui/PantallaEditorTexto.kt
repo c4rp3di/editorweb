@@ -1,4 +1,4 @@
-package com.tunombre.gestorarchivos.ui
+package com.carpe.gestorarchivos.ui
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -9,8 +9,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
-import com.tunombre.gestorarchivos.R
-import com.tunombre.gestorarchivos.data.GestorArchivos
+import com.carpe.gestorarchivos.R
+import com.carpe.gestorarchivos.data.GestorArchivos
 import java.io.File
 
 class PantallaEditorTexto : Fragment() {
