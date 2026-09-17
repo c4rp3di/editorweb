@@ -27,7 +27,6 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import android.content.Context
-import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -35,8 +34,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.content.Intent
-import android.net.Uri
 import android.view.WindowManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
