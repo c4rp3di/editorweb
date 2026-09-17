@@ -1,4 +1,4 @@
-package com.tunombre.gestorarchivos.data
+package com.carpe.gestorarchivos.data
 
 import android.view.LayoutInflater
 import android.view.View
@@ -6,7 +6,7 @@ import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.tunombre.gestorarchivos.R
+import com.carpe.gestorarchivos.R
 
 class AdaptadorArchivos(
     private val alTocar: (ArchivoItem) -> Unit,
