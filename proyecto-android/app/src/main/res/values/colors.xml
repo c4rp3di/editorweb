@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primario">#6C5CE7</color>
+    <color name="primario_oscuro">#483BB5</color>
+    <color name="acento">#00B894</color>
+    <color name="fondo">#FAFAFF</color>
+    <color name="fondo_oscuro">#12121F</color>
+    <color name="texto">#1A1A2E</color>
+    <color name="texto_secundario">#8A8AAA</color>
+    <color name="divisor">#E5E5EF</color>
+    <color name="barra_superior">#FFFFFF</color>
+    <color name="peligro">#E74C3C</color>
+    <color name="seleccion_fondo">#EDE9FF</color>
+    <color name="seleccion_borde">#6C5CE7</color>
+    <color name="barra_contextual">#6C5CE7</color>
+</resources>
