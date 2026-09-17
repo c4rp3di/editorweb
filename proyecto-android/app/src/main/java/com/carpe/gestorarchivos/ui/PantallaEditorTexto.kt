@@ -1,6 +1,5 @@
-package com.carpe.gestorarchivos.ui
+package com.tunombre.gestorarchivos.ui
 
-import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -9,16 +8,16 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.documentfile.provider.DocumentFile
 import androidx.fragment.app.Fragment
-import com.carpe.gestorarchivos.R
-import com.carpe.gestorarchivos.data.GestorArchivos
+import com.tunombre.gestorarchivos.R
+import com.tunombre.gestorarchivos.data.GestorArchivos
+import java.io.File
 
 class PantallaEditorTexto : Fragment() {
 
     private lateinit var editor: EditText
     private lateinit var nombre: TextView
-    private var uri: Uri? = null
+    private var archivo: File? = null
     private var nombreArchivo: String = "archivo.txt"
     private var contenidoOriginal: String = ""
     private var hayCambios = false
@@ -30,7 +29,8 @@ class PantallaEditorTexto : Fragment() {
         editor = vista.findViewById(R.id.editorTexto)
         nombre = vista.findViewById(R.id.nombreEditor)
 
-        uri = arguments?.getString("uri")?.let { Uri.parse(it) }
+        val ruta = arguments?.getString("ruta")
+        archivo = if (ruta != null) File(ruta) else null
         nombreArchivo = arguments?.getString("nombre") ?: "archivo.txt"
         contenidoOriginal = arguments?.getString("contenido") ?: ""
         nombre.text = nombreArchivo
@@ -52,9 +52,8 @@ class PantallaEditorTexto : Fragment() {
     }
 
     private fun guardar() {
-        val u = uri ?: return
-        val doc = DocumentFile.fromSingleUri(requireContext(), u) ?: return
-        val ok = GestorArchivos.escribirTexto(requireContext(), doc, editor.text.toString())
+        val f = archivo ?: return
+        val ok = GestorArchivos.escribirTexto(f, editor.text.toString())
         if (ok) {
             contenidoOriginal = editor.text.toString()
             hayCambios = false
@@ -77,10 +76,10 @@ class PantallaEditorTexto : Fragment() {
     }
 
     companion object {
-        fun nueva(uri: Uri, nombre: String, contenido: String): PantallaEditorTexto {
+        fun nueva(ruta: String, nombre: String, contenido: String): PantallaEditorTexto {
             val f = PantallaEditorTexto()
             f.arguments = Bundle().apply {
-                putString("uri", uri.toString())
+                putString("ruta", ruta)
                 putString("nombre", nombre)
                 putString("contenido", contenido)
             }
