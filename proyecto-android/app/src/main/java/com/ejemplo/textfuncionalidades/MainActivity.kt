@@ -3,7 +3,7 @@ package com.ejemplo.textfuncionalidades
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
-import com.ejemplo.textfuncionalidades.ui.PantallaEjemplo
+import com.ejemplo.textfuncionalidades.ui.PantallaTest
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.navigation.NavigationView
@@ -44,12 +44,11 @@ import android.location.Location
 import android.location.LocationManager
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
-import com.ejemplo.textfuncionalidades.ui.PantallaTest
 // [IMPORTS:FUNCIONALIDADES]
 
 class MainActivity : AppCompatActivity() {
 
-        // Funcionalidad: menu-lateral
+    // Funcionalidad: menu-lateral
     private lateinit var drawerLayout: DrawerLayout
     // Funcionalidad: saf
     private var carpetaSaf: Uri? = null
@@ -91,19 +90,12 @@ class MainActivity : AppCompatActivity() {
         if (concedido) obtenerUbicacionActual() else Toast.makeText(this, "Permiso de ubicación denegado", Toast.LENGTH_SHORT).show()
     }
     // Funcionalidad: huella
-    private val promptHuella = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
-        override fun onAuthenticationSucceeded(resultado: BiometricPrompt.AuthenticationResult) {
-            // autenticación correcta
-        }
-        override fun onAuthenticationError(codigoError: Int, mensaje: CharSequence) {
-            Toast.makeText(this@MainActivity, "Error: $mensaje", Toast.LENGTH_SHORT).show()
-        }
-    })
+    private lateinit var promptHuella: BiometricPrompt
 // [PROPIEDADES:FUNCIONALIDADES]
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-                // Funcionalidad: modo-oscuro
+        // Funcionalidad: modo-oscuro
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         prefs = getSharedPreferences("datos_app", MODE_PRIVATE)
         baseDatos = BaseDatos(this)
@@ -115,9 +107,18 @@ class MainActivity : AppCompatActivity() {
         // Funcionalidad: pantalla-encendida
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         gestorSensores = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        // Funcionalidad: huella (inicialización diferida; no puede hacerse en el constructor)
+        promptHuella = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(resultado: BiometricPrompt.AuthenticationResult) {
+                // autenticación correcta
+            }
+            override fun onAuthenticationError(codigoError: Int, mensaje: CharSequence) {
+                Toast.makeText(this@MainActivity, "Error: $mensaje", Toast.LENGTH_SHORT).show()
+            }
+        })
 // [ONCREATE:FUNCIONALIDADES]
         setContentView(R.layout.activity_main)
-if (savedInstanceState == null) mostrarPantalla(PantallaTest())
+        if (savedInstanceState == null) mostrarPantalla(PantallaTest())
 
         drawerLayout = findViewById(R.id.drawerLayout)
         findViewById<NavigationView>(R.id.navigationView).setNavigationItemSelectedListener {
@@ -128,7 +129,7 @@ if (savedInstanceState == null) mostrarPantalla(PantallaTest())
 // [ONCREATE_FIN:FUNCIONALIDADES]
     }
 
-        // Funcionalidad: varias-pantallas
+    // Funcionalidad: varias-pantallas
     fun mostrarPantalla(pantalla: Fragment) {
         supportFragmentManager.beginTransaction()
             .replace(R.id.contenedorPantallas, pantalla)
