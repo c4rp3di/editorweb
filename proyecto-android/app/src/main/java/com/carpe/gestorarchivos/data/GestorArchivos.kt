@@ -1,125 +1,127 @@
-package com.carpe.gestorarchivos.data
+package com.tunombre.gestorarchivos.data
 
 import android.content.Context
 import android.content.Intent
-import androidx.documentfile.provider.DocumentFile
+import androidx.core.content.FileProvider
+import java.io.File
 
 object GestorArchivos {
 
-    fun listar(carpeta: DocumentFile): List<ArchivoItem> {
-        val hijos = carpeta.listFiles()
+    fun listar(carpeta: File): List<ArchivoItem> {
+        val hijos = carpeta.listFiles() ?: return emptyList()
         return hijos
             .filter { it.exists() }
-            .map { doc ->
-                ArchivoItem(
-                    nombre = doc.name ?: "(sin nombre)",
-                    esCarpeta = doc.isDirectory,
-                    uri = doc.uri,
-                    tamano = if (doc.isFile) doc.length() else 0L,
-                    mime = doc.type,
-                    ultimaModificacion = doc.lastModified()
-                )
-            }
+            .map { ArchivoItem.desde(it) }
     }
 
-    fun crearCarpeta(padre: DocumentFile, nombre: String): DocumentFile? {
-        if (padre.findFile(nombre) != null) return null
-        return padre.createDirectory(nombre)
+    fun crearCarpeta(padre: File, nombre: String): File? {
+        val nueva = File(padre, nombre)
+        if (nueva.exists()) return null
+        return if (nueva.mkdirs()) nueva else null
     }
 
-    fun crearArchivo(padre: DocumentFile, nombre: String, mime: String = "text/plain"): DocumentFile? {
-        if (padre.findFile(nombre) != null) return null
-        return padre.createFile(mime, nombre)
-    }
-
-    fun renombrar(doc: DocumentFile, nuevoNombre: String): Boolean {
-        return doc.renameTo(nuevoNombre)
-    }
-
-    fun borrar(doc: DocumentFile): Boolean = doc.delete()
-
-    fun leerTexto(context: Context, doc: DocumentFile): String? {
+    fun crearArchivo(padre: File, nombre: String): File? {
+        val nuevo = File(padre, nombre)
+        if (nuevo.exists()) return null
         return try {
-            context.contentResolver.openInputStream(doc.uri)?.use { input ->
-                input.bufferedReader().readText()
-            }
+            if (nuevo.createNewFile()) nuevo else null
         } catch (e: Exception) {
             null
         }
     }
 
-    fun escribirTexto(context: Context, doc: DocumentFile, contenido: String): Boolean {
+    fun renombrar(archivo: File, nuevoNombre: String): Boolean {
+        val destino = File(archivo.parentFile, nuevoNombre)
+        if (destino.exists()) return false
+        return archivo.renameTo(destino)
+    }
+
+    fun borrar(archivo: File): Boolean {
         return try {
-            context.contentResolver.openOutputStream(doc.uri, "wt")?.use { out ->
-                out.write(contenido.toByteArray(Charsets.UTF_8))
-            }
+            if (archivo.isDirectory) archivo.deleteRecursively() else archivo.delete()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun leerTexto(archivo: File): String? {
+        return try {
+            archivo.readText(Charsets.UTF_8)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun escribirTexto(archivo: File, contenido: String): Boolean {
+        return try {
+            archivo.writeText(contenido, Charsets.UTF_8)
             true
         } catch (e: Exception) {
             false
         }
     }
 
-    fun mover(context: Context, origen: DocumentFile, destinoPadre: DocumentFile): Boolean {
+    fun mover(origen: File, destinoPadre: File): Boolean {
+        return try {
+            val destino = File(destinoPadre, origen.name)
+            if (destino.exists()) return false
+            if (origen.renameTo(destino)) return true
+            // Si renameTo falla (distintas particiones), copiamos y borramos.
+            if (origen.isDirectory) {
+                if (copiarCarpetaRecursivo(origen, destinoPadre)) origen.deleteRecursively() else false
+            } else {
+                origen.copyTo(destino, overwrite = false)
+                origen.delete()
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun copiar(origen: File, destinoPadre: File): Boolean {
         return try {
             if (origen.isDirectory) {
-                copiarCarpetaRecursivo(context, origen, destinoPadre)
-                origen.delete()
+                copiarCarpetaRecursivo(origen, destinoPadre)
             } else {
-                val nuevo = destinoPadre.createFile(origen.type ?: "application/octet-stream", origen.name ?: "archivo")
-                    ?: return false
-                copiarContenido(context, origen, nuevo)
-                origen.delete()
+                val destino = File(destinoPadre, origen.name)
+                origen.copyTo(destino, overwrite = false)
+                true
             }
-            true
         } catch (e: Exception) {
             false
         }
     }
 
-    fun copiar(context: Context, origen: DocumentFile, destinoPadre: DocumentFile): Boolean {
-        return try {
-            if (origen.isDirectory) {
-                copiarCarpetaRecursivo(context, origen, destinoPadre)
-            } else {
-                val nuevo = destinoPadre.createFile(origen.type ?: "application/octet-stream", origen.name ?: "archivo")
-                    ?: return false
-                copiarContenido(context, origen, nuevo)
-            }
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    private fun copiarCarpetaRecursivo(context: Context, origen: DocumentFile, destinoPadre: DocumentFile) {
-        val nombreCarpeta = origen.name ?: "carpeta"
-        val nuevaCarpeta = destinoPadre.findFile(nombreCarpeta)?.takeIf { it.isDirectory }
-            ?: destinoPadre.createDirectory(nombreCarpeta)
-            ?: return
-        origen.listFiles().forEach { hijo ->
+    private fun copiarCarpetaRecursivo(origen: File, destinoPadre: File): Boolean {
+        val nuevaCarpeta = File(destinoPadre, origen.name)
+        if (!nuevaCarpeta.exists() && !nuevaCarpeta.mkdirs()) return false
+        origen.listFiles()?.forEach { hijo ->
             if (hijo.isDirectory) {
-                copiarCarpetaRecursivo(context, hijo, nuevaCarpeta)
+                copiarCarpetaRecursivo(hijo, nuevaCarpeta)
             } else {
-                val nuevoHijo = nuevaCarpeta.createFile(hijo.type ?: "application/octet-stream", hijo.name ?: "archivo")
-                if (nuevoHijo != null) copiarContenido(context, hijo, nuevoHijo)
+                try {
+                    hijo.copyTo(File(nuevaCarpeta, hijo.name), overwrite = false)
+                } catch (_: Exception) {}
             }
         }
+        return true
     }
 
-    private fun copiarContenido(context: Context, origen: DocumentFile, destino: DocumentFile) {
-        context.contentResolver.openInputStream(origen.uri)?.use { input ->
-            context.contentResolver.openOutputStream(destino.uri)?.use { output ->
-                input.copyTo(output)
+    fun compartir(context: Context, archivo: File) {
+        try {
+            val uri = FileProvider.getUriForFile(
+                context,
+                context.packageName + ".fileprovider",
+                archivo
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = ArchivoItem.desde(archivo).mime ?: "*/*"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
+            context.startActivity(Intent.createChooser(intent, "Compartir con"))
+        } catch (e: Exception) {
+            // Fallback: intentar con file:// en apps antiguas
         }
-    }
-
-    fun compartir(context: Context, doc: DocumentFile) {
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = doc.type ?: "*/*"
-            putExtra(Intent.EXTRA_STREAM, doc.uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(Intent.createChooser(intent, "Compartir con"))
     }
 }
