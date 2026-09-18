@@ -1992,7 +1992,7 @@ select.desplegable:focus { border-color: #38bdf8; }
      HEADER
      ============================================================ -->
 <header>
-<h1>🎵 MusicLab <span id="mlVersion">v0.4</span></h1>
+<h1>🎵 MusicLab <span id="mlVersion">v0.5</span></h1>
     <div id="mlStatus">Listo</div>
 </header>
 
@@ -2015,6 +2015,21 @@ select.desplegable:focus { border-color: #38bdf8; }
 
     <!-- ── VISTA CANCIONES (bloque 1 base, bloque 5 completa) ── -->
     <div class="view active" id="viewCanciones">
+        <div class="toolbar-organizar">
+            <div class="buscador">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="mlBuscadorInput" placeholder="Buscar por nombre o tag…">
+            </div>
+            <button class="btn-toolbar" id="mlBtnOrden" title="Ordenar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
+            </button>
+            <button class="btn-toolbar" id="mlBtnVista" title="Cambiar vista">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </button>
+            <button class="btn-toolbar" id="mlBtnSeleccionar" title="Seleccionar varios">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            </button>
+        </div>
         <div class="file-grid" id="mlFileGrid"></div>
         <div class="empty-state" id="mlEmptyState" style="display:none;">
             Aún no hay nada.<br>
@@ -2430,6 +2445,44 @@ select.desplegable:focus { border-color: #38bdf8; }
     </div>
 </div>
 
+<!-- ══ BLOQUE 5 · Overlays de organización ══ -->
+
+<!-- Overlay del menú contextual -->
+<div class="menu-contextual-overlay" id="mlMenuOverlay"></div>
+
+<!-- Menú contextual (hoja inferior) -->
+<div class="menu-contextual" id="mlMenuContextual">
+    <div class="menu-contextual-header">
+        <div class="titulo" id="mlMenuTitulo">Título</div>
+        <div class="subtitulo" id="mlMenuSubtitulo"></div>
+    </div>
+    <div class="menu-contextual-acciones" id="mlMenuAcciones"></div>
+    <div class="menu-contextual-footer">
+        <button id="mlMenuCerrar">Cancelar</button>
+    </div>
+</div>
+
+<!-- Mini panel (filtros aplicados, tags, notas) -->
+<div class="mini-panel" id="mlMiniPanel">
+    <div class="contenido" id="mlMiniPanelContenido"></div>
+</div>
+
+<!-- Menú de ordenación -->
+<div class="menu-orden" id="mlMenuOrden">
+    <button data-orden="fecha-desc">📅 Fecha (reciente primero)</button>
+    <button data-orden="fecha-asc">📅 Fecha (antigua primero)</button>
+    <button data-orden="nombre-asc">🔤 Nombre (A-Z)</button>
+    <button data-orden="nombre-desc">🔤 Nombre (Z-A)</button>
+    <button data-orden="duracion-desc">⏱️ Duración (mayor primero)</button>
+    <button data-orden="duracion-asc">⏱️ Duración (menor primero)</button>
+</div>
+
+<!-- Barra de acciones en lote (selección múltiple) -->
+<div class="barra-lote" id="mlBarraLote">
+    <span class="contador" id="mlLoteContador">0</span>
+    <div class="acciones-lote" id="mlLoteAcciones"></div>
+</div>
+
 <!-- ============================================================
      TOAST
      ============================================================ -->
@@ -2468,7 +2521,7 @@ const ML = {
     posicionReproduccion: 0,      // segundos
 
     // Banderas de bloques activos (para el indicador)
-bloques: { 1:true, 2:true, 3:true, 4:true, 5:false, 6:false, 7:false, 8:false }
+bloques: { 1:true, 2:true, 3:true, 4:true, 5:true, 6:false, 7:false, 8:false }
 };
 
 // ── Referencias DOM (cacheadas) ───────────────────────────────
@@ -5913,16 +5966,1152 @@ function inicializarGestosPanelFiltros() {
 // ═══════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════
-// [inicio bloque 5]  ← AQUÍ IRÁ EL BLOQUE 5 (Organizar)
-// Tags, mover táctil, notas enriquecidas.
+// [inicio bloque 5]
+// BLOQUE 5 · ORGANIZAR
+// Menú contextual, tags, notas, selección múltiple, vista compacta.
+//
+// IMPORTANTE: este bloque REEMPLAZA funciones del núcleo:
+//   - renderCanciones() → nueva versión con toolbar y orden
+//   - onItemClick()     → nueva versión con long-press
+// Las versiones viejas quedan sustituidas. No hay duplicado.
 // ═══════════════════════════════════════════════════════════════
 
-// (vacío hasta el bloque 5)
+// ── Estado del bloque 5 ──────────────────────────────────────
+const ORG = {
+    // Filtros de vista
+    orden: 'fecha-desc',
+    // Cache de contadores de hijos por carpeta (id → número)
+    contadoresCarpetas: {},
+    modoCompacto: false,
+    busqueda: '',
+
+    // Selección múltiple
+    modoSeleccion: false,
+    seleccionados: new Set(),   // ids
+
+    // Menú contextual
+    menuAbierto: false,
+    menuElementoId: null,
+
+    // Long-press
+    longPressTimer: null,
+    longPressIniciado: false,
+    touchInicioX: 0,
+    touchInicioY: 0,
+
+    // Config persistente
+    config: {
+        orden: 'fecha-desc',
+        modoCompacto: false
+    }
+};
+
+const OG = {
+    toolbar: document.querySelector('.toolbar-organizar'),
+    buscador: $('mlBuscadorInput'),
+    btnOrden: $('mlBtnOrden'),
+    btnVista: $('mlBtnVista'),
+    btnSeleccionar: $('mlBtnSeleccionar'),
+    menuOverlay: $('mlMenuOverlay'),
+    menu: $('mlMenuContextual'),
+    menuTitulo: $('mlMenuTitulo'),
+    menuSubtitulo: $('mlMenuSubtitulo'),
+    menuAcciones: $('mlMenuAcciones'),
+    menuCerrar: $('mlMenuCerrar'),
+    miniPanel: $('mlMiniPanel'),
+    miniPanelContenido: $('mlMiniPanelContenido'),
+    menuOrden: $('mlMenuOrden'),
+    barraLote: $('mlBarraLote'),
+    loteContador: $('mlLoteContador'),
+    loteAcciones: $('mlLoteAcciones')
+};
+
+// ── Definición de acciones por tipo ─────────────────────────
+// Cada acción sabe: cómo se muestra, si aplica por tipo, si aplica
+// en lote, y qué hace al pulsarse.
+const ACCIONES = {
+
+    reproducir: {
+        icono: '▶️', nombre: 'Reproducir',
+        tipos: ['toma', 'cancion'],
+        lote: false,
+        ejecutar: async (id) => {
+            const item = await dbGet(id);
+            if (!item) return;
+            if (item.tipo === 'toma') {
+                // Reproducción rápida de la toma (sin abrir editor)
+                await reproducirTomaRapida(item);
+            } else {
+                toast('▶ La reproducción de canciones llegará en el bloque 6');
+            }
+        }
+    },
+
+    renombrar: {
+        icono: '✏️', nombre: 'Renombrar',
+        tipos: ['carpeta', 'toma', 'cancion'],
+        lote: true,
+        ejecutar: async (id) => {
+            const item = await dbGet(id);
+            if (!item) return;
+            const nuevo = await abrirModal({
+                titulo: '✏️ Renombrar',
+                mensaje: 'Nuevo nombre:',
+                modo: 'texto',
+                valorInicial: item.nombre
+            });
+            if (!nuevo) return;
+            item.nombre = nuevo;
+            await dbPut(item);
+            await renderCanciones();
+            toast('✏️ Renombrado');
+        },
+        ejecutarLote: async (ids) => {
+            const base = await abrirModal({
+                titulo: '✏️ Renombrar en lote',
+                mensaje: `${ids.length} elementos. Nombre base (se añadirá 1, 2, 3…):`,
+                modo: 'texto',
+                valorInicial: 'Elemento'
+            });
+            if (!base) return;
+            let i = 1;
+            for (const id of ids) {
+                const item = await dbGet(id);
+                if (!item) continue;
+                item.nombre = `${base} ${i}`;
+                await dbPut(item);
+                i++;
+            }
+            await renderCanciones();
+            toast(`✏️ ${ids.length} renombrados`);
+        }
+    },
+
+    tags: {
+        icono: '🏷️', nombre: 'Tags',
+        tipos: ['carpeta', 'toma', 'cancion'],
+        lote: true,
+        ejecutar: async (id) => await editorTags(id),
+        ejecutarLote: async (ids) => await editorTagsLote(ids)
+    },
+
+    notas: {
+        icono: '📝', nombre: 'Notas',
+        tipos: ['carpeta', 'toma', 'cancion'],
+        lote: false,
+        ejecutar: async (id) => await editorNotas(id)
+    },
+
+    filtrosAplicados: {
+        icono: '🎛️', nombre: 'Procesada con…',
+        tipos: ['toma'],
+        lote: false,
+        // Solo se muestra si la toma tiene filtrosAplicados.length > 0
+        condicion: (item) => Array.isArray(item.filtrosAplicados) && item.filtrosAplicados.length > 0,
+        ejecutar: async (id) => await verFiltrosAplicados(id)
+    },
+
+    presets: {
+        icono: '⭐', nombre: 'Aplicar preset de filtros',
+        tipos: ['toma'],
+        lote: false,
+        // Bloque 5: solo muestra; aplicar de verdad se hará cuando el usuario esté en el editor
+        // (aquí no tenemos el buffer cargado sin abrir la toma). En el editor sí se podrá aplicar.
+        ejecutar: async (id) => {
+            toast('ℹ️ Abre la toma en el editor para aplicar presets');
+        }
+    },
+
+    mover: {
+        icono: '📁', nombre: 'Mover a…',
+        tipos: ['carpeta', 'toma', 'cancion'],
+        lote: true,
+        ejecutar: async (id) => await moverElemento(id),
+        ejecutarLote: async (ids) => await moverElementoLote(ids)
+    },
+
+    duplicar: {
+        icono: '⧉', nombre: 'Duplicar',
+        tipos: ['toma', 'cancion'],
+        lote: false,
+        // Duplicar carpeta es complejo (habría que copiar todo el árbol)
+        ejecutar: async (id) => {
+            const item = await dbGet(id);
+            if (!item) return;
+            const copia = { ...item };
+            copia.id = util.id(item.tipo === 'toma' ? 't' : 'c');
+            copia.nombre = (item.nombre || 'Sin nombre') + ' (copia)';
+            copia.fecha = new Date().toISOString();
+            await dbPut(copia);
+            await renderCanciones();
+            toast('⧉ Duplicado');
+        }
+    },
+
+    anadirACancion: {
+        icono: '🎵', nombre: 'Añadir a canción…',
+        tipos: ['toma'],
+        lote: false,
+        deshabilitada: true,
+        motivoDeshabilitada: 'Disponible en el bloque 6',
+        ejecutar: async () => { toast('ℹ️ Disponible en el bloque 6'); }
+    },
+
+    convertirEnCancion: {
+        icono: '🎬', nombre: 'Convertir en canción',
+        tipos: ['toma'],
+        lote: false,
+        deshabilitada: true,
+        motivoDeshabilitada: 'Disponible en el bloque 6',
+        ejecutar: async () => { toast('ℹ️ Disponible en el bloque 6'); }
+    },
+
+    exportarPista: {
+        icono: '⬇️', nombre: 'Exportar pista',
+        tipos: ['toma'],
+        lote: false,
+        deshabilitada: true,
+        motivoDeshabilitada: 'Disponible en el bloque 7',
+        ejecutar: async () => { toast('ℹ️ Disponible en el bloque 7'); }
+    },
+
+    exportarMezcla: {
+        icono: '⬇️', nombre: 'Exportar mezcla',
+        tipos: ['cancion'],
+        lote: false,
+        deshabilitada: true,
+        motivoDeshabilitada: 'Disponible en el bloque 7',
+        ejecutar: async () => { toast('ℹ️ Disponible en el bloque 7'); }
+    },
+
+    abrir: {
+        icono: '↗️', nombre: 'Abrir',
+        tipos: ['carpeta', 'toma', 'cancion'],
+        lote: false,
+        ejecutar: async (id) => {
+            const item = await dbGet(id);
+            if (!item) return;
+            await onItemClick(item);
+        }
+    },
+
+    seleccionar: {
+        icono: '☑️', nombre: 'Seleccionar',
+        tipos: ['carpeta', 'toma', 'cancion'],
+        lote: false,
+        ejecutar: async (id) => {
+            entrarModoSeleccion();
+            seleccionar(id);
+        }
+    },
+
+    eliminar: {
+        icono: '🗑️', nombre: 'Eliminar',
+        tipos: ['carpeta', 'toma', 'cancion'],
+        lote: true,
+        destructiva: true,
+        ejecutar: async (id) => {
+            const item = await dbGet(id);
+            if (!item) return;
+            const ok = await abrirModal({
+                titulo: '🗑️ Eliminar',
+                mensaje: item.tipo === 'carpeta'
+                    ? `¿Eliminar la carpeta "${item.nombre}" y TODO su contenido?`
+                    : `¿Eliminar "${item.nombre}"?`,
+                modo: 'confirm'
+            });
+            if (!ok) return;
+            await eliminarRecursivo(id);
+            await renderCanciones();
+            toast('🗑️ Eliminado');
+        },
+        ejecutarLote: async (ids) => {
+            const ok = await abrirModal({
+                titulo: '🗑️ Eliminar en lote',
+                mensaje: `¿Eliminar ${ids.length} elementos? Si hay carpetas, se borrará todo su contenido.`,
+                modo: 'confirm'
+            });
+            if (!ok) return;
+            for (const id of ids) await eliminarRecursivo(id);
+            await renderCanciones();
+            toast(`🗑️ ${ids.length} eliminados`);
+        }
+    }
+};
+
+// ── Eliminar recursivo (para lote) ──────────────────────────async function eliminarRecursivo(id) {
+   async function eliminarRecursivo(id) {
+    const item = await dbGet(id);
+    if (!item) return;
+    if (item.tipo === 'carpeta') {
+        const hijos = await dbHijosDe(id);
+        for (const hijo of hijos) await eliminarRecursivo(hijo.id);
+    }
+    await dbDel(id);
+}
+
+// ── Render principal de la vista Canciones (versión bloque 5) ─
+// SUSTITUYE a renderCanciones() del núcleo.
+async function renderCanciones() {
+    const hijos = await dbHijosDe(ML.carpetaActual);
+
+    // Precalcular el contador de hijos de cada carpeta (una sola pasada)
+    ORG.contadoresCarpetas = {};
+    const carpetas = hijos.filter(h => h.tipo === 'carpeta');
+    if (carpetas.length > 0) {
+        const todos = await dbTodos();
+        for (const c of carpetas) {
+            ORG.contadoresCarpetas[c.id] = todos.filter(t => t.parent === c.id).length;
+        }
+    }
+
+    // Aplicar búsqueda
+    let filtrados = hijos;
+    if (ORG.busqueda) {
+        const q = ORG.busqueda.toLowerCase();
+        filtrados = hijos.filter(h => {
+            if ((h.nombre || '').toLowerCase().includes(q)) return true;
+            if (Array.isArray(h.tags) && h.tags.some(t => t.toLowerCase().includes(q))) return true;
+            return false;
+        });
+    }
+
+    // Aplicar orden
+    filtrados = ordenarElementos(filtrados, ORG.orden);
+
+    // Render
+    dom.fileGrid.innerHTML = '';
+    dom.fileGrid.classList.toggle('modo-compacto', ORG.modoCompacto);
+    dom.emptyState.style.display = filtrados.length === 0 ? 'block' : 'none';
+
+    filtrados.forEach(h => {
+        const div = crearTarjeta(h);
+        dom.fileGrid.appendChild(div);
+    });
+
+    actualizarBarraLote();
+}
+
+// ── Ordenación ──────────────────────────────────────────────
+function ordenarElementos(arr, modo) {
+    const peso = { carpeta: 0, cancion: 1, toma: 2 };
+    const copia = [...arr];
+
+    copia.sort((a, b) => {
+        // Carpetas siempre primero
+        const pa = peso[a.tipo] ?? 9;
+        const pb = peso[b.tipo] ?? 9;
+        if (pa !== pb) return pa - pb;
+
+        switch (modo) {
+            case 'fecha-desc': return (b.fecha || '').localeCompare(a.fecha || '');
+            case 'fecha-asc':  return (a.fecha || '').localeCompare(b.fecha || '');
+            case 'nombre-asc': return (a.nombre || '').localeCompare(b.nombre || '');
+            case 'nombre-desc':return (b.nombre || '').localeCompare(a.nombre || '');
+            case 'duracion-desc': return (b.duracion || 0) - (a.duracion || 0);
+            case 'duracion-asc':  return (a.duracion || 0) - (b.duracion || 0);
+            default: return 0;
+        }
+    });
+    return copia;
+}
+
+// ── Crear tarjeta (versión bloque 5) ────────────────────────
+function crearTarjeta(h) {
+    const div = document.createElement('div');
+    div.className = 'file-item' + (h.tipo === 'carpeta' ? ' folder' : '');
+    div.dataset.id = h.id;
+    div.dataset.tipo = h.tipo;
+
+    if (ORG.seleccionados.has(h.id)) div.classList.add('seleccionado');
+
+    if (h.color && h.tipo !== 'carpeta') {
+        div.style.borderColor = h.color + '88';
+        div.style.boxShadow = `0 4px 12px ${h.color}22`;
+    }
+
+    const icono = h.tipo === 'carpeta' ? '📼'
+                : h.tipo === 'cancion' ? '🎵'
+                : '🎙️';
+
+    // Badge principal
+    let badge = '';
+    if (h.tipo === 'toma') badge = util.tiempo(h.duracion || 0);
+    else if (h.tipo === 'cancion') badge = `${(h.tomas || []).length} tomas`;
+    else if (h.tipo === 'carpeta') badge = '';  // en compacto se rellena
+
+    // Tags inline (máx 3 visibles)
+    const tagsHtml = Array.isArray(h.tags) && h.tags.length > 0
+        ? `<div class="tags-inline">${h.tags.slice(0, 3).map(t => `<span class="tag-mini">${util.esc(t)}</span>`).join('')}${h.tags.length > 3 ? `<span class="tag-mini">+${h.tags.length - 3}</span>` : ''}</div>`
+        : '';
+
+    // Indicador de filtros aplicados (solo tomas)
+    const filtrosHtml = (h.tipo === 'toma' && Array.isArray(h.filtrosAplicados) && h.filtrosAplicados.length > 0)
+        ? `<div class="indicador-filtros">🎛️ ${h.filtrosAplicados.length} filtro${h.filtrosAplicados.length === 1 ? '' : 's'}</div>`
+        : '';
+
+    // Indicador de notas
+    const notasHtml = h.notas && h.notas.trim() !== ''
+        ? `<div class="indicador-notas" title="Tiene notas">📝</div>`
+        : '';
+
+if (ORG.modoCompacto) {
+    // Vista compacta: fila
+    let meta = '';
+    if (h.tipo === 'toma') {
+        meta = util.tiempo(h.duracion || 0);
+    } else if (h.tipo === 'cancion') {
+        meta = `${(h.tomas || []).length} tomas`;
+    } else if (h.tipo === 'carpeta') {
+        const n = ORG.contadoresCarpetas[h.id] || 0;
+        meta = `${n} elem.`;
+    }
+        div.innerHTML = `
+            <div class="icon">${icono}</div>
+            <div class="name">${util.esc(h.nombre)}</div>
+            ${tagsHtml ? `<div class="tags-inline">${h.tags.slice(0, 2).map(t => `<span class="tag-mini">${util.esc(t)}</span>`).join('')}</div>` : ''}
+            <div class="meta-derecha">${meta}</div>
+            ${notasHtml}
+        `;
+    } else {
+        // Vista tarjeta
+        div.innerHTML = `
+            <div class="icon">${icono}</div>
+            <div class="name">${util.esc(h.nombre)}</div>
+            ${badge ? `<div class="badge">${util.esc(badge)}</div>` : ''}
+            ${tagsHtml}
+            ${filtrosHtml}
+            ${notasHtml}
+        `;
+    }
+
+    // Eventos
+    configurarEventosTarjeta(div, h);
+
+    return div;
+}
+
+// ── Eventos de la tarjeta (tap y long-press) ────────────────
+function configurarEventosTarjeta(div, h) {
+    // ── TAP normal: abre carpeta o toma o canción ──
+    // Usamos click porque ya funciona bien en móvil y desktop
+    div.addEventListener('click', async (e) => {
+        // Si estamos en modo selección, click alterna selección
+        if (ORG.modoSeleccion) {
+            if (ORG.seleccionados.has(h.id)) ORG.seleccionados.delete(h.id);
+            else ORG.seleccionados.add(h.id);
+            await renderCanciones();
+            return;
+        }
+        // Si hay un long-press reciente, ignorar el click
+        if (ORG.longPressIniciado) {
+            ORG.longPressIniciado = false;
+            return;
+        }
+        await onItemClick(h);
+    });
+
+    // ── Long-press (touch): 500ms sin mover → menú contextual ──
+    div.addEventListener('touchstart', (e) => {
+        if (ORG.modoSeleccion) return;  // en modo selección, no hay long-press
+        const touch = e.touches[0];
+        ORG.touchInicioX = touch.clientX;
+        ORG.touchInicioY = touch.clientY;
+        ORG.longPressIniciado = false;
+        if (ORG.longPressTimer) clearTimeout(ORG.longPressTimer);
+        ORG.longPressTimer = setTimeout(() => {
+            ORG.longPressIniciado = true;
+            util.vibrar(30);
+            abrirMenuContextual(h);
+        }, 500);
+    }, { passive: true });
+
+    div.addEventListener('touchmove', (e) => {
+        if (!ORG.longPressTimer) return;
+        const touch = e.touches[0];
+        const dx = Math.abs(touch.clientX - ORG.touchInicioX);
+        const dy = Math.abs(touch.clientY - ORG.touchInicioY);
+        if (dx > 10 || dy > 10) {
+            clearTimeout(ORG.longPressTimer);
+            ORG.longPressTimer = null;
+        }
+    }, { passive: true });
+
+    div.addEventListener('touchend', () => {
+        if (ORG.longPressTimer) {
+            clearTimeout(ORG.longPressTimer);
+            ORG.longPressTimer = null;
+        }
+        // Si long-press se activó, ya se ha abierto el menú. Dejar flag por si acaso.
+        if (ORG.longPressIniciado) {
+            // El click que viene después se ignora
+            setTimeout(() => { ORG.longPressIniciado = false; }, 50);
+        }
+    }, { passive: true });
+
+    div.addEventListener('touchcancel', () => {
+        if (ORG.longPressTimer) {
+            clearTimeout(ORG.longPressTimer);
+            ORG.longPressTimer = null;
+        }
+        ORG.longPressIniciado = false;
+    }, { passive: true });
+
+    // Long-press también con ratón (para escritorio / test)
+    div.addEventListener('mousedown', (e) => {
+        if (ORG.modoSeleccion) return;
+        ORG.touchInicioX = e.clientX;
+        ORG.touchInicioY = e.clientY;
+        ORG.longPressTimer = setTimeout(() => {
+            ORG.longPressIniciado = true;
+            abrirMenuContextual(h);
+        }, 500);
+    });
+    div.addEventListener('mousemove', (e) => {
+        if (!ORG.longPressTimer) return;
+        if (Math.abs(e.clientX - ORG.touchInicioX) > 10 ||
+            Math.abs(e.clientY - ORG.touchInicioY) > 10) {
+            clearTimeout(ORG.longPressTimer);
+            ORG.longPressTimer = null;
+        }
+    });
+    div.addEventListener('mouseup', () => {
+        if (ORG.longPressTimer) {
+            clearTimeout(ORG.longPressTimer);
+            ORG.longPressTimer = null;
+        }
+    });
+    div.addEventListener('mouseleave', () => {
+        if (ORG.longPressTimer) {
+            clearTimeout(ORG.longPressTimer);
+            ORG.longPressTimer = null;
+        }
+    });
+}
+
+// ── Abrir menú contextual ───────────────────────────────────
+async function abrirMenuContextual(item) {
+    ORG.menuElementoId = item.id;
+    ORG.menuAbierto = true;
+
+    // Cabecera
+    const icono = item.tipo === 'carpeta' ? '📼'
+                : item.tipo === 'cancion' ? '🎵'
+                : '🎙️';
+    OG.menuTitulo.textContent = `${icono} ${item.nombre}`;
+    const sub = [];
+    if (item.tipo === 'toma') {
+        sub.push(util.tiempo(item.duracion || 0));
+        if (Array.isArray(item.filtrosAplicados) && item.filtrosAplicados.length > 0) {
+            sub.push(`${item.filtrosAplicados.length} filtro${item.filtrosAplicados.length === 1 ? '' : 's'}`);
+        }
+    } else if (item.tipo === 'cancion') {
+        sub.push(`${(item.tomas || []).length} tomas`);
+    } else if (item.tipo === 'carpeta') {
+        const hijos = await dbHijosDe(item.id);
+        sub.push(`${hijos.length} elemento${hijos.length === 1 ? '' : 's'}`);
+    }
+    OG.menuSubtitulo.textContent = sub.join(' · ');
+
+    // Construir acciones
+    OG.menuAcciones.innerHTML = '';
+    const accionesDisponibles = Object.keys(ACCIONES).filter(k => {
+        const a = ACCIONES[k];
+        if (!a.tipos.includes(item.tipo)) return false;
+        if (a.condicion && !a.condicion(item)) return false;
+        return true;
+    });
+
+    accionesDisponibles.forEach(k => {
+        const a = ACCIONES[k];
+        const btn = document.createElement('button');
+        btn.className = 'accion-menu' + (a.destructiva ? ' destructiva' : '');
+        if (a.deshabilitada) btn.disabled = true;
+        btn.innerHTML = `
+            <span class="icono-accion">${a.icono}</span>
+            <span class="texto-accion">
+                ${a.nombre}
+                ${a.deshabilitada ? `<span class="sub-accion">${a.motivoDeshabilitada || 'No disponible'}</span>` : ''}
+            </span>
+        `;
+        btn.addEventListener('click', async () => {
+            cerrarMenuContextual();
+            await a.ejecutar(item.id);
+        });
+        OG.menuAcciones.appendChild(btn);
+    });
+
+    OG.menuOverlay.classList.add('visible');
+    OG.menu.classList.add('visible');
+}
+
+function cerrarMenuContextual() {
+    OG.menuOverlay.classList.remove('visible');
+    OG.menu.classList.remove('visible');
+    ORG.menuAbierto = false;
+    ORG.menuElementoId = null;
+}
+
+// ── Editor de tags ──────────────────────────────────────────
+async function editorTags(id) {
+    const item = await dbGet(id);
+    if (!item) return;
+
+    // Recopilar todas las tags ya usadas en la app
+    const todos = await dbTodos();
+    const tagsUsadas = new Set();
+    todos.forEach(t => {
+        if (Array.isArray(t.tags)) t.tags.forEach(tag => tagsUsadas.add(tag));
+    });
+
+    const tagsActuales = new Set(Array.isArray(item.tags) ? item.tags : []);
+
+    // Render del editor
+    const renderEditor = () => {
+        const chips = Array.from(tagsActuales).map(t =>
+            `<span class="chip">${util.esc(t)}<span class="quitar" data-tag="${util.esc(t)}">✕</span></span>`
+        ).join('');
+        const sugerencias = Array.from(tagsUsadas).filter(t => !tagsActuales.has(t)).slice(0, 12);
+        const sugHtml = sugerencias.length > 0
+            ? `<div class="sugerencias">${sugerencias.map(s => `<span class="sug" data-tag="${util.esc(s)}">+ ${util.esc(s)}</span>`).join('')}</div>`
+            : '';
+
+        OG.miniPanelContenido.innerHTML = `
+            <h4>🏷️ Tags · ${util.esc(item.nombre)}</h4>
+            <div class="tags-editor">
+                <div class="chips-wrap">${chips || '<span style="color:#475569;font-size:0.75rem;">Sin tags</span>'}</div>
+                <div class="input-wrap">
+                    <input type="text" id="mlTagInput" placeholder="Nueva tag…">
+                    <button class="btn btn-small btn-primary" id="mlTagAdd" style="padding:0 14px;border-radius:10px;">+</button>
+                </div>
+                ${sugHtml}
+            </div>
+            <div style="display:flex;gap:8px;margin-top:16px;">
+                <button class="btn btn-outline" id="mlTagsCerrar" style="flex:1;padding:10px;border-radius:10px;">Cerrar</button>
+                <button class="btn btn-primary" id="mlTagsGuardar" style="flex:1;padding:10px;border-radius:10px;">Guardar</button>
+            </div>
+        `;
+
+        // Listeners
+        const input = OG.miniPanelContenido.querySelector('#mlTagInput');
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                añadirTag(input.value.trim());
+            }
+        });
+        OG.miniPanelContenido.querySelector('#mlTagAdd').addEventListener('click', () => {
+            añadirTag(input.value.trim());
+        });
+        OG.miniPanelContenido.querySelectorAll('.chip .quitar').forEach(el => {
+            el.addEventListener('click', () => {
+                tagsActuales.delete(el.dataset.tag);
+                renderEditor();
+            });
+        });
+        OG.miniPanelContenido.querySelectorAll('.sug').forEach(el => {
+            el.addEventListener('click', () => {
+                tagsActuales.add(el.dataset.tag);
+                renderEditor();
+            });
+        });
+        OG.miniPanelContenido.querySelector('#mlTagsCerrar').addEventListener('click', cerrarMiniPanel);
+        OG.miniPanelContenido.querySelector('#mlTagsGuardar').addEventListener('click', async () => {
+            item.tags = Array.from(tagsActuales);
+            await dbPut(item);
+            await renderCanciones();
+            cerrarMiniPanel();
+            toast('🏷️ Tags guardadas');
+        });
+    };
+
+    const añadirTag = (tag) => {
+        if (!tag) return;
+        // Normalizar: quitar #, espacios al principio
+        const limpia = tag.replace(/^#/, '').trim();
+        if (!limpia) return;
+        tagsActuales.add(limpia);
+        renderEditor();
+        // Enfocar el input de nuevo
+        const input = OG.miniPanelContenido.querySelector('#mlTagInput');
+        if (input) input.focus();
+    };
+
+    renderEditor();
+    OG.miniPanel.classList.add('visible');
+}
+
+async function editorTagsLote(ids) {
+    const items = [];
+    for (const id of ids) {
+        const it = await dbGet(id);
+        if (it) items.push(it);
+    }
+    if (items.length === 0) return;
+
+    const todos = await dbTodos();
+    const tagsUsadas = new Set();
+    todos.forEach(t => {
+        if (Array.isArray(t.tags)) t.tags.forEach(tag => tagsUsadas.add(tag));
+    });
+
+    // Tags que comparten TODOS los seleccionados
+    const tagsComunes = new Set();
+    if (items.length > 0) {
+        items[0].tags?.forEach(t => tagsComunes.add(t));
+        for (let i = 1; i < items.length; i++) {
+            const propias = new Set(items[i].tags || []);
+            Array.from(tagsComunes).forEach(t => {
+                if (!propias.has(t)) tagsComunes.delete(t);
+            });
+        }
+    }
+
+    const añadir = new Set();   // tags a añadir a todos
+    const quitar = new Set();   // tags a quitar a todos
+
+    const renderEditorLote = () => {
+        const chips = Array.from(tagsComunes).map(t =>
+            `<span class="chip">${util.esc(t)}<span class="quitar" data-tag="${util.esc(t)}">✕</span></span>`
+        ).join('');
+        const sugerencias = Array.from(tagsUsadas).filter(t => !tagsComunes.has(t)).slice(0, 12);
+        const sugHtml = sugerencias.length > 0
+            ? `<div class="sugerencias">${sugerencias.map(s => `<span class="sug" data-tag="${util.esc(s)}">+ ${util.esc(s)}</span>`).join('')}</div>`
+            : '';
+
+        OG.miniPanelContenido.innerHTML = `
+            <h4>🏷️ Tags en lote · ${items.length} elementos</h4>
+            <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:10px;">Tags actuales (comunes a todos):</div>
+            <div class="tags-editor">
+                <div class="chips-wrap">${chips || '<span style="color:#475569;font-size:0.75rem;">Sin tags comunes</span>'}</div>
+                <div class="input-wrap">
+                    <input type="text" id="mlTagInput" placeholder="Añadir tag a todos…">
+                    <button class="btn btn-small btn-primary" id="mlTagAdd" style="padding:0 14px;border-radius:10px;">+</button>
+                </div>
+                ${sugHtml}
+                ${añadir.size > 0 ? `<div style="margin-top:10px;font-size:0.7rem;color:#22c55e;">A añadir: ${Array.from(añadir).map(t => util.esc(t)).join(', ')}</div>` : ''}
+                ${quitar.size > 0 ? `<div style="margin-top:4px;font-size:0.7rem;color:#f8a4b0;">A quitar: ${Array.from(quitar).map(t => util.esc(t)).join(', ')}</div>` : ''}
+            </div>
+            <div style="display:flex;gap:8px;margin-top:16px;">
+                <button class="btn btn-outline" id="mlTagsCerrar" style="flex:1;padding:10px;border-radius:10px;">Cerrar</button>
+                <button class="btn btn-primary" id="mlTagsGuardar" style="flex:1;padding:10px;border-radius:10px;">Guardar</button>
+            </div>
+        `;
+
+        const input = OG.miniPanelContenido.querySelector('#mlTagInput');
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); añadirTag(input.value.trim()); }
+        });
+        OG.miniPanelContenido.querySelector('#mlTagAdd').addEventListener('click', () => {
+            añadirTag(input.value.trim());
+        });
+        OG.miniPanelContenido.querySelectorAll('.chip .quitar').forEach(el => {
+            el.addEventListener('click', () => {
+                const t = el.dataset.tag;
+                tagsComunes.delete(t);
+                quitar.add(t);
+                añadir.delete(t);
+                renderEditorLote();
+            });
+        });
+        OG.miniPanelContenido.querySelectorAll('.sug').forEach(el => {
+            el.addEventListener('click', () => {
+                const t = el.dataset.tag;
+                tagsComunes.add(t);
+                añadir.add(t);
+                quitar.delete(t);
+                renderEditorLote();
+            });
+        });
+        OG.miniPanelContenido.querySelector('#mlTagsCerrar').addEventListener('click', cerrarMiniPanel);
+        OG.miniPanelContenido.querySelector('#mlTagsGuardar').addEventListener('click', async () => {
+            for (const it of items) {
+                const propias = new Set(Array.isArray(it.tags) ? it.tags : []);
+                // Quitar
+                quitar.forEach(t => propias.delete(t));
+                // Añadir
+                añadir.forEach(t => propias.add(t));
+                it.tags = Array.from(propias);
+                await dbPut(it);
+            }
+            await renderCanciones();
+            cerrarMiniPanel();
+            toast(`🏷️ Tags guardadas en ${items.length} elementos`);
+        });
+    };
+
+    const añadirTag = (tag) => {
+        if (!tag) return;
+        const limpia = tag.replace(/^#/, '').trim();
+        if (!limpia) return;
+        tagsComunes.add(limpia);
+        añadir.add(limpia);
+        quitar.delete(limpia);
+        renderEditorLote();
+        const input = OG.miniPanelContenido.querySelector('#mlTagInput');
+        if (input) input.focus();
+    };
+
+    renderEditorLote();
+    OG.miniPanel.classList.add('visible');
+}
+
+// ── Editor de notas ─────────────────────────────────────────
+async function editorNotas(id) {
+    const item = await dbGet(id);
+    if (!item) return;
+
+    OG.miniPanelContenido.innerHTML = `
+        <h4>📝 Notas · ${util.esc(item.nombre)}</h4>
+        <div class="notas-editor">
+            <textarea id="mlNotasTexto" placeholder="Escribe aquí tus notas sobre esta ${item.tipo}…">${util.esc(item.notas || '')}</textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;">
+            <button class="btn btn-outline" id="mlNotasCerrar" style="flex:1;padding:10px;border-radius:10px;">Cerrar</button>
+            <button class="btn btn-primary" id="mlNotasGuardar" style="flex:1;padding:10px;border-radius:10px;">Guardar</button>
+        </div>
+    `;
+
+    OG.miniPanelContenido.querySelector('#mlNotasCerrar').addEventListener('click', cerrarMiniPanel);
+    OG.miniPanelContenido.querySelector('#mlNotasGuardar').addEventListener('click', async () => {
+        item.notas = OG.miniPanelContenido.querySelector('#mlNotasTexto').value;
+        await dbPut(item);
+        await renderCanciones();
+        cerrarMiniPanel();
+        toast('📝 Notas guardadas');
+    });
+
+    OG.miniPanel.classList.add('visible');
+}
+
+// ── Ver filtros aplicados ───────────────────────────────────
+async function verFiltrosAplicados(id) {
+    const item = await dbGet(id);
+    if (!item || !Array.isArray(item.filtrosAplicados) || item.filtrosAplicados.length === 0) return;
+
+    const html = item.filtrosAplicados.map(fa => {
+        const def = FILTROS[fa.id];
+        const nombre = def ? `${def.icono} ${def.nombre}` : fa.id;
+        const params = Object.entries(fa.params || {})
+            .map(([k, v]) => {
+                const pdef = def?.parametros.find(p => p.id === k);
+                const valorTxt = pdef?.formato ? pdef.formato(v) : v;
+                return `${pdef?.nombre || k}: ${valorTxt}`;
+            })
+            .join(' · ');
+        return `
+            <div class="filtro-item">
+                <div class="nombre">${util.esc(nombre)}</div>
+                <div class="params">${util.esc(params)}</div>
+            </div>
+        `;
+    }).join('');
+
+    OG.miniPanelContenido.innerHTML = `
+        <h4>🎛️ Filtros aplicados · ${util.esc(item.nombre)}</h4>
+        ${html}
+        <div style="font-size:0.68rem;color:#64748b;margin-top:12px;line-height:1.5;">
+            ℹ️ Estos filtros ya están horneados en el audio. Si quieres quitarlos, usa el editor de la toma y deshaz con ↶.
+        </div>
+        <button class="btn btn-outline" id="mlFiltrosAplicadosCerrar" style="width:100%;padding:10px;border-radius:10px;margin-top:12px;">Cerrar</button>
+    `;
+    OG.miniPanelContenido.querySelector('#mlFiltrosAplicadosCerrar').addEventListener('click', cerrarMiniPanel);
+
+    OG.miniPanel.classList.add('visible');
+}
+
+// ── Cerrar mini panel ───────────────────────────────────────
+function cerrarMiniPanel() {
+    OG.miniPanel.classList.remove('visible');
+    OG.miniPanelContenido.innerHTML = '';
+}
+
+// ── Mover elemento ──────────────────────────────────────────
+async function moverElemento(id) {
+    const item = await dbGet(id);
+    if (!item) return;
+
+    const carpetas = await dbTodos();
+    const posibles = carpetas.filter(c => c.tipo === 'carpeta' && c.id !== id);
+
+    // Construir lista de destinos con indentación
+    const opciones = [];
+    const raiz = { id: 'root', nombre: '📁 Canciones (raíz)', parent: null };
+    opciones.push(raiz);
+    const construir = (padreId, nivel) => {
+        const hijos = posibles.filter(c => c.parent === padreId);
+        hijos.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+        hijos.forEach(c => {
+            opciones.push({ id: c.id, nombre: '　'.repeat(nivel) + '📁 ' + c.nombre, parent: c.parent });
+            construir(c.id, nivel + 1);
+        });
+    };
+    construir('root', 1);
+    // Carpetas cuyo parent es null (huérfanas de pruebas viejas)
+    posibles.filter(c => !c.parent).forEach(c => {
+        if (!opciones.find(o => o.id === c.id)) {
+            opciones.push({ id: c.id, nombre: '📁 ' + c.nombre, parent: null });
+        }
+    });
+
+    OG.miniPanelContenido.innerHTML = `
+        <h4>📁 Mover "${util.esc(item.nombre)}" a…</h4>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:10px;max-height:50vh;overflow-y:auto;">
+            ${opciones.map(o => `
+                <button class="btn btn-outline btn-destino" data-destino="${o.id}"
+                    style="text-align:left;padding:10px 14px;border-radius:10px;justify-content:flex-start;">
+                    ${util.esc(o.nombre)}
+                </button>
+            `).join('')}
+        </div>
+        <button class="btn btn-outline" id="mlMoverCancelar" style="width:100%;padding:10px;border-radius:10px;margin-top:12px;">Cancelar</button>
+    `;
+
+    OG.miniPanelContenido.querySelectorAll('.btn-destino').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const destinoId = btn.dataset.destino;
+            item.parent = destinoId === 'root' ? 'root' : destinoId;
+            await dbPut(item);
+            await renderCanciones();
+            cerrarMiniPanel();
+            toast('📁 Movido');
+        });
+    });
+    OG.miniPanelContenido.querySelector('#mlMoverCancelar').addEventListener('click', cerrarMiniPanel);
+
+    OG.miniPanel.classList.add('visible');
+}
+
+async function moverElementoLote(ids) {
+    const carpetas = await dbTodos();
+    const posibles = carpetas.filter(c => c.tipo === 'carpeta' && !ids.includes(c.id));
+
+    const opciones = [{ id: 'root', nombre: '📁 Canciones (raíz)' }];
+    const construir = (padreId, nivel) => {
+        const hijos = posibles.filter(c => c.parent === padreId);
+        hijos.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+        hijos.forEach(c => {
+            opciones.push({ id: c.id, nombre: '　'.repeat(nivel) + '📁 ' + c.nombre });
+            construir(c.id, nivel + 1);
+        });
+    };
+    construir('root', 1);
+
+    OG.miniPanelContenido.innerHTML = `
+        <h4>📁 Mover ${ids.length} elementos a…</h4>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:10px;max-height:50vh;overflow-y:auto;">
+            ${opciones.map(o => `
+                <button class="btn btn-outline btn-destino" data-destino="${o.id}"
+                    style="text-align:left;padding:10px 14px;border-radius:10px;justify-content:flex-start;">
+                    ${util.esc(o.nombre)}
+                </button>
+            `).join('')}
+        </div>
+        <button class="btn btn-outline" id="mlMoverCancelar" style="width:100%;padding:10px;border-radius:10px;margin-top:12px;">Cancelar</button>
+    `;
+
+    OG.miniPanelContenido.querySelectorAll('.btn-destino').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const destinoId = btn.dataset.destino;
+            for (const id of ids) {
+                const it = await dbGet(id);
+                if (!it) continue;
+                it.parent = destinoId === 'root' ? 'root' : destinoId;
+                await dbPut(it);
+            }
+            await renderCanciones();
+            cerrarMiniPanel();
+            salirModoSeleccion();
+            toast(`📁 ${ids.length} movidos`);
+        });
+    });
+    OG.miniPanelContenido.querySelector('#mlMoverCancelar').addEventListener('click', cerrarMiniPanel);
+
+    OG.miniPanel.classList.add('visible');
+}
+
+// ── Reproducir toma rápida (sin abrir editor) ───────────────
+async function reproducirTomaRapida(item) {
+    try {
+        const fuente = item.bufferEditado || item.blob;
+        if (!fuente) { toast('❌ Sin audio'); return; }
+        const arrayBuf = await fuente.arrayBuffer();
+        const ctx = obtenerAudioContext();
+        const buffer = await ctx.decodeAudioData(arrayBuf);
+        detenerReproduccion();
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.connect(ctx.destination);
+        ML.sourceActual = src;
+        ML.estaReproduciendo = true;
+        src.start();
+        src.onended = () => {
+            ML.estaReproduciendo = false;
+            ML.sourceActual = null;
+        };
+        toast(`▶ ${item.nombre}`);
+    } catch (e) {
+        console.error(e);
+        toast('❌ Error al reproducir');
+    }
+}
+
+// ── Modo selección múltiple ─────────────────────────────────
+function entrarModoSeleccion() {
+    ORG.modoSeleccion = true;
+    ORG.seleccionados.clear();
+    OG.btnSeleccionar.classList.add('activo');
+    dom.fab.classList.add('hidden');
+    OG.barraLote.classList.add('visible');
+    actualizarBarraLote();
+}
+
+function salirModoSeleccion() {
+    ORG.modoSeleccion = false;
+    ORG.seleccionados.clear();
+    OG.btnSeleccionar.classList.remove('activo');
+    dom.fab.classList.remove('hidden');
+    OG.barraLote.classList.remove('visible');
+    renderCanciones();
+}
+
+function seleccionar(id) {
+    ORG.seleccionados.add(id);
+    renderCanciones();
+}
+
+async function actualizarBarraLote() {
+    OG.loteContador.textContent = ORG.seleccionados.size;
+
+    const ids = Array.from(ORG.seleccionados);
+    if (ids.length === 0) {
+        OG.loteAcciones.innerHTML = '<span style="color:#64748b;font-size:0.72rem;">Toca elementos para seleccionar</span>';
+        return;
+    }
+
+    // Obtener tipos únicos de la selección
+    const tipos = new Set();
+    for (const id of ids) {
+        const it = await dbGet(id);
+        if (it) tipos.add(it.tipo);
+    }
+
+    // Acciones disponibles: deben aplicar a TODOS los tipos seleccionados
+    // y estar marcadas como "lote: true"
+    const disponibles = Object.keys(ACCIONES).filter(k => {
+        const a = ACCIONES[k];
+        if (!a.lote) return false;
+        return Array.from(tipos).every(t => a.tipos.includes(t));
+    });
+
+    OG.loteAcciones.innerHTML = '';
+    disponibles.forEach(k => {
+        const a = ACCIONES[k];
+        const btn = document.createElement('button');
+        if (a.destructiva) btn.classList.add('destructiva');
+        btn.innerHTML = `${a.icono} ${a.nombre}`;
+        btn.addEventListener('click', async () => {
+            if (a.ejecutarLote) {
+                await a.ejecutarLote(ids);
+            } else {
+                toast('⚠️ Acción no disponible en lote');
+            }
+            // Tras la acción, si seguimos en modo selección, refrescar
+            if (ORG.modoSeleccion) {
+                await actualizarBarraLote();
+            }
+        });
+        OG.loteAcciones.appendChild(btn);
+    });
+}
+
+// ── Inicialización del bloque 5 ─────────────────────────────
+async function cargarConfigOrganizacion() {
+    try {
+        const item = await dbGet('config_organizacion');
+        if (item && item.datos) {
+            ORG.orden = item.datos.orden || 'fecha-desc';
+            ORG.modoCompacto = !!item.datos.modoCompacto;
+        }
+    } catch (_) {}
+}
+
+async function guardarConfigOrganizacion() {
+    try {
+        await dbPut({
+            id: 'config_organizacion',
+            tipo: 'config',
+            parent: null,
+            datos: { orden: ORG.orden, modoCompacto: ORG.modoCompacto }
+        });
+    } catch (_) {}
+}
+
+function inicializarBloque5() {
+    if (!OG.toolbar) return;
+
+    // Buscador
+    OG.buscador.addEventListener('input', () => {
+        ORG.busqueda = OG.buscador.value.trim();
+        renderCanciones();
+    });
+
+    // Ordenar
+    OG.btnOrden.addEventListener('click', () => {
+        // Marcar la opción activa
+        OG.menuOrden.querySelectorAll('button').forEach(b => {
+            b.classList.toggle('activo', b.dataset.orden === ORG.orden);
+        });
+        OG.menuOrden.classList.add('visible');
+    });
+    OG.menuOrden.querySelectorAll('button').forEach(b => {
+        b.addEventListener('click', async () => {
+            ORG.orden = b.dataset.orden;
+            OG.menuOrden.classList.remove('visible');
+            await guardarConfigOrganizacion();
+            await renderCanciones();
+        });
+    });
+    // Cerrar menú de orden al pulsar fuera
+    document.addEventListener('click', (e) => {
+        if (OG.menuOrden.classList.contains('visible') &&
+            !OG.menuOrden.contains(e.target) &&
+            e.target !== OG.btnOrden &&
+            !OG.btnOrden.contains(e.target)) {
+            OG.menuOrden.classList.remove('visible');
+        }
+    });
+
+    // Cambiar vista (compacta / tarjetas)
+    OG.btnVista.addEventListener('click', async () => {
+        ORG.modoCompacto = !ORG.modoCompacto;
+        OG.btnVista.classList.toggle('activo', ORG.modoCompacto);
+        await guardarConfigOrganizacion();
+        await renderCanciones();
+    });
+
+    // Modo selección
+    OG.btnSeleccionar.addEventListener('click', () => {
+        if (ORG.modoSeleccion) salirModoSeleccion();
+        else entrarModoSeleccion();
+    });
+
+    // Cerrar menú contextual
+    OG.menuCerrar.addEventListener('click', cerrarMenuContextual);
+    OG.menuOverlay.addEventListener('click', cerrarMenuContextual);
+
+    // Cerrar mini panel al pulsar fuera
+    OG.miniPanel.addEventListener('click', (e) => {
+        if (e.target === OG.miniPanel) cerrarMiniPanel();
+    });
+
+    // Refrescar la barra de lote cuando se entre en modo selección
+    // (ya lo hace entrarModoSeleccion)
+}
 
 // ═══════════════════════════════════════════════════════════════
 // [fin bloque 5]
 // ═══════════════════════════════════════════════════════════════
-
 
 // ═══════════════════════════════════════════════════════════════
 // [inicio bloque 6]  ← AQUÍ IRÁ EL BLOQUE 6 (Montar canción)
@@ -5963,49 +7152,6 @@ function inicializarGestosPanelFiltros() {
 // ═══════════════════════════════════════════════════════════════
 // RENDERIZADO DE LA VISTA CANCIONES (núcleo, se completa en bloque 5)
 // ═══════════════════════════════════════════════════════════════
-
-async function renderCanciones() {
-    const hijos = await dbHijosDe(ML.carpetaActual);
-    // Ordenar: carpetas primero, luego canciones, luego tomas; dentro de cada grupo, por fecha desc
-    const peso = { carpeta: 0, cancion: 1, toma: 2 };
-    hijos.sort((a,b) => {
-        const pa = peso[a.tipo] ?? 9, pb = peso[b.tipo] ?? 9;
-        if (pa !== pb) return pa - pb;
-        return (b.fecha || '').localeCompare(a.fecha || '');
-    });
-
-    dom.fileGrid.innerHTML = '';
-    dom.emptyState.style.display = hijos.length === 0 ? 'block' : 'none';
-
-    hijos.forEach(h => {
-        const div = document.createElement('div');
-        div.className = 'file-item' + (h.tipo === 'carpeta' ? ' folder' : '');
-        div.dataset.id = h.id;
-        div.dataset.tipo = h.tipo;
-
-        // Color de borde según el item (para tomas y canciones)
-        if (h.color) {
-            div.style.borderColor = h.color + '88';
-            div.style.boxShadow = `0 4px 12px ${h.color}22`;
-        }
-
-        const icono = h.tipo === 'carpeta' ? '📼'
-                    : h.tipo === 'cancion' ? '🎵'
-                    : '🎙️';
-        const badge = h.tipo === 'toma'
-            ? util.tiempo(h.duracion || 0)
-            : h.tipo === 'cancion' ? `${(h.tomas||[]).length} tomas`
-            : '';
-
-        div.innerHTML = `
-            <div class="icon">${icono}</div>
-            <div class="name">${util.esc(h.nombre)}</div>
-            ${badge ? `<div class="badge">${util.esc(badge)}</div>` : ''}
-        `;
-        div.addEventListener('click', () => onItemClick(h));
-        dom.fileGrid.appendChild(div);
-    });
-}
 
 async function onItemClick(item) {
     util.vibrar(10);
@@ -6081,12 +7227,13 @@ async function init() {
     try { await migrarDeLocalStorage(); } catch(_) {}
 
 await cargarConfigGrabacion();
+await cargarConfigOrganizacion();
 await renderBreadcrumb();
 await renderCanciones();
 inicializarBloque2();
 inicializarBloque3();
+inicializarBloque5();
 pintarBloques();
-setStatus('Listo');
 
     // ── Listeners ─────────────────────────────────────────────
     dom.newFolderBtn.addEventListener('click', async () => {
