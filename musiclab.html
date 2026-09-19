@@ -2805,26 +2805,6 @@ select.desplegable:focus { border-color: #38bdf8; }
 .fab.recording { background: #ef4444; box-shadow: 0 4px 20px rgba(239,68,68,0.4); }
 .fab.hidden { display: none; }
 
-/* ── Indicador de bloque activo ──────────────────────────── */
-#mlBloques {
-    position: fixed;
-    bottom: 8px;
-    left: 8px;
-    background: rgba(15, 23, 42, 0.85);
-    border: 1px solid #1e293b;
-    border-radius: 20px;
-    padding: 4px 10px;
-    font-size: 0.58rem;
-    color: #64748b;
-    font-family: 'Fira Code', monospace;
-    z-index: 50;
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    pointer-events: none;
-}
-#mlBloques .on { color: #38bdf8; }
-#mlBloques .off { color: #334155; }
 
 /* ── Modal genérico ──────────────────────────────────────── */
 .modal-overlay {
@@ -3412,19 +3392,6 @@ select.desplegable:focus { border-color: #38bdf8; }
      ============================================================ -->
 <button class="fab" id="mlFab">🎙️</button>
 
-<!-- ============================================================
-     INDICADOR DE BLOQUES ACTIVOS
-     ============================================================ -->
-<div id="mlBloques">
-    <span class="on">1</span>
-    <span class="off">2</span>
-    <span class="off">3</span>
-    <span class="off">4</span>
-    <span class="off">5</span>
-    <span class="off">6</span>
-    <span class="off">7</span>
-    <span class="off">8</span>
-</div>
 
 <!-- ============================================================
      MODAL GENÉRICO
@@ -3559,9 +3526,7 @@ const ML = {
     estaReproduciendo: false,
     posicionReproduccion: 0,      // segundos
 
-    // Banderas de bloques activos (para el indicador)
-bloques: { 1:true, 2:true, 3:true, 4:true, 5:true, 6:true, 7:true, 8:true }
-};
+
 
 // ── Referencias DOM (cacheadas) ───────────────────────────────
 const $ = id => document.getElementById(id);
@@ -3581,7 +3546,7 @@ const dom = {
     modalOk: $('mlModalOk'),
     toast: $('mlToast'),
     newFolderBtn: $('mlNewFolderBtn'),
-    bloquesIndicador: $('mlBloques')
+
 };
 
 // ── Utilidades ────────────────────────────────────────────────
@@ -3626,12 +3591,6 @@ function setStatus(txt) {
     dom.status.textContent = txt;
 }
 
-// ── Actualizar indicador de bloques ───────────────────────────
-function pintarBloques() {
-    dom.bloquesIndicador.innerHTML = Object.keys(ML.bloques).map(n =>
-        `<span class="${ML.bloques[n] ? 'on' : 'off'}">${n}</span>`
-    ).join('');
-}
 
 // ── Modal genérico (promesa) ──────────────────────────────────
 let modalResolve = null;
@@ -5885,7 +5844,7 @@ function inicializarBloque3() {
     inicializarInteraccionEditor();
 
 // Inicializar el panel de filtros
-inicializarGestosPanelFiltros();
+inicializarControlesPanelFiltros();
 
     // Redimensionar
     let resizeTimer = null;
@@ -6939,65 +6898,19 @@ async function aplicarFiltroHornear(id) {
         toast('❌ Error al aplicar el filtro');
     }
 }
-
 // ═══════════════════════════════════════════════════════════════
-// GESTOS DEL PANEL: pestaña + deslizar desde el borde
+// CONTROLES DEL PANEL DE FILTROS
+// El panel se abre con la pestaña ☰ y se cierra con ✕ o toque en el
+// overlay. No hay gestos: en móvil los botones son más predecibles
+// y no interfieren con el scroll horizontal de la tira de familias.
 // ═══════════════════════════════════════════════════════════════
 
-function inicializarGestosPanelFiltros() {
+function inicializarControlesPanelFiltros() {
     if (!PFD.panel || !PFD.pestana) return;
 
-    // Pestaña y cerrar
     PFD.pestana.addEventListener('click', abrirPanelFiltros);
     PFD.cerrar.addEventListener('click', cerrarPanelFiltros);
     PFD.overlay.addEventListener('click', cerrarPanelFiltros);
-
-    // Gesto: deslizar desde el borde izquierdo del editor
-    let touchInicioX = 0;
-    let touchInicioY = 0;
-    let touchTiempo = 0;
-    let deslizandoDesdeBorde = false;
-
-    DE.ondaWrap.addEventListener('touchstart', (e) => {
-        if (e.touches.length !== 1) return;
-        const rect = DE.ondaWrap.getBoundingClientRect();
-        const x = e.touches[0].clientX - rect.left;
-        const y = e.touches[0].clientY - rect.top;
-        if (x < 24 && !PF.abierto) {
-            touchInicioX = e.touches[0].clientX;
-            touchInicioY = e.touches[0].clientY;
-            touchTiempo = performance.now();
-            deslizandoDesdeBorde = true;
-        }
-    }, { passive: true });
-
-    DE.ondaWrap.addEventListener('touchmove', (e) => {
-        if (!deslizandoDesdeBorde || e.touches.length !== 1) return;
-        const dx = e.touches[0].clientX - touchInicioX;
-        const dy = Math.abs(e.touches[0].clientY - touchInicioY);
-        if (dx > 60 && dy < 50) {
-            deslizandoDesdeBorde = false;
-            abrirPanelFiltros();
-        }
-    }, { passive: true });
-
-    DE.ondaWrap.addEventListener('touchend', () => {
-        deslizandoDesdeBorde = false;
-    }, { passive: true });
-
-    // Gesto: deslizar hacia dentro del panel para cerrar
-    let panelTouchX = 0;
-    PFD.panel.addEventListener('touchstart', (e) => {
-        if (e.touches.length !== 1) return;
-        panelTouchX = e.touches[0].clientX;
-    }, { passive: true });
-    PFD.panel.addEventListener('touchmove', (e) => {
-        if (!PF.abierto || e.touches.length !== 1) return;
-        const dx = e.touches[0].clientX - panelTouchX;
-        if (dx < -80) {
-            cerrarPanelFiltros();
-        }
-    }, { passive: true });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -10571,7 +10484,7 @@ inicializarBloque5();
 inicializarBloque6();
 inicializarBloque7();
 await inicializarBloque8();
-pintarBloques();
+
 
     // ── Listeners ─────────────────────────────────────────────
     dom.newFolderBtn.addEventListener('click', async () => {
