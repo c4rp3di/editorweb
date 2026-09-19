@@ -194,6 +194,926 @@ header h1 span {
     font-size: 0.85rem;
     line-height: 1.5;
 }
+
+/* ============================================================
+   BLOQUE 8 · PWA / APK · Ajustes
+   Menú de ajustes, aviso de instalación, panel de información.
+   ============================================================ */
+
+/* ── Botón de ajustes en el header ─────────────────────── */
+.header-acciones {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.btn-ajustes {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s;
+}
+.btn-ajustes:active { background: #334155; color: #e2e8f0; }
+.btn-ajustes.nuevo {
+    animation: pulsoAjustes 2s infinite;
+}
+@keyframes pulsoAjustes {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+    50% { box-shadow: 0 0 0 5px rgba(56, 189, 248, 0.3); }
+}
+
+/* ── Panel de ajustes (hoja inferior) ──────────────────── */
+.ajustes-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 10, 20, 0.6);
+    z-index: 900;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+}
+.ajustes-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ajustes-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #1e293b;
+    border-top: 1px solid #334155;
+    border-radius: 18px 18px 0 0;
+    z-index: 910;
+    display: flex;
+    flex-direction: column;
+    max-height: 70vh;
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.ajustes-panel.visible { transform: translateY(0); }
+
+.ajustes-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid #334155;
+    flex-shrink: 0;
+}
+.ajustes-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ajustes-header .btn-cerrar-ajustes {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #0f172a;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #334155;
+}
+.ajustes-header .btn-cerrar-ajustes:active { background: #334155; }
+
+.ajustes-contenido {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 0;
+}
+
+.ajuste-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    background: transparent;
+    border: none;
+    color: #e2e8f0;
+    text-align: left;
+    transition: background 0.1s;
+}
+.ajuste-item:active { background: #334155; }
+.ajuste-item .ajuste-icono {
+    font-size: 1.3rem;
+    flex-shrink: 0;
+    width: 30px;
+    text-align: center;
+}
+.ajuste-item .ajuste-texto {
+    flex: 1;
+    min-width: 0;
+}
+.ajuste-item .ajuste-titulo {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.ajuste-item .ajuste-titulo .nuevo-badge {
+    background: #38bdf8;
+    color: #0b1120;
+    font-size: 0.55rem;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.ajuste-item .ajuste-detalle {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    margin-top: 2px;
+    line-height: 1.35;
+}
+.ajuste-item .ajuste-chev {
+    color: #64748b;
+    flex-shrink: 0;
+    font-size: 0.85rem;
+}
+
+/* Separador entre secciones del menú */
+.ajustes-seccion {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 14px 18px 6px;
+    margin-top: 6px;
+}
+
+/* ── Aviso primera vez (instalar app) ──────────────────── */
+.aviso-instalar {
+    position: fixed;
+    bottom: 16px;
+    left: 16px;
+    right: 16px;
+    background: #24243e;
+    border: 1px solid #38bdf8;
+    border-radius: 14px;
+    padding: 14px 16px;
+    z-index: 850;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    transform: translateY(120%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.aviso-instalar.visible { transform: translateY(0); }
+.aviso-instalar .icono-aviso {
+    font-size: 1.6rem;
+    flex-shrink: 0;
+    line-height: 1;
+}
+.aviso-instalar .contenido-aviso {
+    flex: 1;
+    min-width: 0;
+}
+.aviso-instalar .titulo-aviso {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 2px;
+}
+.aviso-instalar .texto-aviso {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+.aviso-instalar .acciones-aviso {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+}
+.aviso-instalar .acciones-aviso button {
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+.aviso-instalar .btn-instalar-aviso {
+    background: #38bdf8;
+    color: #0b1120;
+}
+.aviso-instalar .btn-cerrar-aviso {
+    background: #334155;
+    color: #e2e8f0;
+}
+
+/* ── Modal de información (Acerca de, Almacenamiento) ─── */
+.info-modal .bloque-info {
+    background: #0f172a;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+.info-modal .bloque-info .titulo-bloque {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+.info-modal .bloque-info .fila-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 4px 0;
+    font-size: 0.8rem;
+}
+.info-modal .bloque-info .fila-info .etiqueta {
+    color: #94a3b8;
+}
+.info-modal .bloque-info .fila-info .valor {
+    color: #e2e8f0;
+    font-weight: 600;
+    font-family: 'Fira Code', monospace;
+}
+.info-modal .bloque-info .fila-info .valor.destacado {
+    color: #38bdf8;
+}
+
+/* ============================================================
+   BLOQUE 7 · EXPORTAR
+   Formatos, opciones, progreso y compartición.
+   ============================================================ */
+
+/* ── Modal de exportación ───────────────────────────────── */
+.export-modal .campo {
+    margin-bottom: 14px;
+}
+
+/* El overlay del modal de exportación debe estar POR ENCIMA de la pantalla
+   de progreso, porque el flujo correcto es: preguntar → mostrar progreso.
+   Si en el futuro se solapan por error, el modal gana. */
+.export-modal {
+    position: relative;
+    z-index: 1250;
+}
+.export-modal .campo label {
+    display: block;
+    font-size: 0.72rem;
+    color: #94a3b8;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+.export-modal .info-tamano {
+    font-size: 0.68rem;
+    color: #64748b;
+    margin-top: 4px;
+    font-family: 'Fira Code', monospace;
+}
+
+/* Opciones tipo radio en tarjetas */
+.export-modal .opciones-formato {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.export-modal .opcion-formato {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.export-modal .opcion-formato:active { background: #1e293b; }
+.export-modal .opcion-formato.seleccionada {
+    border-color: #38bdf8;
+    background: #16233a;
+}
+.export-modal .opcion-formato .radio {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #475569;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.export-modal .opcion-formato.seleccionada .radio {
+    border-color: #38bdf8;
+}
+.export-modal .opcion-formato.seleccionada .radio::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #38bdf8;
+}
+.export-modal .opcion-formato .texto {
+    flex: 1;
+    min-width: 0;
+}
+.export-modal .opcion-formato .titulo-formato {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+.export-modal .opcion-formato .detalle-formato {
+    font-size: 0.66rem;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+/* Botones del modal de exportación */
+.export-modal .botones-export {
+    display: flex;
+    gap: 8px;
+    margin-top: 18px;
+}
+.export-modal .botones-export button {
+    flex: 1;
+    padding: 11px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.export-modal .btn-cancelar-exp {
+    background: #334155;
+    color: #e2e8f0;
+}
+.export-modal .btn-exportar {
+    background: #38bdf8;
+    color: #0b1120;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.export-modal .btn-exportar:disabled {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+/* ── Pantalla de progreso de exportación ───────────────── */
+.export-progreso {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,20,0.9);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+    padding: 30px;
+    text-align: center;
+    gap: 20px;
+}
+.export-progreso.visible { display: flex; }
+.export-progreso .spinner-grande {
+    width: 56px;
+    height: 56px;
+    border: 4px solid #1e293b;
+    border-top-color: #38bdf8;
+    border-radius: 50%;
+    animation: girarExp 0.9s linear infinite;
+}
+@keyframes girarExp { to { transform: rotate(360deg); } }
+.export-progreso .mensaje {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #f1f5f9;
+}
+.export-progreso .detalle {
+    font-size: 0.75rem;
+    color: #64748b;
+    max-width: 280px;
+    line-height: 1.5;
+}
+.export-progreso .check-final {
+    font-size: 3.5rem;
+    display: none;
+}
+.export-progreso.completado .spinner-grande { display: none; }
+.export-progreso.completado .check-final { display: block; }
+.export-progreso.completado .mensaje { color: #22c55e; }
+
+/* ── Barra de botones de exportación en multipista ─────── */
+/* (los botones ya existen con .btn-mp; solo añadimos el estilo del icono) */
+.mp-header .btn-mp svg { display: block; }
+
+/* ============================================================
+   BLOQUE 6 · MULTIPISTA
+   Timeline, carriles, clips, mixer, reproducción sincronizada.
+   ============================================================ */
+
+/* ── Contenedor del multipista ──────────────────────────── */
+.multipista {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 0;
+    gap: 0;
+    background: #020617;
+}
+
+/* ── Header del multipista ──────────────────────────────── */
+.mp-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #1e293b;
+    border-bottom: 1px solid #334155;
+    flex-shrink: 0;
+}
+.mp-header .btn-volver {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #0f172a;
+    color: #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid #334155;
+}
+.mp-header .btn-volver:active { background: #334155; }
+.mp-header .titulo-mp {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.mp-header .titulo-mp input {
+    background: transparent;
+    border: none;
+    color: #f1f5f9;
+    font-size: 0.92rem;
+    font-weight: 600;
+    outline: none;
+    padding: 2px 0;
+    width: 100%;
+}
+.mp-header .titulo-mp input:focus { border-bottom: 1px solid #38bdf8; }
+.mp-header .titulo-mp .meta {
+    font-size: 0.62rem;
+    color: #64748b;
+    font-family: 'Fira Code', monospace;
+    display: flex;
+    gap: 8px;
+}
+.mp-header .titulo-mp .meta .modificado {
+    color: #facc15;
+    display: none;
+}
+.mp-header .titulo-mp .meta .modificado.visible { display: inline; }
+.mp-header .btn-mp {
+    padding: 8px 12px;
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.mp-header .btn-mp:active { background: #334155; }
+.mp-header .btn-mp.primary { background: #38bdf8; color: #0b1120; border-color: #38bdf8; }
+.mp-header .btn-mp:disabled { opacity: 0.35; pointer-events: none; }
+
+/* ── Contenedor principal: mixer lateral + timeline ──────── */
+.mp-main {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    overflow: hidden;
+}
+
+/* ── Panel de pistas (izquierda) ─────────────────────────── */
+.mp-pistas {
+    width: 100px;
+    flex-shrink: 0;
+    background: #0a0f1a;
+    border-right: 1px solid #1e293b;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+}
+.mp-pista-header {
+    height: 26px;
+    background: #0a0f1a;
+    border-bottom: 1px solid #1e293b;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    font-size: 0.55rem;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Fira Code', monospace;
+}
+.mp-pista {
+    padding: 6px 8px;
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 66px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.mp-pista.activa { background: #16233a; }
+.mp-pista .nombre-pista {
+    font-size: 0.62rem;
+    color: #e2e8f0;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mp-pista .controles-pista {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+}
+.mp-pista .btn-mini {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    font-size: 0.55rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.mp-pista .btn-mini:active { background: #334155; }
+.mp-pista .btn-mini.activo { background: #ef4444; color: #fff; border-color: #ef4444; }
+.mp-pista .btn-mini.solo.activo { background: #facc15; color: #0b1120; border-color: #facc15; }
+.mp-pista .btn-mini.mute.activo { background: #ef4444; color: #fff; border-color: #ef4444; }
+.mp-pista .slider-vol {
+    width: 100%;
+    height: 4px;
+    margin-top: 2px;
+}
+.mp-pista .slider-pan {
+    width: 100%;
+    height: 4px;
+    margin-top: 2px;
+}
+.mp-pista .btn-borrar-pista {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #4a1e2a;
+    color: #f8a4b0;
+    font-size: 0.55rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.mp-pista { position: relative; }
+
+/* ── Timeline (derecha) ─────────────────────────────────── */
+.mp-timeline-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    touch-action: none;
+    position: relative;
+}
+
+/* Regla del timeline */
+.mp-regla {
+    height: 26px;
+    width: 100%;
+    display: block;
+    background: #0a0f1a;
+    border-bottom: 1px solid #1e293b;
+    flex-shrink: 0;
+}
+
+/* Área de carriles (scroll vertical) */
+.mp-carriles-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    position: relative;
+}
+
+.mp-carriles {
+    position: relative;
+    min-height: 100%;
+}
+
+/* Cada carril */
+.mp-carril {
+    height: 66px;
+    border-bottom: 1px solid #1e293b;
+    position: relative;
+    background: #040a16;
+    overflow: hidden;
+}
+.mp-carril.activo { background: #071429; }
+
+/* Clip dentro de un carril */
+.mp-clip {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%);
+    border: 1px solid #38bdf8;
+    overflow: hidden;
+    cursor: grab;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    touch-action: none;
+    user-select: none;
+}
+.mp-clip:active { cursor: grabbing; }
+.mp-clip.arrastrando { opacity: 0.8; z-index: 100; }
+.mp-clip.recortando-izq,
+.mp-clip.recortando-der { cursor: ew-resize; }
+
+.mp-clip .nombre-clip {
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+.mp-clip .mini-onda {
+    position: absolute;
+    bottom: 2px;
+    left: 0;
+    right: 0;
+    height: 16px;
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+/* Asas de recorte del clip */
+.mp-clip .asa-izq,
+.mp-clip .asa-der {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 12px;
+    background: rgba(56, 189, 248, 0.25);
+    cursor: ew-resize;
+    z-index: 5;
+}
+.mp-clip .asa-izq { left: 0; border-radius: 6px 0 0 6px; }
+.mp-clip .asa-der { right: 0; border-radius: 0 6px 6px 0; }
+.mp-clip .asa-izq::after,
+.mp-clip .asa-der::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 20px;
+    background: #38bdf8;
+    border-radius: 2px;
+}
+
+/* Playhead del multipista */
+.mp-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #facc15;
+    box-shadow: 0 0 6px rgba(250, 204, 21, 0.8);
+    pointer-events: none;
+    z-index: 50;
+}
+
+/* ── Barra de transporte del multipista ────────────────── */
+.mp-transporte {
+    background: #0a0f1a;
+    border-top: 1px solid #1e293b;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.mp-transporte .btn-play {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #38bdf8;
+    color: #0b1120;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 3px 12px rgba(56, 189, 248, 0.35);
+}
+.mp-transporte .btn-play:active { transform: scale(0.94); }
+.mp-transporte .btn-play.reproduciendo {
+    background: #ef4444;
+    color: #fff;
+}
+.mp-transporte .tiempo-mp {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.72rem;
+    color: #94a3b8;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+}
+.mp-transporte .tiempo-mp .actual { color: #facc15; }
+.mp-transporte .barra-mp {
+    flex: 1;
+    height: 6px;
+    background: #020617;
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+}
+.mp-transporte .barra-mp .relleno-mp {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #38bdf8;
+    width: 0%;
+    transition: width 0.05s linear;
+}
+
+/* ── Placeholder de multipista vacío ────────────────────── */
+.mp-vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #475569;
+    text-align: center;
+    gap: 12px;
+    padding: 30px;
+}
+.mp-vacio .icono { font-size: 3rem; opacity: 0.5; }
+.mp-vacio h3 { font-size: 0.95rem; font-weight: 600; color: #64748b; }
+.mp-vacio p { font-size: 0.78rem; max-width: 260px; line-height: 1.5; }
+
+/* ── Modal: selector de tomas ──────────────────────────── */
+.selector-tomas {
+    max-height: 60vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+.selector-tomas .item-toma {
+    padding: 10px 12px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.1s;
+}
+.selector-tomas .item-toma:active { background: #1e293b; }
+.selector-tomas .item-toma.seleccionada {
+    border-color: #38bdf8;
+    background: #16233a;
+}
+.selector-tomas .item-toma .icono { font-size: 1.2rem; flex-shrink: 0; }
+.selector-tomas .item-toma .info { flex: 1; min-width: 0; }
+.selector-tomas .item-toma .nombre {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.selector-tomas .item-toma .meta {
+    font-size: 0.65rem;
+    color: #64748b;
+    font-family: 'Fira Code', monospace;
+    margin-top: 2px;
+}
+.selector-tomas .item-toma .check {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #475569;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: transparent;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.selector-tomas .item-toma.seleccionada .check {
+    background: #38bdf8;
+    border-color: #38bdf8;
+    color: #0b1120;
+}
+
+/* ── Modal: editor de pista ─────────────────────────────── */
+.editor-pista-modal .campo {
+    margin-bottom: 12px;
+}
+.editor-pista-modal .campo label {
+    display: block;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    margin-bottom: 4px;
+}
+.editor-pista-modal .campo input[type="text"],
+.editor-pista-modal .campo input[type="number"] {
+    width: 100%;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: #e2e8f0;
+    font-size: 0.8rem;
+    outline: none;
+}
+.editor-pista-modal .campo input:focus { border-color: #38bdf8; }
+
+/* ── Zoom del timeline (botones flotantes) ──────────────── */
+.mp-zoom-controles {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 40;
+}
+.mp-zoom-controles button {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.9);
+    border: 1px solid #334155;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+.mp-zoom-controles button:active { background: #334155; }
+
+/* Modo compacto del timeline (más carriles visibles) */
+.mp-carril.compacto { height: 44px; }
+.mp-carril.compacto .mp-clip { top: 2px; bottom: 2px; }
+
 /* ============================================================
    BLOQUE 5 · ORGANIZAR
    Menú contextual, tags, notas, selección múltiple, vista compacta.
@@ -1992,8 +2912,16 @@ select.desplegable:focus { border-color: #38bdf8; }
      HEADER
      ============================================================ -->
 <header>
-<h1>🎵 MusicLab <span id="mlVersion">v0.5</span></h1>
-    <div id="mlStatus">Listo</div>
+    <h1>🎵 MusicLab <span id="mlVersion">v0.8</span></h1>
+    <div class="header-acciones">
+        <div id="mlStatus">Listo</div>
+        <button class="btn-ajustes" id="mlBtnAjustes" title="Ajustes" aria-label="Ajustes">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+            </svg>
+        </button>
+    </div>
 </header>
 
 <!-- ============================================================
@@ -2277,10 +3205,13 @@ select.desplegable:focus { border-color: #38bdf8; }
                         <span class="modificado" id="mlEditorModificado">● sin guardar</span>
                     </div>
                 </div>
-                <button class="btn-guardar" id="mlEditorGuardar" disabled>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                    Guardar
-                </button>
+<button class="btn-guardar" id="mlEditorExportar" style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;" title="Exportar toma">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+</button>
+<button class="btn-guardar" id="mlEditorGuardar" disabled>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    Guardar
+</button>
             </div>
 
             <!-- Zona de onda -->
@@ -2399,15 +3330,81 @@ select.desplegable:focus { border-color: #38bdf8; }
     </div>
 </div>
 
-    <!-- ── VISTA MULTIPISTA (bloque 6) ── -->
-    <div class="view" id="viewMultipista">
-        <div class="bloque-placeholder">
-            <div class="icono">🎛️</div>
-            <h2>Multipista · Bloque 6</h2>
-            <p>Aquí irá el timeline con carriles, el mixer y la reproducción sincronizada de todas las pistas.</p>
-        </div>
-    </div>
+<!-- ── VISTA MULTIPISTA (bloque 6) ── -->
+<div class="view" id="viewMultipista" style="padding:0; overflow:hidden;">
+    <div class="multipista" id="mlMultipista">
 
+        <!-- Header -->
+        <div class="mp-header">
+            <button class="btn-volver" id="mlMpVolver" title="Volver">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div class="titulo-mp">
+                <input type="text" id="mlMpNombre" value="Canción">
+                <div class="meta">
+                    <span id="mlMpInfo">0 pistas · 0:00</span>
+                    <span class="modificado" id="mlMpModificado">● sin guardar</span>
+                </div>
+            </div>
+<button class="btn-mp" id="mlMpAnadir" title="Añadir pista">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Pista
+</button>
+<button class="btn-mp" id="mlMpExportar" title="Exportar mezcla">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+</button>
+<button class="btn-mp primary" id="mlMpGuardar" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            </button>
+        </div>
+
+        <!-- Contenido: pistas + timeline -->
+        <div class="mp-main" id="mlMpMain">
+
+            <!-- Panel de pistas -->
+            <div class="mp-pistas" id="mlMpPistas">
+                <div class="mp-pista-header">PISTAS</div>
+                <!-- Aquí se inyectan dinámicamente los controles de pista -->
+            </div>
+
+            <!-- Timeline -->
+            <div class="mp-timeline-wrap" id="mlMpTimelineWrap">
+                <canvas class="mp-regla" id="mlMpRegla"></canvas>
+                <div class="mp-carriles-scroll" id="mlMpCarrilesScroll">
+                    <div class="mp-carriles" id="mlMpCarriles">
+                        <!-- Aquí se inyectan dinámicamente los carriles -->
+                    </div>
+                </div>
+                <div class="mp-playhead" id="mlMpPlayhead" style="left: 0;"></div>
+                <div class="mp-zoom-controles">
+                    <button id="mlMpZoomIn" title="Acercar">+</button>
+                    <button id="mlMpZoomOut" title="Alejar">−</button>
+                    <button id="mlMpZoomFit" title="Ajustar" style="font-size:0.7rem;">⛶</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Transporte -->
+        <div class="mp-transporte">
+            <button class="btn-play" id="mlMpPlay" title="Reproducir">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <span class="tiempo-mp"><span class="actual" id="mlMpTiempoActual">0:00.00</span> / <span id="mlMpTiempoTotal">0:00.00</span></span>
+            <div class="barra-mp" id="mlMpBarra">
+                <div class="relleno-mp" id="mlMpBarraRelleno"></div>
+            </div>
+        </div>
+
+        <!-- Estado vacío (oculto por defecto) -->
+        <div class="mp-vacio" id="mlMpVacio" style="display:none; position:absolute; inset:0; background:#020617; z-index:60;">
+            <div class="icono">🎛️</div>
+            <h3>Sin pistas todavía</h3>
+            <p>Pulsa <strong>+ Pista</strong> arriba para añadir tomas al proyecto y empezar a montar tu canción.</p>
+        </div>
+
+    </div>
+</div>
 </div>
 
 <!-- ============================================================
@@ -2483,6 +3480,48 @@ select.desplegable:focus { border-color: #38bdf8; }
     <div class="acciones-lote" id="mlLoteAcciones"></div>
 </div>
 
+<!-- ══ BLOQUE 8 · Ajustes, instalación, avisos ══ -->
+
+<!-- Overlay del panel de ajustes -->
+<div class="ajustes-overlay" id="mlAjustesOverlay"></div>
+
+<!-- Panel de ajustes -->
+<div class="ajustes-panel" id="mlAjustesPanel" role="dialog" aria-label="Ajustes">
+    <div class="ajustes-header">
+        <h3>⚙️ Ajustes</h3>
+        <button class="btn-cerrar-ajustes" id="mlAjustesCerrar" aria-label="Cerrar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+    </div>
+    <div class="ajustes-contenido" id="mlAjustesContenido">
+        <!-- Se rellena dinámicamente desde JS -->
+    </div>
+</div>
+
+<!-- Aviso primera vez (instalar app) -->
+<div class="aviso-instalar" id="mlAvisoInstalar">
+    <div class="icono-aviso">📲</div>
+    <div class="contenido-aviso">
+        <div class="titulo-aviso">Instala MusicLab</div>
+        <div class="texto-aviso">Añádela a tu pantalla de inicio para usarla como app, sin abrir el navegador cada vez.</div>
+        <div class="acciones-aviso">
+            <button class="btn-instalar-aviso" id="mlAvisoInstalarBtn">Instalar ahora</button>
+            <button class="btn-cerrar-aviso" id="mlAvisoCerrarBtn">Más tarde</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal genérico para información (Acerca de, Almacenamiento) -->
+<div class="modal-overlay" id="mlInfoModal" style="z-index:1000;">
+    <div class="modal-box info-modal" style="max-width:420px;">
+        <h3 id="mlInfoTitulo">Información</h3>
+        <div id="mlInfoContenido"></div>
+        <div class="modal-actions" style="margin-top:14px;">
+            <button class="cancel" id="mlInfoCerrar">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <!-- ============================================================
      TOAST
      ============================================================ -->
@@ -2521,7 +3560,7 @@ const ML = {
     posicionReproduccion: 0,      // segundos
 
     // Banderas de bloques activos (para el indicador)
-bloques: { 1:true, 2:true, 3:true, 4:true, 5:true, 6:false, 7:false, 8:false }
+bloques: { 1:true, 2:true, 3:true, 4:true, 5:true, 6:true, 7:true, 8:true }
 };
 
 // ── Referencias DOM (cacheadas) ───────────────────────────────
@@ -6148,42 +7187,100 @@ const ACCIONES = {
         }
     },
 
-    anadirACancion: {
-        icono: '🎵', nombre: 'Añadir a canción…',
-        tipos: ['toma'],
-        lote: false,
-        deshabilitada: true,
-        motivoDeshabilitada: 'Disponible en el bloque 6',
-        ejecutar: async () => { toast('ℹ️ Disponible en el bloque 6'); }
-    },
+anadirACancion: {
+    icono: '🎵', nombre: 'Añadir a canción…',
+    tipos: ['toma'],
+    lote: false,
+    ejecutar: async (id) => {
+        const toma = await dbGet(id);
+        if (!toma) return;
+        const todos = await dbTodos();
+        const canciones = todos.filter(t => t.tipo === 'cancion');
+        if (canciones.length === 0) {
+            toast('ℹ️ No hay canciones. Crea una primero.');
+            return;
+        }
+        const idx = await abrirModal({
+            titulo: '🎵 Añadir a canción',
+            mensaje: 'Selecciona la canción:',
+            modo: 'eleccion',
+            opciones: canciones.map(c => `🎵 ${c.nombre}`)
+        });
+        if (idx === null) return;
+        const cancion = canciones[idx];
+        if (!cancion) return;
+        if (!Array.isArray(cancion.pistas)) cancion.pistas = [];
+        // Añadir la toma como pista
+        const durTotal = cancion.pistas.reduce((max, p) => Math.max(max, (p.inicio||0)+(p.duracion||0)), 0);
+        cancion.pistas.push({
+            id: util.id('p'),
+            tomaId: toma.id,
+            nombre: toma.nombre || 'Pista',
+            inicio: durTotal,
+            offset: 0,
+            duracion: toma.duracion || 0,
+            volumen: 1.0,
+            pan: 0,
+            mute: false,
+            solo: false,
+            color: toma.color || util.color()
+        });
+        await dbPut(cancion);
+        toast(`🎵 Añadida a "${cancion.nombre}"`);
+    }
+},
 
-    convertirEnCancion: {
-        icono: '🎬', nombre: 'Convertir en canción',
-        tipos: ['toma'],
-        lote: false,
-        deshabilitada: true,
-        motivoDeshabilitada: 'Disponible en el bloque 6',
-        ejecutar: async () => { toast('ℹ️ Disponible en el bloque 6'); }
-    },
+convertirEnCancion: {
+    icono: '🎬', nombre: 'Convertir en canción',
+    tipos: ['toma'],
+    lote: false,
+    ejecutar: async (id) => {
+        const toma = await dbGet(id);
+        if (!toma) return;
+        const nombre = await abrirModal({
+            titulo: '🎬 Convertir en canción',
+            mensaje: 'Nombre de la nueva canción:',
+            modo: 'texto',
+            valorInicial: toma.nombre || 'Nueva canción'
+        });
+        if (!nombre) return;
+        // Crear canción con la toma como única pista
+        const cancion = await crearCancion(nombre, toma.parent || 'root');
+        cancion.pistas = [{
+            id: util.id('p'),
+            tomaId: toma.id,
+            nombre: toma.nombre || 'Pista',
+            inicio: 0,
+            offset: 0,
+            duracion: toma.duracion || 0,
+            volumen: 1.0,
+            pan: 0,
+            mute: false,
+            solo: false,
+            color: toma.color || util.color()
+        }];
+        cancion.duracion = toma.duracion || 0;
+        cancion.tomas = [toma.id];
+        await dbPut(cancion);
+        await renderCanciones();
+        toast(`🎬 Canción "${nombre}" creada`);
+        // Abrir el multipista directamente
+        setTimeout(() => abrirMultipista(cancion.id), 300);
+    }
+},
+exportarPista: {
+    icono: '⬇️', nombre: 'Exportar pista',
+    tipos: ['toma'],
+    lote: false,
+    ejecutar: async (id) => await exportarToma(id)
+},
 
-    exportarPista: {
-        icono: '⬇️', nombre: 'Exportar pista',
-        tipos: ['toma'],
-        lote: false,
-        deshabilitada: true,
-        motivoDeshabilitada: 'Disponible en el bloque 7',
-        ejecutar: async () => { toast('ℹ️ Disponible en el bloque 7'); }
-    },
-
-    exportarMezcla: {
-        icono: '⬇️', nombre: 'Exportar mezcla',
-        tipos: ['cancion'],
-        lote: false,
-        deshabilitada: true,
-        motivoDeshabilitada: 'Disponible en el bloque 7',
-        ejecutar: async () => { toast('ℹ️ Disponible en el bloque 7'); }
-    },
-
+exportarMezcla: {
+    icono: '⬇️', nombre: 'Exportar mezcla',
+    tipos: ['cancion'],
+    lote: false,
+    ejecutar: async (id) => await exportarCancion(id)
+},
     abrir: {
         icono: '↗️', nombre: 'Abrir',
         tipos: ['carpeta', 'toma', 'cancion'],
@@ -7114,23 +8211,1728 @@ function inicializarBloque5() {
 // ═══════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════
-// [inicio bloque 6]  ← AQUÍ IRÁ EL BLOQUE 6 (Montar canción)
-// Multipista: timeline, carriles, mixer, reproducción sincronizada.
+// [inicio bloque 6]
+// BLOQUE 6 · MONTAR CANCIÓN (MULTIPISTA)
+// Timeline, carriles, clips, mixer, reproducción sincronizada.
+//
+// Modelo de datos (dentro de cada canción):
+//   cancion.pistas = [
+//     {
+//       id: 'p_xxx',
+//       tomaId: 't_xxx',     // referencia a la toma
+//       nombre: 'Guitarra',
+//       inicio: 0,           // segundos, posición en timeline
+//       offset: 0,           // segundos, desde dónde empieza el clip dentro de la toma
+//       duracion: 12.4,      // segundos, cuánto dura el clip
+//       volumen: 1.0,        // 0-2
+//       pan: 0,              // -1 a 1
+//       mute: false,
+//       solo: false,
+//       color: '#...'
+//     }
+//   ]
 // ═══════════════════════════════════════════════════════════════
 
-// (vacío hasta el bloque 6)
+// ── Estado del multipista ────────────────────────────────────
+const MP = {
+    cancionId: null,
+    cancion: null,          // referencia al objeto canción cargado
+    pistas: [],             // array de pistas (con buffers ya cargados)
+    cacheBuffers: {},       // { tomaId: AudioBuffer } para no recargar
+
+    // Zoom y scroll
+    zoom: 1,                // 1 = ajustar a pantalla
+    zoomMin: 1,
+    zoomMax: 80,
+    scrollX: 0,             // segundos desde el inicio visible
+    segundosVisibles: 30,   // segundos visibles (calculado del zoom)
+
+    // Reproducción
+    reproduciendo: false,
+    playhead: 0,
+    tiempoInicio: 0,
+    posicionInicio: 0,
+    sources: [],            // AudioBufferSourceNodes activos
+    rafPlayhead: null,
+
+    // Dimensiones
+    ancho: 0,               // ancho visible del timeline (px)
+    alto: 66,               // alto de cada carril (px)
+    dpr: 1,
+
+    // Interacción
+    clipArrastrando: null,  // { pistaId, modo: 'mover'|'recortar-izq'|'recortar-der', x0, inicio0, offset0, duracion0 }
+    touchInicioX: 0,
+    touchInicioY: 0,
+    pellizcoActivo: false,
+    distanciaPellizcoIni: 0,
+    zoomIniPellizco: 1
+};
+
+const MPD = {
+    multipista: $('mlMultipista'),
+    volver: $('mlMpVolver'),
+    nombre: $('mlMpNombre'),
+    info: $('mlMpInfo'),
+    modificado: $('mlMpModificado'),
+    anadir: $('mlMpAnadir'),
+    guardar: $('mlMpGuardar'),
+    main: $('mlMpMain'),
+    pistas: $('mlMpPistas'),
+    timelineWrap: $('mlMpTimelineWrap'),
+    regla: $('mlMpRegla'),
+    carrilesScroll: $('mlMpCarrilesScroll'),
+    carriles: $('mlMpCarriles'),
+    playhead: $('mlMpPlayhead'),
+    zoomIn: $('mlMpZoomIn'),
+    zoomOut: $('mlMpZoomOut'),
+    zoomFit: $('mlMpZoomFit'),
+    play: $('mlMpPlay'),
+    tiempoActual: $('mlMpTiempoActual'),
+    tiempoTotal: $('mlMpTiempoTotal'),
+    barra: $('mlMpBarra'),
+    barraRelleno: $('mlMpBarraRelleno'),
+    vacio: $('mlMpVacio')
+};
+
+// ── Abrir multipista ────────────────────────────────────────
+async function abrirMultipista(cancionId) {
+    MP.cancionId = cancionId;
+    MP.reproduciendo = false;
+    MP.playhead = 0;
+    MP.zoom = 1;
+    MP.scrollX = 0;
+    MP.cacheBuffers = {};
+
+    // Cargar canción
+    const cancion = await dbGet(cancionId);
+    if (!cancion || cancion.tipo !== 'cancion') {
+        toast('❌ Canción no encontrada');
+        return;
+    }
+    MP.cancion = cancion;
+    MPD.nombre.value = cancion.nombre || 'Canción';
+
+    // Cargar las tomas referenciadas
+    MP.pistas = [];
+    const idsTomas = [...new Set((cancion.pistas || []).map(p => p.tomaId))];
+    for (const tomaId of idsTomas) {
+        const toma = await dbGet(tomaId);
+        if (!toma) continue;
+        try {
+            const fuente = toma.bufferEditado || toma.blob;
+            if (!fuente) continue;
+            const arrayBuf = await fuente.arrayBuffer();
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const buffer = await ctx.decodeAudioData(arrayBuf);
+            ctx.close();
+            MP.cacheBuffers[tomaId] = buffer;
+        } catch (e) {
+            console.warn('No se pudo decodificar toma', tomaId, e);
+        }
+    }
+
+    // Copiar pistas (evitamos mutar la canción original hasta guardar)
+    MP.pistas = (cancion.pistas || []).map(p => ({ ...p }));
+
+    // Marcar como no modificado
+    MPD.modificado.classList.remove('visible');
+    MPD.guardar.disabled = true;
+
+    // UI
+    irAVista('multipista');
+
+    // Esperar al siguiente frame para medir
+    requestAnimationFrame(() => {
+        medirTimeline();
+        renderPistas();
+        renderCarriles();
+        dibujarRegla();
+        actualizarInfo();
+        actualizarVacio();
+        actualizarBotonesZoom();
+    });
+}
+
+// ── Cerrar multipista ───────────────────────────────────────
+function cerrarMultipista(forzar = false) {
+    if (!forzar && MP.pistas.length > 0 && MPD.modificado.classList.contains('visible')) {
+        if (!confirm('Hay cambios sin guardar. ¿Salir sin guardar?')) return;
+    }
+    detenerReproduccionMP();
+    MP.cancion = null;
+    MP.cancionId = null;
+    MP.pistas = [];
+    MP.cacheBuffers = {};
+    MP.playhead = 0;
+    irAVista('canciones');
+    renderCanciones();
+}
+
+// ── Medir timeline ──────────────────────────────────────────
+function medirTimeline() {
+    const wrap = MPD.timelineWrap;
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    MP.ancho = rect.width;
+    MP.dpr = window.devicePixelRatio || 1;
+
+    // Regla
+    MPD.regla.width = MP.ancho * MP.dpr;
+    MPD.regla.height = 26 * MP.dpr;
+    MPD.regla.style.width = MP.ancho + 'px';
+    MPD.regla.style.height = '26px';
+    const ctx = MPD.regla.getContext('2d');
+    ctx.setTransform(MP.dpr, 0, 0, MP.dpr, 0, 0);
+
+    recalcularSegundosVisibles();
+}
+
+function recalcularSegundosVisibles() {
+    const durTotal = duracionTotalMP();
+    const durBase = durTotal > 0 ? durTotal : 30;
+    MP.segundosVisibles = durBase / MP.zoom;
+    const maxScroll = Math.max(0, durTotal - MP.segundosVisibles);
+    if (MP.scrollX > maxScroll) MP.scrollX = maxScroll;
+    if (MP.scrollX < 0) MP.scrollX = 0;
+}
+
+function duracionTotalMP() {
+    if (MP.pistas.length === 0) return 0;
+    return Math.max(...MP.pistas.map(p => (p.inicio || 0) + (p.duracion || 0)));
+}
+
+// ── Conversiones tiempo ↔ píxel (timeline) ──────────────────
+function mpTiempoAPixel(t) {
+    return ((t - MP.scrollX) / MP.segundosVisibles) * MP.ancho;
+}
+function mpPixelATiempo(px) {
+    return MP.scrollX + (px / MP.ancho) * MP.segundosVisibles;
+}
+
+// ── Render de pistas (panel izquierdo) ──────────────────────
+function renderPistas() {
+    if (!MPD.pistas) return;
+    // Mantener el header y añadir/quitar pistas
+    MPD.pistas.innerHTML = '<div class="mp-pista-header">PISTAS</div>';
+
+    MP.pistas.forEach((pista, idx) => {
+        const div = document.createElement('div');
+        div.className = 'mp-pista';
+        div.dataset.pistaId = pista.id;
+
+        const nombre = pista.nombre || `Pista ${idx + 1}`;
+        const color = pista.color || '#38bdf8';
+
+        div.innerHTML = `
+            <div class="nombre-pista" title="${util.esc(nombre)}">${util.esc(nombre)}</div>
+            <div class="controles-pista">
+                <button class="btn-mini mute ${pista.mute ? 'activo' : ''}" data-accion="mute" title="Silenciar">M</button>
+                <button class="btn-mini solo ${pista.solo ? 'activo' : ''}" data-accion="solo" title="Solo esta">S</button>
+                <button class="btn-mini" data-accion="editar" title="Editar pista" style="font-size:0.5rem;">✎</button>
+            </div>
+            <input type="range" class="slider-vol" min="0" max="200" value="${Math.round((pista.volumen ?? 1) * 100)}" data-accion="volumen" title="Volumen">
+            <input type="range" class="slider-pan" min="-100" max="100" value="${Math.round((pista.pan ?? 0) * 100)}" data-accion="pan" title="Pan">
+            <button class="btn-borrar-pista" data-accion="borrar" title="Borrar pista">×</button>
+        `;
+
+        // Listeners
+        div.querySelectorAll('[data-accion]').forEach(el => {
+            const accion = el.dataset.accion;
+            if (accion === 'mute') {
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    pista.mute = !pista.mute;
+                    marcarModificadoMP();
+                    renderPistas();
+                    if (MP.reproduciendo) reiniciarReproduccionMP();
+                });
+            } else if (accion === 'solo') {
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    pista.solo = !pista.solo;
+                    marcarModificadoMP();
+                    renderPistas();
+                    if (MP.reproduciendo) reiniciarReproduccionMP();
+                });
+            } else if (accion === 'editar') {
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    editarPista(pista.id);
+                });
+            } else if (accion === 'borrar') {
+                el.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const ok = await abrirModal({
+                        titulo: '🗑️ Borrar pista',
+                        mensaje: `¿Borrar la pista "${nombre}"?`,
+                        modo: 'confirm'
+                    });
+                    if (!ok) return;
+                    MP.pistas = MP.pistas.filter(p => p.id !== pista.id);
+                    marcarModificadoMP();
+                    renderPistas();
+                    renderCarriles();
+                    dibujarRegla();
+                    actualizarInfo();
+                    actualizarVacio();
+                });
+            } else if (accion === 'volumen') {
+                el.addEventListener('input', () => {
+                    pista.volumen = parseInt(el.value) / 100;
+                    marcarModificadoMP();
+                    if (MP.reproduciendo) reiniciarReproduccionMP();
+                });
+            } else if (accion === 'pan') {
+                el.addEventListener('input', () => {
+                    pista.pan = parseInt(el.value) / 100;
+                    marcarModificadoMP();
+                    if (MP.reproduciendo) reiniciarReproduccionMP();
+                });
+            }
+        });
+
+        // Click en el carril activa la pista
+        div.addEventListener('click', () => {
+            document.querySelectorAll('.mp-pista').forEach(el => el.classList.remove('activa'));
+            document.querySelectorAll('.mp-carril').forEach(el => el.classList.remove('activo'));
+            div.classList.add('activa');
+            const carril = MPD.carriles.querySelector(`[data-pista-id="${pista.id}"]`);
+            if (carril) carril.classList.add('activo');
+        });
+
+        MPD.pistas.appendChild(div);
+    });
+}
+
+// ── Render de carriles (timeline) ───────────────────────────
+function renderCarriles() {
+    if (!MPD.carriles) return;
+    MPD.carriles.innerHTML = '';
+
+    MP.pistas.forEach(pista => {
+        const carril = document.createElement('div');
+        carril.className = 'mp-carril';
+        carril.dataset.pistaId = pista.id;
+
+        // Clip
+        const clip = document.createElement('div');
+        clip.className = 'mp-clip';
+        clip.dataset.pistaId = pista.id;
+        clip.style.background = `linear-gradient(180deg, ${pista.color || '#1e40af'}cc 0%, ${pista.color || '#1e3a8a'}aa 100%)`;
+        clip.style.borderColor = pista.color || '#38bdf8';
+
+        // Asas de recorte
+        const asaIzq = document.createElement('div');
+        asaIzq.className = 'asa-izq';
+        const asaDer = document.createElement('div');
+        asaDer.className = 'asa-der';
+
+        // Nombre
+        const nombre = document.createElement('div');
+        nombre.className = 'nombre-clip';
+        nombre.textContent = pista.nombre || 'Pista';
+
+        clip.appendChild(asaIzq);
+        clip.appendChild(asaDer);
+        clip.appendChild(nombre);
+
+        carril.appendChild(clip);
+
+        // Guardamos referencias al clip y su pista
+        posicionarClip(clip, pista);
+
+        // Eventos del clip
+        configurarEventosClip(clip, pista);
+
+        // Click en carril activa la pista
+        carril.addEventListener('click', (e) => {
+            if (e.target === clip || clip.contains(e.target)) return;
+            document.querySelectorAll('.mp-pista').forEach(el => el.classList.remove('activa'));
+            document.querySelectorAll('.mp-carril').forEach(el => el.classList.remove('activo'));
+            carril.classList.add('activo');
+            const pistaUI = MPD.pistas.querySelector(`[data-pista-id="${pista.id}"]`);
+            if (pistaUI) pistaUI.classList.add('activa');
+        });
+
+        MPD.carriles.appendChild(carril);
+    });
+}
+
+// ── Posicionar un clip según su pista ───────────────────────
+function posicionarClip(clipEl, pista) {
+    const xIni = mpTiempoAPixel(pista.inicio || 0);
+    const xFin = mpTiempoAPixel((pista.inicio || 0) + (pista.duracion || 0));
+    const ancho = Math.max(4, xFin - xIni);
+    clipEl.style.left = xIni + 'px';
+    clipEl.style.width = ancho + 'px';
+}
+
+// ── Dibujar la regla ────────────────────────────────────────
+function dibujarRegla() {
+    if (!MPD.regla) return;
+    const ctx = MPD.regla.getContext('2d');
+    ctx.clearRect(0, 0, MP.ancho, 26);
+
+    ctx.fillStyle = '#0a0f1a';
+    ctx.fillRect(0, 0, MP.ancho, 26);
+
+    const segundosVisibles = MP.segundosVisibles;
+    let intervalo = 1;
+    if (segundosVisibles > 300) intervalo = 60;
+    else if (segundosVisibles > 120) intervalo = 30;
+    else if (segundosVisibles > 60) intervalo = 10;
+    else if (segundosVisibles > 30) intervalo = 5;
+    else if (segundosVisibles > 10) intervalo = 1;
+    else if (segundosVisibles > 4) intervalo = 0.5;
+    else if (segundosVisibles > 1) intervalo = 0.1;
+    else intervalo = 0.05;
+
+    const subIntervalo = intervalo / 5;
+    const tIni = Math.floor(MP.scrollX / subIntervalo) * subIntervalo;
+    const tFin = MP.scrollX + segundosVisibles;
+
+    // Marcas finas
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    for (let t = tIni; t <= tFin; t += subIntervalo) {
+        if (t < 0) continue;
+        const x = mpTiempoAPixel(t);
+        const esPrincipal = Math.abs((t / intervalo) - Math.round(t / intervalo)) < 0.001;
+        if (esPrincipal) continue;
+        ctx.beginPath();
+        ctx.moveTo(x, 18);
+        ctx.lineTo(x, 26);
+        ctx.stroke();
+    }
+
+    // Marcas principales
+    ctx.strokeStyle = '#475569';
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px "Fira Code", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (let t = Math.ceil(MP.scrollX / intervalo) * intervalo; t <= tFin; t += intervalo) {
+        if (t < 0) continue;
+        const x = mpTiempoAPixel(t);
+        ctx.beginPath();
+        ctx.moveTo(x, 8);
+        ctx.lineTo(x, 26);
+        ctx.stroke();
+        ctx.fillText(fmtTiempoLargo(t).replace(/\.00$/, ''), x, 0);
+    }
+}
+
+// ── Actualizar info del header ──────────────────────────────
+function actualizarInfo() {
+    const durTotal = duracionTotalMP();
+    MPD.info.textContent = `${MP.pistas.length} pista${MP.pistas.length === 1 ? '' : 's'} · ${fmtTiempoLargo(durTotal)}`;
+    MPD.tiempoTotal.textContent = fmtTiempoLargo(durTotal);
+}
+
+function actualizarVacio() {
+    if (!MPD.vacio) return;
+    MPD.vacio.style.display = MP.pistas.length === 0 ? 'flex' : 'none';
+}
+
+function actualizarBotonesZoom() {
+    MPD.zoomIn.disabled = MP.zoom >= MP.zoomMax;
+    MPD.zoomOut.disabled = MP.zoom <= MP.zoomMin;
+}
+
+function marcarModificadoMP() {
+    MPD.modificado.classList.add('visible');
+    MPD.guardar.disabled = false;
+}
+
+// ── Configurar eventos de un clip ───────────────────────────
+function configurarEventosClip(clip, pista) {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let modo = null;   // 'mover' | 'recortar-izq' | 'recortar-der'
+    let arrastrando = false;
+
+    // ── Touch ──
+    clip.addEventListener('touchstart', (e) => {
+        e.stopPropagation();
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+
+        // Detectar si toca un asa
+        const rect = clip.getBoundingClientRect();
+        const xRel = touch.clientX - rect.left;
+        if (xRel < 14) modo = 'recortar-izq';
+        else if (xRel > rect.width - 14) modo = 'recortar-der';
+        else modo = 'mover';
+
+        // Guardamos estado inicial
+        MP.clipArrastrando = {
+            pistaId: pista.id,
+            modo,
+            x0: touch.clientX,
+            inicio0: pista.inicio || 0,
+            offset0: pista.offset || 0,
+            duracion0: pista.duracion || 0,
+            duracionBuffer: (MP.cacheBuffers[pista.tomaId]?.duration || pista.duracion || 0)
+        };
+        arrastrando = true;
+
+        document.querySelectorAll('.mp-carril').forEach(el => el.classList.remove('activo'));
+        const carril = clip.closest('.mp-carril');
+        if (carril) carril.classList.add('activo');
+        document.querySelectorAll('.mp-pista').forEach(el => el.classList.remove('activa'));
+        const pistaUI = MPD.pistas.querySelector(`[data-pista-id="${pista.id}"]`);
+        if (pistaUI) pistaUI.classList.add('activa');
+
+        clip.classList.add('arrastrando');
+    }, { passive: true });
+
+    clip.addEventListener('touchmove', (e) => {
+        if (!arrastrando || !MP.clipArrastrando) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        aplicarArrastreClip(touch.clientX);
+    }, { passive: false });
+
+    clip.addEventListener('touchend', () => {
+        if (arrastrando) finalizarArrastreClip();
+        arrastrando = false;
+    }, { passive: true });
+
+    clip.addEventListener('touchcancel', () => {
+        if (arrastrando) finalizarArrastreClip();
+        arrastrando = false;
+    }, { passive: true });
+
+    // ── Mouse (escritorio) ──
+    clip.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        const rect = clip.getBoundingClientRect();
+        const xRel = e.clientX - rect.left;
+        let m;
+        if (xRel < 14) m = 'recortar-izq';
+        else if (xRel > rect.width - 14) m = 'recortar-der';
+        else m = 'mover';
+
+        MP.clipArrastrando = {
+            pistaId: pista.id,
+            modo: m,
+            x0: e.clientX,
+            inicio0: pista.inicio || 0,
+            offset0: pista.offset || 0,
+            duracion0: pista.duracion || 0,
+            duracionBuffer: (MP.cacheBuffers[pista.tomaId]?.duration || pista.duracion || 0)
+        };
+        arrastrando = true;
+        clip.classList.add('arrastrando');
+        e.preventDefault();
+    });
+
+    // Click sin arrastre abre el editor de pista
+    clip.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        editarPista(pista.id);
+    });
+}
+
+function aplicarArrastreClip(clientX) {
+    const arr = MP.clipArrastrando;
+    if (!arr) return;
+    const pista = MP.pistas.find(p => p.id === arr.pistaId);
+    if (!pista) return;
+
+    // Delta en píxeles → segundos
+    const dxPx = clientX - arr.x0;
+    const dtSeg = (dxPx / MP.ancho) * MP.segundosVisibles;
+
+    if (arr.modo === 'mover') {
+        pista.inicio = Math.max(0, arr.inicio0 + dtSeg);
+    } else if (arr.modo === 'recortar-izq') {
+        // Recortar desde la izquierda: el inicio avanza o retrocede,
+        // el offset dentro del buffer también (no puede bajar de 0),
+        // y la duración se ajusta en consecuencia.
+        let nuevoInicio = arr.inicio0 + dtSeg;
+        let nuevoOffset = arr.offset0 + dtSeg;
+        let nuevaDur = arr.duracion0 - dtSeg;
+        // No permitir offset negativo
+        if (nuevoOffset < 0) {
+            const ajuste = -nuevoOffset;
+            nuevoOffset = 0;
+            nuevoInicio += ajuste;
+            nuevaDur -= ajuste;
+        }
+        // No permitir duración <= 0.1s
+        if (nuevaDur < 0.1) return;
+        // No permitir que el offset + duración supere la toma original
+        if (nuevoOffset + nuevaDur > arr.duracionBuffer) {
+            nuevaDur = arr.duracionBuffer - nuevoOffset;
+        }
+        if (nuevaDur < 0.1) return;
+        pista.inicio = Math.max(0, nuevoInicio);
+        pista.offset = nuevoOffset;
+        pista.duracion = nuevaDur;
+    } else if (arr.modo === 'recortar-der') {
+        let nuevaDur = arr.duracion0 + dtSeg;
+        if (nuevaDur < 0.1) return;
+        // No permitir que offset + duración supere la toma original
+        if (arr.offset0 + nuevaDur > arr.duracionBuffer) {
+            nuevaDur = arr.duracionBuffer - arr.offset0;
+        }
+        pista.duracion = nuevaDur;
+    }
+
+    // Actualizar visual del clip
+    const clip = MPD.carriles.querySelector(`[data-pista-id="${pista.id}"] .mp-clip`);
+    if (clip) posicionarClip(clip, pista);
+    actualizarInfo();
+}
+
+function finalizarArrastreClip() {
+    const arr = MP.clipArrastrando;
+    if (!arr) return;
+    MP.clipArrastrando = null;
+    // Quitar clase arrastrando
+    const clip = MPD.carriles.querySelector(`[data-pista-id="${arr.pistaId}"] .mp-clip`);
+    if (clip) clip.classList.remove('arrastrando');
+    marcarModificadoMP();
+    // Redibujar regla (por si cambió la duración total)
+    recalcularSegundosVisibles();
+    dibujarRegla();
+    renderCarriles();
+}
+
+// ── Editar pista (modal) ────────────────────────────────────
+async function editarPista(pistaId) {
+    const pista = MP.pistas.find(p => p.id === pistaId);
+    if (!pista) return;
+    const buffer = MP.cacheBuffers[pista.tomaId];
+    const durBuffer = buffer?.duration || pista.duracion;
+
+    return new Promise(resolve => {
+        // Crear modal propio (más cómodo que el genérico para formularios)
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(10,10,20,0.8);display:flex;align-items:center;justify-content:center;z-index:1100;padding:20px;';
+        overlay.innerHTML = `
+            <div class="editor-pista-modal" style="background:#24243e;border:1px solid #4a4a6a;border-radius:16px;padding:18px;width:100%;max-width:360px;max-height:85vh;overflow-y:auto;">
+                <h3 style="font-size:1rem;margin-bottom:14px;color:#f1f5f9;">✎ Editar pista</h3>
+                <div class="campo">
+                    <label>Nombre</label>
+                    <input type="text" id="epNombre" value="${util.esc(pista.nombre || '')}">
+                </div>
+                <div class="campo">
+                    <label>Inicio en timeline (segundos)</label>
+                    <input type="number" id="epInicio" value="${(pista.inicio || 0).toFixed(2)}" step="0.1" min="0">
+                </div>
+                <div class="campo">
+                    <label>Offset dentro de la toma (segundos)</label>
+                    <input type="number" id="epOffset" value="${(pista.offset || 0).toFixed(2)}" step="0.1" min="0" max="${durBuffer.toFixed(2)}">
+                </div>
+                <div class="campo">
+                    <label>Duración (segundos · máx ${durBuffer.toFixed(2)})</label>
+                    <input type="number" id="epDuracion" value="${(pista.duracion || 0).toFixed(2)}" step="0.1" min="0.1" max="${durBuffer.toFixed(2)}">
+                </div>
+                <div style="display:flex;gap:8px;margin-top:16px;">
+                    <button id="epCancelar" style="flex:1;padding:10px;border-radius:10px;background:#334155;color:#e2e8f0;font-weight:500;">Cerrar</button>
+                    <button id="epGuardar" style="flex:1;padding:10px;border-radius:10px;background:#38bdf8;color:#0b1120;font-weight:600;">Guardar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        overlay.querySelector('#epCancelar').addEventListener('click', () => {
+            overlay.remove();
+            resolve();
+        });
+        overlay.querySelector('#epGuardar').addEventListener('click', () => {
+            const nuevoNombre = overlay.querySelector('#epNombre').value.trim();
+            const nuevoInicio = parseFloat(overlay.querySelector('#epInicio').value) || 0;
+            const nuevoOffset = parseFloat(overlay.querySelector('#epOffset').value) || 0;
+            const nuevaDur = parseFloat(overlay.querySelector('#epDuracion').value) || 1;
+
+            pista.nombre = nuevoNombre || pista.nombre;
+            pista.inicio = Math.max(0, nuevoInicio);
+            pista.offset = Math.max(0, Math.min(nuevoOffset, durBuffer));
+            pista.duracion = Math.max(0.1, Math.min(nuevaDur, durBuffer - pista.offset));
+
+            marcarModificadoMP();
+            renderPistas();
+            renderCarriles();
+            recalcularSegundosVisibles();
+            dibujarRegla();
+            actualizarInfo();
+            overlay.remove();
+            resolve();
+        });
+    });
+}
+
+// ── Añadir pista (selector de tomas) ────────────────────────
+async function anadirPistaAlProyecto() {
+    const todos = await dbTodos();
+    const tomas = todos.filter(t => t.tipo === 'toma');
+    if (tomas.length === 0) {
+        toast('ℹ️ No hay tomas. Graba algo primero.');
+        return;
+    }
+
+    // Obtener tomas ya usadas para marcarlas
+    const tomasUsadas = new Set(MP.pistas.map(p => p.tomaId));
+
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(10,10,20,0.8);display:flex;align-items:center;justify-content:center;z-index:1100;padding:20px;';
+        overlay.innerHTML = `
+            <div style="background:#24243e;border:1px solid #4a4a6a;border-radius:16px;padding:18px;width:100%;max-width:420px;">
+                <h3 style="font-size:1rem;margin-bottom:12px;color:#f1f5f9;">➕ Añadir tomas como pistas</h3>
+                <p style="font-size:0.72rem;color:#94a3b8;margin-bottom:10px;">Toca las tomas que quieras añadir. Se pueden añadir varias a la vez.</p>
+                <div class="selector-tomas" id="selectorTomas">
+                    ${tomas.map(t => {
+                        const usada = tomasUsadas.has(t.id);
+                        return `
+                            <div class="item-toma ${usada ? 'seleccionada' : ''}" data-toma-id="${t.id}">
+                                <span class="icono">🎙️</span>
+                                <div class="info">
+                                    <div class="nombre">${util.esc(t.nombre)}</div>
+                                    <div class="meta">${util.tiempo(t.duracion || 0)}${usada ? ' · ya en el proyecto' : ''}</div>
+                                </div>
+                                <div class="check">✓</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                <div style="display:flex;gap:8px;margin-top:6px;">
+                    <button id="selCancelar" style="flex:1;padding:10px;border-radius:10px;background:#334155;color:#e2e8f0;font-weight:500;">Cancelar</button>
+                    <button id="selAnadir" style="flex:1;padding:10px;border-radius:10px;background:#38bdf8;color:#0b1120;font-weight:600;">Añadir seleccionadas</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const seleccionadas = new Set();
+        overlay.querySelectorAll('.item-toma').forEach(el => {
+            el.addEventListener('click', () => {
+                const id = el.dataset.tomaId;
+                if (seleccionadas.has(id)) {
+                    seleccionadas.delete(id);
+                    el.classList.remove('seleccionada');
+                } else {
+                    seleccionadas.add(id);
+                    el.classList.add('seleccionada');
+                }
+            });
+        });
+
+        overlay.querySelector('#selCancelar').addEventListener('click', () => {
+            overlay.remove();
+            resolve();
+        });
+        overlay.querySelector('#selAnadir').addEventListener('click', async () => {
+            const ids = Array.from(seleccionadas);
+            if (ids.length === 0) {
+                toast('⚠️ Selecciona al menos una toma');
+                return;
+            }
+            // Añadir cada toma como pista nueva
+            for (const id of ids) {
+                const toma = await dbGet(id);
+                if (!toma) continue;
+                await anadirTomaComoPista(toma);
+            }
+            overlay.remove();
+            marcarModificadoMP();
+            renderPistas();
+            renderCarriles();
+            recalcularSegundosVisibles();
+            dibujarRegla();
+            actualizarInfo();
+            actualizarVacio();
+            toast(`➕ ${ids.length} pista${ids.length === 1 ? '' : 's'} añadida${ids.length === 1 ? '' : 's'}`);
+            resolve();
+        });
+    });
+}
+
+async function anadirTomaComoPista(toma) {
+    // Cargar buffer si no está en cache
+    if (!MP.cacheBuffers[toma.id]) {
+        try {
+            const fuente = toma.bufferEditado || toma.blob;
+            if (fuente) {
+                const arrayBuf = await fuente.arrayBuffer();
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const buffer = await ctx.decodeAudioData(arrayBuf);
+                ctx.close();
+                MP.cacheBuffers[toma.id] = buffer;
+            }
+        } catch (e) {
+            console.warn('No se pudo decodificar', toma.id, e);
+            return;
+        }
+    }
+    const buffer = MP.cacheBuffers[toma.id];
+    if (!buffer) return;
+
+    // Posición de inicio: después de la última pista (o 0 si es la primera)
+    const durTotal = duracionTotalMP();
+    const inicio = MP.pistas.length === 0 ? 0 : durTotal;
+
+    const nuevaPista = {
+        id: util.id('p'),
+        tomaId: toma.id,
+        nombre: toma.nombre || 'Pista',
+        inicio,
+        offset: 0,
+        duracion: buffer.duration,
+        volumen: 1.0,
+        pan: 0,
+        mute: false,
+        solo: false,
+        color: toma.color || util.color()
+    };
+    MP.pistas.push(nuevaPista);
+}
+
+// ── Reproducción sincronizada ───────────────────────────────
+function reproducirMP() {
+    if (MP.reproduciendo) {
+        pausarMP();
+        return;
+    }
+    if (MP.pistas.length === 0) {
+        toast('⚠️ No hay pistas que reproducir');
+        return;
+    }
+    const ctx = obtenerAudioContext();
+    const durTotal = duracionTotalMP();
+    if (MP.playhead >= durTotal) MP.playhead = 0;
+
+    // Determinar si hay algún solo activo
+    const haySolo = MP.pistas.some(p => p.solo);
+
+    // Referencia temporal única: el reloj del AudioContext.
+    // Todas las pistas se programan respecto a este instante.
+    const ahora = ctx.currentTime;
+    const playheadActual = MP.playhead;
+
+    // Crear un source por pista
+    MP.sources = [];
+    MP.pistas.forEach(pista => {
+        const buffer = MP.cacheBuffers[pista.tomaId];
+        if (!buffer) return;
+
+        // Filtros de mute/solo
+        if (pista.mute) return;
+        if (haySolo && !pista.solo) return;
+
+        const inicioPista = pista.inicio || 0;
+        const finPista = inicioPista + (pista.duracion || 0);
+
+        // Pista que ya terminó antes del playhead: no se programa
+        if (finPista <= playheadActual) return;
+
+        let cuando;              // cuándo empieza (en tiempo del AudioContext)
+        let offsetEnBuffer;      // desde dónde dentro del buffer
+        let duracionReproducir;  // cuánto dura
+
+        if (inicioPista <= playheadActual) {
+            // Ya estamos dentro del clip: suena YA, desde el punto correcto
+            cuando = ahora;
+            offsetEnBuffer = (pista.offset || 0) + (playheadActual - inicioPista);
+            duracionReproducir = finPista - playheadActual;
+        } else {
+            // El clip empieza más adelante: se programa para sonar
+            // en el momento exacto en el que el playhead lo alcance.
+            cuando = ahora + (inicioPista - playheadActual);
+            offsetEnBuffer = pista.offset || 0;
+            duracionReproducir = pista.duracion || 0;
+        }
+
+        // Sanidad: si el offset ya está fuera del buffer, saltamos
+        if (offsetEnBuffer >= buffer.duration) return;
+
+        // Sanidad: si la duración sobrepasa el buffer, la recortamos
+        const restanteEnBuffer = buffer.duration - offsetEnBuffer;
+        if (duracionReproducir > restanteEnBuffer) {
+            duracionReproducir = restanteEnBuffer;
+        }
+        if (duracionReproducir <= 0) return;
+
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+
+        const gain = ctx.createGain();
+        const panNode = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+        gain.gain.value = pista.volumen ?? 1;
+        if (panNode) panNode.pan.value = pista.pan ?? 0;
+
+        source.connect(gain);
+        if (panNode) {
+            gain.connect(panNode);
+            panNode.connect(ctx.destination);
+        } else {
+            gain.connect(ctx.destination);
+        }
+
+        try {
+            source.start(cuando, offsetEnBuffer, duracionReproducir);
+            MP.sources.push(source);
+        } catch (e) {
+            console.warn('No se pudo programar source:', e, { cuando, offsetEnBuffer, duracionReproducir });
+        }
+    });
+
+    MP.reproduciendo = true;
+    MP.tiempoInicio = performance.now();
+    MP.posicionInicio = MP.playhead;
+    MPD.play.classList.add('reproduciendo');
+    MPD.play.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+
+    loopPlayheadMP();
+}
+
+function pausarMP() {
+    if (!MP.reproduciendo) return;
+    const t = MP.posicionInicio + (performance.now() - MP.tiempoInicio) / 1000;
+    MP.playhead = t;
+    MP.reproduciendo = false;
+    detenerSourcesMP();
+    if (MP.rafPlayhead) cancelAnimationFrame(MP.rafPlayhead);
+    MP.rafPlayhead = null;
+    MPD.play.classList.remove('reproduciendo');
+    MPD.play.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+    actualizarPlayheadMP();
+}
+
+function detenerSourcesMP() {
+    MP.sources.forEach(s => {
+        try { s.stop(); } catch (_) {}
+    });
+    MP.sources = [];
+}
+
+function detenerReproduccionMP() {
+    MP.reproduciendo = false;
+    detenerSourcesMP();
+    if (MP.rafPlayhead) cancelAnimationFrame(MP.rafPlayhead);
+    MP.rafPlayhead = null;
+}
+
+function reiniciarReproduccionMP() {
+    if (!MP.reproduciendo) return;
+    detenerSourcesMP();
+    const tActual = MP.posicionInicio + (performance.now() - MP.tiempoInicio) / 1000;
+    MP.playhead = tActual;
+    MP.reproduciendo = false;
+    reproducirMP();
+}
+
+function loopPlayheadMP() {
+    if (!MP.reproduciendo) return;
+    const durTotal = duracionTotalMP();
+    const t = MP.posicionInicio + (performance.now() - MP.tiempoInicio) / 1000;
+    if (t >= durTotal) {
+        MP.playhead = durTotal;
+        MP.reproduciendo = false;
+        detenerSourcesMP();
+        MPD.play.classList.remove('reproduciendo');
+        MPD.play.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+        actualizarPlayheadMP();
+        return;
+    }
+    MP.playhead = t;
+    actualizarPlayheadMP();
+
+    // Auto-scroll si el playhead sale por la derecha
+    if (MP.zoom > 1) {
+        const xPlay = mpTiempoAPixel(MP.playhead);
+        if (xPlay > MP.ancho * 0.85) {
+            MP.scrollX += MP.segundosVisibles * 0.1;
+            recalcularSegundosVisibles();
+            redibujarTimeline();
+        }
+    }
+
+    MP.rafPlayhead = requestAnimationFrame(loopPlayheadMP);
+}
+
+function actualizarPlayheadMP() {
+    const x = mpTiempoAPixel(MP.playhead);
+    if (x >= 0 && x <= MP.ancho) {
+        MPD.playhead.style.left = x + 'px';
+        MPD.playhead.style.display = 'block';
+    } else {
+        MPD.playhead.style.display = 'none';
+    }
+    MPD.tiempoActual.textContent = fmtTiempoLargo(MP.playhead);
+
+    const durTotal = duracionTotalMP();
+    const pct = durTotal > 0 ? (MP.playhead / durTotal) * 100 : 0;
+    MPD.barraRelleno.style.width = pct + '%';
+}
+
+function redibujarTimeline() {
+    dibujarRegla();
+    // Reposicionar todos los clips (por si cambió el scroll o zoom)
+    MP.pistas.forEach(pista => {
+        const clip = MPD.carriles.querySelector(`[data-pista-id="${pista.id}"] .mp-clip`);
+        if (clip) posicionarClip(clip, pista);
+    });
+    actualizarPlayheadMP();
+}
+
+// ── Guardar canción ─────────────────────────────────────────
+async function guardarMultipista() {
+    if (!MP.cancion) return;
+    MPD.guardar.disabled = true;
+    try {
+        // Copiar los datos actuales a la canción
+        const cancion = await dbGet(MP.cancionId);
+        if (!cancion) throw new Error('Canción no encontrada');
+        cancion.nombre = MPD.nombre.value.trim() || cancion.nombre;
+        cancion.pistas = MP.pistas.map(p => ({ ...p }));
+        cancion.duracion = duracionTotalMP();
+        cancion.fechaEdicion = new Date().toISOString();
+        // Actualizar lista de tomas usadas
+        cancion.tomas = [...new Set(MP.pistas.map(p => p.tomaId))];
+        await dbPut(cancion);
+
+        MPD.modificado.classList.remove('visible');
+        toast('💾 Canción guardada');
+        util.vibrar(20);
+    } catch (e) {
+        console.error(e);
+        toast('❌ No se pudo guardar');
+    } finally {
+        MPD.guardar.disabled = false;
+    }
+}
+
+// ── Zoom del timeline ───────────────────────────────────────
+function aplicarZoomMP(nuevoZoom, centrarEn = null) {
+    nuevoZoom = Math.max(MP.zoomMin, Math.min(MP.zoomMax, nuevoZoom));
+    if (nuevoZoom === MP.zoom) return;
+
+    const centroTiempo = centrarEn !== null ? centrarEn : (MP.scrollX + MP.segundosVisibles / 2);
+    MP.zoom = nuevoZoom;
+    recalcularSegundosVisibles();
+    MP.scrollX = centroTiempo - MP.segundosVisibles / 2;
+    recalcularSegundosVisibles();
+    redibujarTimeline();
+    actualizarBotonesZoom();
+}
+
+// ── Inicialización del bloque 6 ─────────────────────────────
+function inicializarBloque6() {
+    if (!MPD.multipista) return;
+
+    // Header
+    MPD.volver.addEventListener('click', () => cerrarMultipista(false));
+    MPD.anadir.addEventListener('click', anadirPistaAlProyecto);
+    MPD.guardar.addEventListener('click', guardarMultipista);
+    MPD.nombre.addEventListener('input', () => {
+        if (MPD.nombre.value.trim() !== (MP.cancion?.nombre || '')) {
+            marcarModificadoMP();
+        }
+    });
+
+    // Transporte
+    MPD.play.addEventListener('click', reproducirMP);
+    MPD.barra.addEventListener('click', (e) => {
+        const rect = MPD.barra.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const durTotal = duracionTotalMP();
+        MP.playhead = (x / rect.width) * durTotal;
+        if (MP.reproduciendo) {
+            detenerSourcesMP();
+            MP.reproduciendo = false;
+            reproducirMP();
+        } else {
+            actualizarPlayheadMP();
+        }
+    });
+
+    // Zoom
+    MPD.zoomIn.addEventListener('click', () => {
+        const centro = MP.scrollX + MP.segundosVisibles / 2;
+        aplicarZoomMP(MP.zoom * 1.8, centro);
+    });
+    MPD.zoomOut.addEventListener('click', () => {
+        const centro = MP.scrollX + MP.segundosVisibles / 2;
+        aplicarZoomMP(MP.zoom / 1.8, centro);
+    });
+    MPD.zoomFit.addEventListener('click', () => aplicarZoomMP(1));
+
+    // Gestos táctiles sobre el timeline (pellizco + doble toque + scroll)
+    inicializarGestosTimeline();
+
+    // Resize
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+        if (MP.cancion && ML.vista === 'multipista') {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                medirTimeline();
+                redibujarTimeline();
+            }, 200);
+        }
+    });
+}
+
+function inicializarGestosTimeline() {
+    const wrap = MPD.timelineWrap;
+    if (!wrap) return;
+
+    // Pellizco con dos dedos
+    wrap.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            MP.pellizcoActivo = true;
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            MP.distanciaPellizcoIni = Math.hypot(dx, dy);
+            MP.zoomIniPellizco = MP.zoom;
+            const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const rect = wrap.getBoundingClientRect();
+            MP.puntoFocalZoom = mpPixelATiempo(midX - rect.left);
+        }
+    }, { passive: true });
+
+    wrap.addEventListener('touchmove', (e) => {
+        if (MP.pellizcoActivo && e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.hypot(dx, dy);
+            const factor = dist / MP.distanciaPellizcoIni;
+            const nuevoZoom = Math.max(MP.zoomMin, Math.min(MP.zoomMax, MP.zoomIniPellizco * factor));
+            aplicarZoomMP(nuevoZoom, MP.puntoFocalZoom);
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    wrap.addEventListener('touchend', () => {
+        MP.pellizcoActivo = false;
+    }, { passive: true });
+
+    // Doble toque para zoom
+    let ultimoTap = 0;
+    wrap.addEventListener('touchend', (e) => {
+        if (e.touches.length > 0) return;
+        if (MP.pellizcoActivo) return;
+        const ahora = performance.now();
+        if (ahora - ultimoTap < 300) {
+            if (MP.zoom === 1) {
+                const rect = wrap.getBoundingClientRect();
+                const touch = e.changedTouches && e.changedTouches[0];
+                if (touch) {
+                    const t = mpPixelATiempo(touch.clientX - rect.left);
+                    aplicarZoomMP(5, t);
+                }
+            } else {
+                aplicarZoomMP(1);
+            }
+            ultimoTap = 0;
+        } else {
+            ultimoTap = ahora;
+        }
+    }, { passive: true });
+}
 
 // ═══════════════════════════════════════════════════════════════
 // [fin bloque 6]
 // ═══════════════════════════════════════════════════════════════
 
-
 // ═══════════════════════════════════════════════════════════════
-// [inicio bloque 7]  ← AQUÍ IRÁ EL BLOQUE 7 (Exportar)
-// Mixdown a WAV, exportar pista, share sheet.
+// [inicio bloque 7]
+// BLOQUE 7 · EXPORTAR
+// Exportar tomas, mezclas de canciones, compartir.
+// Formatos: WAV (calidad) y WebM/Opus (comprimido).
 // ═══════════════════════════════════════════════════════════════
 
-// (vacío hasta el bloque 7)
+// ── Estado del bloque 7 ─────────────────────────────────────
+const EXP = {
+    // Formato elegido por defecto en el modal
+    formatoPreferido: 'wav'
+};
+
+// ── Constantes de formatos ──────────────────────────────────
+const FORMATOS_EXPORT = {
+    wav: {
+        id: 'wav',
+        nombre: 'WAV',
+        icono: '💿',
+        detalle: 'Alta calidad · sin compresión · archivo grande',
+        extension: '.wav',
+        mimeType: 'audio/wav'
+    },
+    webm: {
+        id: 'webm',
+        nombre: 'WebM / Opus',
+        icono: '🎵',
+        detalle: 'Comprimido · ideal para compartir por WhatsApp',
+        extension: '.webm',
+        mimeType: 'audio/webm'
+    }
+};
+
+// ── Convertir Float32 a WAV (versión ya existente en bloque 3) ──
+// Reutilizamos `bufferToWav()` que ya existe.
+
+// ── Codificar AudioBuffer a WebM/Opus usando OfflineAudioContext ──
+// No se puede usar MediaRecorder directamente sobre un AudioBuffer
+// sin reproducirlo. Este es el truco: reproducirlo en tiempo real
+// capturando con MediaRecorder. Es la única forma sin librerías externas.
+async function bufferToWebM(audioBuffer, onProgress) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const dest = ctx.createMediaStreamDestination();
+
+            const source = ctx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(dest);
+            source.start();
+
+            // Elegir mime type soportado
+            let mimeType = 'audio/webm;codecs=opus';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'audio/webm';
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    mimeType = '';
+                }
+            }
+
+            const recorder = mimeType
+                ? new MediaRecorder(dest.stream, { mimeType, audioBitsPerSecond: 128000 })
+                : new MediaRecorder(dest.stream);
+
+            const chunks = [];
+            recorder.ondataavailable = e => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
+            recorder.onstop = () => {
+                ctx.close();
+                const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+                resolve(blob);
+            };
+
+            recorder.onerror = (e) => {
+                ctx.close();
+                reject(new Error('Error al codificar WebM'));
+            };
+
+            recorder.start();
+
+            // Progreso visual mientras se codifica (tiempo real)
+            const dur = audioBuffer.duration;
+            const t0 = performance.now();
+            const tick = () => {
+                const t = (performance.now() - t0) / 1000;
+                if (onProgress && t < dur) {
+                    onProgress(t / dur);
+                    requestAnimationFrame(tick);
+                }
+            };
+            tick();
+
+            source.onended = () => {
+                // Pequeña espera para que el último chunk llegue
+                setTimeout(() => {
+                    try { recorder.stop(); } catch(_) {}
+                }, 150);
+            };
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
+// ── Mixdown con OfflineAudioContext ─────────────────────────
+// Construye la mezcla de una canción sin reproducirla.
+async function renderizarMezcla(cancion, pistas, cacheBuffers) {
+    if (!pistas || pistas.length === 0) {
+        throw new Error('No hay pistas que mezclar');
+    }
+    // Duración total del proyecto
+    const durTotal = Math.max(...pistas.map(p => (p.inicio || 0) + (p.duracion || 0)));
+    if (durTotal <= 0) {
+        throw new Error('Duración total inválida');
+    }
+
+    // Determinar sample rate y canales a partir del primer buffer disponible
+    const primerBuffer = Object.values(cacheBuffers)[0];
+    if (!primerBuffer) {
+        throw new Error('No hay buffers cargados');
+    }
+    const sampleRate = primerBuffer.sampleRate;
+    const canales = Math.min(2, Math.max(1, primerBuffer.numberOfChannels));
+
+    // Crear contexto offline del tamaño exacto
+    const offlineCtx = new OfflineAudioContext(
+        canales,
+        Math.ceil(durTotal * sampleRate),
+        sampleRate
+    );
+
+    // ¿Hay algún solo activo?
+    const haySolo = pistas.some(p => p.solo);
+
+    // Programar cada pista
+    pistas.forEach(pista => {
+        const buffer = cacheBuffers[pista.tomaId];
+        if (!buffer) return;
+        if (pista.mute) return;
+        if (haySolo && !pista.solo) return;
+
+        const inicioPista = pista.inicio || 0;
+        const duracionPista = pista.duracion || buffer.duration;
+        const offsetEnBuffer = pista.offset || 0;
+
+        if (duracionPista <= 0) return;
+
+        // Sanidad: no puede sobrepasar el buffer
+        const restanteEnBuffer = buffer.duration - offsetEnBuffer;
+        const durReal = Math.min(duracionPista, restanteEnBuffer);
+        if (durReal <= 0) return;
+
+        const source = offlineCtx.createBufferSource();
+        source.buffer = buffer;
+
+        const gain = offlineCtx.createGain();
+        gain.gain.value = pista.volumen ?? 1;
+
+        source.connect(gain);
+
+        // Pan
+        if (canales === 2 && offlineCtx.createStereoPanner) {
+            const panNode = offlineCtx.createStereoPanner();
+            panNode.pan.value = pista.pan ?? 0;
+            gain.connect(panNode);
+            panNode.connect(offlineCtx.destination);
+        } else {
+            gain.connect(offlineCtx.destination);
+        }
+
+        source.start(inicioPista, offsetEnBuffer, durReal);
+    });
+
+    // Renderizar
+    const renderedBuffer = await offlineCtx.startRendering();
+    return renderedBuffer;
+}
+
+// ── Modal de exportación ────────────────────────────────────
+// tipo: 'toma' | 'cancion'
+// onExportar: función(blob, nombreArchivo, formato) que hace la descarga/partición
+function abrirModalExportacion({ titulo, subtitulo, duracionEstimada, nombreBaseSugerido, tipoEntidad }) {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(10,10,20,0.8);display:flex;align-items:center;justify-content:center;z-index:1250;padding:20px;';
+
+        // Estimación de tamaño WAV: duracion * 2 bytes * sample rate aprox
+        // 44100 Hz * 2 bytes * 1 canal = ~88 KB/seg
+        // Para estéreo y 44100, ~176 KB/seg. Aproximamos por arriba.
+        const tamanoWavMB = (duracionEstimada * 0.18).toFixed(1);
+        const tamanoWebmMB = (duracionEstimada * 0.016).toFixed(1);
+
+        overlay.innerHTML = `
+            <div class="export-modal" style="background:#24243e;border:1px solid #4a4a6a;border-radius:16px;padding:18px;width:100%;max-width:400px;max-height:85vh;overflow-y:auto;">
+                <h3 style="font-size:1rem;margin-bottom:4px;color:#f1f5f9;">${util.esc(titulo)}</h3>
+                <p style="font-size:0.72rem;color:#94a3b8;margin-bottom:16px;">${util.esc(subtitulo || '')}</p>
+
+                <div class="campo">
+                    <label>Nombre del archivo</label>
+                    <input type="text" id="expNombre" value="${util.esc(nombreBaseSugerido)}"
+                        style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 10px;color:#e2e8f0;font-size:0.82rem;outline:none;">
+                </div>
+
+                <div class="campo">
+                    <label>Formato</label>
+                    <div class="opciones-formato">
+                        <div class="opcion-formato ${EXP.formatoPreferido === 'wav' ? 'seleccionada' : ''}" data-formato="wav">
+                            <div class="radio"></div>
+                            <div class="texto">
+                                <div class="titulo-formato">💿 WAV</div>
+                                <div class="detalle-formato">Alta calidad · ~${tamanoWavMB} MB</div>
+                            </div>
+                        </div>
+                        <div class="opcion-formato ${EXP.formatoPreferido === 'webm' ? 'seleccionada' : ''}" data-formato="webm">
+                            <div class="radio"></div>
+                            <div class="texto">
+                                <div class="titulo-formato">🎵 WebM / Opus</div>
+                                <div class="detalle-formato">Comprimido · ~${tamanoWebmMB} MB · ideal para compartir</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-tamano" id="expInfoDetalle">Duración: ${fmtTiempoLargo(duracionEstimada)}</div>
+
+                <div class="botones-export">
+                    <button class="btn-cancelar-exp" id="expCancelar">Cancelar</button>
+                    <button class="btn-exportar" id="expExportar">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Exportar
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        // Selección de formato
+        overlay.querySelectorAll('.opcion-formato').forEach(el => {
+            el.addEventListener('click', () => {
+                overlay.querySelectorAll('.opcion-formato').forEach(x => x.classList.remove('seleccionada'));
+                el.classList.add('seleccionada');
+            });
+        });
+
+        overlay.querySelector('#expCancelar').addEventListener('click', () => {
+            overlay.remove();
+            resolve(null);
+        });
+
+        overlay.querySelector('#expExportar').addEventListener('click', () => {
+            const nombre = overlay.querySelector('#expNombre').value.trim() || 'exportacion';
+            const formatoEl = overlay.querySelector('.opcion-formato.seleccionada');
+            const formato = formatoEl ? formatoEl.dataset.formato : 'wav';
+            EXP.formatoPreferido = formato;
+            overlay.remove();
+            resolve({ nombre, formato });
+        });
+
+        overlay.addEventListener('click', e => {
+            if (e.target === overlay) {
+                overlay.remove();
+                resolve(null);
+            }
+        });
+    });
+}
+
+// ── Pantalla de progreso ────────────────────────────────────
+let _progressEl = null;
+function mostrarProgresoExport(mensaje, detalle) {
+    if (_progressEl) _progressEl.remove();
+    const el = document.createElement('div');
+    el.className = 'export-progreso visible';
+    el.innerHTML = `
+        <div class="spinner-grande"></div>
+        <div class="check-final">✓</div>
+        <div class="mensaje">${util.esc(mensaje || 'Exportando…')}</div>
+        <div class="detalle" id="expProgresoDetalle">${util.esc(detalle || '')}</div>
+    `;
+    document.body.appendChild(el);
+    _progressEl = el;
+}
+function actualizarProgresoExport(detalle) {
+    if (!_progressEl) return;
+    const d = _progressEl.querySelector('#expProgresoDetalle');
+    if (d) d.textContent = detalle || '';
+}
+function marcarProgresoCompletado(mensaje) {
+    if (!_progressEl) return;
+    _progressEl.classList.add('completado');
+    const m = _progressEl.querySelector('.mensaje');
+    if (m) m.textContent = mensaje || 'Completado';
+}
+function cerrarProgresoExport(ms = 800) {
+    if (!_progressEl) return;
+    const el = _progressEl;
+    _progressEl = null;
+    setTimeout(() => {
+        el.style.transition = 'opacity 0.3s';
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 300);
+    }, ms);
+}
+
+// ── Descarga y compartición ─────────────────────────────────
+async function descargarOCompartir(blob, nombreArchivo, titulo) {
+    // Intentar compartir primero si el dispositivo lo soporta
+    if (navigator.share && navigator.canShare) {
+        try {
+            const file = new File([blob], nombreArchivo, { type: blob.type });
+            if (navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: titulo || 'MusicLab',
+                    text: 'Compartido desde MusicLab'
+                });
+                return 'compartido';
+            }
+        } catch (e) {
+            // Si el usuario cancela el share, no es un error real
+            if (e && e.name === 'AbortError') return 'cancelado';
+            // Si falla el share, seguimos con descarga normal
+            console.warn('Share falló, se usará descarga:', e);
+        }
+    }
+    // Descarga normal
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombreArchivo;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    return 'descargado';
+}
+
+// ── Exportar una toma ───────────────────────────────────────
+// ── Exportar una toma ───────────────────────────────────────
+async function exportarToma(tomaId) {
+    const toma = await dbGet(tomaId);
+    if (!toma) {
+        toast('❌ Toma no encontrada');
+        return;
+    }
+
+    // 1) PRIMERO: pedir al usuario nombre y formato.
+    //    Para mostrar la duración necesitamos el buffer, pero no hace falta
+    //    decodificarlo entero antes de preguntar: la duración ya está en
+    //    los metadatos de la toma (toma.duracion) desde que se grabó o editó.
+    //    Si por lo que sea no estuviera, mostramos un 0 provisional y se
+    //    corrige después de decodificar.
+    const duracionEstimada = toma.duracion || 0;
+    const nombreBase = (toma.nombre || 'toma').replace(/[<>:"/\\|?*\x00-\x1F]/g, '').trim() || 'toma';
+
+    const eleccion = await abrirModalExportacion({
+        titulo: '⬇️ Exportar toma',
+        subtitulo: `"${toma.nombre}"`,
+        duracionEstimada,
+        nombreBaseSugerido: nombreBase,
+        tipoEntidad: 'toma'
+    });
+    if (!eleccion) return;
+
+    const formato = FORMATOS_EXPORT[eleccion.formato];
+
+    // 2) AHORA sí: mostrar progreso y hacer el trabajo pesado.
+    mostrarProgresoExport('Cargando audio…', `Formato: ${formato.nombre}`);
+
+    try {
+        // Cargar buffer
+        const fuente = toma.bufferEditado || toma.blob;
+        if (!fuente) throw new Error('La toma no tiene audio');
+        const arrayBuf = await fuente.arrayBuffer();
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const buffer = await ctx.decodeAudioData(arrayBuf);
+        ctx.close();
+
+        actualizarProgresoExport('Preparando audio…');
+        let blob;
+        if (eleccion.formato === 'wav') {
+            blob = bufferToWav(buffer);
+        } else {
+            // WebM: se codifica en tiempo real (duración real del audio)
+            mostrarProgresoExport('Codificando WebM…', 'Se hace en tiempo real');
+            blob = await bufferToWebM(buffer, (p) => {
+                actualizarProgresoExport(`Codificando: ${Math.round(p * 100)}%`);
+            });
+        }
+
+        const nombreArchivo = eleccion.nombre + formato.extension;
+        marcarProgresoCompletado(`Listo (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+        actualizarProgresoExport(nombreArchivo);
+
+        // Compartir o descargar (comportamiento actual hasta que se implemente M10)
+        if (navigator.share && navigator.canShare) {
+            try {
+                const file = new File([blob], nombreArchivo, { type: blob.type });
+                if (navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: toma.nombre || 'MusicLab',
+                        text: 'Compartido desde MusicLab'
+                    });
+                } else {
+                    // Fallback a descarga
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = nombreArchivo;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(url), 30000);
+                }
+            } catch (err) {
+                if (err && err.name === 'AbortError') {
+                    // El usuario canceló el share. No hacemos nada más.
+                } else {
+                    console.warn('Share falló, se usará descarga:', err);
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = nombreArchivo;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(url), 30000);
+                }
+            }
+        } else {
+            // Sin soporte de share: descarga directa
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = nombreArchivo;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 30000);
+        }
+
+        setTimeout(() => cerrarProgresoExport(500), 1200);
+    } catch (e) {
+        console.error(e);
+        if (_progressEl) {
+            const m = _progressEl.querySelector('.mensaje');
+            if (m) { m.textContent = '❌ Error'; m.style.color = '#f87171'; }
+            actualizarProgresoExport(e.message || 'No se pudo exportar');
+        }
+        setTimeout(() => cerrarProgresoExport(2000), 1500);
+    }
+}
+
+// ── Exportar mezcla de una canción ──────────────────────────
+// ── Exportar mezcla de una canción ──────────────────────────
+async function exportarCancion(cancionId) {
+    const cancion = await dbGet(cancionId);
+    if (!cancion) {
+        toast('❌ Canción no encontrada');
+        return;
+    }
+    const pistas = cancion.pistas || [];
+    if (pistas.length === 0) {
+        toast('ℹ️ Esta canción no tiene pistas');
+        return;
+    }
+
+    // 1) PRIMERO: preguntar al usuario qué quiere (nombre + formato)
+    //    antes de tocar nada. Sin overlay de progreso todavía.
+    const durTotal = Math.max(...pistas.map(p => (p.inicio || 0) + (p.duracion || 0)));
+    const nombreBase = (cancion.nombre || 'cancion').replace(/[<>:"/\\|?*\x00-\x1F]/g, '').trim() || 'cancion';
+
+    const eleccion = await abrirModalExportacion({
+        titulo: '⬇️ Exportar mezcla',
+        subtitulo: `"${cancion.nombre}" · ${pistas.length} pista${pistas.length === 1 ? '' : 's'}`,
+        duracionEstimada: durTotal,
+        nombreBaseSugerido: nombreBase,
+        tipoEntidad: 'cancion'
+    });
+    if (!eleccion) return;
+
+    const formato = FORMATOS_EXPORT[eleccion.formato];
+
+    // 2) AHORA sí: mostrar progreso y hacer el trabajo
+    mostrarProgresoExport('Cargando tomas…', `${pistas.length} pista${pistas.length === 1 ? '' : 's'}`);
+
+    try {
+        // Cargar todos los buffers necesarios
+        const cacheBuffers = {};
+        const idsUnicos = [...new Set(pistas.map(p => p.tomaId))];
+        let cargadas = 0;
+        for (const tomaId of idsUnicos) {
+            const toma = await dbGet(tomaId);
+            if (!toma) continue;
+            try {
+                const fuente = toma.bufferEditado || toma.blob;
+                if (!fuente) continue;
+                const arrayBuf = await fuente.arrayBuffer();
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const buffer = await ctx.decodeAudioData(arrayBuf);
+                ctx.close();
+                cacheBuffers[tomaId] = buffer;
+                cargadas++;
+                actualizarProgresoExport(`Cargadas ${cargadas}/${idsUnicos.length} tomas`);
+            } catch (e) {
+                console.warn('No se pudo decodificar', tomaId);
+            }
+        }
+        if (cargadas === 0) {
+            throw new Error('No se pudo cargar ninguna toma');
+        }
+
+        // Renderizar la mezcla
+        mostrarProgresoExport('Renderizando mezcla…', `Formato: ${formato.nombre}`);
+        const bufferMezcla = await renderizarMezcla(cancion, pistas, cacheBuffers);
+        actualizarProgresoExport('Mezcla renderizada · codificando…');
+
+        let blob;
+        if (eleccion.formato === 'wav') {
+            blob = bufferToWav(bufferMezcla);
+        } else {
+            mostrarProgresoExport('Codificando WebM…', 'Se hace en tiempo real');
+            blob = await bufferToWebM(bufferMezcla, (p) => {
+                actualizarProgresoExport(`Codificando: ${Math.round(p * 100)}%`);
+            });
+        }
+
+        const nombreArchivo = eleccion.nombre + formato.extension;
+        marcarProgresoCompletado(`Listo (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+        actualizarProgresoExport(nombreArchivo);
+
+        await descargarOCompartir(blob, nombreArchivo, cancion.nombre);
+
+        setTimeout(() => cerrarProgresoExport(500), 1200);
+    } catch (e) {
+        console.error(e);
+        if (_progressEl) {
+            const m = _progressEl.querySelector('.mensaje');
+            if (m) { m.textContent = '❌ Error'; m.style.color = '#f87171'; }
+            actualizarProgresoExport(e.message || 'No se pudo exportar');
+        }
+        setTimeout(() => cerrarProgresoExport(2000), 1500);
+    }
+}
+
+// ── Inicialización del bloque 7 ─────────────────────────────
+function inicializarBloque7() {
+    // Botón en header del multipista
+    const btnMpExportar = document.getElementById('mlMpExportar');
+    if (btnMpExportar) {
+        btnMpExportar.addEventListener('click', async () => {
+            if (!MP.cancionId) return;
+            // Si hay cambios sin guardar, avisar
+            if (MPD.modificado.classList.contains('visible')) {
+                const ok = await abrirModal({
+                    titulo: '⚠️ Cambios sin guardar',
+                    mensaje: 'Hay cambios sin guardar. ¿Guardar antes de exportar?',
+                    modo: 'eleccion',
+                    opciones: ['Guardar y exportar', 'Exportar sin guardar', 'Cancelar']
+                });
+                if (ok === null || ok === 2) return;
+                if (ok === 0) await guardarMultipista();
+            }
+            exportarCancion(MP.cancionId);
+        });
+    }
+
+    // Botón en header del editor de tomas
+    const btnEditorExportar = document.getElementById('mlEditorExportar');
+    if (btnEditorExportar) {
+        btnEditorExportar.addEventListener('click', async () => {
+            if (!ED.tomaId) return;
+            // Si hay cambios sin guardar en el editor, sugerir guardar
+            if (ED.modificado) {
+                const ok = await abrirModal({
+                    titulo: '⚠️ Cambios sin guardar',
+                    mensaje: 'Hay cambios sin guardar. ¿Guardar antes de exportar?',
+                    modo: 'eleccion',
+                    opciones: ['Guardar y exportar', 'Exportar sin guardar', 'Cancelar']
+                });
+                if (ok === null || ok === 2) return;
+                if (ok === 0) await guardarToma();
+            }
+            exportarToma(ED.tomaId);
+        });
+    }
+}
 
 // ═══════════════════════════════════════════════════════════════
 // [fin bloque 7]
@@ -7138,16 +9940,550 @@ function inicializarBloque5() {
 
 
 // ═══════════════════════════════════════════════════════════════
-// [inicio bloque 8]  ← AQUÍ IRÁ EL BLOQUE 8 (PWA / APK)
-// Manifest completo, service worker, hooks para el editor.
+// [inicio bloque 8]
+// BLOQUE 8 · PWA · APK · AJUSTES
+// Menú de ajustes, aviso de instalación, PWA instalable,
+// service worker offline, iconos generados al vuelo.
 // ═══════════════════════════════════════════════════════════════
 
-// (vacío hasta el bloque 8)
+// ── Estado del bloque 8 ─────────────────────────────────────
+const PWA = {
+    deferredPrompt: null,     // evento beforeinstallprompt capturado
+    swRegistrado: false,      // service worker registrado correctamente
+    yaInstalada: false,       // corriendo en modo standalone
+    avisoMostrado: false      // si ya se mostró el aviso en esta sesión
+};
+
+const PWAD = {
+    btnAjustes: $('mlBtnAjustes'),
+    overlay: $('mlAjustesOverlay'),
+    panel: $('mlAjustesPanel'),
+    cerrar: $('mlAjustesCerrar'),
+    contenido: $('mlAjustesContenido'),
+    aviso: $('mlAvisoInstalar'),
+    avisoInstalarBtn: $('mlAvisoInstalarBtn'),
+    avisoCerrarBtn: $('mlAvisoCerrarBtn'),
+    infoModal: $('mlInfoModal'),
+    infoTitulo: $('mlInfoTitulo'),
+    infoContenido: $('mlInfoContenido'),
+    infoCerrar: $('mlInfoCerrar')
+};
+
+// ── Generar iconos con canvas ───────────────────────────────
+// Genera un icono cuadrado con degradado azul y una onda de audio.
+// Tamaño variable. Los maskables llevan más padding para que
+// Android no recorte contenido al aplicar formas redondeadas.
+function generarIconoCanvas(tamano, maskable = false) {
+    const canvas = document.createElement('canvas');
+    canvas.width = tamano;
+    canvas.height = tamano;
+    const ctx = canvas.getContext('2d');
+
+    // Fondo con degradado
+    const grad = ctx.createLinearGradient(0, 0, tamano, tamano);
+    grad.addColorStop(0, '#0b1120');
+    grad.addColorStop(0.5, '#1e293b');
+    grad.addColorStop(1, '#38bdf8');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, tamano, tamano);
+
+    // Radio de recorte: los maskables dejan más margen
+    const padding = maskable ? tamano * 0.15 : tamano * 0.05;
+    const anchoUtil = tamano - padding * 2;
+    const centroY = tamano / 2;
+
+    // Dibujar onda de audio estilizada
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = Math.max(2, tamano * 0.035);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Simular una onda con varios trazos verticales
+    const numBarras = 5;
+    const anchoBarra = anchoUtil / (numBarras * 2 - 1);
+    const alturaMax = anchoUtil * 0.45;
+
+    // Amplitudes decrecientes hacia los extremos (más natural)
+    const amplitudes = [0.35, 0.7, 1.0, 0.65, 0.4];
+
+    ctx.beginPath();
+    for (let i = 0; i < numBarras; i++) {
+        const x = padding + i * anchoBarra * 2 + anchoBarra / 2;
+        const amp = amplitudes[i] * alturaMax / 2;
+        ctx.moveTo(x, centroY - amp);
+        ctx.lineTo(x, centroY + amp);
+    }
+    ctx.stroke();
+
+    // Símbolo 🎵 no se puede dibujar con fillText de forma fiable,
+    // pero la onda ya identifica la app perfectamente.
+
+    return canvas.toDataURL('image/png');
+}
+
+// ── Manifest embebido con iconos generados ──────────────────
+function generarManifest() {
+    const icono192 = generarIconoCanvas(192, false);
+    const icono512 = generarIconoCanvas(512, false);
+    const icono512Maskable = generarIconoCanvas(512, true);
+
+    const manifest = {
+        name: 'MusicLab',
+        short_name: 'MusicLab',
+        description: 'Estudio de grabación y edición de audio en tu móvil',
+        start_url: '.',
+        scope: '.',
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#0b1120',
+        theme_color: '#38bdf8',
+        lang: 'es',
+        categories: ['music', 'audio', 'productivity'],
+        icons: [
+            {
+                src: icono192,
+                sizes: '192x192',
+                type: 'image/png',
+                purpose: 'any'
+            },
+            {
+                src: icono512,
+                sizes: '512x512',
+                type: 'image/png',
+                purpose: 'any'
+            },
+            {
+                src: icono512Maskable,
+                sizes: '512x512',
+                type: 'image/png',
+                purpose: 'maskable'
+            }
+        ]
+    };
+
+    const json = JSON.stringify(manifest);
+    const blob = new Blob([json], { type: 'application/manifest+json' });
+    return URL.createObjectURL(blob);
+}
+
+// ── Service Worker embebido (offline) ───────────────────────
+function generarEInstalarServiceWorker() {
+    if (!('serviceWorker' in navigator)) return false;
+
+    // El service worker cachea el propio HTML (la app entera está ahí)
+    // para que funcione offline una vez cargada la primera vez.
+    const swCode = `
+        const CACHE = 'musiclab-v0.8';
+        const RECURSOS = [self.location.origin + self.location.pathname];
+
+        self.addEventListener('install', e => {
+            e.waitUntil(
+                caches.open(CACHE).then(cache => {
+                    return cache.addAll(RECURSOS).catch(() => {});
+                }).then(() => self.skipWaiting())
+            );
+        });
+
+        self.addEventListener('activate', e => {
+            e.waitUntil(
+                caches.keys().then(keys =>
+                    Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+                ).then(() => self.clients.claim())
+            );
+        });
+
+        self.addEventListener('fetch', e => {
+            // Solo interceptar peticiones GET del mismo origen
+            if (e.request.method !== 'GET') return;
+            e.respondWith(
+                caches.match(e.request).then(res => {
+                    if (res) return res;
+                    return fetch(e.request).then(networkRes => {
+                        // Cachear respuesta para próxima vez
+                        if (networkRes && networkRes.status === 200 && networkRes.type === 'basic') {
+                            const clone = networkRes.clone();
+                            caches.open(CACHE).then(cache => cache.put(e.request, clone));
+                        }
+                        return networkRes;
+                    }).catch(() => {
+                        // Si falla la red, devolver el HTML cacheado si es una navegación
+                        if (e.request.mode === 'navigate') {
+                            return caches.match(self.location.origin + self.location.pathname);
+                        }
+                    });
+                })
+            );
+        });
+    `;
+
+    const blob = new Blob([swCode], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+
+    return navigator.serviceWorker.register(url, { scope: './' })
+        .then(reg => {
+            PWA.swRegistrado = true;
+            console.log('%c⚙️ Service Worker registrado (offline OK)', 'color:#34d399;');
+            return true;
+        })
+        .catch(err => {
+            console.warn('Service Worker no se pudo registrar:', err);
+            return false;
+        });
+}
+
+// ── Capturar el evento de instalación ───────────────────────
+function configurarCapturaInstalacion() {
+    window.addEventListener('beforeinstallprompt', e => {
+        // Evitar que Chrome muestre su propio banner
+        e.preventDefault();
+        PWA.deferredPrompt = e;
+        console.log('%c📲 Instalación PWA disponible', 'color:#38bdf8;');
+        // Refrescar el menú de ajustes por si está abierto
+        if (PWAD.panel && PWAD.panel.classList.contains('visible')) {
+            renderMenuAjustes();
+        }
+    });
+
+    window.addEventListener('appinstalled', () => {
+        console.log('%c✅ MusicLab instalada', 'color:#22c55e;');
+        PWA.deferredPrompt = null;
+        PWA.yaInstalada = true;
+        toast('✅ MusicLab instalada en tu dispositivo');
+    });
+}
+
+// ── Detectar si ya está instalada (modo standalone) ─────────
+function estaInstalada() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.navigator.standalone === true;
+}
+
+// ── Menú de ajustes ─────────────────────────────────────────
+function abrirAjustes() {
+    if (!PWAD.panel) return;
+    renderMenuAjustes();
+    PWAD.panel.classList.add('visible');
+    PWAD.overlay.classList.add('visible');
+}
+
+function cerrarAjustes() {
+    if (!PWAD.panel) return;
+    PWAD.panel.classList.remove('visible');
+    PWAD.overlay.classList.remove('visible');
+}
+
+function renderMenuAjustes() {
+    if (!PWAD.contenido) return;
+    const secciones = [];
+
+    // ── Sección: Aplicación ──
+    const itemsApp = [];
+
+    if (!estaInstalada() && PWA.deferredPrompt) {
+        itemsApp.push({
+            icono: '📲',
+            titulo: 'Instalar MusicLab',
+            detalle: 'Añádela a tu pantalla de inicio',
+            badge: 'nuevo',
+            onClick: async () => {
+                cerrarAjustes();
+                await lanzarInstalacionPWA();
+            }
+        });
+    } else if (estaInstalada()) {
+        itemsApp.push({
+            icono: '✅',
+            titulo: 'App instalada',
+            detalle: 'MusicLab está corriendo como app nativa',
+            onClick: null  // no clickable
+        });
+    } else {
+        itemsApp.push({
+            icono: '📲',
+            titulo: 'Instalar MusicLab',
+            detalle: 'Usa el menú de Chrome → "Añadir a pantalla de inicio"',
+            onClick: null
+        });
+    }
+
+    if (itemsApp.length) secciones.push({ titulo: 'Aplicación', items: itemsApp });
+
+    // ── Sección: Datos ──
+    secciones.push({
+        titulo: 'Datos',
+        items: [
+            {
+                icono: '💾',
+                titulo: 'Almacenamiento',
+                detalle: 'Consulta cuánto ocupan tus proyectos',
+                onClick: () => {
+                    cerrarAjustes();
+                    setTimeout(mostrarInfoAlmacenamiento, 250);
+                }
+            }
+        ]
+    });
+
+    // ── Sección: Acerca de ──
+    secciones.push({
+        titulo: 'Información',
+        items: [
+            {
+                icono: 'ℹ️',
+                titulo: 'Acerca de MusicLab',
+                detalle: `Versión ${document.getElementById('mlVersion')?.textContent || '0.8'}`,
+                onClick: () => {
+                    cerrarAjustes();
+                    setTimeout(mostrarInfoAcercaDe, 250);
+                }
+            }
+        ]
+    });
+
+    // Render
+    let html = '';
+    secciones.forEach(sec => {
+        html += `<div class="ajustes-seccion">${util.esc(sec.titulo)}</div>`;
+        sec.items.forEach((it, i) => {
+            html += `
+                <button class="ajuste-item" data-seccion="${secciones.indexOf(sec)}" data-item="${i}" ${it.onClick ? '' : 'disabled style="opacity:0.6;pointer-events:none;"'}>
+                    <span class="ajuste-icono">${it.icono}</span>
+                    <span class="ajuste-texto">
+                        <span class="ajuste-titulo">
+                            ${util.esc(it.titulo)}
+                            ${it.badge === 'nuevo' ? '<span class="nuevo-badge">nuevo</span>' : ''}
+                        </span>
+                        <span class="ajuste-detalle">${util.esc(it.detalle)}</span>
+                    </span>
+                    ${it.onClick ? '<span class="ajuste-chev">›</span>' : ''}
+                </button>
+            `;
+        });
+    });
+    PWAD.contenido.innerHTML = html;
+
+    // Listeners
+    PWAD.contenido.querySelectorAll('.ajuste-item').forEach(btn => {
+        const secIdx = parseInt(btn.dataset.seccion);
+        const itemIdx = parseInt(btn.dataset.item);
+        const item = secciones[secIdx]?.items[itemIdx];
+        if (item && item.onClick) {
+            btn.addEventListener('click', item.onClick);
+        }
+    });
+}
+
+// ── Lanzar la instalación PWA ───────────────────────────────
+async function lanzarInstalacionPWA() {
+    if (!PWA.deferredPrompt) {
+        toast('ℹ️ Instalación no disponible ahora mismo');
+        return;
+    }
+    try {
+        PWA.deferredPrompt.prompt();
+        const { outcome } = await PWA.deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            console.log('%c✅ Usuario aceptó instalar', 'color:#22c55e;');
+        } else {
+            console.log('%cℹ️ Usuario rechazó instalar', 'color:#94a3b8;');
+        }
+    } catch (e) {
+        console.warn('Error al lanzar instalación:', e);
+    }
+    PWA.deferredPrompt = null;
+}
+
+// ── Modal de información (Almacenamiento / Acerca de) ───────
+function abrirInfoModal(titulo, contenidoHtml) {
+    if (!PWAD.infoModal) return;
+    PWAD.infoTitulo.textContent = titulo;
+    PWAD.infoContenido.innerHTML = contenidoHtml;
+    PWAD.infoModal.classList.add('visible');
+}
+
+async function mostrarInfoAlmacenamiento() {
+    let items = [];
+    try {
+        const todos = await dbTodos();
+        items = todos.filter(t => t.tipo !== 'config');
+    } catch (e) {
+        toast('❌ No se pudo leer el almacenamiento');
+        return;
+    }
+
+    const tomas = items.filter(t => t.tipo === 'toma');
+    const canciones = items.filter(t => t.tipo === 'cancion');
+    const carpetas = items.filter(t => t.tipo === 'carpeta');
+
+    // Calcular tamaño total aproximado de blobs
+    let tamanoTotal = 0;
+    for (const t of tomas) {
+        if (t.blob && t.blob.size) tamanoTotal += t.blob.size;
+        if (t.bufferEditado && t.bufferEditado.size) tamanoTotal += t.bufferEditado.size;
+    }
+    const tamanoMB = (tamanoTotal / 1024 / 1024).toFixed(2);
+
+    // Info de cuota del navegador
+    let cuota = '—';
+    let restante = '—';
+    try {
+        if (navigator.storage && navigator.storage.estimate) {
+            const est = await navigator.storage.estimate();
+            if (est.quota) cuota = (est.quota / 1024 / 1024).toFixed(0) + ' MB';
+            if (est.usage && est.quota) {
+                restante = ((est.quota - est.usage) / 1024 / 1024).toFixed(0) + ' MB';
+            }
+        }
+    } catch (_) {}
+
+    const html = `
+        <div class="bloque-info">
+            <div class="titulo-bloque">Proyectos</div>
+            <div class="fila-info"><span class="etiqueta">🎙️ Tomas</span><span class="valor destacado">${tomas.length}</span></div>
+            <div class="fila-info"><span class="etiqueta">🎵 Canciones</span><span class="valor destacado">${canciones.length}</span></div>
+            <div class="fila-info"><span class="etiqueta">📁 Carpetas</span><span class="valor destacado">${carpetas.length}</span></div>
+        </div>
+        <div class="bloque-info">
+            <div class="titulo-bloque">Espacio ocupado</div>
+            <div class="fila-info"><span class="etiqueta">Audio guardado</span><span class="valor">${tamanoMB} MB</span></div>
+            <div class="fila-info"><span class="etiqueta">Cuota disponible</span><span class="valor">${cuota}</span></div>
+            <div class="fila-info"><span class="etiqueta">Espacio libre</span><span class="valor">${restante}</span></div>
+        </div>
+        <div style="font-size:0.68rem;color:#64748b;line-height:1.5;padding:0 4px;">
+            Todo el audio se guarda en este dispositivo, en la base de datos del navegador. Nada se sube a ningún servidor.
+        </div>
+    `;
+    abrirInfoModal('💾 Almacenamiento', html);
+}
+
+function mostrarInfoAcercaDe() {
+    const version = document.getElementById('mlVersion')?.textContent || '0.8';
+    const html = `
+        <div class="bloque-info" style="text-align:center;padding:20px 12px;">
+            <div style="font-size:3rem;margin-bottom:8px;">🎵</div>
+            <div style="font-size:1.1rem;font-weight:700;color:#f1f5f9;margin-bottom:4px;">MusicLab</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">Versión ${util.esc(version)}</div>
+        </div>
+        <div class="bloque-info">
+            <div class="titulo-bloque">Qué es</div>
+            <div style="font-size:0.78rem;color:#b0b0d0;line-height:1.5;">
+                Un estudio de grabación y edición de audio para móvil. Graba, edita, procesa con filtros y monta canciones con varias pistas, todo desde el navegador.
+            </div>
+        </div>
+        <div class="bloque-info">
+            <div class="titulo-bloque">Tus datos</div>
+            <div style="font-size:0.78rem;color:#b0b0d0;line-height:1.5;">
+                Todo se guarda localmente en tu dispositivo. Nada se envía a servidores externos. Si borras los datos del navegador, perderás tus grabaciones.
+            </div>
+        </div>
+        <div style="font-size:0.68rem;color:#64748b;text-align:center;padding:8px;">
+            Hecho con cariño para músicos y creadores.
+        </div>
+    `;
+    abrirInfoModal('ℹ️ Acerca de MusicLab', html);
+}
+
+// ── Aviso de instalación (primera vez) ──────────────────────
+function mostrarAvisoInstalar() {
+    if (!PWAD.aviso) return;
+    if (estaInstalada()) return;
+    if (!PWA.deferredPrompt) return;
+
+    // Solo una vez por instalación (flag en localStorage)
+    try {
+        if (localStorage.getItem('musiclab_aviso_instalar_visto') === '1') return;
+    } catch (_) {}
+
+    PWAD.aviso.classList.add('visible');
+    PWA.avisoMostrado = true;
+}
+
+function cerrarAvisoInstalar(marcarVisto = true) {
+    if (!PWAD.aviso) return;
+    PWAD.aviso.classList.remove('visible');
+    if (marcarVisto) {
+        try { localStorage.setItem('musiclab_aviso_instalar_visto', '1'); } catch (_) {}
+    }
+}
+
+// ── Inicialización del bloque 8 ─────────────────────────────
+async function inicializarBloque8() {
+    if (!PWAD.btnAjustes) return;
+
+    // 1. Manifest + iconos
+    try {
+        const manifestUrl = generarManifest();
+        let linkManifest = document.getElementById('mlManifest');
+        if (!linkManifest) {
+            linkManifest = document.createElement('link');
+            linkManifest.id = 'mlManifest';
+            linkManifest.rel = 'manifest';
+            document.head.appendChild(linkManifest);
+        }
+        linkManifest.href = manifestUrl;
+
+        // Añadir favicon dinámico (mismo icono 192)
+        let favicon = document.querySelector('link[rel="icon"]');
+        if (!favicon) {
+            favicon = document.createElement('link');
+            favicon.rel = 'icon';
+            document.head.appendChild(favicon);
+        }
+        favicon.href = generarIconoCanvas(64, false);
+    } catch (e) {
+        console.warn('No se pudo generar el manifest:', e);
+    }
+
+    // 2. Service Worker
+    generarEInstalarServiceWorker();
+
+    // 3. Captura de instalación
+    configurarCapturaInstalacion();
+
+    // 4. Aviso primera vez (con pequeño retraso, esperando beforeinstallprompt)
+    setTimeout(() => {
+        if (PWA.deferredPrompt && !estaInstalada()) {
+            mostrarAvisoInstalar();
+        }
+    }, 4000);
+
+    // 5. Listeners UI
+    PWAD.btnAjustes.addEventListener('click', abrirAjustes);
+    PWAD.cerrar.addEventListener('click', cerrarAjustes);
+    PWAD.overlay.addEventListener('click', cerrarAjustes);
+
+    PWAD.avisoCerrarBtn.addEventListener('click', () => cerrarAvisoInstalar(true));
+    PWAD.avisoInstalarBtn.addEventListener('click', async () => {
+        cerrarAvisoInstalar(true);
+        await lanzarInstalacionPWA();
+    });
+
+    PWAD.infoCerrar.addEventListener('click', () => {
+        PWAD.infoModal.classList.remove('visible');
+    });
+    PWAD.infoModal.addEventListener('click', e => {
+        if (e.target === PWAD.infoModal) PWAD.infoModal.classList.remove('visible');
+    });
+
+    // 6. Detectar cambios en el modo standalone
+    if (window.matchMedia) {
+        try {
+            window.matchMedia('(display-mode: standalone)').addEventListener('change', (e) => {
+                PWA.yaInstalada = e.matches;
+                if (PWA.yaInstalada) cerrarAvisoInstalar(true);
+            });
+        } catch (_) {}
+    }
+
+    // 7. Comprobar si ya está instalada
+    PWA.yaInstalada = estaInstalada();
+
+    console.log('%c🎵 MusicLab v0.8 · Bloque 8 listo', 'color:#38bdf8;font-weight:bold;');
+}
 
 // ═══════════════════════════════════════════════════════════════
 // [fin bloque 8]
 // ═══════════════════════════════════════════════════════════════
-
 
 // ═══════════════════════════════════════════════════════════════
 // RENDERIZADO DE LA VISTA CANCIONES (núcleo, se completa en bloque 5)
@@ -7159,11 +10495,10 @@ async function onItemClick(item) {
         ML.carpetaActual = item.id;
         await renderBreadcrumb();
         await renderCanciones();
-} else if (item.tipo === 'toma') {
-    abrirEditorToma(item.id);
-} else if (item.tipo === 'cancion') {
-        toast('Multipista llegará en el bloque 6');
-        // En el bloque 6: abrir timeline
+    } else if (item.tipo === 'toma') {
+        abrirEditorToma(item.id);
+    } else if (item.tipo === 'cancion') {
+        abrirMultipista(item.id);
     }
 }
 
@@ -7233,6 +10568,9 @@ await renderCanciones();
 inicializarBloque2();
 inicializarBloque3();
 inicializarBloque5();
+inicializarBloque6();
+inicializarBloque7();
+await inicializarBloque8();
 pintarBloques();
 
     // ── Listeners ─────────────────────────────────────────────
@@ -7260,20 +10598,8 @@ pintarBloques();
         }
     });
 
-    // Manifest inline (evita petición a archivo inexistente)
-    const manifest = {
-        name: 'MusicLab',
-        short_name: 'MusicLab',
-        start_url: '.',
-        display: 'standalone',
-        background_color: '#0b1120',
-        theme_color: '#38bdf8',
-        icons: []
-    };
-    document.getElementById('mlManifest').href =
-        'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifest));
 
-    console.log('%c🎵 MusicLab v0.1 · Bloque 1 listo', 'color:#38bdf8;font-weight:bold;');
+    console.log('%c🎵 MusicLab v0.8 · Bloque 8 listo', 'color:#38bdf8;font-weight:bold;');
 }
 
 // Arrancar
