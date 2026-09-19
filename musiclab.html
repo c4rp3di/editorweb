@@ -3527,6 +3527,7 @@ const ML = {
     posicionReproduccion: 0,      // segundos
 
 
+}
 
 // ── Referencias DOM (cacheadas) ───────────────────────────────
 const $ = id => document.getElementById(id);
@@ -8260,7 +8261,7 @@ async function abrirMultipista(cancionId) {
         medirTimeline();
         renderPistas();
         renderCarriles();
-        dibujarRegla();
+        dibujarReglaMP();
         actualizarInfo();
         actualizarVacio();
         actualizarBotonesZoom();
@@ -8386,7 +8387,7 @@ function renderPistas() {
                     marcarModificadoMP();
                     renderPistas();
                     renderCarriles();
-                    dibujarRegla();
+                    dibujarReglaMP();
                     actualizarInfo();
                     actualizarVacio();
                 });
@@ -8481,8 +8482,8 @@ function posicionarClip(clipEl, pista) {
     clipEl.style.width = ancho + 'px';
 }
 
-// ── Dibujar la regla ────────────────────────────────────────
-function dibujarRegla() {
+// ── Dibujar la regla multipista ────────────────────────────────────────
+function dibujarReglaMP() {
     if (!MPD.regla) return;
     const ctx = MPD.regla.getContext('2d');
     ctx.clearRect(0, 0, MP.ancho, 26);
@@ -8713,7 +8714,7 @@ function finalizarArrastreClip() {
     marcarModificadoMP();
     // Redibujar regla (por si cambió la duración total)
     recalcularSegundosVisibles();
-    dibujarRegla();
+    dibujarReglaMP();
     renderCarriles();
 }
 
@@ -8774,7 +8775,7 @@ async function editarPista(pistaId) {
             renderPistas();
             renderCarriles();
             recalcularSegundosVisibles();
-            dibujarRegla();
+            dibujarReglaMP();
             actualizarInfo();
             overlay.remove();
             resolve();
@@ -8859,7 +8860,7 @@ async function anadirPistaAlProyecto() {
             renderPistas();
             renderCarriles();
             recalcularSegundosVisibles();
-            dibujarRegla();
+            dibujarReglaMP();
             actualizarInfo();
             actualizarVacio();
             toast(`➕ ${ids.length} pista${ids.length === 1 ? '' : 's'} añadida${ids.length === 1 ? '' : 's'}`);
@@ -9087,7 +9088,7 @@ function actualizarPlayheadMP() {
 }
 
 function redibujarTimeline() {
-    dibujarRegla();
+    dibujarReglaMP();
     // Reposicionar todos los clips (por si cambió el scroll o zoom)
     MP.pistas.forEach(pista => {
         const clip = MPD.carriles.querySelector(`[data-pista-id="${pista.id}"] .mp-clip`);
