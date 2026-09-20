@@ -126,7 +126,8 @@ class CamaraController(private val contexto: Context) {
         }
         Log.d(TAG, "Cámaras traseras listadas por CameraX: ${traseras.size}")
 
-        // Caso A: el fabricante expone varias cámaras físicas por separado
+        // Si el fabricante expone varias cámaras físicas por separado,
+        // las identificamos por distancia focal y permitimos selección real.
         if (traseras.size >= 2) {
             val conFocal = traseras.mapNotNull { info ->
                 try {
@@ -157,31 +158,14 @@ class CamaraController(private val contexto: Context) {
             return
         }
 
-        // Caso B (típico en Xiaomi/13T Pro): una sola cámara lógica con
-        // lentes físicas escondidas. Preguntamos a Camera2 cuántas hay.
+        // Si solo hay una cámara lógica (típico en Xiaomi), no podemos
+        // seleccionar lentes por separado. Usamos zoom para cambiar de lente:
+        // el HAL de Xiaomi conmuta la lente física internamente según el zoom.
         if (traseras.size == 1) {
             val info = traseras.first()
             idPrincipal = try { Camera2CameraInfo.from(info).cameraId } catch (e: Exception) { null }
-            val fisicas = contarFisicasOcultas(info)
-            seleccionLenteRealDisponible = fisicas >= 2
-            Log.d(TAG, "MODO LÓGICO · id=$idPrincipal · físicas ocultas=$fisicas")
-        }
-    }
-
-    /**
-     * Cuenta cuántas lentes físicas hay dentro de una cámara lógica.
-     * En el Xiaomi 13T Pro devuelve 3 (principal + tele + ultra).
-     * En móviles con una sola lente devuelve 0 o 1.
-     */
-    private fun contarFisicasOcultas(info: androidx.camera.core.CameraInfo): Int {
-        return try {
-            val c2 = Camera2CameraInfo.from(info)
-            val ids = c2.getCameraCharacteristic(
-                CameraCharacteristics.LOGICAL_MULTI_CAMERA_PHYSICAL_IDS
-            )
-            ids?.size ?: 0
-        } catch (e: Exception) {
-            0
+            seleccionLenteRealDisponible = false
+            Log.d(TAG, "MODO LÓGICO · id=$idPrincipal · zoom controlará lente")
         }
     }
 
@@ -288,9 +272,8 @@ class CamaraController(private val contexto: Context) {
             camara = p.bindToLifecycle(cicloDeVida, selector, preview, captura)
             imageCapture = captura
 
-            // Solo aplicamos zoom al cambiar de lente si NO tenemos selección real.
-            // Si tenemos selección real, dejamos el zoom a 1x porque la lente
-            // hace el cambio por sí misma.
+            // Si NO hay selección real de lente, usamos zoom digital.
+            // El HAL de Xiaomi cambiará la lente física según el zoom.
             if (!seleccionLenteRealDisponible) {
                 camara?.cameraControl?.let { control ->
                     val zoom = when (estado.lente) {
