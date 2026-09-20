@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
+
+    <androidx.camera.view.PreviewView
+        android:id="@+id/vistaPrevia"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <com.carpe.camara.ui.GridOverlay
+        android:id="@+id/gridOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/txtBloqueo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="72dp"
+        android:background="#CCA07B3E"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="6dp"
+        android:text="@string/bloqueado"
+        android:textColor="@android:color/white"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="12dp"
+        android:background="#66000000">
+
+        <TextView
+            android:id="@+id/txtModo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="#CC6C5CE7"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="4dp"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:text="@string/modo_auto" />
+
+        <TextView
+            android:id="@+id/txtLente"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="#CC000000"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="4dp"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:text="1x" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/txtInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#CCFFFFFF"
+            android:textSize="10sp"
+            android:fontFamily="monospace"
+            android:text="" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/txtContador"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:background="@drawable/contador_circular"
+        android:textColor="@android:color/white"
+        android:textSize="64sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/imgMiniatura"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="20dp"
+        android:layout_marginBottom="32dp"
+        android:background="@drawable/miniatura_fondo"
+        android:scaleType="centerCrop"
+        android:visibility="gone"
+        android:contentDescription="Última foto" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="16dp"
+        android:background="#66000000">
+
+        <Button
+            android:id="@+id/btnGrid"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:background="@drawable/boton_circular"
+            android:text="@string/btn_grid"
+            android:textSize="20sp"
+            android:textColor="@android:color/white" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/btnCapturar"
+            android:layout_width="76dp"
+            android:layout_height="76dp"
+            android:background="@drawable/boton_captura"
+            android:text="@string/btn_captura"
+            android:textSize="28sp"
+            android:textColor="@android:color/white" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/btnAjustes"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:background="@drawable/boton_circular"
+            android:text="@string/btn_ajustes"
+            android:textSize="22sp"
+            android:textColor="@android:color/white" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/txtToast"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="#CC000000"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="10dp"
+        android:textColor="@android:color/white"
+        android:textSize="14sp"
+        android:visibility="gone" />
+</FrameLayout>
