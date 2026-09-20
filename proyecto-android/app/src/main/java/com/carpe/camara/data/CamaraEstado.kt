@@ -9,7 +9,7 @@ enum class LenteFisica(val etiqueta: String) {
 enum class ModoCaptura {
     AUTO,
     PRO,
-    LARGA_EXPOSICION // Nuevo modo para la exposición larga
+    LARGA_EXPOSICION
 }
 
 enum class Temporizador(val segundos: Int, val etiqueta: String) {
@@ -39,7 +39,6 @@ data class CamaraEstado(
 
     val temporizador: Temporizador = Temporizador.OFF,
     val mostrarGrid: Boolean = false,
-    
-    // --- Nuevo para modo LARGA EXPOSICIÓN ---
-    val exposicionLargaNs: Long = 1_000_000_000L // 1 segundo por defecto
+
+    val exposicionLargaNs: Long = 1_000_000_000L
 )
