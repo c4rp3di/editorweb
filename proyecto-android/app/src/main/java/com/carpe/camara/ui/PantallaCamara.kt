@@ -257,19 +257,22 @@ class PantallaCamara : Fragment() {
         }
     }
 
-    private fun abrirUltimaFoto() {
-        val uri = imgMiniatura.tag as? Uri ?: return
-        try {
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "image/*")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            startActivity(intent)
-        } catch (e: Exception) {
-            mostrarToast("No hay app de galería disponible")
+private fun abrirUltimaFoto() {
+    val uri = imgMiniatura.tag as? Uri ?: return
+    try {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "image/*")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            // Bug conocido de Android: el flag GRANT_READ_URI_PERMISSION
+            // no se aplica al pasar por el selector de apps si la URI no
+            // va también en clipData. Es la solución estándar.
+            clipData = android.content.ClipData.newRawUri("", uri)
         }
+        startActivity(intent)
+    } catch (e: Exception) {
+        mostrarToast("No hay app de galería disponible")
     }
-
+}
     private fun ciclarLente() {
         val nueva = when (controller.estado.lente) {
             LenteFisica.PRINCIPAL -> LenteFisica.TELEOBJETIVO
