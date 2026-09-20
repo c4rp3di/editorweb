@@ -15,9 +15,11 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
+import android.view.GestureDetector
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -49,11 +51,10 @@ class PantallaCamara : Fragment() {
     private lateinit var imgMiniatura: ImageView
 
     private lateinit var controller: CamaraController
-    private var ultimoToqueSimple = 0L
-    private val DOBLE_TOQUE_MS = 280L
+    private lateinit var gestureDetector: GestureDetector
+    private lateinit var scaleDetector: ScaleGestureDetector
     private val handler = Handler(Looper.getMainLooper())
 
-    private var pulsacionLargaEjecutada = false
     private var capturaEnCola = false
 
     override fun onCreateView(
@@ -90,53 +91,75 @@ class PantallaCamara : Fragment() {
         configurarGestos()
         configurarTeclasVolumen(view)
 
-        // Estado inicial del grid según lo guardado
+        // Estado inicial del grid y lente según lo guardado
         gridOverlay.visibility = if (controller.estado.mostrarGrid) View.VISIBLE else View.GONE
         txtLente.text = controller.estado.lente.etiqueta
 
         view.postDelayed({
             if (!isAdded) return@postDelayed
             if (controller.seleccionLenteRealDisponible) {
-                mostrarToast("✓ 3 lentes físicas detectadas")
+                mostrarToast("✓ Cámara multi-lente lista")
             } else {
-                mostrarToast("⚠ Este móvil no expone lentes separadas · se usará zoom")
+                mostrarToast("ℹ Cámara única · zoom digital")
             }
         }, 1200)
     }
 
     @SuppressLint("ClickableViewAccessibility")
     private fun configurarGestos() {
+
+        // Gestos de 1 dedo: toque / doble toque / pulsación larga
+        gestureDetector = GestureDetector(requireContext(),
+            object : GestureDetector.SimpleOnGestureListener() {
+
+                override fun onDown(e: MotionEvent): Boolean = true
+
+                // Toque corto → enfocar en ese punto
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    enfocarEn(e.x, e.y)
+                    return true
+                }
+
+                // Doble toque → cambiar lente
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    ciclarLente()
+                    return true
+                }
+
+                // Pulsación larga → bloquear AE/AF
+                override fun onLongPress(e: MotionEvent) {
+                    // Seguridad: si por lo que sea hay más de un dedo, no bloquear.
+                    // Con GestureDetector no debería pasar, pero por si acaso.
+                    if (e.pointerCount > 1) return
+                    bloquearAEAF(e.x, e.y)
+                }
+            })
+
+        // Gesto de 2 dedos: pinza para zoom
+        scaleDetector = ScaleGestureDetector(requireContext(),
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    val camera = controller.camaraActual() ?: return false
+                    val zs = camera.cameraInfo.zoomState.value ?: return false
+                    // Leemos el zoom actual REAL y multiplicamos por el factor
+                    // del gesto. Así funciona aunque el usuario haya cambiado
+                    // de lente (el HAL ya puede haber movido el zoom).
+                    val nuevo = (zs.zoomRatio * detector.scaleFactor)
+                        .coerceIn(zs.minZoomRatio, zs.maxZoomRatio)
+                    camera.cameraControl.setZoomRatio(nuevo)
+                    txtInfo.text = "%.1fx".format(nuevo)
+                    return true
+                }
+            })
+
+        // El PreviewView delega TODOS los toques a los dos detectores.
+        // La clave está en que ScaleGestureDetector solo reacciona cuando hay
+        // 2+ dedos, y GestureDetector solo cuando hay exactamente 1 dedo
+        // (Android lo gestiona internamente).
         vistaPrevia.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    pulsacionLargaEjecutada = false
-                    handler.postDelayed({
-                        if (!pulsacionLargaEjecutada && isAdded) {
-                            pulsacionLargaEjecutada = true
-                            bloquearAEAF(event.x, event.y)
-                        }
-                    }, 600)
-                }
-                MotionEvent.ACTION_UP -> {
-                    handler.removeCallbacksAndMessages(null)
-                    if (pulsacionLargaEjecutada) {
-                        pulsacionLargaEjecutada = false
-                    } else {
-                        val ahora = System.currentTimeMillis()
-                        if (ahora - ultimoToqueSimple < DOBLE_TOQUE_MS) {
-                            ciclarLente()
-                            ultimoToqueSimple = 0L
-                        } else {
-                            ultimoToqueSimple = ahora
-                            enfocarEn(event.x, event.y)
-                        }
-                    }
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    handler.removeCallbacksAndMessages(null)
-                    pulsacionLargaEjecutada = false
-                }
-            }
+            scaleDetector.onTouchEvent(event)
+            gestureDetector.onTouchEvent(event)
             true
         }
     }
