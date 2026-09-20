@@ -90,6 +90,10 @@ class PantallaCamara : Fragment() {
         configurarGestos()
         configurarTeclasVolumen(view)
 
+        // Estado inicial del grid según lo guardado
+        gridOverlay.visibility = if (controller.estado.mostrarGrid) View.VISIBLE else View.GONE
+        txtLente.text = controller.estado.lente.etiqueta
+
         view.postDelayed({
             if (!isAdded) return@postDelayed
             if (controller.seleccionLenteRealDisponible) {
@@ -157,24 +161,17 @@ class PantallaCamara : Fragment() {
             getString(R.string.modo_auto) else getString(R.string.modo_pro)
         txtLente.text = controller.estado.lente.etiqueta
 
-        val info = camara.cameraInfo
-        val zoomState = info.zoomState.value
-        val iso = info.exposureState?.iso ?: 0
-        val expNs = info.exposureState?.exposureTimeNanos ?: 0L
-        txtInfo.text = "ISO $iso · ${nsATexto(expNs)} · %.1fx".format(zoomState?.zoomRatio ?: 1f)
-    }
-
-    private fun nsATexto(ns: Long): String {
-        if (ns <= 0) return "—"
-        val ms = ns / 1_000_000.0
-        return if (ms < 1.0) {
-            "1/${(1000.0 / ms).toInt().coerceAtLeast(1)}"
-        } else "%.1fs".format(ms / 1000.0)
+        val zoomState = camara.cameraInfo.zoomState.value
+        txtInfo.text = "%.1fx".format(zoomState?.zoomRatio ?: 1f)
     }
 
     private fun alternarGrid() {
         val nuevo = !controller.estado.mostrarGrid
-        controller.estado = controller.estado.copy(mostrarGrid = nuevo)
+        controller.aplicarEstado(
+            controller.estado.copy(mostrarGrid = nuevo),
+            viewLifecycleOwner,
+            vistaPrevia
+        )
         gridOverlay.visibility = if (nuevo) View.VISIBLE else View.GONE
         mostrarToast(if (nuevo) "Grid activada" else "Grid desactivada")
     }
