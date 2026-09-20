@@ -29,10 +29,20 @@
                 android:id="@+id/txtAvisoLente"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="6dp"
                 android:text=""
                 android:textColor="#E5C99A"
                 android:textSize="10sp" />
+
+            <Button
+                android:id="@+id/btnDiagnostico"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/boton_circular"
+                android:text="🔍"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp" />
 
             <Button
                 android:id="@+id/btnCerrarAjustes"
