@@ -1,10 +1,14 @@
 package com.carpe.camara.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.view.View
 import android.widget.Button
 import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.camera.view.PreviewView
 import androidx.lifecycle.LifecycleOwner
 import com.carpe.camara.R
@@ -26,7 +30,11 @@ class PanelAjustes(
         val estado = controller.estado
 
         val txtAviso = vista.findViewById<TextView>(R.id.txtAvisoLente)
-        txtAviso.text = if (controller.seleccionLenteRealDisponible) "✓ 3 lentes" else "⚠ zoom digital"
+        txtAviso.text = if (controller.seleccionLenteRealDisponible) "✓ 3 lentes" else "zoom→lente"
+
+        vista.findViewById<Button>(R.id.btnDiagnostico).setOnClickListener {
+            mostrarDiagnostico()
+        }
 
         val bP = vista.findViewById<Button>(R.id.btnLentePrincipal)
         val bT = vista.findViewById<Button>(R.id.btnLenteTele)
@@ -144,6 +152,19 @@ class PanelAjustes(
             aplicar(CamaraEstado())
             configurar()
         }
+    }
+
+    private fun mostrarDiagnostico() {
+        val texto = controller.obtenerDiagnostico()
+        AlertDialog.Builder(vista.context)
+            .setTitle("🔍 Diagnóstico de cámara")
+            .setMessage(texto)
+            .setPositiveButton("Cerrar", null)
+            .setNeutralButton("📋 Copiar") { _, _ ->
+                val cb = vista.context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cb.setPrimaryClip(ClipData.newPlainText("diagnostico", texto))
+            }
+            .show()
     }
 
     private fun pintarLenteActiva(bP: Button, bT: Button, bU: Button, lente: LenteFisica) {
