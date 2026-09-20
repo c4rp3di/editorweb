@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.SharedPreferences
 import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.params.RggbChannelVector
 import android.net.Uri
@@ -126,8 +127,6 @@ class CamaraController(private val contexto: Context) {
         }
         Log.d(TAG, "Cámaras traseras listadas por CameraX: ${traseras.size}")
 
-        // Si el fabricante expone varias cámaras físicas por separado,
-        // las identificamos por distancia focal y permitimos selección real.
         if (traseras.size >= 2) {
             val conFocal = traseras.mapNotNull { info ->
                 try {
@@ -158,9 +157,6 @@ class CamaraController(private val contexto: Context) {
             return
         }
 
-        // Si solo hay una cámara lógica (típico en Xiaomi), no podemos
-        // seleccionar lentes por separado. Usamos zoom para cambiar de lente:
-        // el HAL de Xiaomi conmuta la lente física internamente según el zoom.
         if (traseras.size == 1) {
             val info = traseras.first()
             idPrincipal = try { Camera2CameraInfo.from(info).cameraId } catch (e: Exception) { null }
@@ -272,8 +268,6 @@ class CamaraController(private val contexto: Context) {
             camara = p.bindToLifecycle(cicloDeVida, selector, preview, captura)
             imageCapture = captura
 
-            // Si NO hay selección real de lente, usamos zoom digital.
-            // El HAL de Xiaomi cambiará la lente física según el zoom.
             if (!seleccionLenteRealDisponible) {
                 camara?.cameraControl?.let { control ->
                     val zoom = when (estado.lente) {
@@ -358,6 +352,136 @@ class CamaraController(private val contexto: Context) {
     fun cerrar() {
         liberar()
         ejecutor.shutdown()
+    }
+
+    // ============================================================
+    // DIAGNÓSTICO — Consulta al HAL de la cámara activa
+    // ============================================================
+    // Devuelve un texto con lo que Camera2 reporta de la cámara que está
+    // en uso ahora mismo. Con esto verificamos:
+    //   · Cuántas aperturas (diafragmas) soporta el hardware
+    //   · Cuál es el rango real de ISO
+    //   · Cuál es el rango real de exposición (para saber si podemos hacer
+    //     exposiciones largas tipo 1s/2s/4s o está capado)
+    //   · La distancia mínima de enfoque (clave para macro)
+    //   · Qué lentes físicas hay escondidas dentro de la cámara lógica
+    //     y sus focales reales.
+    fun obtenerDiagnostico(): String {
+        val sb = StringBuilder()
+        val cam = camara ?: return "Cámara aún no inicializada. Espera unos segundos."
+
+        try {
+            val c2Info = Camera2CameraInfo.from(cam.cameraInfo)
+            val idCam = c2Info.cameraId
+            sb.appendLine("🎥 Cámara activa: ID \"$idCam\"")
+            sb.appendLine("🔭 Lente UI: ${estado.lente.etiqueta}")
+            sb.appendLine("🔄 Zoom actual: %.2fx".format(
+                cam.cameraInfo.zoomState.value?.zoomRatio ?: 1f))
+            sb.appendLine()
+
+            val manager = contexto.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val ch = manager.getCameraCharacteristics(idCam)
+
+            // Nivel de hardware
+            val nivel = ch.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL)
+            sb.appendLine("⚙️ Hardware level: ${nombreNivel(nivel)}")
+            sb.appendLine()
+
+            // Focales
+            val focales = ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+            sb.appendLine("📐 Focales: ${focales?.joinToString(" / ") { "%.2fmm".format(it) } ?: "—"}")
+
+            // Aperturas (diafragma)
+            val aperturas = ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
+            sb.appendLine("🕳 Aperturas: ${aperturas?.joinToString(" / ") { "f/%.1f".format(it) } ?: "—"}")
+            val numAp = aperturas?.size ?: 0
+            sb.appendLine("   → ${if (numAp > 1) "DIAFRAGMA VARIABLE ✓" else "diafragma FIJO (no controlable)"}")
+            sb.appendLine()
+
+            // Distancia mínima de enfoque
+            val focoMin = ch.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE)
+            if (focoMin != null && focoMin > 0f) {
+                sb.appendLine("🔬 Enfoque mínimo: %.2f dioptrías ≈ %.1f cm".format(focoMin, 100f / focoMin))
+            } else {
+                sb.appendLine("🔬 Enfoque manual: no disponible (fijo)")
+            }
+            sb.appendLine()
+
+            // ISO
+            val rangoIso = ch.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+            sb.appendLine("🎚 ISO: ${rangoIso?.lower ?: "?"} – ${rangoIso?.upper ?: "?"}")
+            sb.appendLine()
+
+            // Exposición
+            val rangoExp = ch.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+            if (rangoExp != null) {
+                sb.appendLine("⏱ Exposición:")
+                sb.appendLine("   mín: ${formatearNs(rangoExp.lower)}")
+                sb.appendLine("   máx: ${formatearNs(rangoExp.upper)}")
+                val maxSeg = rangoExp.upper / 1_000_000_000.0
+                if (maxSeg >= 1.0) {
+                    sb.appendLine("   ✓ permite exposiciones largas (≥1s)")
+                } else {
+                    sb.appendLine("   ⚠ máx %.2fs (no sirve para larga exposición)".format(maxSeg))
+                }
+            } else {
+                sb.appendLine("⏱ Exposición: no disponible")
+            }
+            sb.appendLine()
+
+            // Zoom
+            val zoomMax = ch.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)
+            sb.appendLine("🔍 Zoom digital máx: ${zoomMax ?: "?"}x")
+            sb.appendLine()
+
+            // Lentes físicas dentro de la lógica
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                try {
+                    val idsFisicos = ch.physicalCameraIds
+                    sb.appendLine("📷 Lentes físicas dentro de esta cámara: ${idsFisicos.size}")
+                    idsFisicos.forEach { idFis ->
+                        try {
+                            val chFis = manager.getCameraCharacteristics(idFis)
+                            val foc = chFis.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+                            val ap = chFis.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
+                            sb.appendLine("   · ID \"$idFis\": focal ${foc?.joinToString(" / ") { "%.2fmm".format(it) } ?: "?"} · ${ap?.joinToString(" / ") { "f/%.1f".format(it) } ?: "?"}")
+                        } catch (e: Exception) {
+                            sb.appendLine("   · ID \"$idFis\": no legible (${e.message})")
+                        }
+                    }
+                } catch (e: Exception) {
+                    sb.appendLine("📷 Lentes físicas: no legible (${e.message})")
+                }
+            } else {
+                sb.appendLine("📷 Lentes físicas: no soportado en Android <9")
+            }
+
+        } catch (e: Exception) {
+            sb.appendLine()
+            sb.appendLine("❌ Error leyendo características: ${e.message}")
+        }
+
+        return sb.toString()
+    }
+
+    private fun nombreNivel(nivel: Int?): String = when (nivel) {
+        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY (muy limitado)"
+        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED (básico)"
+        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL -> "FULL (completo)"
+        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3 -> "LEVEL_3 (máximo, control manual real ✓)"
+        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL -> "EXTERNAL"
+        else -> "desconocido ($nivel)"
+    }
+
+    private fun formatearNs(ns: Long): String {
+        if (ns <= 0) return "—"
+        return if (ns < 1_000_000) {
+            "1/${(1_000_000_000L / ns)}s"
+        } else if (ns < 1_000_000_000L) {
+            "%.2f ms".format(ns / 1_000_000.0)
+        } else {
+            "%.2f s".format(ns / 1_000_000_000.0)
+        }
     }
 
     companion object {
