@@ -3,6 +3,7 @@ package com.carpe.camara.data
 import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
+import android.content.SharedPreferences
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.params.RggbChannelVector
@@ -14,7 +15,6 @@ import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
-import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -36,7 +36,11 @@ class CamaraController(private val contexto: Context) {
     private var imageCapture: ImageCapture? = null
     private val ejecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
+    private val prefs: SharedPreferences =
+        contexto.getSharedPreferences("camara_prefs", Context.MODE_PRIVATE)
+
     var estado: CamaraEstado = CamaraEstado()
+        private set
 
     var alListo: ((Camera) -> Unit)? = null
 
@@ -55,6 +59,7 @@ class CamaraController(private val contexto: Context) {
         onListo: (Camera) -> Unit
     ) {
         alListo = onListo
+        cargarEstadoGuardado()
         val futuro = ProcessCameraProvider.getInstance(contexto)
         futuro.addListener({
             try {
@@ -67,48 +72,117 @@ class CamaraController(private val contexto: Context) {
         }, ContextCompat.getMainExecutor(contexto))
     }
 
-    /**
-     * Enumera cámaras traseras. Si el fabricante expone las 3 físicas
-     * separadas (Xiaomi suele hacerlo), las identificamos y permitimos
-     * selección real. Si no, marcamos la bandera como false y usamos zoom.
-     */
+    private fun cargarEstadoGuardado() {
+        try {
+            estado = CamaraEstado(
+                lente = LenteFisica.valueOf(
+                    prefs.getString("lente", LenteFisica.PRINCIPAL.name)
+                        ?: LenteFisica.PRINCIPAL.name),
+                modo = ModoCaptura.valueOf(
+                    prefs.getString("modo", ModoCaptura.AUTO.name)
+                        ?: ModoCaptura.AUTO.name),
+                iso = prefs.getInt("iso", 400),
+                isoManual = prefs.getBoolean("isoManual", false),
+                exposicionNs = prefs.getLong("exposicionNs", 16_666_666L),
+                exposicionManual = prefs.getBoolean("exposicionManual", false),
+                distanciaFocoDioptras = prefs.getFloat("foco", 0f),
+                focoManual = prefs.getBoolean("focoManual", false),
+                temperaturaK = prefs.getInt("wb", 5000),
+                wbManual = prefs.getBoolean("wbManual", false),
+                flashAuto = prefs.getBoolean("flashAuto", true),
+                temporizador = Temporizador.valueOf(
+                    prefs.getString("timer", Temporizador.OFF.name)
+                        ?: Temporizador.OFF.name),
+                mostrarGrid = prefs.getBoolean("grid", false)
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cargando preferencias, usando valores por defecto", e)
+            estado = CamaraEstado()
+        }
+    }
+
+    private fun guardarEstado() {
+        prefs.edit()
+            .putString("lente", estado.lente.name)
+            .putString("modo", estado.modo.name)
+            .putInt("iso", estado.iso)
+            .putBoolean("isoManual", estado.isoManual)
+            .putLong("exposicionNs", estado.exposicionNs)
+            .putBoolean("exposicionManual", estado.exposicionManual)
+            .putFloat("foco", estado.distanciaFocoDioptras)
+            .putBoolean("focoManual", estado.focoManual)
+            .putInt("wb", estado.temperaturaK)
+            .putBoolean("wbManual", estado.wbManual)
+            .putBoolean("flashAuto", estado.flashAuto)
+            .putString("timer", estado.temporizador.name)
+            .putBoolean("grid", estado.mostrarGrid)
+            .apply()
+    }
+
     private fun descubrirLentes() {
         val p = proveedor ?: return
         val traseras = p.availableCameraInfos.filter {
             it.lensFacing == CameraSelector.LENS_FACING_BACK
         }
-        Log.d(TAG, "Cámaras traseras: ${traseras.size}")
+        Log.d(TAG, "Cámaras traseras listadas por CameraX: ${traseras.size}")
 
-        val conFocal = traseras.mapNotNull { info ->
-            try {
-                val c2 = Camera2CameraInfo.from(info)
-                val focal = c2.getCameraCharacteristic(
-                    CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS
-                )?.firstOrNull()
-                if (focal != null) Triple(info, focal, c2.cameraId) else null
-            } catch (e: Exception) {
-                null
-            }
-        }.sortedBy { it.second }
+        // Caso A: el fabricante expone varias cámaras físicas por separado
+        if (traseras.size >= 2) {
+            val conFocal = traseras.mapNotNull { info ->
+                try {
+                    val c2 = Camera2CameraInfo.from(info)
+                    val focal = c2.getCameraCharacteristic(
+                        CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS
+                    )?.firstOrNull()
+                    if (focal != null) Triple(info, focal, c2.cameraId) else null
+                } catch (e: Exception) {
+                    null
+                }
+            }.sortedBy { it.second }
 
-        when {
-            conFocal.size >= 3 -> {
-                idUltra = conFocal.first().third
-                idPrincipal = conFocal[conFocal.size / 2].third
-                idTele = conFocal.last().third
-                seleccionLenteRealDisponible = true
+            when {
+                conFocal.size >= 3 -> {
+                    idUltra = conFocal.first().third
+                    idPrincipal = conFocal[conFocal.size / 2].third
+                    idTele = conFocal.last().third
+                    seleccionLenteRealDisponible = true
+                }
+                conFocal.size == 2 -> {
+                    idPrincipal = conFocal[0].third
+                    idTele = conFocal[1].third
+                    seleccionLenteRealDisponible = true
+                }
             }
-            conFocal.size == 2 -> {
-                idPrincipal = conFocal[0].third
-                idTele = conFocal[1].third
-                seleccionLenteRealDisponible = true
-            }
-            conFocal.isNotEmpty() -> {
-                idPrincipal = conFocal.first().third
-                seleccionLenteRealDisponible = false
-            }
+            Log.d(TAG, "MODO SEPARADO · P=$idPrincipal T=$idTele U=$idUltra")
+            return
         }
-        Log.d(TAG, "P=$idPrincipal T=$idTele U=$idUltra · real=$seleccionLenteRealDisponible")
+
+        // Caso B (típico en Xiaomi/13T Pro): una sola cámara lógica con
+        // lentes físicas escondidas. Preguntamos a Camera2 cuántas hay.
+        if (traseras.size == 1) {
+            val info = traseras.first()
+            idPrincipal = try { Camera2CameraInfo.from(info).cameraId } catch (e: Exception) { null }
+            val fisicas = contarFisicasOcultas(info)
+            seleccionLenteRealDisponible = fisicas >= 2
+            Log.d(TAG, "MODO LÓGICO · id=$idPrincipal · físicas ocultas=$fisicas")
+        }
+    }
+
+    /**
+     * Cuenta cuántas lentes físicas hay dentro de una cámara lógica.
+     * En el Xiaomi 13T Pro devuelve 3 (principal + tele + ultra).
+     * En móviles con una sola lente devuelve 0 o 1.
+     */
+    private fun contarFisicasOcultas(info: androidx.camera.core.CameraInfo): Int {
+        return try {
+            val c2 = Camera2CameraInfo.from(info)
+            val ids = c2.getCameraCharacteristic(
+                CameraCharacteristics.LOGICAL_MULTI_CAMERA_PHYSICAL_IDS
+            )
+            ids?.size ?: 0
+        } catch (e: Exception) {
+            0
+        }
     }
 
     private fun selectorParaLente(lente: LenteFisica): CameraSelector {
@@ -137,11 +211,13 @@ class CamaraController(private val contexto: Context) {
 
     fun cambiarLente(nueva: LenteFisica, cicloDeVida: LifecycleOwner, vistaPrevia: PreviewView) {
         estado = estado.copy(lente = nueva)
+        guardarEstado()
         enlazar(cicloDeVida, vistaPrevia)
     }
 
     fun aplicarEstado(nuevo: CamaraEstado, cicloDeVida: LifecycleOwner, vistaPrevia: PreviewView) {
         estado = nuevo
+        guardarEstado()
         enlazar(cicloDeVida, vistaPrevia)
     }
 
@@ -212,7 +288,9 @@ class CamaraController(private val contexto: Context) {
             camara = p.bindToLifecycle(cicloDeVida, selector, preview, captura)
             imageCapture = captura
 
-            // Solo aplicamos zoom digital si NO tenemos selección real de lente.
+            // Solo aplicamos zoom al cambiar de lente si NO tenemos selección real.
+            // Si tenemos selección real, dejamos el zoom a 1x porque la lente
+            // hace el cambio por sí misma.
             if (!seleccionLenteRealDisponible) {
                 camara?.cameraControl?.let { control ->
                     val zoom = when (estado.lente) {
