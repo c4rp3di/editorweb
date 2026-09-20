@@ -3,8 +3,10 @@ package com.carpe.camara.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.text.InputType
 import android.view.View
 import android.widget.Button
+import android.widget.EditText
 import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
@@ -15,6 +17,7 @@ import com.carpe.camara.R
 import com.carpe.camara.data.CamaraController
 import com.carpe.camara.data.CamaraEstado
 import com.carpe.camara.data.LenteFisica
+import com.carpe.camara.data.ModoCaptura
 import com.carpe.camara.data.Temporizador
 
 class PanelAjustes(
@@ -32,10 +35,9 @@ class PanelAjustes(
         val txtAviso = vista.findViewById<TextView>(R.id.txtAvisoLente)
         txtAviso.text = if (controller.seleccionLenteRealDisponible) "✓ 3 lentes" else "zoom→lente"
 
-        vista.findViewById<Button>(R.id.btnDiagnostico).setOnClickListener {
-            mostrarDiagnostico()
-        }
+        vista.findViewById<Button>(R.id.btnDiagnostico).setOnClickListener { mostrarDiagnostico() }
 
+        // LENTE
         val bP = vista.findViewById<Button>(R.id.btnLentePrincipal)
         val bT = vista.findViewById<Button>(R.id.btnLenteTele)
         val bU = vista.findViewById<Button>(R.id.btnLenteUltra)
@@ -44,6 +46,20 @@ class PanelAjustes(
         bT.setOnClickListener { aplicar(estado.copy(lente = LenteFisica.TELEOBJETIVO)); pintarLenteActiva(bP, bT, bU, LenteFisica.TELEOBJETIVO) }
         bU.setOnClickListener { aplicar(estado.copy(lente = LenteFisica.ULTRA_GRAN_ANGULAR)); pintarLenteActiva(bP, bT, bU, LenteFisica.ULTRA_GRAN_ANGULAR) }
 
+        // PRESET MACRO: 1x + foco 9.5 dioptrías + timer 2s
+        vista.findViewById<Button>(R.id.btnPresetMacro).setOnClickListener {
+            val nuevo = controller.estado.copy(
+                lente = LenteFisica.PRINCIPAL,
+                focoManual = true,
+                distanciaFocoDioptras = 9.5f,
+                temporizador = Temporizador.S2
+            )
+            aplicar(nuevo)
+            pintarLenteActiva(bP, bT, bU, LenteFisica.PRINCIPAL)
+            onCerrar()
+        }
+
+        // TEMPORIZADOR
         val tOff = vista.findViewById<Button>(R.id.btnTimerOff)
         val t2 = vista.findViewById<Button>(R.id.btnTimer2)
         val t5 = vista.findViewById<Button>(R.id.btnTimer5)
@@ -56,12 +72,12 @@ class PanelAjustes(
 
         vista.findViewById<Button>(R.id.btnCerrarAjustes).setOnClickListener { onCerrar() }
 
-        // ISO
+        // ISO 50–12800 (slider progress 0..12750, valor = progress + 50)
         val switchIso = vista.findViewById<Switch>(R.id.switchIso)
         val sliderIso = vista.findViewById<SeekBar>(R.id.sliderIso)
         val valorIso = vista.findViewById<TextView>(R.id.valorIso)
         switchIso.isChecked = estado.isoManual
-        sliderIso.progress = (estado.iso - 100).coerceAtLeast(0)
+        sliderIso.progress = (estado.iso - 50).coerceIn(0, 12750)
         sliderIso.isEnabled = estado.isoManual
         valorIso.text = estado.iso.toString()
         switchIso.setOnCheckedChangeListener { _, checked ->
@@ -70,16 +86,16 @@ class PanelAjustes(
         }
         sliderIso.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
-                if (fromUser) valorIso.text = (p + 100).toString()
+                if (fromUser) valorIso.text = (p + 50).toString()
             }
             override fun onStartTrackingTouch(sb: SeekBar?) {}
             override fun onStopTrackingTouch(sb: SeekBar?) {
-                val iso = (sliderIso.progress + 100).coerceIn(100, 6400)
+                val iso = (sliderIso.progress + 50).coerceIn(50, 12800)
                 aplicar(controller.estado.copy(iso = iso, isoManual = true))
             }
         })
 
-        // Exposición
+        // EXPOSICIÓN
         val switchExp = vista.findViewById<Switch>(R.id.switchExp)
         val sliderExp = vista.findViewById<SeekBar>(R.id.sliderExp)
         val valorExp = vista.findViewById<TextView>(R.id.valorExp)
@@ -102,7 +118,19 @@ class PanelAjustes(
             }
         })
 
-        // Foco
+        // EXPOSICIÓN LARGA - Presets
+        vista.findViewById<Button>(R.id.btnLarga1s).setOnClickListener { aplicarLarga(1) }
+        vista.findViewById<Button>(R.id.btnLarga2s).setOnClickListener { aplicarLarga(2) }
+        vista.findViewById<Button>(R.id.btnLarga4s).setOnClickListener { aplicarLarga(4) }
+        vista.findViewById<Button>(R.id.btnLarga8s).setOnClickListener { aplicarLarga(8) }
+        vista.findViewById<Button>(R.id.btnLarga15s).setOnClickListener { aplicarLarga(15) }
+        vista.findViewById<Button>(R.id.btnLarga30s).setOnClickListener { aplicarLarga(30) }
+        vista.findViewById<Button>(R.id.btnLargaOff).setOnClickListener {
+            aplicar(controller.estado.copy(modo = ModoCaptura.AUTO, exposicionManual = false))
+            onCerrar()
+        }
+
+        // FOCO
         val switchFoco = vista.findViewById<Switch>(R.id.switchFoco)
         val sliderFoco = vista.findViewById<SeekBar>(R.id.sliderFoco)
         val valorFoco = vista.findViewById<TextView>(R.id.valorFoco)
@@ -124,6 +152,33 @@ class PanelAjustes(
                 aplicar(controller.estado.copy(distanciaFocoDioptras = d, focoManual = true))
             }
         })
+
+        // FOCO FINO: tocar el valor abre un diálogo para escribir el número exacto
+        valorFoco.setOnClickListener {
+            val actual = controller.estado.distanciaFocoDioptras
+            val edit = EditText(vista.context).apply {
+                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+                setText("%.2f".format(actual))
+                setSelection(text.length)
+            }
+            AlertDialog.Builder(vista.context)
+                .setTitle("Enfoque fino (dioptrías)")
+                .setMessage("0 = ∞ · 10 = ~10cm (macro)\nRango: 0.00 – 10.00")
+                .setView(edit)
+                .setPositiveButton("Aplicar") { _, _ ->
+                    val txt = edit.text.toString().replace(',', '.')
+                    val valor = txt.toFloatOrNull()
+                    if (valor != null && valor in 0f..10f) {
+                        sliderFoco.progress = (valor / 10f * 100).toInt().coerceIn(0, 100)
+                        valorFoco.text = dioptrasATexto(valor)
+                        aplicar(controller.estado.copy(distanciaFocoDioptras = valor, focoManual = true))
+                        switchFoco.isChecked = true
+                        sliderFoco.isEnabled = true
+                    }
+                }
+                .setNegativeButton("Cancelar", null)
+                .show()
+        }
 
         // WB
         val switchWb = vista.findViewById<Switch>(R.id.switchWb)
@@ -152,6 +207,16 @@ class PanelAjustes(
             aplicar(CamaraEstado())
             configurar()
         }
+    }
+
+    private fun aplicarLarga(segundos: Int) {
+        val ns = segundos * 1_000_000_000L
+        val base = controller.estado
+        val nuevo = base.copy(
+            modo = ModoCaptura.LARGA_EXPOSICION,
+            exposicionLargaNs = ns
+        )
+        aplicar(nuevo)
     }
 
     private fun mostrarDiagnostico() {
@@ -209,5 +274,5 @@ class PanelAjustes(
     }
 
     private fun dioptrasATexto(d: Float): String =
-        if (d <= 0.05f) "∞" else "%.1f (%.0fcm)".format(d, 100f / d)
+        if (d <= 0.05f) "∞" else "%.2f (%.0fcm)".format(d, 100f / d)
 }
