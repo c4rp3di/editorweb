@@ -5,22 +5,17 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.SharedPreferences
 import android.hardware.camera2.CameraAccessException
-import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
-import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.RggbChannelVector
-import android.hardware.camera2.params.SessionConfiguration
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.util.Log
-import android.util.Size
-import android.view.Surface
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
@@ -69,9 +64,9 @@ class CamaraController(private val contexto: Context) {
     private var estadoPendiente: CamaraEstado? = null
     private var aplicarLargaExposicionEnBind: Boolean = false
 
-    // === LOG ===
+    // === LOG (REGISTRO_MAX como val normal, const solo va en companion/top-level) ===
     private val registro = ArrayDeque<String>()
-    private const val REGISTRO_MAX = 500
+    private val REGISTRO_MAX = 500
 
     fun registrar(tipo: String, mensaje: String) {
         val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
@@ -156,6 +151,7 @@ class CamaraController(private val contexto: Context) {
             .putBoolean("wbManual", estado.wbManual)
             .putBoolean("flashAuto", estado.flashAuto)
             .putString("timer", estado.temporizador.name)
+            .putBoolean("mostrarGrid", estado.mostrarGrid)
             .putBoolean("grid", estado.mostrarGrid)
             .apply()
     }
@@ -187,23 +183,19 @@ class CamaraController(private val contexto: Context) {
                 }
             }
         } else if (traseras.size == 1) {
-            // Aunque solo haya una cámara lógica, guardamos los IDs físicos que conocemos
+            // Cámara lógica: intentamos forzar los IDs físicos conocidos
             idPrincipal = "0"
             idUltra = "3"
             idTele = "7"
-            seleccionLenteRealDisponible = true // Asumimos que se puede intentar
+            seleccionLenteRealDisponible = true
         }
         registrar("camara", "IDs asignados · P=$idPrincipal T=$idTele U=$idUltra")
     }
 
-    // ============================================================
-    // LÓGICA DE SELECCIÓN DE LENTE (CON FALLBACK A CAMERA2 PURO)
-    // ============================================================
     @SuppressLint("RestrictedApi")
     private fun enlazar(cicloDeVida: LifecycleOwner, vistaPrevia: PreviewView) {
         val p = proveedor ?: return
 
-        // 1. Preparamos el Preview y la Captura como siempre
         val preview = Preview.Builder().build().also {
             it.setSurfaceProvider(vistaPrevia.surfaceProvider)
         }
@@ -221,10 +213,12 @@ class CamaraController(private val contexto: Context) {
             if (estado.largaExposicion && aplicarLargaExposicionEnBind) {
                 extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
                 extender.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, estado.exposicionLargaNs)
-                val frameDuration = (estado.exposicionLargaNs * 1.05).toLong().coerceAtLeast(33_333_333L)
+                val frameDuration = estado.exposicionLargaNs + 33_333_333L
                 extender.setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, frameDuration)
                 if (estado.isoManual) {
                     extender.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, estado.iso)
+                } else {
+                    extender.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, 100)
                 }
             } else if (estado.isoManual || estado.exposicionManual) {
                 extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
@@ -234,30 +228,47 @@ class CamaraController(private val contexto: Context) {
             if (estado.wbManual) {
                 extender.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_OFF)
                 val (r, g, b) = kelvinAGanancias(estado.temperaturaK)
-                extender.setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_GAINS, RggbChannelVector(r, g, b, 1f))
+                extender.setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_GAINS, RggbChannelVector(r, g, g, b))
             }
         }
 
         val captura = builderCaptura.build()
 
-        // 2. Intentamos el bind con el ID físico (la vía oficial de CameraX)
+        // === Selección de lente física ===
+        // CameraX 1.3.4 NO expone setPhysicalCameraId en CameraSelector.Builder.
+        // Se usa addCameraFilter con Camera2CameraInfo para filtrar por ID físico.
         val idFisico = when (estado.lente) {
             LenteFisica.PRINCIPAL -> idPrincipal
             LenteFisica.TELEOBJETIVO -> idTele
             LenteFisica.ULTRA_GRAN_ANGULAR -> idUltra
         }
 
-        val selector = CameraSelector.Builder()
-            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
-            .setPhysicalCameraId(idFisico ?: "0") // <-- LA CLAVE: Pedimos la lente física concreta
-            .build()
+        val selector: CameraSelector = if (idFisico != null && seleccionLenteRealDisponible) {
+            try {
+                CameraSelector.Builder()
+                    .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                    .addCameraFilter { infos ->
+                        val coincide = infos.filter { info ->
+                            try { Camera2CameraInfo.from(info).cameraId == idFisico }
+                            catch (e: Exception) { false }
+                        }
+                        // Si no encuentra el ID, devolvemos todas las traseras para no romper el bind
+                        coincide.ifEmpty { infos }
+                    }
+                    .build()
+            } catch (e: Exception) {
+                registrar("error", "Error construyendo selector con ID '$idFisico': ${e.message}")
+                CameraSelector.DEFAULT_BACK_CAMERA
+            }
+        } else {
+            CameraSelector.DEFAULT_BACK_CAMERA
+        }
 
         try {
             p.unbindAll()
             camara = p.bindToLifecycle(cicloDeVida, selector, preview, captura)
             imageCapture = captura
 
-            // Si funciona, actualizamos el zoom y notificamos
             if (!seleccionLenteRealDisponible || idFisico == null) {
                 camara?.cameraControl?.let { control ->
                     val zoom = when (estado.lente) {
@@ -268,25 +279,18 @@ class CamaraController(private val contexto: Context) {
                     val zs = camara?.cameraInfo?.zoomState?.value
                     if (zs != null) control.setZoomRatio(zoom.coerceIn(zs.minZoomRatio, zs.maxZoomRatio))
                 }
-            } else {
-                camara?.cameraControl?.setZoomRatio(1f)
             }
 
-            registrar("camara", "Bind OK con ID físico '$idFisico' · modo=${estado.modo}")
+            registrar("camara", "Bind OK con ID físico '$idFisico' · modo=${estado.modo} · larga=$aplicarLargaExposicionEnBind")
             alListo?.invoke(camara!!)
 
         } catch (e: Exception) {
-            // 3. Si el bind falla (como se reporta en algunos Xiaomi), usamos Camera2 puro
-            registrar("error", "Bind con CameraX falló: ${e.message}. Probando Camera2 puro...")
-            intentarAbrirCamaraFisicaDirecta(idFisico, vistaPrevia)
+            registrar("error", "Bind con CameraX falló (ID '$idFisico'): ${e.message}. Probando Camera2 puro...")
+            intentarAbrirCamaraFisicaDirecta(idFisico)
         }
     }
 
-    /**
-     * Plan B: Si el bind de CameraX falla, intentamos abrir la cámara física
-     * directamente usando la API de Camera2.
-     */
-    private fun intentarAbrirCamaraFisicaDirecta(idFisico: String?, vistaPrevia: PreviewView) {
+    private fun intentarAbrirCamaraFisicaDirecta(idFisico: String?) {
         if (idFisico == null) {
             registrar("error", "No hay ID físico para intentar abrir.")
             return
@@ -298,48 +302,82 @@ class CamaraController(private val contexto: Context) {
         try {
             manager.openCamera(idFisico, object : CameraDevice.StateCallback() {
                 override fun onOpened(camera: CameraDevice) {
-                    registrar("camara2", "¡Éxito! Cámara física '$idFisico' abierta con Camera2.")
-                    // Aquí iría la lógica completa de Camera2 para preview y captura.
-                    // Por ahora, solo registramos el éxito y cerramos para no dejar la cámara colgada.
+                    registrar("camara2", "¡ÉXITO! ID físico '$idFisico' abierto con Camera2.")
                     camera.close()
                 }
 
                 override fun onDisconnected(camera: CameraDevice) {
-                    registrar("camara2", "Cámara física '$idFisico' desconectada.")
+                    registrar("camara2", "ID '$idFisico' desconectado.")
                     camera.close()
                 }
 
                 override fun onError(camera: CameraDevice, error: Int) {
-                    registrar("error", "Error al abrir cámara física '$idFisico': código $error")
+                    registrar("error", "ID '$idFisico' error Camera2: código $error")
                     camera.close()
                 }
             }, handler)
         } catch (e: CameraAccessException) {
-            registrar("error", "Excepción de acceso a la cámara '$idFisico': ${e.reason}")
+            registrar("error", "ID '$idFisico' excepción acceso: ${e.reason}")
         } catch (e: Exception) {
-            registrar("error", "Excepción inesperada al abrir '$idFisico': ${e.message}")
+            registrar("error", "ID '$idFisico' excepción: ${e.message}")
         }
     }
 
-    // ... el resto de funciones (cambiarLente, aplicarEstado, capturar, etc.) se mantienen igual ...
-    // ... (copia aquí el resto de funciones de tu archivo actual para mantener la integridad) ...
+    fun cambiarLente(nueva: LenteFisica, cicloDeVida: LifecycleOwner, vistaPrevia: PreviewView) {
+        registrar("lente", "Cambio → ${nueva.etiqueta}")
+        estado = estado.copy(lente = nueva)
+        guardarEstado()
+        if (capturaEnCurso) {
+            estadoPendiente = estado
+            registrar("captura", "Cambio pospuesto hasta terminar captura")
+            return
+        }
+        aplicarLargaExposicionEnBind = false
+        enlazar(cicloDeVida, vistaPrevia)
+    }
 
-    private fun kelvinAGanancias(k: Int): Triple<Float, Float, Float> {
-        val t = (k.coerceIn(2000, 8000)) / 100f
-        val r: Float; val g: Float; val b: Float
-        if (t <= 66f) {
-            r = 1f
-            g = ((99.4708025861 * Math.log(t.toDouble()) - 161.1195681661) / 255.0).toFloat().coerceIn(0f, 1f)
-        } else {
-            r = ((329.698727446 * Math.pow(t - 60.0, -0.1332047592)) / 255.0).toFloat().coerceIn(0f, 1f)
-            g = ((288.1221695283 * Math.pow(t - 60.0, -0.0755148492)) / 255.0).toFloat().coerceIn(0f, 1f)
+    fun aplicarEstado(nuevo: CamaraEstado, cicloDeVida: LifecycleOwner, vistaPrevia: PreviewView) {
+        val conModoCorrecto = when {
+            nuevo.largaExposicion -> nuevo.copy(modo = ModoCaptura.LARGA_EXPOSICION)
+            nuevo.isoManual || nuevo.exposicionManual || nuevo.focoManual || nuevo.wbManual ->
+                nuevo.copy(modo = ModoCaptura.PRO)
+            else -> nuevo.copy(modo = ModoCaptura.AUTO)
         }
-        b = when {
-            t >= 66f -> 1f
-            t <= 19f -> 0f
-            else -> ((138.5177312231 * Math.log(t - 10.0) - 305.0447927307) / 255.0).toFloat().coerceIn(0f, 1f)
+
+        val anterior = estado
+        val cambios = mutableListOf<String>()
+        if (anterior.lente != conModoCorrecto.lente) cambios.add("lente")
+        if (anterior.modo != conModoCorrecto.modo) cambios.add("modo→${conModoCorrecto.modo}")
+        if (anterior.iso != conModoCorrecto.iso) cambios.add("ISO=${conModoCorrecto.iso}")
+        if (anterior.exposicionNs != conModoCorrecto.exposicionNs) cambios.add("exp=${formatearNs(conModoCorrecto.exposicionNs)}")
+        if (anterior.exposicionLargaNs != conModoCorrecto.exposicionLargaNs) cambios.add("larga=${formatearNs(conModoCorrecto.exposicionLargaNs)}")
+        if (anterior.distanciaFocoDioptras != conModoCorrecto.distanciaFocoDioptras) cambios.add("foco=${"%.2f".format(conModoCorrecto.distanciaFocoDioptras)}")
+        if (anterior.temperaturaK != conModoCorrecto.temperaturaK) cambios.add("wb=${conModoCorrecto.temperaturaK}K")
+        if (cambios.isNotEmpty()) registrar("estado", "Aplicar: ${cambios.joinToString(", ")}")
+
+        estado = conModoCorrecto
+        guardarEstado()
+
+        if (capturaEnCurso) {
+            estadoPendiente = conModoCorrecto
+            registrar("captura", "Cambio pospuesto hasta terminar captura")
+            return
         }
-        return Triple(r.coerceAtLeast(0.1f), g.coerceAtLeast(0.1f), b.coerceAtLeast(0.1f))
+
+        val soloCambioTiempoLarga = anterior.largaExposicion && conModoCorrecto.largaExposicion &&
+            anterior.lente == conModoCorrecto.lente &&
+            anterior.focoManual == conModoCorrecto.focoManual &&
+            anterior.distanciaFocoDioptras == conModoCorrecto.distanciaFocoDioptras &&
+            anterior.isoManual == conModoCorrecto.isoManual &&
+            anterior.iso == conModoCorrecto.iso &&
+            anterior.wbManual == conModoCorrecto.wbManual &&
+            anterior.temperaturaK == conModoCorrecto.temperaturaK &&
+            anterior.flashAuto == conModoCorrecto.flashAuto
+
+        if (soloCambioTiempoLarga) return
+
+        aplicarLargaExposicionEnBind = false
+        enlazar(cicloDeVida, vistaPrevia)
     }
 
     fun capturar(onGuardado: (Boolean, String, Uri?) -> Unit) {
@@ -347,11 +385,18 @@ class CamaraController(private val contexto: Context) {
         val vista = vistaPreviaActual
 
         if (estado.largaExposicion && ciclo != null && vista != null) {
-            registrar("captura", "Activando larga exposición real para captura")
+            registrar("captura", "Rebind con larga exposición + espera 400ms")
             aplicarLargaExposicionEnBind = true
             enlazar(ciclo, vista)
+            Handler(Looper.getMainLooper()).postDelayed({
+                ejecutarCaptura(onGuardado)
+            }, 400)
+        } else {
+            ejecutarCaptura(onGuardado)
         }
+    }
 
+    private fun ejecutarCaptura(onGuardado: (Boolean, String, Uri?) -> Unit) {
         val captura = imageCapture ?: run {
             registrar("error", "Captura: cámara no lista")
             aplicarLargaExposicionEnBind = false
@@ -371,15 +416,34 @@ class CamaraController(private val contexto: Context) {
         val opciones = ImageCapture.OutputFileOptions.Builder(
             contexto.contentResolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, valores
         ).build()
-        registrar("captura", "Inicio · modo=${estado.modo} · exp=${formatearNs(if (estado.largaExposicion) estado.exposicionLargaNs else estado.exposicionNs)} · ISO=${estado.iso}")
+        registrar("captura", "Disparando · exp=${formatearNs(if (estado.largaExposicion) estado.exposicionLargaNs else estado.exposicionNs)} · ISO=${estado.iso}")
+
+        val exposicionSeg = estado.exposicionLargaNs / 1_000_000_000.0
+        val timeoutMs = ((exposicionSeg + 15.0) * 1000).toLong()
+        val timeoutRunnable = Runnable {
+            if (capturaEnCurso) {
+                registrar("error", "TIMEOUT de captura (${timeoutMs}ms). Reseteando...")
+                capturaEnCurso = false
+                val ciclo = cicloDeVidaActual
+                val vista = vistaPreviaActual
+                if (aplicarLargaExposicionEnBind && ciclo != null && vista != null) {
+                    aplicarLargaExposicionEnBind = false
+                    enlazar(ciclo, vista)
+                }
+                onGuardado(false, "Captura agotó tiempo", null)
+            }
+        }
+        Handler(Looper.getMainLooper()).postDelayed(timeoutRunnable, timeoutMs)
 
         captura.takePicture(opciones, ejecutor, object : ImageCapture.OnImageSavedCallback {
             override fun onImageSaved(resultado: ImageCapture.OutputFileResults) {
+                Handler(Looper.getMainLooper()).removeCallbacks(timeoutRunnable)
                 registrar("captura", "OK · ${resultado.savedUri}")
                 capturaEnCurso = false
+                val ciclo = cicloDeVidaActual
+                val vista = vistaPreviaActual
                 val necesitaRebind = aplicarLargaExposicionEnBind
                 aplicarLargaExposicionEnBind = false
-                estadoPendiente = null
                 if (necesitaRebind && ciclo != null && vista != null) {
                     registrar("captura", "Restaurando preview normal")
                     enlazar(ciclo, vista)
@@ -388,18 +452,38 @@ class CamaraController(private val contexto: Context) {
             }
 
             override fun onError(excepcion: ImageCaptureException) {
+                Handler(Looper.getMainLooper()).removeCallbacks(timeoutRunnable)
                 registrar("error", "Captura falló: ${excepcion.message}")
                 capturaEnCurso = false
+                val ciclo = cicloDeVidaActual
+                val vista = vistaPreviaActual
                 val necesitaRebind = aplicarLargaExposicionEnBind
                 aplicarLargaExposicionEnBind = false
-                estadoPendiente = null
                 if (necesitaRebind && ciclo != null && vista != null) {
-                    registrar("captura", "Restaurando preview normal tras error")
+                    registrar("captura", "Restaurando preview tras error")
                     enlazar(ciclo, vista)
                 }
                 onGuardado(false, "Error: ${excepcion.message}", null)
             }
         })
+    }
+
+    private fun kelvinAGanancias(k: Int): Triple<Float, Float, Float> {
+        val t = (k.coerceIn(2000, 8000)) / 100f
+        val r: Float; val g: Float; val b: Float
+        if (t <= 66f) {
+            r = 1f
+            g = ((99.4708025861 * Math.log(t.toDouble()) - 161.1195681661) / 255.0).toFloat().coerceIn(0f, 1f)
+        } else {
+            r = ((329.698727446 * Math.pow(t - 60.0, -0.1332047592)) / 255.0).toFloat().coerceIn(0f, 1f)
+            g = ((288.1221695283 * Math.pow(t - 60.0, -0.0755148492)) / 255.0).toFloat().coerceIn(0f, 1f)
+        }
+        b = when {
+            t >= 66f -> 1f
+            t <= 19f -> 0f
+            else -> ((138.5177312231 * Math.log(t - 10.0) - 305.0447927307) / 255.0).toFloat().coerceIn(0f, 1f)
+        }
+        return Triple(r.coerceAtLeast(0.1f), g.coerceAtLeast(0.1f), b.coerceAtLeast(0.1f))
     }
 
     fun liberar() { proveedor?.unbindAll(); camara = null; imageCapture = null }
