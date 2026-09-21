@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="24dp"
+    android:background="#1A1A2E">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/grabar_titulo"
+        android:textSize="22sp"
+        android:textColor="#F0EEF8"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/texto_tiempo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/grabar_tiempo_inicial"
+        android:textSize="48sp"
+        android:fontFamily="monospace"
+        android:textColor="#F0EEF8"
+        android:layout_marginBottom="32dp" />
+
+    <Button
+        android:id="@+id/boton_grabar"
+        android:layout_width="140dp"
+        android:layout_height="140dp"
+        android:text="@string/grabar_boton_iniciar"
+        android:textSize="16sp"
+        android:layout_marginBottom="32dp" />
+
+    <TextView
+        android:id="@+id/texto_hablantes"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/grabar_nivel_audio"
+        android:textSize="14sp"
+        android:textColor="#B0B0D0"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/texto_transcripcion_vivo"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:text="@string/grabar_placeholder"
+        android:textSize="14sp"
+        android:textColor="#B0B0D0"
+        android:padding="8dp"
+        android:background="#20203A"
+        android:gravity="top|start" />
+
+</LinearLayout>
