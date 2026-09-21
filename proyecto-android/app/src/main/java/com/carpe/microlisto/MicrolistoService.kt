@@ -12,13 +12,24 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.carpe.microlisto.audio.AudioRecorder
+import com.carpe.microlisto.data.BaseDatos
+import com.carpe.microlisto.data.Conversacion
+import com.carpe.microlisto.data.Segmento
 import com.carpe.microlisto.transcripcion.Transcriber
+import com.carpe.microlisto.vad.Diarizer
+import com.carpe.microlisto.vad.SegmentoDiarizado
 import com.carpe.microlisto.vad.SileroVad
 import com.carpe.microlisto.vad.VadSegmenter
+import com.carpe.microlisto.whisper.WhisperManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.io.File
+import java.io.RandomAccessFile
 
 class MicrolistoService : Service() {
 
@@ -26,6 +37,9 @@ class MicrolistoService : Service() {
     private var transcriber: Transcriber? = null
     private var sileroVad: SileroVad? = null
     private var vadSegmenter: VadSegmenter? = null
+    private var archivoWavActual: File? = null
+
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -38,8 +52,7 @@ class MicrolistoService : Service() {
         when (intent?.action) {
             ACTION_INICIAR -> iniciarGrabacion()
             ACTION_PARAR -> {
-                detenerGrabacion()
-                stopSelf()
+                procesarYParar()
             }
             else -> iniciarGrabacion()
         }
@@ -49,21 +62,12 @@ class MicrolistoService : Service() {
     private fun iniciarGrabacion() {
         val notificacion = construirNotificacion()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                ID_NOTIFICACION,
-                notificacion,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            )
+            startForeground(ID_NOTIFICACION, notificacion, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         } else {
             startForeground(ID_NOTIFICACION, notificacion)
         }
 
-        _estado.value = EstadoGrabacion(
-            grabando = true,
-            tiempoMs = 0,
-            transcripcionAcumulada = "",
-            error = null
-        )
+        _estado.value = EstadoGrabacion(grabando = true)
         _textoAcumulado.value = ""
         _textoParcial.value = ""
         tiempoGrabadoMs = 0
@@ -74,40 +78,25 @@ class MicrolistoService : Service() {
 
             transcriber = Transcriber(
                 context = applicationContext,
-                onListo = {
-                    // Listo para transcribir.
-                },
-                onParcial = { parcial ->
-                    _textoParcial.value = limpiarJsonVosk(parcial)
-                },
+                onParcial = { parcial -> _textoParcial.value = limpiarJsonVosk(parcial) },
                 onFinal = { final ->
                     val limpio = limpiarJsonVosk(final)
                     if (limpio.isNotBlank()) {
                         _textoAcumulado.value = _textoAcumulado.value + limpio + " "
-                        _estado.value = _estado.value.copy(
-                            transcripcionAcumulada = _textoAcumulado.value
-                        )
+                        _estado.value = _estado.value.copy(transcripcionAcumulada = _textoAcumulado.value)
                     }
                 },
-                onError = { error ->
-                    _estado.value = _estado.value.copy(error = error)
-                }
+                onError = { error -> _estado.value = _estado.value.copy(error = error) }
             )
             transcriber?.iniciar()
 
-            val archivoWav = File(filesDir, "grabacion_${System.currentTimeMillis()}.wav")
+            archivoWavActual = File(filesDir, "grabacion_${System.currentTimeMillis()}.wav")
             audioRecorder = AudioRecorder(
-                archivoWav = archivoWav,
+                archivoWav = archivoWavActual!!,
                 onFrame = { frame, cantidad ->
-                    val prob = try {
-                        sileroVad?.calcularProbabilidad(frame) ?: 0f
-                    } catch (_: Exception) {
-                        0f
-                    }
+                    val prob = try { sileroVad?.calcularProbabilidad(frame) ?: 0f } catch (_: Exception) { 0f }
                     vadSegmenter?.actualizar(prob)
-
                     transcriber?.aceptarFrame(frame, cantidad)
-
                     tiempoGrabadoMs += (cantidad.toLong() * 1000L) / 16000L
                     _estado.value = _estado.value.copy(
                         tiempoMs = tiempoGrabadoMs,
@@ -118,44 +107,116 @@ class MicrolistoService : Service() {
             )
             audioRecorder?.iniciar()
         } catch (e: Exception) {
-            _estado.value = _estado.value.copy(
-                grabando = false,
-                error = e.message ?: "Error al iniciar la grabación"
-            )
-            detenerGrabacion()
+            _estado.value = _estado.value.copy(grabando = false, error = e.message ?: "Error al iniciar")
+            detenerComponentes()
             stopSelf()
         }
     }
 
-    private fun detenerGrabacion() {
+    private fun procesarYParar() {
+        detenerComponentes()
+
+        val wav = archivoWavActual
+        val textoFinal = _textoAcumulado.value
+        val duracionMs = tiempoGrabadoMs
+
+        _estado.value = _estado.value.copy(grabando = false, procesando = true)
+
+        if (wav == null || !wav.exists() || duracionMs < 1000) {
+            _estado.value = _estado.value.copy(procesando = false)
+            stopSelf()
+            return
+        }
+
+        scope.launch {
+            try {
+                // 1. Diarización
+                val segmentosDiarizados = diarizarWav(wav)
+
+                // 2. Guardar en base de datos
+                val db = BaseDatos(applicationContext)
+                val idConv = db.insertarConversacion(
+                    Conversacion(
+                        titulo = "Conversación ${formatearFecha(System.currentTimeMillis())}",
+                        fechaMs = System.currentTimeMillis(),
+                        duracionMs = duracionMs,
+                        numHablantes = segmentosDiarizados.map { it.hablanteId }.distinct().size,
+                        rutaAudio = wav.absolutePath,
+                        transcripcion = textoFinal
+                    )
+                )
+                db.insertarSegmentos(idConv, segmentosDiarizados.map {
+                    Segmento(
+                        idConversacion = idConv,
+                        hablanteId = it.hablanteId,
+                        inicioMs = it.inicioMs,
+                        finMs = it.finMs,
+                        texto = textoFinal // TODO: dividir el texto por segmentos en el Bloque 5
+                    )
+                })
+
+                _estado.value = _estado.value.copy(procesando = false, idUltimaConversacion = idConv)
+            } catch (e: Exception) {
+                _estado.value = _estado.value.copy(procesando = false, error = e.message)
+            } finally {
+                archivoWavActual = null
+            }
+        }
+
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
+    private fun diarizarWav(wav: File): List<SegmentoDiarizado> {
+        return try {
+            val muestras = leerWavFloat(wav)
+            if (muestras.isEmpty()) return emptyList()
+            val diarizer = Diarizer(applicationContext)
+            val res = diarizer.diarizar(muestras)
+            diarizer.cerrar()
+            res
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Lee un WAV PCM 16-bit mono y lo convierte a FloatArray [-1, 1].
+     */
+    private fun leerWavFloat(wav: File): FloatArray {
         try {
-            audioRecorder?.parar()
-        } catch (_: Exception) {}
+            RandomAccessFile(wav, "r").use { raf ->
+                raf.seek(44) // saltar cabecera WAV estándar
+                val bytes = ByteArray((raf.length() - 44).toInt().coerceAtLeast(0))
+                raf.readFully(bytes)
+                val muestras = FloatArray(bytes.size / 2)
+                for (i in muestras.indices) {
+                    val lo = bytes[i * 2].toInt() and 0xFF
+                    val hi = bytes[i * 2 + 1].toInt()
+                    val v = ((hi shl 8) or lo).toShort()
+                    muestras[i] = v / 32768f
+                }
+                return muestras
+            }
+        } catch (e: Exception) {
+            return FloatArray(0)
+        }
+    }
+
+    private fun detenerComponentes() {
+        try { audioRecorder?.parar() } catch (_: Exception) {}
         audioRecorder = null
-
-        try {
-            transcriber?.cerrar()
-        } catch (_: Exception) {}
+        try { transcriber?.cerrar() } catch (_: Exception) {}
         transcriber = null
-
-        try {
-            sileroVad?.cerrar()
-        } catch (_: Exception) {}
+        try { sileroVad?.cerrar() } catch (_: Exception) {}
         sileroVad = null
-
         vadSegmenter?.reset()
         vadSegmenter = null
-
-        _estado.value = _estado.value.copy(grabando = false)
         _textoParcial.value = ""
-        tiempoGrabadoMs = 0
+    }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
+    private fun formatearFecha(ms: Long): String {
+        return java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ms))
     }
 
     private fun crearCanalNotificacion() {
@@ -168,8 +229,8 @@ class MicrolistoService : Service() {
                 description = getString(R.string.notif_canal_grabacion_desc)
                 setShowBadge(false)
             }
-            val gestor = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            gestor.createNotificationChannel(canal)
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .createNotificationChannel(canal)
         }
     }
 
@@ -181,25 +242,17 @@ class MicrolistoService : Service() {
             this, 0, intentAbrir,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
-        val intentParar = Intent(this, MicrolistoService::class.java).apply {
-            action = ACTION_PARAR
-        }
+        val intentParar = Intent(this, MicrolistoService::class.java).apply { action = ACTION_PARAR }
         val pendingParar = PendingIntent.getService(
             this, 1, intentParar,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
         return NotificationCompat.Builder(this, CANAL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle(getString(R.string.notif_grabando_titulo))
             .setContentText(getString(R.string.notif_grabando_texto))
             .setContentIntent(pendingAbrir)
-            .addAction(
-                android.R.drawable.ic_media_pause,
-                getString(R.string.notif_accion_parar),
-                pendingParar
-            )
+            .addAction(android.R.drawable.ic_media_pause, getString(R.string.notif_accion_parar), pendingParar)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
@@ -218,9 +271,11 @@ class MicrolistoService : Service() {
 
         data class EstadoGrabacion(
             val grabando: Boolean = false,
+            val procesando: Boolean = false,
             val tiempoMs: Long = 0,
             val transcripcionAcumulada: String = "",
             val textoParcial: String = "",
+            val idUltimaConversacion: Long? = null,
             val error: String? = null
         )
 
@@ -232,9 +287,7 @@ class MicrolistoService : Service() {
         private var tiempoGrabadoMs: Long = 0
 
         fun iniciar(context: Context) {
-            val intent = Intent(context, MicrolistoService::class.java).apply {
-                action = ACTION_INICIAR
-            }
+            val intent = Intent(context, MicrolistoService::class.java).apply { action = ACTION_INICIAR }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -243,9 +296,7 @@ class MicrolistoService : Service() {
         }
 
         fun parar(context: Context) {
-            val intent = Intent(context, MicrolistoService::class.java).apply {
-                action = ACTION_PARAR
-            }
+            val intent = Intent(context, MicrolistoService::class.java).apply { action = ACTION_PARAR }
             context.startService(intent)
         }
     }
