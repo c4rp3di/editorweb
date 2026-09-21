@@ -18,151 +18,140 @@
 
     <TextView
         android:id="@+id/txtBloqueo"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="72dp"
-        android:background="#CCA07B3E"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="6dp"
-        android:text="@string/bloqueado"
-        android:textColor="@android:color/white"
-        android:textSize="11sp"
-        android:textStyle="bold"
-        android:visibility="gone" />
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal" android:layout_marginTop="72dp"
+        android:background="#CCA07B3E" android:paddingHorizontal="14dp" android:paddingVertical="6dp"
+        android:text="@string/bloqueado" android:textColor="@android:color/white"
+        android:textSize="11sp" android:textStyle="bold" android:visibility="gone" />
 
+    <!-- HUD superior -->
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:padding="12dp"
-        android:background="#66000000">
-
-        <TextView
-            android:id="@+id/txtModo"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="#CC6C5CE7"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="4dp"
-            android:textColor="@android:color/white"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:text="@string/modo_auto" />
-
-        <TextView
-            android:id="@+id/txtLente"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:background="#CC000000"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="4dp"
-            android:textColor="@android:color/white"
-            android:textSize="12sp"
-            android:text="1x" />
-
-        <View
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1" />
-
-        <TextView
-            android:id="@+id/txtInfo"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#CCFFFFFF"
-            android:textSize="10sp"
-            android:fontFamily="monospace"
-            android:text="" />
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_gravity="top" android:orientation="horizontal"
+        android:gravity="center_vertical" android:padding="12dp" android:background="#66000000">
+        <TextView android:id="@+id/txtModo" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:background="#CC6C5CE7" android:paddingHorizontal="10dp" android:paddingVertical="4dp"
+            android:textColor="@android:color/white" android:textSize="12sp" android:textStyle="bold" android:text="@string/modo_auto" />
+        <TextView android:id="@+id/txtLente" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" android:background="#CC000000" android:paddingHorizontal="10dp" android:paddingVertical="4dp"
+            android:textColor="@android:color/white" android:textSize="12sp" android:text="1x" />
+        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+        <TextView android:id="@+id/txtInfo" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textColor="#CCFFFFFF" android:textSize="10sp" android:fontFamily="monospace" android:text="" />
     </LinearLayout>
 
     <TextView
         android:id="@+id/txtContador"
-        android:layout_width="120dp"
-        android:layout_height="120dp"
-        android:layout_gravity="center"
-        android:gravity="center"
+        android:layout_width="120dp" android:layout_height="120dp"
+        android:layout_gravity="center" android:gravity="center"
         android:background="@drawable/contador_circular"
-        android:textColor="@android:color/white"
-        android:textSize="64sp"
-        android:textStyle="bold"
-        android:visibility="gone" />
+        android:textColor="@android:color/white" android:textSize="64sp"
+        android:textStyle="bold" android:visibility="gone" />
 
-    <!-- Miniatura: ahora por ENCIMA de la barra inferior, sin solapar botones -->
     <ImageView
         android:id="@+id/imgMiniatura"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:layout_gravity="bottom|start"
-        android:layout_marginStart="16dp"
-        android:layout_marginBottom="110dp"
-        android:background="@drawable/miniatura_fondo"
-        android:scaleType="centerCrop"
-        android:visibility="gone"
-        android:contentDescription="Última foto" />
+        android:layout_width="56dp" android:layout_height="56dp"
+        android:layout_gravity="bottom|start" android:layout_marginStart="16dp" android:layout_marginBottom="110dp"
+        android:background="@drawable/miniatura_fondo" android:scaleType="centerCrop"
+        android:visibility="gone" android:contentDescription="Última foto" />
 
+    <!-- === PANEL FLOTANTE DE SLIDERS === -->
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:padding="16dp"
-        android:background="#66000000">
+        android:id="@+id/floatingPanel"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_gravity="bottom" android:layout_marginBottom="112dp"
+        android:layout_marginStart="8dp" android:layout_marginEnd="8dp"
+        android:orientation="vertical" android:background="#E6222233"
+        android:padding="8dp" android:visibility="gone">
 
-        <Button
-            android:id="@+id/btnGrid"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
-            android:background="@drawable/boton_circular"
-            app:backgroundTint="@null"
-            android:text="@string/btn_grid"
-            android:textSize="20sp"
-            android:textColor="@android:color/white" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:id="@+id/floatingTitle" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="⚙ Ajustes en vivo"
+                android:textColor="#9AD0E0" android:textSize="11sp" android:textStyle="bold" />
+            <Button android:id="@+id/floatingPin" android:layout_width="32dp" android:layout_height="32dp"
+                android:background="@drawable/boton_circular" android:text="📌" android:textSize="12sp" android:textColor="#FFFFFF" />
+            <Button android:id="@+id/floatingClose" android:layout_width="32dp" android:layout_height="32dp"
+                android:layout_marginStart="4dp" android:background="@drawable/boton_circular"
+                android:text="✕" android:textSize="12sp" android:textColor="#FFFFFF" />
+        </LinearLayout>
 
-        <Space
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1" />
+        <!-- ISO -->
+        <LinearLayout android:id="@+id/rowIsoFloat" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="4dp" android:visibility="gone">
+            <TextView android:layout_width="42dp" android:layout_height="wrap_content" android:text="ISO"
+                android:textColor="#FFFFFF" android:textSize="11sp" />
+            <SeekBar android:id="@+id/sliderIsoFloat" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:max="12750" android:progress="350" />
+            <TextView android:id="@+id/valorIsoFloat" android:layout_width="56dp" android:layout_height="wrap_content"
+                android:gravity="end" android:text="400" android:textColor="#7FE0BC" android:textSize="11sp" android:fontFamily="monospace" />
+        </LinearLayout>
 
-        <Button
-            android:id="@+id/btnCapturar"
-            android:layout_width="76dp"
-            android:layout_height="76dp"
-            android:background="@drawable/boton_captura"
-            app:backgroundTint="@null"
-            android:text="@string/btn_captura"
-            android:textSize="28sp"
-            android:textColor="@android:color/white" />
+        <!-- Exposición normal -->
+        <LinearLayout android:id="@+id/rowExpFloat" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="2dp" android:visibility="gone">
+            <TextView android:layout_width="42dp" android:layout_height="wrap_content" android:text="Exp"
+                android:textColor="#FFFFFF" android:textSize="11sp" />
+            <SeekBar android:id="@+id/sliderExpFloat" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:max="100" android:progress="50" />
+            <TextView android:id="@+id/valorExpFloat" android:layout_width="56dp" android:layout_height="wrap_content"
+                android:gravity="end" android:text="1/60s" android:textColor="#7FE0BC" android:textSize="11sp" android:fontFamily="monospace" />
+        </LinearLayout>
 
-        <Space
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1" />
+        <!-- Exposición larga -->
+        <LinearLayout android:id="@+id/rowLargaFloat" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="2dp" android:visibility="gone">
+            <TextView android:layout_width="42dp" android:layout_height="wrap_content" android:text="🕐"
+                android:textColor="#E5C99A" android:textSize="11sp" />
+            <SeekBar android:id="@+id/sliderLargaFloat" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:max="100" android:progress="0" />
+            <TextView android:id="@+id/valorLargaFloat" android:layout_width="56dp" android:layout_height="wrap_content"
+                android:gravity="end" android:text="1s" android:textColor="#E5C99A" android:textSize="11sp" android:fontFamily="monospace" />
+        </LinearLayout>
 
-        <Button
-            android:id="@+id/btnAjustes"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
-            android:background="@drawable/boton_circular"
-            app:backgroundTint="@null"
-            android:text="@string/btn_ajustes"
-            android:textSize="22sp"
-            android:textColor="@android:color/white" />
+        <!-- Foco -->
+        <LinearLayout android:id="@+id/rowFocoFloat" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="2dp" android:visibility="gone">
+            <TextView android:layout_width="42dp" android:layout_height="wrap_content" android:text="Foco"
+                android:textColor="#FFFFFF" android:textSize="11sp" />
+            <SeekBar android:id="@+id/sliderFocoFloat" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:max="100" android:progress="0" />
+            <TextView android:id="@+id/valorFocoFloat" android:layout_width="56dp" android:layout_height="wrap_content"
+                android:gravity="end" android:text="∞" android:textColor="#7FE0BC" android:textSize="11sp" android:fontFamily="monospace" />
+        </LinearLayout>
+
+        <!-- WB -->
+        <LinearLayout android:id="@+id/rowWbFloat" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="2dp" android:visibility="gone">
+            <TextView android:layout_width="42dp" android:layout_height="wrap_content" android:text="WB"
+                android:textColor="#FFFFFF" android:textSize="11sp" />
+            <SeekBar android:id="@+id/sliderWbFloat" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:max="6000" android:progress="3000" />
+            <TextView android:id="@+id/valorWbFloat" android:layout_width="56dp" android:layout_height="wrap_content"
+                android:gravity="end" android:text="5000K" android:textColor="#7FE0BC" android:textSize="11sp" android:fontFamily="monospace" />
+        </LinearLayout>
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/txtToast"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:background="#CC000000"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="10dp"
-        android:textColor="@android:color/white"
-        android:textSize="14sp"
-        android:visibility="gone" />
+    <!-- Barra inferior -->
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_gravity="bottom" android:orientation="horizontal"
+        android:gravity="center_vertical" android:padding="16dp" android:background="#66000000">
+        <Button android:id="@+id/btnGrid" android:layout_width="52dp" android:layout_height="52dp"
+            android:background="@drawable/boton_circular" app:backgroundTint="@null"
+            android:text="@string/btn_grid" android:textSize="20sp" android:textColor="@android:color/white" />
+        <Space android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+        <Button android:id="@+id/btnCapturar" android:layout_width="76dp" android:layout_height="76dp"
+            android:background="@drawable/boton_captura" app:backgroundTint="@null"
+            android:text="@string/btn_captura" android:textSize="28sp" android:textColor="@android:color/white" />
+        <Space android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+        <Button android:id="@+id/btnAjustes" android:layout_width="52dp" android:layout_height="52dp"
+            android:background="@drawable/boton_circular" app:backgroundTint="@null"
+            android:text="@string/btn_ajustes" android:textSize="22sp" android:textColor="@android:color/white" />
+    </LinearLayout>
+
+    <TextView android:id="@+id/txtToast" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="center" android:background="#CC000000"
+        android:paddingHorizontal="16dp" android:paddingVertical="10dp"
+        android:textColor="@android:color/white" android:textSize="14sp" android:visibility="gone" />
 </FrameLayout>
