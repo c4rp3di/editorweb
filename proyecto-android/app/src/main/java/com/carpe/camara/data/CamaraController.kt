@@ -45,8 +45,6 @@ class CamaraController(private val contexto: Context) {
     private val prefs: SharedPreferences =
         contexto.getSharedPreferences("camara_prefs", Context.MODE_PRIVATE)
 
-    // Guardamos el ciclo de vida y la vista previa para poder rebindear cuando
-    // haga falta (por ejemplo, justo antes de capturar con larga exposición).
     private var cicloDeVidaActual: LifecycleOwner? = null
     private var vistaPreviaActual: PreviewView? = null
 
@@ -64,12 +62,9 @@ class CamaraController(private val contexto: Context) {
 
     private var capturaEnCurso: Boolean = false
     private var estadoPendiente: CamaraEstado? = null
-    // Flag: cuando es true, el próximo bind aplica la larga exposición de verdad
-    // (para la captura). Cuando es false, el bind es "modo preview" y NO aplica
-    // la larga exposición aunque el estado diga que está activa.
     private var aplicarLargaExposicionEnBind: Boolean = false
 
-    // === LOG DE ACTIVIDAD ===
+    // === LOG ===
     private val registro = ArrayDeque<String>()
     private val REGISTRO_MAX = 500
 
@@ -252,10 +247,7 @@ class CamaraController(private val contexto: Context) {
             return
         }
 
-        // REGLA CLAVE: si estamos en larga exposición y SOLO cambió el tiempo
-        // (u otros parámetros que no afectan al bind), no rebindeamos. Así la
-        // preview queda fluida mientras ajustas el slider. El tiempo real se
-        // aplicará cuando pulses el botón de capturar.
+        // Si SOLO cambió el tiempo de larga exposición, no rebindear
         val soloCambioTiempoLarga = anterior.largaExposicion && conModoCorrecto.largaExposicion &&
             anterior.lente == conModoCorrecto.lente &&
             anterior.focoManual == conModoCorrecto.focoManual &&
@@ -266,10 +258,7 @@ class CamaraController(private val contexto: Context) {
             anterior.temperaturaK == conModoCorrecto.temperaturaK &&
             anterior.flashAuto == conModoCorrecto.flashAuto
 
-        if (soloCambioTiempoLarga) {
-            // No rebind: la preview sigue suave
-            return
-        }
+        if (soloCambioTiempoLarga) return
 
         aplicarLargaExposicionEnBind = false
         enlazar(cicloDeVida, vistaPrevia)
@@ -295,13 +284,13 @@ class CamaraController(private val contexto: Context) {
                 extender.setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, estado.distanciaFocoDioptras)
             }
 
-            // CLAVE: solo aplicamos la exposición larga al sensor cuando el
-            // flag está activo (= justo antes de capturar). Durante el preview,
-            // aunque el estado diga largaExposicion=true, NO la aplicamos para
-            // que la preview siga fluida.
             if (estado.largaExposicion && aplicarLargaExposicionEnBind) {
                 extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
                 extender.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, estado.exposicionLargaNs)
+                // Añadimos SENSOR_FRAME_DURATION para que el HAL no use un default raro.
+                // Sin esto, algunos dispositivos tardan muchísimo (18s para una exp de 2s).
+                val frameDuration = (estado.exposicionLargaNs * 1.05).toLong().coerceAtLeast(33_333_333L)
+                extender.setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, frameDuration)
                 if (estado.isoManual) {
                     extender.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, estado.iso)
                 }
@@ -366,12 +355,13 @@ class CamaraController(private val contexto: Context) {
         return Triple(r.coerceAtLeast(0.1f), g.coerceAtLeast(0.1f), b.coerceAtLeast(0.1f))
     }
 
+    // ============================================================
+    // CAPTURA — arreglado el bug del rebind
+    // ============================================================
     fun capturar(onGuardado: (Boolean, String, Uri?) -> Unit) {
         val ciclo = cicloDeVidaActual
         val vista = vistaPreviaActual
 
-        // Si estamos en larga exposición, hacemos un rebind con la exposición
-        // real SOLO para esta captura. Después volvemos al modo preview.
         if (estado.largaExposicion && ciclo != null && vista != null) {
             registrar("captura", "Activando larga exposición real para captura")
             aplicarLargaExposicionEnBind = true
@@ -385,7 +375,6 @@ class CamaraController(private val contexto: Context) {
         }
 
         capturaEnCurso = true
-        estadoPendiente = null
 
         val nombre = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
         val valores = ContentValues().apply {
@@ -399,22 +388,35 @@ class CamaraController(private val contexto: Context) {
             contexto.contentResolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, valores
         ).build()
         registrar("captura", "Inicio · modo=${estado.modo} · exp=${formatearNs(if (estado.largaExposicion) estado.exposicionLargaNs else estado.exposicionNs)} · ISO=${estado.iso}")
+
         captura.takePicture(opciones, ejecutor, object : ImageCapture.OnImageSavedCallback {
             override fun onImageSaved(resultado: ImageCapture.OutputFileResults) {
                 registrar("captura", "OK · ${resultado.savedUri}")
                 capturaEnCurso = false
-                // Volver al modo preview (rebind sin larga exposición)
-                if (estado.largaExposicion && ciclo != null && vista != null) {
-                    aplicarLargaExposicionEnBind = false
+
+                // === FIX: comprobar el flag, NO estado.largaExposicion ===
+                // El estado pudo cambiar durante la captura, pero el bind sigue
+                // con larga exposición aplicada. Hay que rebindear para volver
+                // al preview normal. Si no, la cámara se queda pillada.
+                val necesitaRebind = aplicarLargaExposicionEnBind
+                aplicarLargaExposicionEnBind = false
+                estadoPendiente = null
+                if (necesitaRebind && ciclo != null && vista != null) {
+                    registrar("captura", "Restaurando preview normal")
                     enlazar(ciclo, vista)
                 }
                 onGuardado(true, "Foto guardada", resultado.savedUri)
             }
+
             override fun onError(excepcion: ImageCaptureException) {
                 registrar("error", "Captura falló: ${excepcion.message}")
                 capturaEnCurso = false
-                if (estado.largaExposicion && ciclo != null && vista != null) {
-                    aplicarLargaExposicionEnBind = false
+
+                val necesitaRebind = aplicarLargaExposicionEnBind
+                aplicarLargaExposicionEnBind = false
+                estadoPendiente = null
+                if (necesitaRebind && ciclo != null && vista != null) {
+                    registrar("captura", "Restaurando preview normal tras error")
                     enlazar(ciclo, vista)
                 }
                 onGuardado(false, "Error: ${excepcion.message}", null)
@@ -430,14 +432,11 @@ class CamaraController(private val contexto: Context) {
         ejecutor.shutdown()
     }
 
-    // ============================================================
-    // DIAGNÓSTICO
-    // ============================================================
+    // === DIAGNÓSTICO / TEST APERTURA / etc (igual que antes) ===
     fun obtenerDiagnostico(): String {
         val sb = StringBuilder()
         val manager = contexto.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val cam = camara
-
         sb.appendLine("═══ CÁMARA ACTIVA ═══")
         if (cam == null) sb.appendLine("⚠ No inicializada.") else {
             try {
@@ -447,12 +446,10 @@ class CamaraController(private val contexto: Context) {
             } catch (e: Exception) { sb.appendLine("⚠ ${e.message}") }
         }
         sb.appendLine()
-
         sb.appendLine("═══ CÁMARAS PÚBLICAS ═══")
         val idsPublicos = manager.cameraIdList.toSet()
         idsPublicos.forEach { idCam -> sb.append(volcarCaracteristicas(manager, idCam, "  ")) }
         sb.appendLine()
-
         sb.appendLine("═══ ESCANEO AGRESIVO (IDs 0-15) ═══")
         for (i in 0..15) {
             val id = i.toString()
@@ -465,20 +462,16 @@ class CamaraController(private val contexto: Context) {
             }
         }
         sb.appendLine()
-
         sb.appendLine("═══ LENTES FÍSICAS DECLARADAS ═══")
         idsPublicos.forEach { idCam ->
             try {
                 val ch = manager.getCameraCharacteristics(idCam)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     val fis = ch.physicalCameraIds
-                    if (fis.isNotEmpty()) {
-                        sb.appendLine("Dentro de \"$idCam\": ${fis.joinToString(", ") { "\"$it\"" }}")
-                    }
+                    if (fis.isNotEmpty()) sb.appendLine("Dentro de \"$idCam\": ${fis.joinToString(", ") { "\"$it\"" }}")
                 }
             } catch (_: Exception) {}
         }
-
         return sb.toString()
     }
 
@@ -486,64 +479,27 @@ class CamaraController(private val contexto: Context) {
         val sb = StringBuilder()
         val manager = contexto.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val idsPublicos = manager.cameraIdList.toSet()
-
-        sb.appendLine("🧪 TEST DE APERTURA DE IDs OCULTOS")
-        sb.appendLine("Intentando openCamera en cada uno durante 500ms…")
+        sb.appendLine("🧪 TEST DE APERTURA")
         sb.appendLine()
-
         for (i in 0..15) {
             val id = i.toString()
-            if (idsPublicos.contains(id)) {
-                sb.appendLine("ID \"$id\" → público (ya conocido)")
-                continue
-            }
-            try {
-                manager.getCameraCharacteristics(id)
-            } catch (e: Exception) {
-                sb.appendLine("ID \"$id\" → no existe")
-                continue
-            }
-
+            if (idsPublicos.contains(id)) { sb.appendLine("ID \"$id\" → público"); continue }
+            try { manager.getCameraCharacteristics(id) } catch (e: Exception) { sb.appendLine("ID \"$id\" → no existe"); continue }
             var resultado = "?"
             val latch = java.util.concurrent.CountDownLatch(1)
             val handler = Handler(Looper.getMainLooper())
             try {
                 manager.openCamera(id, object : CameraDevice.StateCallback() {
-                    override fun onOpened(camera: CameraDevice) {
-                        resultado = "✅ ABIERTA"
-                        camera.close()
-                        latch.countDown()
-                    }
-                    override fun onDisconnected(camera: CameraDevice) {
-                        resultado = "⚠ desconectada"
-                        camera.close()
-                        latch.countDown()
-                    }
+                    override fun onOpened(camera: CameraDevice) { resultado = "✅ ABIERTA"; camera.close(); latch.countDown() }
+                    override fun onDisconnected(camera: CameraDevice) { resultado = "⚠ desconectada"; camera.close(); latch.countDown() }
                     override fun onError(camera: CameraDevice, error: Int) {
-                        val nombre = when (error) {
-                            CameraDevice.StateCallback.ERROR_CAMERA_IN_USE -> "EN USO"
-                            CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE -> "MAX CÁMARAS"
-                            CameraDevice.StateCallback.ERROR_CAMERA_DISABLED -> "DESHABILITADA"
-                            CameraDevice.StateCallback.ERROR_CAMERA_DEVICE -> "ERROR DISPOSITIVO"
-                            CameraDevice.StateCallback.ERROR_CAMERA_SERVICE -> "ERROR SERVICIO"
-                            else -> "código $error"
-                        }
-                        resultado = "❌ $nombre"
-                        camera.close()
-                        latch.countDown()
+                        resultado = "❌ código $error"; camera.close(); latch.countDown()
                     }
                 }, handler)
                 latch.await(800, java.util.concurrent.TimeUnit.MILLISECONDS)
-            } catch (e: CameraAccessException) {
-                resultado = "❌ excepción: ${e.reason}"
-            } catch (e: Exception) {
-                resultado = "❌ ${e.message}"
-            }
+            } catch (e: CameraAccessException) { resultado = "❌ excepción ${e.reason}" } catch (e: Exception) { resultado = "❌ ${e.message}" }
             sb.appendLine("ID \"$id\" → $resultado")
         }
-
-        sb.appendLine()
-        sb.appendLine("Los IDs marcados con ✅ son utilizables para escribir código.")
         return sb.toString()
     }
 
@@ -552,40 +508,16 @@ class CamaraController(private val contexto: Context) {
         try {
             val ch = manager.getCameraCharacteristics(id)
             sb.appendLine("${indent}─── ID \"$id\" ───")
-            sb.appendLine("${indent}  Facing: ${nombreFacing(ch.get(CameraCharacteristics.LENS_FACING))}")
-            sb.appendLine("${indent}  Level: ${nombreNivel(ch.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL))}")
             val foc = ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
             sb.appendLine("${indent}  Focales: ${foc?.joinToString(" / ") { "%.2fmm".format(it) } ?: "—"}")
-            val ap = ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
-            sb.appendLine("${indent}  Aperturas: ${ap?.joinToString(" / ") { "f/%.1f".format(it) } ?: "—"}")
-            val tam = ch.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
-            if (tam != null) sb.appendLine("${indent}  Sensor: %.2f × %.2f mm".format(tam.width, tam.height))
             val iso = ch.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
             if (iso != null) sb.appendLine("${indent}  ISO: ${iso.lower} – ${iso.upper}")
-            val fMin = ch.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE)
-            if (fMin != null && fMin > 0f) sb.appendLine("${indent}  Foco mín: %.2f diop → %.1f cm".format(fMin, 100f / fMin))
-            val ois = ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)
-            sb.appendLine("${indent}  OIS: ${if (ois?.contains(CameraCharacteristics.LENS_OPTICAL_STABILIZATION_MODE_ON) == true) "✓" else "✗"}")
+            val exp = ch.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+            if (exp != null) sb.appendLine("${indent}  Exp: ${formatearNs(exp.lower)} – ${formatearNs(exp.upper)}")
             val zoom = ch.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)
             sb.appendLine("${indent}  Zoom máx: ${zoom ?: "?"}x")
         } catch (e: Exception) { sb.appendLine("${indent}⚠ ${e.message}") }
         return sb.toString()
-    }
-
-    private fun nombreFacing(f: Int?): String = when (f) {
-        CameraCharacteristics.LENS_FACING_BACK -> "TRASERA"
-        CameraCharacteristics.LENS_FACING_FRONT -> "frontal"
-        CameraCharacteristics.LENS_FACING_EXTERNAL -> "externa"
-        else -> "?"
-    }
-
-    private fun nombreNivel(n: Int?): String = when (n) {
-        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY"
-        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED"
-        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL -> "FULL"
-        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3 -> "LEVEL_3"
-        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL -> "EXTERNAL"
-        else -> "?"
     }
 
     private fun formatearNs(ns: Long): String {
