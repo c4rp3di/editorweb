@@ -31,7 +31,7 @@ class PanelAjustes(
         vista.findViewById<TextView>(R.id.txtAvisoLente).text =
             if (controller.seleccionLenteRealDisponible) "✓ 3 lentes" else "zoom→lente"
 
-        vista.findViewById<Button>(R.id.btnDiagnostico).setOnClickListener { mostrarDiagnostico() }
+        vista.findViewById<Button>(R.id.btnDiagnostico).setOnClickListener { mostrarMenuDiagnostico() }
         vista.findViewById<Button>(R.id.btnDebug).setOnClickListener { mostrarLog() }
 
         val bP = vista.findViewById<Button>(R.id.btnLentePrincipal)
@@ -64,12 +64,9 @@ class PanelAjustes(
 
         vista.findViewById<Button>(R.id.btnCerrarAjustes).setOnClickListener { onCerrar() }
 
-        // Switches (solo activan; el slider vive en el panel flotante)
         vista.findViewById<Switch>(R.id.switchIso).apply {
             isChecked = estado.isoManual
-            setOnCheckedChangeListener { _, checked ->
-                aplicar(controller.estado.copy(isoManual = checked))
-            }
+            setOnCheckedChangeListener { _, checked -> aplicar(controller.estado.copy(isoManual = checked)) }
         }
         vista.findViewById<Switch>(R.id.switchExp).apply {
             isChecked = estado.exposicionManual
@@ -87,15 +84,11 @@ class PanelAjustes(
         }
         vista.findViewById<Switch>(R.id.switchFoco).apply {
             isChecked = estado.focoManual
-            setOnCheckedChangeListener { _, checked ->
-                aplicar(controller.estado.copy(focoManual = checked))
-            }
+            setOnCheckedChangeListener { _, checked -> aplicar(controller.estado.copy(focoManual = checked)) }
         }
         vista.findViewById<Switch>(R.id.switchWb).apply {
             isChecked = estado.wbManual
-            setOnCheckedChangeListener { _, checked ->
-                aplicar(controller.estado.copy(wbManual = checked))
-            }
+            setOnCheckedChangeListener { _, checked -> aplicar(controller.estado.copy(wbManual = checked)) }
         }
 
         vista.findViewById<Button>(R.id.btnResetPro).setOnClickListener {
@@ -104,10 +97,33 @@ class PanelAjustes(
         }
     }
 
+    private fun mostrarMenuDiagnostico() {
+        val opciones = arrayOf("📊 Diagnóstico completo", "🧪 Test de apertura de IDs ocultos")
+        AlertDialog.Builder(vista.context)
+            .setTitle("🔍 Herramientas de diagnóstico")
+            .setItems(opciones) { _, which ->
+                when (which) {
+                    0 -> mostrarDiagnostico()
+                    1 -> mostrarTestApertura()
+                }
+            }
+            .show()
+    }
+
     private fun mostrarDiagnostico() {
         val texto = controller.obtenerDiagnostico()
         AlertDialog.Builder(vista.context)
             .setTitle("🔍 Diagnóstico")
+            .setMessage(texto)
+            .setPositiveButton("Cerrar", null)
+            .setNeutralButton("📋 Copiar") { _, _ -> copiar(texto) }
+            .show()
+    }
+
+    private fun mostrarTestApertura() {
+        val texto = controller.probarAperturaDeIds()
+        AlertDialog.Builder(vista.context)
+            .setTitle("🧪 Test de apertura")
             .setMessage(texto)
             .setPositiveButton("Cerrar", null)
             .setNeutralButton("📋 Copiar") { _, _ -> copiar(texto) }
