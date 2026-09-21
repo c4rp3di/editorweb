@@ -10,12 +10,22 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- Overlay para simular el brillo en larga exposición -->
+    <View
+        android:id="@+id/brightnessOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FFFFFF"
+        android:alpha="0.0"
+        android:visibility="gone" />
+
     <com.carpe.camara.ui.GridOverlay
         android:id="@+id/gridOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone" />
 
+    <!-- ... el resto del layout igual que antes ... -->
     <TextView
         android:id="@+id/txtBloqueo"
         android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -39,7 +49,6 @@
             android:textColor="#CCFFFFFF" android:textSize="10sp" android:fontFamily="monospace" android:text="" />
     </LinearLayout>
 
-    <!-- Contador para temporizador -->
     <TextView
         android:id="@+id/txtContador"
         android:layout_width="120dp" android:layout_height="120dp"
@@ -48,7 +57,6 @@
         android:textColor="@android:color/white" android:textSize="64sp"
         android:textStyle="bold" android:visibility="gone" />
 
-    <!-- Indicador de exposición en curso -->
     <TextView
         android:id="@+id/txtExponiendo"
         android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -65,7 +73,7 @@
         android:background="@drawable/miniatura_fondo" android:scaleType="centerCrop"
         android:visibility="gone" android:contentDescription="Última foto" />
 
-    <!-- Panel flotante de sliders -->
+    <!-- Panel flotante de sliders (igual que antes) -->
     <LinearLayout
         android:id="@+id/floatingPanel"
         android:layout_width="match_parent" android:layout_height="wrap_content"
