@@ -25,6 +25,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -52,22 +53,43 @@ class CamaraController(private val contexto: Context) {
     var seleccionLenteRealDisponible: Boolean = false
         private set
 
+    // === LOG DE ACTIVIDAD (botón 🐞) ===
+    private val registro = ArrayDeque<String>()
+    private val REGISTRO_MAX = 500
+
+    fun registrar(tipo: String, mensaje: String) {
+        val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
+        registro.addLast("[$ts] [$tipo] $mensaje")
+        while (registro.size > REGISTRO_MAX) registro.removeFirst()
+    }
+
+    fun obtenerLog(): String {
+        if (registro.isEmpty()) return "Sin actividad registrada todavía."
+        return registro.joinToString("\n")
+    }
+
+    fun limpiarLog() {
+        registro.clear()
+        registrar("log", "Log limpiado por el usuario")
+    }
+
+    fun registrarZoom(z: Float) { registrar("zoom", "Zoom → %.2fx".format(z)) }
+
     fun camaraActual(): Camera? = camara
 
-    fun iniciar(
-        cicloDeVida: LifecycleOwner,
-        vistaPrevia: PreviewView,
-        onListo: (Camera) -> Unit
-    ) {
+    fun iniciar(cicloDeVida: LifecycleOwner, vistaPrevia: PreviewView, onListo: (Camera) -> Unit) {
         alListo = onListo
+        registrar("init", "=== Inicio CamaraController ===")
         cargarEstadoGuardado()
         val futuro = ProcessCameraProvider.getInstance(contexto)
         futuro.addListener({
             try {
                 proveedor = futuro.get()
+                registrar("init", "ProcessCameraProvider listo")
                 descubrirLentes()
                 enlazar(cicloDeVida, vistaPrevia)
             } catch (e: Exception) {
+                registrar("error", "Inicio: ${e.message}")
                 Log.e(TAG, "Error iniciando cámara", e)
             }
         }, ContextCompat.getMainExecutor(contexto))
@@ -76,29 +98,25 @@ class CamaraController(private val contexto: Context) {
     private fun cargarEstadoGuardado() {
         try {
             estado = CamaraEstado(
-                lente = LenteFisica.valueOf(
-                    prefs.getString("lente", LenteFisica.PRINCIPAL.name)
-                        ?: LenteFisica.PRINCIPAL.name),
-                modo = ModoCaptura.valueOf(
-                    prefs.getString("modo", ModoCaptura.AUTO.name)
-                        ?: ModoCaptura.AUTO.name),
+                lente = LenteFisica.valueOf(prefs.getString("lente", LenteFisica.PRINCIPAL.name) ?: LenteFisica.PRINCIPAL.name),
+                modo = ModoCaptura.valueOf(prefs.getString("modo", ModoCaptura.AUTO.name) ?: ModoCaptura.AUTO.name),
                 iso = prefs.getInt("iso", 400),
                 isoManual = prefs.getBoolean("isoManual", false),
                 exposicionNs = prefs.getLong("exposicionNs", 16_666_666L),
                 exposicionManual = prefs.getBoolean("exposicionManual", false),
+                largaExposicion = prefs.getBoolean("largaExposicion", false),
+                exposicionLargaNs = prefs.getLong("exposicionLargaNs", 1_000_000_000L),
                 distanciaFocoDioptras = prefs.getFloat("foco", 0f),
                 focoManual = prefs.getBoolean("focoManual", false),
                 temperaturaK = prefs.getInt("wb", 5000),
                 wbManual = prefs.getBoolean("wbManual", false),
                 flashAuto = prefs.getBoolean("flashAuto", true),
-                temporizador = Temporizador.valueOf(
-                    prefs.getString("timer", Temporizador.OFF.name)
-                        ?: Temporizador.OFF.name),
-                mostrarGrid = prefs.getBoolean("grid", false),
-                exposicionLargaNs = prefs.getLong("exposicionLargaNs", 1_000_000_000L)
+                temporizador = Temporizador.valueOf(prefs.getString("timer", Temporizador.OFF.name) ?: Temporizador.OFF.name),
+                mostrarGrid = prefs.getBoolean("grid", false)
             )
+            registrar("estado", "Cargado: modo=${estado.modo}, lente=${estado.lente.etiqueta}")
         } catch (e: Exception) {
-            Log.e(TAG, "Error cargando preferencias, usando valores por defecto", e)
+            registrar("error", "Cargando prefs: ${e.message}")
             estado = CamaraEstado()
         }
     }
@@ -111,6 +129,8 @@ class CamaraController(private val contexto: Context) {
             .putBoolean("isoManual", estado.isoManual)
             .putLong("exposicionNs", estado.exposicionNs)
             .putBoolean("exposicionManual", estado.exposicionManual)
+            .putBoolean("largaExposicion", estado.largaExposicion)
+            .putLong("exposicionLargaNs", estado.exposicionLargaNs)
             .putFloat("foco", estado.distanciaFocoDioptras)
             .putBoolean("focoManual", estado.focoManual)
             .putInt("wb", estado.temperaturaK)
@@ -118,45 +138,40 @@ class CamaraController(private val contexto: Context) {
             .putBoolean("flashAuto", estado.flashAuto)
             .putString("timer", estado.temporizador.name)
             .putBoolean("grid", estado.mostrarGrid)
-            .putLong("exposicionLargaNs", estado.exposicionLargaNs)
             .apply()
     }
 
     private fun descubrirLentes() {
         val p = proveedor ?: return
-        val traseras = p.availableCameraInfos.filter {
-            it.lensFacing == CameraSelector.LENS_FACING_BACK
-        }
-        Log.d(TAG, "Cámaras traseras listadas por CameraX: ${traseras.size}")
+        val traseras = p.availableCameraInfos.filter { it.lensFacing == CameraSelector.LENS_FACING_BACK }
+        registrar("camara", "Cámaras traseras expuestas por CameraX: ${traseras.size}")
 
-        val conFocal = traseras.mapNotNull { info ->
-            try {
-                val c2 = Camera2CameraInfo.from(info)
-                val focal = c2.getCameraCharacteristic(
-                    CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS
-                )?.firstOrNull()
-                if (focal != null) Triple(info, focal, c2.cameraId) else null
-            } catch (e: Exception) { null }
-        }.sortedBy { it.second }
-
-        when {
-            conFocal.size >= 3 -> {
-                idUltra = conFocal.first().third
-                idPrincipal = conFocal[conFocal.size / 2].third
-                idTele = conFocal.last().third
-                seleccionLenteRealDisponible = true
+        if (traseras.size >= 2) {
+            val conFocal = traseras.mapNotNull { info ->
+                try {
+                    val c2 = Camera2CameraInfo.from(info)
+                    val focal = c2.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)?.firstOrNull()
+                    if (focal != null) Triple(info, focal, c2.cameraId) else null
+                } catch (e: Exception) { null }
+            }.sortedBy { it.second }
+            when {
+                conFocal.size >= 3 -> {
+                    idUltra = conFocal.first().third
+                    idPrincipal = conFocal[conFocal.size / 2].third
+                    idTele = conFocal.last().third
+                    seleccionLenteRealDisponible = true
+                }
+                conFocal.size == 2 -> {
+                    idPrincipal = conFocal[0].third
+                    idTele = conFocal[1].third
+                    seleccionLenteRealDisponible = true
+                }
             }
-            conFocal.size == 2 -> {
-                idPrincipal = conFocal[0].third
-                idTele = conFocal[1].third
-                seleccionLenteRealDisponible = true
-            }
-            conFocal.size == 1 -> {
-                idPrincipal = conFocal.first().third
-                seleccionLenteRealDisponible = false
-            }
+        } else if (traseras.size == 1) {
+            idPrincipal = try { Camera2CameraInfo.from(traseras.first()).cameraId } catch (e: Exception) { null }
+            seleccionLenteRealDisponible = false
         }
-        Log.d(TAG, "Lentes · P=$idPrincipal T=$idTele U=$idUltra · Real=$seleccionLenteRealDisponible")
+        registrar("camara", "MODO: ${if (seleccionLenteRealDisponible) "SEPARADO" else "LÓGICO"} · P=$idPrincipal T=$idTele U=$idUltra")
     }
 
     private fun selectorParaLente(lente: LenteFisica): CameraSelector {
@@ -165,9 +180,7 @@ class CamaraController(private val contexto: Context) {
             LenteFisica.TELEOBJETIVO -> idTele
             LenteFisica.ULTRA_GRAN_ANGULAR -> idUltra
         }
-        if (idFisico == null || !seleccionLenteRealDisponible) {
-            return CameraSelector.DEFAULT_BACK_CAMERA
-        }
+        if (idFisico == null || !seleccionLenteRealDisponible) return CameraSelector.DEFAULT_BACK_CAMERA
         return CameraSelector.Builder()
             .requireLensFacing(CameraSelector.LENS_FACING_BACK)
             .addCameraFilter { infos ->
@@ -180,19 +193,29 @@ class CamaraController(private val contexto: Context) {
     }
 
     fun cambiarLente(nueva: LenteFisica, cicloDeVida: LifecycleOwner, vistaPrevia: PreviewView) {
+        registrar("lente", "Cambio → ${nueva.etiqueta}")
         estado = estado.copy(lente = nueva)
         guardarEstado()
         enlazar(cicloDeVida, vistaPrevia)
     }
 
     fun aplicarEstado(nuevo: CamaraEstado, cicloDeVida: LifecycleOwner, vistaPrevia: PreviewView) {
-        // Auto-ajuste del modo según las flags manuales
         val conModoCorrecto = when {
-            nuevo.modo == ModoCaptura.LARGA_EXPOSICION -> nuevo
-            nuevo.isoManual || nuevo.exposicionManual ||
-            nuevo.focoManual || nuevo.wbManual -> nuevo.copy(modo = ModoCaptura.PRO)
+            nuevo.largaExposicion -> nuevo.copy(modo = ModoCaptura.LARGA_EXPOSICION)
+            nuevo.isoManual || nuevo.exposicionManual || nuevo.focoManual || nuevo.wbManual ->
+                nuevo.copy(modo = ModoCaptura.PRO)
             else -> nuevo.copy(modo = ModoCaptura.AUTO)
         }
+        val cambios = mutableListOf<String>()
+        if (estado.lente != conModoCorrecto.lente) cambios.add("lente")
+        if (estado.modo != conModoCorrecto.modo) cambios.add("modo→${conModoCorrecto.modo}")
+        if (estado.iso != conModoCorrecto.iso) cambios.add("ISO=${conModoCorrecto.iso}")
+        if (estado.exposicionNs != conModoCorrecto.exposicionNs) cambios.add("exp=${formatearNs(conModoCorrecto.exposicionNs)}")
+        if (estado.exposicionLargaNs != conModoCorrecto.exposicionLargaNs) cambios.add("larga=${formatearNs(conModoCorrecto.exposicionLargaNs)}")
+        if (estado.distanciaFocoDioptras != conModoCorrecto.distanciaFocoDioptras) cambios.add("foco=${"%.2f".format(conModoCorrecto.distanciaFocoDioptras)}")
+        if (estado.temperaturaK != conModoCorrecto.temperaturaK) cambios.add("wb=${conModoCorrecto.temperaturaK}K")
+        if (cambios.isNotEmpty()) registrar("estado", "Aplicar: ${cambios.joinToString(", ")}")
+
         estado = conModoCorrecto
         guardarEstado()
         enlazar(cicloDeVida, vistaPrevia)
@@ -208,71 +231,32 @@ class CamaraController(private val contexto: Context) {
 
         val builderCaptura = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-            .setFlashMode(
-                if (estado.flashAuto) ImageCapture.FLASH_MODE_AUTO
-                else ImageCapture.FLASH_MODE_OFF
-            )
+            .setFlashMode(if (estado.flashAuto) ImageCapture.FLASH_MODE_AUTO else ImageCapture.FLASH_MODE_OFF)
 
         val extender = Camera2Interop.Extender(builderCaptura)
 
-        if (estado.modo == ModoCaptura.PRO || estado.modo == ModoCaptura.LARGA_EXPOSICION) {
-            extender.setCaptureRequestOption(
-                CaptureRequest.CONTROL_AF_MODE,
-                CaptureRequest.CONTROL_AF_MODE_OFF
-            )
+        if (estado.modo != ModoCaptura.AUTO) {
+            extender.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
             if (estado.focoManual) {
-                extender.setCaptureRequestOption(
-                    CaptureRequest.LENS_FOCUS_DISTANCE,
-                    estado.distanciaFocoDioptras
-                )
+                extender.setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, estado.distanciaFocoDioptras)
             }
 
-            if (estado.modo == ModoCaptura.LARGA_EXPOSICION) {
-                extender.setCaptureRequestOption(
-                    CaptureRequest.CONTROL_AE_MODE,
-                    CaptureRequest.CONTROL_AE_MODE_OFF
-                )
-                extender.setCaptureRequestOption(
-                    CaptureRequest.SENSOR_EXPOSURE_TIME,
-                    estado.exposicionLargaNs
-                )
+            if (estado.largaExposicion) {
+                extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+                extender.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, estado.exposicionLargaNs)
                 if (estado.isoManual) {
-                    extender.setCaptureRequestOption(
-                        CaptureRequest.SENSOR_SENSITIVITY,
-                        estado.iso
-                    )
+                    extender.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, estado.iso)
                 }
-            } else {
-                if (estado.isoManual || estado.exposicionManual) {
-                    extender.setCaptureRequestOption(
-                        CaptureRequest.CONTROL_AE_MODE,
-                        CaptureRequest.CONTROL_AE_MODE_OFF
-                    )
-                    if (estado.isoManual) {
-                        extender.setCaptureRequestOption(
-                            CaptureRequest.SENSOR_SENSITIVITY,
-                            estado.iso
-                        )
-                    }
-                    if (estado.exposicionManual) {
-                        extender.setCaptureRequestOption(
-                            CaptureRequest.SENSOR_EXPOSURE_TIME,
-                            estado.exposicionNs
-                        )
-                    }
-                }
+            } else if (estado.isoManual || estado.exposicionManual) {
+                extender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
+                if (estado.isoManual) extender.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, estado.iso)
+                if (estado.exposicionManual) extender.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, estado.exposicionNs)
             }
 
             if (estado.wbManual) {
-                extender.setCaptureRequestOption(
-                    CaptureRequest.CONTROL_AWB_MODE,
-                    CaptureRequest.CONTROL_AWB_MODE_OFF
-                )
+                extender.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_OFF)
                 val (r, g, b) = kelvinAGanancias(estado.temperaturaK)
-                extender.setCaptureRequestOption(
-                    CaptureRequest.COLOR_CORRECTION_GAINS,
-                    RggbChannelVector(r, g, g, b)
-                )
+                extender.setCaptureRequestOption(CaptureRequest.COLOR_CORRECTION_GAINS, RggbChannelVector(r, g, g, b))
             }
         }
 
@@ -298,8 +282,10 @@ class CamaraController(private val contexto: Context) {
                 camara?.cameraControl?.setZoomRatio(1f)
             }
 
+            registrar("camara", "Bind OK · modo=${estado.modo} · lente=${estado.lente.etiqueta}")
             alListo?.invoke(camara!!)
         } catch (e: Exception) {
+            registrar("error", "Bind falló: ${e.message}")
             Log.e(TAG, "Error enlazando cámara", e)
         }
     }
@@ -324,6 +310,7 @@ class CamaraController(private val contexto: Context) {
 
     fun capturar(onGuardado: (Boolean, String, Uri?) -> Unit) {
         val captura = imageCapture ?: run {
+            registrar("error", "Captura: cámara no lista")
             onGuardado(false, "Cámara no lista", null); return
         }
         val nombre = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis())
@@ -337,97 +324,124 @@ class CamaraController(private val contexto: Context) {
         val opciones = ImageCapture.OutputFileOptions.Builder(
             contexto.contentResolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, valores
         ).build()
+        registrar("captura", "Inicio · modo=${estado.modo} · exp=${formatearNs(if (estado.largaExposicion) estado.exposicionLargaNs else estado.exposicionNs)} · ISO=${estado.iso}")
         captura.takePicture(opciones, ejecutor, object : ImageCapture.OnImageSavedCallback {
             override fun onImageSaved(resultado: ImageCapture.OutputFileResults) {
+                registrar("captura", "OK · ${resultado.savedUri}")
                 onGuardado(true, "Foto guardada", resultado.savedUri)
             }
             override fun onError(excepcion: ImageCaptureException) {
+                registrar("error", "Captura falló: ${excepcion.message}")
                 onGuardado(false, "Error: ${excepcion.message}", null)
             }
         })
     }
 
-    fun liberar() {
-        proveedor?.unbindAll()
-        camara = null
-        imageCapture = null
-    }
+    fun liberar() { proveedor?.unbindAll(); camara = null; imageCapture = null }
 
     fun cerrar() {
+        registrar("cierre", "=== Cerrando CamaraController ===")
         liberar()
         ejecutor.shutdown()
     }
 
+    // ============================================================
+    // DIAGNÓSTICO + ESCANEO AGRESIVO DE IDs
+    // ============================================================
     fun obtenerDiagnostico(): String {
         val sb = StringBuilder()
         val manager = contexto.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val cam = camara
 
-        sb.appendLine("═══ CÁMARA ACTIVA AHORA ═══")
-        if (cam == null) {
-            sb.appendLine("⚠ No inicializada todavía.")
-        } else {
+        sb.appendLine("═══ CÁMARA ACTIVA ═══")
+        if (cam == null) sb.appendLine("⚠ No inicializada.") else {
             try {
-                val c2Info = Camera2CameraInfo.from(cam.cameraInfo)
-                sb.appendLine("ID CameraX: \"${c2Info.cameraId}\"")
-                sb.appendLine("Lente UI: ${estado.lente.etiqueta}")
-                sb.appendLine("Modo: ${estado.modo}")
-                sb.appendLine("Zoom actual: %.2fx".format(cam.cameraInfo.zoomState.value?.zoomRatio ?: 1f))
+                val c2 = Camera2CameraInfo.from(cam.cameraInfo)
+                sb.appendLine("ID: \"${c2.cameraId}\" · Lente UI: ${estado.lente.etiqueta}")
+                sb.appendLine("Modo: ${estado.modo} · Zoom: %.2fx".format(cam.cameraInfo.zoomState.value?.zoomRatio ?: 1f))
+            } catch (e: Exception) { sb.appendLine("⚠ ${e.message}") }
+        }
+        sb.appendLine()
+
+        sb.appendLine("═══ CÁMARAS PÚBLICAS (cameraIdList) ═══")
+        val idsPublicos = manager.cameraIdList.toSet()
+        idsPublicos.forEach { idCam ->
+            sb.append(volcarCaracteristicas(manager, idCam, "  "))
+        }
+        sb.appendLine()
+
+        sb.appendLine("═══ ESCANEO AGRESIVO (IDs 0-15) ═══")
+        sb.appendLine("Probando IDs que quizá el fabricante oculta…")
+        sb.appendLine()
+        for (i in 0..15) {
+            val id = i.toString()
+            if (idsPublicos.contains(id)) continue
+            try {
+                val ch = manager.getCameraCharacteristics(id)
+                sb.appendLine("🔓 ID \"$id\" RESPONDE aunque no se lista:")
+                sb.append(volcarCaracteristicas(manager, id, "  "))
             } catch (e: Exception) {
-                sb.appendLine("⚠ Error: ${e.message}")
+                sb.appendLine("🔒 ID \"$id\": no responde (${e.javaClass.simpleName})")
             }
         }
         sb.appendLine()
 
-        sb.appendLine("═══ TODAS LAS CÁMARAS DEL SISTEMA ═══")
-        try {
-            val ids = manager.cameraIdList
-            sb.appendLine("Total detectadas: ${ids.size}").appendLine()
-
-            ids.forEach { idCam ->
-                try {
-                    val ch = manager.getCameraCharacteristics(idCam)
-                    sb.appendLine("─── ID \"$idCam\" ───")
-                    sb.appendLine("  Facing: ${nombreFacing(ch.get(CameraCharacteristics.LENS_FACING))}")
-                    sb.appendLine("  Level: ${nombreNivel(ch.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL))}")
-                    val foc = ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
-                    sb.appendLine("  Focales: ${foc?.joinToString(" / ") { "%.2fmm".format(it) } ?: "—"}")
-                    val ap = ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
-                    sb.appendLine("  Aperturas: ${ap?.joinToString(" / ") { "f/%.1f".format(it) } ?: "—"}")
-                    val tamSensor = ch.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
-                    if (tamSensor != null) sb.appendLine("  Sensor: %.2f × %.2f mm".format(tamSensor.width, tamSensor.height))
-                    val tamPx = ch.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE)
-                    if (tamPx != null) sb.appendLine("  Resolución: ${tamPx.width} × ${tamPx.height} (%.1f MP)".format((tamPx.width.toLong() * tamPx.height / 1_000_000.0)))
-                    val rangoIso = ch.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
-                    if (rangoIso != null) sb.appendLine("  ISO: ${rangoIso.lower} – ${rangoIso.upper}")
-                    val rangoExp = ch.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
-                    if (rangoExp != null) sb.appendLine("  Exposición: ${formatearNs(rangoExp.lower)} – ${formatearNs(rangoExp.upper)}")
-                    val focoMin = ch.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE)
-                    if (focoMin != null && focoMin > 0f) sb.appendLine("  Foco mín: %.2f diop → %.1f cm".format(focoMin, 100f / focoMin))
-                    val modosAf = ch.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
-                    if (modosAf != null) sb.appendLine("  AF: ${modosAf.joinToString(", ") { nombreModoAf(it) }}")
-                    val ois = ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)
-                    sb.appendLine("  OIS: ${if (ois?.contains(CameraCharacteristics.LENS_OPTICAL_STABILIZATION_MODE_ON) == true) "✓" else "✗"}")
-                    val flash = ch.get(CameraCharacteristics.FLASH_INFO_AVAILABLE)
-                    sb.appendLine("  Flash: ${if (flash == true) "✓" else "✗"}")
-                    val caps = ch.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
-                    sb.appendLine("  RAW: ${if (caps?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW) == true) "✓" else "✗"}")
-                    sb.appendLine("  Lógica: ${if (caps?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA) == true) "✓" else "✗"}")
-                    val zoomMax = ch.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)
-                    sb.appendLine("  Zoom máx: ${zoomMax ?: "?"}x")
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        try {
-                            val idsFis = ch.physicalCameraIds
-                            if (idsFis.isNotEmpty()) sb.appendLine("  Físicas dentro: ${idsFis.joinToString(", ") { "\"$it\"" }}")
-                        } catch (_: Exception) {}
+        sb.appendLine("═══ LENTES FÍSICAS DECLARADAS ═══")
+        idsPublicos.forEach { idCam ->
+            try {
+                val ch = manager.getCameraCharacteristics(idCam)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val fis = ch.physicalCameraIds
+                    if (fis.isNotEmpty()) {
+                        sb.appendLine("Dentro de \"$idCam\":")
+                        fis.forEach { idFis ->
+                            sb.appendLine("  · ID físico \"$idFis\"")
+                            try {
+                                sb.append(volcarCaracteristicas(manager, idFis, "      "))
+                            } catch (e: Exception) {
+                                sb.appendLine("      🔒 no accesible directamente")
+                            }
+                        }
                     }
-                    sb.appendLine()
-                } catch (e: Exception) {
-                    sb.appendLine("  ⚠ ID \"$idCam\": ${e.message}").appendLine()
                 }
-            }
+            } catch (_: Exception) {}
+        }
+
+        return sb.toString()
+    }
+
+    private fun volcarCaracteristicas(manager: CameraManager, id: String, indent: String): String {
+        val sb = StringBuilder()
+        try {
+            val ch = manager.getCameraCharacteristics(id)
+            sb.appendLine("${indent}─── ID \"$id\" ───")
+            sb.appendLine("${indent}  Facing: ${nombreFacing(ch.get(CameraCharacteristics.LENS_FACING))}")
+            sb.appendLine("${indent}  Level: ${nombreNivel(ch.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL))}")
+            val foc = ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+            sb.appendLine("${indent}  Focales: ${foc?.joinToString(" / ") { "%.2fmm".format(it) } ?: "—"}")
+            val ap = ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
+            sb.appendLine("${indent}  Aperturas: ${ap?.joinToString(" / ") { "f/%.1f".format(it) } ?: "—"}")
+            val tam = ch.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+            if (tam != null) sb.appendLine("${indent}  Sensor: %.2f × %.2f mm".format(tam.width, tam.height))
+            val px = ch.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE)
+            if (px != null) sb.appendLine("${indent}  Resolución: ${px.width} × ${px.height} (%.1f MP)".format(px.width.toLong() * px.height / 1_000_000.0))
+            val iso = ch.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+            if (iso != null) sb.appendLine("${indent}  ISO: ${iso.lower} – ${iso.upper}")
+            val exp = ch.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+            if (exp != null) sb.appendLine("${indent}  Exposición: ${formatearNs(exp.lower)} – ${formatearNs(exp.upper)}")
+            val fMin = ch.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE)
+            if (fMin != null && fMin > 0f) sb.appendLine("${indent}  Foco mín: %.2f diop → %.1f cm".format(fMin, 100f / fMin))
+            val af = ch.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+            if (af != null) sb.appendLine("${indent}  AF: ${af.joinToString(", ") { nombreModoAf(it) }}")
+            val ois = ch.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)
+            sb.appendLine("${indent}  OIS: ${if (ois?.contains(CameraCharacteristics.LENS_OPTICAL_STABILIZATION_MODE_ON) == true) "✓" else "✗"}")
+            val caps = ch.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+            sb.appendLine("${indent}  RAW: ${if (caps?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW) == true) "✓" else "✗"}")
+            sb.appendLine("${indent}  Lógica: ${if (caps?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA) == true) "✓" else "✗"}")
+            val zoom = ch.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)
+            sb.appendLine("${indent}  Zoom máx: ${zoom ?: "?"}x")
         } catch (e: Exception) {
-            sb.appendLine("❌ Error: ${e.message}")
+            sb.appendLine("${indent}⚠ Error: ${e.message}")
         }
         return sb.toString()
     }
@@ -439,7 +453,7 @@ class CamaraController(private val contexto: Context) {
         else -> "?"
     }
 
-    private fun nombreNivel(nivel: Int?): String = when (nivel) {
+    private fun nombreNivel(n: Int?): String = when (n) {
         CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY"
         CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED"
         CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL -> "FULL"
@@ -460,12 +474,10 @@ class CamaraController(private val contexto: Context) {
 
     private fun formatearNs(ns: Long): String {
         if (ns <= 0) return "—"
-        return if (ns < 1_000_000) "1/${(1_000_000_000L / ns)}s"
+        return if (ns < 1_000_000) "1/${1_000_000_000L / ns}s"
         else if (ns < 1_000_000_000L) "%.2fms".format(ns / 1_000_000.0)
         else "%.2fs".format(ns / 1_000_000_000.0)
     }
 
-    companion object {
-        private const val TAG = "CamaraController"
-    }
+    companion object { private const val TAG = "CamaraController" }
 }
