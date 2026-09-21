@@ -25,7 +25,7 @@ class Diarizer(
     private val ventanaMuestras = 10 * sampleRate
     private val numClases = 7
     private val frameSegMs = 10000L / 589L
-    private val timeoutVentanaMs = 60_000L  // 60 s por ventana, después aborta
+    private val timeoutVentanaMs = 60_000L
 
     private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
     private val session: OrtSession
@@ -40,7 +40,6 @@ class Diarizer(
         val modeloBytes = context.assets.open(modeloAssets).use { it.readBytes() }
         DebugLog.info("Diarizer", "Modelo cargado: ${modeloBytes.size} bytes")
 
-        // Configuración de sesión con múltiples hilos y optimización
         val opciones = OrtSession.SessionOptions().apply {
             try {
                 setIntraOpNumThreads(4)
@@ -56,12 +55,9 @@ class Diarizer(
         DebugLog.info("Diarizer", "Entradas del modelo: ${session.inputNames}")
         DebugLog.info("Diarizer", "Salidas del modelo: ${session.outputNames}")
 
-        // Leer formas de entrada/salida del modelo
         try {
-            val infoEntrada = session.inputInfo
-            DebugLog.info("Diarizer", "Info entrada: $infoEntrada")
-            val infoSalida = session.outputInfo
-            DebugLog.info("Diarizer", "Info salida: $infoSalida")
+            DebugLog.info("Diarizer", "Info entrada: ${session.inputInfo}")
+            DebugLog.info("Diarizer", "Info salida: ${session.outputInfo}")
         } catch (e: Exception) {
             DebugLog.warn("Diarizer", "No se pudieron leer las formas: ${e.message}")
         }
@@ -175,10 +171,6 @@ class Diarizer(
         return segmentos
     }
 
-    /**
-     * Envuelve la inferencia en un executor con timeout. Si ONNX Runtime tarda
-     * más de timeoutVentanaMs, se aborta esa ventana y se devuelve vacío.
-     */
     private fun inferirSegmentacionConTimeout(ventanaAudio: FloatArray): IntArray {
         val executor = Executors.newSingleThreadExecutor()
         try {
@@ -199,14 +191,18 @@ class Diarizer(
     private fun inferirSegmentacion(ventanaAudio: FloatArray): IntArray {
         DebugLog.info("Diarizer", "  Creando tensor [1, 1, $ventanaMuestras]")
         val shape = longArrayOf(1, 1, ventanaMuestras.toLong())
-        val bufEntrada = ByteBuffer
+
+        // Crear el FloatBuffer y usarlo DIRECTAMENTE en createTensor.
+        // Pasar el ByteBuffer hace que ONNX Runtime interprete los bytes como
+        // elementos (640000 en vez de 160000) y lanza OrtException.
+        val fb = ByteBuffer
             .allocateDirect(ventanaMuestras * 4)
             .order(ByteOrder.nativeOrder())
-        val fb = bufEntrada.asFloatBuffer()
+            .asFloatBuffer()
         fb.put(ventanaAudio, 0, ventanaMuestras)
         fb.rewind()
 
-        val tInput = OnnxTensor.createTensor(env, bufEntrada, shape)
+        val tInput = OnnxTensor.createTensor(env, fb, shape)
         try {
             DebugLog.info("Diarizer", "  Llamando a session.run...")
             val t0 = System.currentTimeMillis()
