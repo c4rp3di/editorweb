@@ -24,7 +24,6 @@
         android:text="@string/bloqueado" android:textColor="@android:color/white"
         android:textSize="11sp" android:textStyle="bold" android:visibility="gone" />
 
-    <!-- HUD superior -->
     <LinearLayout
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_gravity="top" android:orientation="horizontal"
@@ -40,6 +39,7 @@
             android:textColor="#CCFFFFFF" android:textSize="10sp" android:fontFamily="monospace" android:text="" />
     </LinearLayout>
 
+    <!-- Contador para temporizador -->
     <TextView
         android:id="@+id/txtContador"
         android:layout_width="120dp" android:layout_height="120dp"
@@ -48,6 +48,16 @@
         android:textColor="@android:color/white" android:textSize="64sp"
         android:textStyle="bold" android:visibility="gone" />
 
+    <!-- Indicador de exposición en curso -->
+    <TextView
+        android:id="@+id/txtExponiendo"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="center" android:background="#DD8B3A4A"
+        android:paddingHorizontal="20dp" android:paddingVertical="14dp"
+        android:textColor="@android:color/white" android:textSize="16sp"
+        android:textStyle="bold" android:visibility="gone"
+        android:text="📸 EXPONIENDO 30s…" />
+
     <ImageView
         android:id="@+id/imgMiniatura"
         android:layout_width="56dp" android:layout_height="56dp"
@@ -55,7 +65,7 @@
         android:background="@drawable/miniatura_fondo" android:scaleType="centerCrop"
         android:visibility="gone" android:contentDescription="Última foto" />
 
-    <!-- === PANEL FLOTANTE DE SLIDERS === -->
+    <!-- Panel flotante de sliders -->
     <LinearLayout
         android:id="@+id/floatingPanel"
         android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -76,7 +86,6 @@
                 android:text="✕" android:textSize="12sp" android:textColor="#FFFFFF" />
         </LinearLayout>
 
-        <!-- ISO -->
         <LinearLayout android:id="@+id/rowIsoFloat" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="4dp" android:visibility="gone">
             <TextView android:layout_width="42dp" android:layout_height="wrap_content" android:text="ISO"
@@ -87,7 +96,6 @@
                 android:gravity="end" android:text="400" android:textColor="#7FE0BC" android:textSize="11sp" android:fontFamily="monospace" />
         </LinearLayout>
 
-        <!-- Exposición normal -->
         <LinearLayout android:id="@+id/rowExpFloat" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="2dp" android:visibility="gone">
             <TextView android:layout_width="42dp" android:layout_height="wrap_content" android:text="Exp"
@@ -98,7 +106,6 @@
                 android:gravity="end" android:text="1/60s" android:textColor="#7FE0BC" android:textSize="11sp" android:fontFamily="monospace" />
         </LinearLayout>
 
-        <!-- Exposición larga -->
         <LinearLayout android:id="@+id/rowLargaFloat" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="2dp" android:visibility="gone">
             <TextView android:layout_width="42dp" android:layout_height="wrap_content" android:text="🕐"
@@ -109,7 +116,6 @@
                 android:gravity="end" android:text="1s" android:textColor="#E5C99A" android:textSize="11sp" android:fontFamily="monospace" />
         </LinearLayout>
 
-        <!-- Foco -->
         <LinearLayout android:id="@+id/rowFocoFloat" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="2dp" android:visibility="gone">
             <TextView android:layout_width="42dp" android:layout_height="wrap_content" android:text="Foco"
@@ -120,7 +126,6 @@
                 android:gravity="end" android:text="∞" android:textColor="#7FE0BC" android:textSize="11sp" android:fontFamily="monospace" />
         </LinearLayout>
 
-        <!-- WB -->
         <LinearLayout android:id="@+id/rowWbFloat" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="2dp" android:visibility="gone">
             <TextView android:layout_width="42dp" android:layout_height="wrap_content" android:text="WB"
@@ -132,7 +137,6 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Barra inferior -->
     <LinearLayout
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_gravity="bottom" android:orientation="horizontal"
