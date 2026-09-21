@@ -62,6 +62,30 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text="@string/ajustes_debug_titulo"
+            android:textSize="16sp"
+            android:textColor="#F0EEF8"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/ajustes_debug_desc"
+            android:textSize="13sp"
+            android:textColor="#B0B0D0"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/boton_ver_log"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/ajustes_ver_log"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="@string/ajustes_acerca_de"
             android:textSize="16sp"
             android:textColor="#F0EEF8"
