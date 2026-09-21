@@ -7,6 +7,9 @@ import ai.onnxruntime.OrtSession
 import com.carpe.microlisto.debug.DebugLog
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 data class SegmentoDiarizado(
     val hablanteId: Int,
@@ -22,13 +25,13 @@ class Diarizer(
     private val ventanaMuestras = 10 * sampleRate
     private val numClases = 7
     private val frameSegMs = 10000L / 589L
+    private val timeoutVentanaMs = 60_000L  // 60 s por ventana, después aborta
 
     private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
     private val session: OrtSession
     private val embedder: SpeakerEmbedding
     private val fbank: Fbank = Fbank()
 
-    // Nombres reales del modelo pyannote_seg30, confirmados por el log
     private val nombreEntrada = "waveform"
     private val nombreSalida = "powerset"
 
@@ -36,9 +39,33 @@ class Diarizer(
         DebugLog.info("Diarizer", "Cargando modelo $modeloAssets")
         val modeloBytes = context.assets.open(modeloAssets).use { it.readBytes() }
         DebugLog.info("Diarizer", "Modelo cargado: ${modeloBytes.size} bytes")
-        session = env.createSession(modeloBytes, OrtSession.SessionOptions())
+
+        // Configuración de sesión con múltiples hilos y optimización
+        val opciones = OrtSession.SessionOptions().apply {
+            try {
+                setIntraOpNumThreads(4)
+                setInterOpNumThreads(4)
+                setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+                DebugLog.info("Diarizer", "Opciones: 4 hilos intra, 4 inter, ALL_OPT")
+            } catch (e: Exception) {
+                DebugLog.warn("Diarizer", "No se pudieron aplicar todas las opciones: ${e.message}")
+            }
+        }
+
+        session = env.createSession(modeloBytes, opciones)
         DebugLog.info("Diarizer", "Entradas del modelo: ${session.inputNames}")
         DebugLog.info("Diarizer", "Salidas del modelo: ${session.outputNames}")
+
+        // Leer formas de entrada/salida del modelo
+        try {
+            val infoEntrada = session.inputInfo
+            DebugLog.info("Diarizer", "Info entrada: $infoEntrada")
+            val infoSalida = session.outputInfo
+            DebugLog.info("Diarizer", "Info salida: $infoSalida")
+        } catch (e: Exception) {
+            DebugLog.warn("Diarizer", "No se pudieron leer las formas: ${e.message}")
+        }
+
         embedder = SpeakerEmbedding(context)
     }
 
@@ -46,7 +73,7 @@ class Diarizer(
         DebugLog.info("Diarizer", "Inicio diarización: ${audio.size} muestras (${audio.size / sampleRate} s)")
 
         if (audio.size < sampleRate) {
-            DebugLog.warn("Diarizer", "Audio demasiado corto (<1s), se devuelve vacío")
+            DebugLog.warn("Diarizer", "Audio demasiado corto (<1s)")
             return emptyList()
         }
 
@@ -73,17 +100,18 @@ class Diarizer(
         var numVentana = 0
         for ((inicioVentana, ventanaAudio) in ventanas) {
             numVentana++
-            val t0 = System.currentTimeMillis()
-            val activaciones = inferirSegmentacion(ventanaAudio)
-            val t1 = System.currentTimeMillis()
-            DebugLog.info("Diarizer", "Ventana $numVentana/${ventanas.size} procesada en ${t1 - t0} ms")
+            DebugLog.info("Diarizer", "→ Procesando ventana $numVentana/${ventanas.size}")
 
-            // Log de las clases detectadas: cuántos frames de cada tipo
+            val t0 = System.currentTimeMillis()
+            val activaciones = inferirSegmentacionConTimeout(ventanaAudio)
+            val t1 = System.currentTimeMillis()
+            DebugLog.info("Diarizer", "← Ventana $numVentana procesada en ${t1 - t0} ms")
+
             val histograma = IntArray(numClases)
             for (clase in activaciones) {
                 if (clase in 0 until numClases) histograma[clase]++
             }
-            DebugLog.info("Diarizer", "  Histograma clases: ${histograma.contentToString()}")
+            DebugLog.info("Diarizer", "  Histograma: ${histograma.contentToString()}")
 
             var i = 0
             while (i < activaciones.size) {
@@ -99,8 +127,7 @@ class Diarizer(
                         val inicioM = i * 160
                         val finM = minOf(j * 160, ventanaAudio.size)
                         if (finM > inicioM) {
-                            val audioFrag = ventanaAudio.copyOfRange(inicioM, finM)
-                            fragmentos.add(Fragmento(inicioMs, finMs, audioFrag))
+                            fragmentos.add(Fragmento(inicioMs, finMs, ventanaAudio.copyOfRange(inicioM, finM)))
                         }
                     }
                     i = j
@@ -110,11 +137,11 @@ class Diarizer(
             }
         }
 
-        DebugLog.info("Diarizer", "Total frames con clase 1-3: $framesConClase1a3")
-        DebugLog.info("Diarizer", "Fragmentos >=1s extraídos: ${fragmentos.size}")
+        DebugLog.info("Diarizer", "Total frames clase 1-3: $framesConClase1a3")
+        DebugLog.info("Diarizer", "Fragmentos >=1s: ${fragmentos.size}")
 
         if (fragmentos.isEmpty()) {
-            DebugLog.warn("Diarizer", "Sin fragmentos extraíbles.")
+            DebugLog.warn("Diarizer", "Sin fragmentos extraíbles")
             return emptyList()
         }
 
@@ -124,7 +151,7 @@ class Diarizer(
             val t1 = System.currentTimeMillis()
             val emb = if (f.isEmpty()) FloatArray(256) else embedder.calcular(f)
             val t2 = System.currentTimeMillis()
-            DebugLog.info("Diarizer", "Fragmento $idx: fbank ${t1 - t0} ms, embedding ${t2 - t1} ms, ${f.size} frames")
+            DebugLog.info("Diarizer", "  Frag $idx: fbank ${t1 - t0}ms, embedding ${t2 - t1}ms, ${f.size} frames")
             emb
         }
 
@@ -144,11 +171,33 @@ class Diarizer(
                 segmentos.add(SegmentoDiarizado(hablante, frag.inicioAbs, frag.finAbs))
             }
         }
-        DebugLog.info("Diarizer", "Segmentos finales fusionados: ${segmentos.size}")
+        DebugLog.info("Diarizer", "Segmentos finales: ${segmentos.size}")
         return segmentos
     }
 
+    /**
+     * Envuelve la inferencia en un executor con timeout. Si ONNX Runtime tarda
+     * más de timeoutVentanaMs, se aborta esa ventana y se devuelve vacío.
+     */
+    private fun inferirSegmentacionConTimeout(ventanaAudio: FloatArray): IntArray {
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val tarea = Callable { inferirSegmentacion(ventanaAudio) }
+            val futuro = executor.submit(tarea)
+            return try {
+                futuro.get(timeoutVentanaMs, TimeUnit.MILLISECONDS)
+            } catch (e: Exception) {
+                DebugLog.error("Diarizer", "Timeout o error en ventana: ${e.message}")
+                futuro.cancel(true)
+                IntArray(589)
+            }
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
     private fun inferirSegmentacion(ventanaAudio: FloatArray): IntArray {
+        DebugLog.info("Diarizer", "  Creando tensor [1, 1, $ventanaMuestras]")
         val shape = longArrayOf(1, 1, ventanaMuestras.toLong())
         val bufEntrada = ByteBuffer
             .allocateDirect(ventanaMuestras * 4)
@@ -159,15 +208,20 @@ class Diarizer(
 
         val tInput = OnnxTensor.createTensor(env, bufEntrada, shape)
         try {
+            DebugLog.info("Diarizer", "  Llamando a session.run...")
+            val t0 = System.currentTimeMillis()
             val resultado = session.run(mapOf(nombreEntrada to tInput))
+            val t1 = System.currentTimeMillis()
+            DebugLog.info("Diarizer", "  session.run terminó en ${t1 - t0} ms")
             try {
                 val outOpt = resultado.get(nombreSalida)
                 if (!outOpt.isPresent) {
-                    DebugLog.warn("Diarizer", "No hay '$nombreSalida' en el resultado")
+                    DebugLog.warn("Diarizer", "  No hay '$nombreSalida' en el resultado")
                     return IntArray(589)
                 }
                 val out = outOpt.get().value as Array<*>
                 val tensor = out[0] as Array<*>
+                DebugLog.info("Diarizer", "  Tensor salida: ${tensor.size} frames x ${(tensor[0] as FloatArray).size} clases")
                 val activaciones = IntArray(tensor.size)
                 var i = 0
                 while (i < tensor.size) {
@@ -190,7 +244,7 @@ class Diarizer(
                 resultado.close()
             }
         } catch (e: Exception) {
-            DebugLog.error("Diarizer", "Error en inferencia: ${e.message}")
+            DebugLog.error("Diarizer", "  Error en inferencia: ${e.message}")
             return IntArray(589)
         } finally {
             tInput.close()
@@ -236,7 +290,7 @@ class Diarizer(
                 i++
             }
             if (mejorI == -1 || mejorSimilitud < umbral) {
-                DebugLog.info("Diarizer", "Clustering: parada en iter $iteraciones, mejor sim $mejorSimilitud (umbral $umbral)")
+                DebugLog.info("Diarizer", "Clustering: parada iter $iteraciones, mejor sim $mejorSimilitud (umbral $umbral)")
                 break
             }
             clusters[mejorI].addAll(clusters[mejorJ])
