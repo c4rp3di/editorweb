@@ -1,3 +1,88 @@
 <resources>
     <string name="app_name">Microlisto</string>
+
+    <string name="config_titulo">Configuración inicial</string>
+    <string name="config_paso_1_titulo">Permiso de micrófono</string>
+    <string name="config_paso_1_desc">Microlisto necesita acceso al micrófono para grabar y transcribir conversaciones.</string>
+    <string name="config_paso_2_titulo">Permiso de notificaciones</string>
+    <string name="config_paso_2_desc">La grabación en segundo plano requiere una notificación persistente. Sin ella, Android detendrá el servicio.</string>
+    <string name="config_paso_3_titulo">Optimización de batería</string>
+    <string name="config_paso_3_desc">Excluye Microlisto de la optimización de batería para que HyperOS no mate la grabación en segundo plano.</string>
+    <string name="config_paso_4_titulo">Autostart en HyperOS</string>
+    <string name="config_paso_4_desc">Activa el autostart de Microlisto en los ajustes de MIUI/HyperOS. Sin esto, la app puede cerrarse al salir de la pantalla.</string>
+    <string name="config_paso_5_titulo">Candado en recientes</string>
+    <string name="config_paso_5_desc">Bloquea Microlisto en la pantalla de apps recientes (desliza hacia arriba y toca el candado). Así HyperOS no la cerrará al liberar memoria.</string>
+    <string name="config_paso_6_titulo">Acceso total a archivos</string>
+    <string name="config_paso_6_desc">Para guardar grabaciones largas sin restricciones de espacio, Microlisto necesita acceso completo al almacenamiento.</string>
+    <string name="config_boton_abrir_ajustes">Abrir ajustes</string>
+    <string name="config_boton_siguiente">Siguiente</string>
+    <string name="config_boton_finalizar">Finalizar</string>
+    <string name="config_boton_omitir">Omitir</string>
+    <string name="config_boton_ya_lo_hice">Ya lo he hecho</string>
+    <string name="config_completado">Configuración completada</string>
+    <string name="config_instrucciones_candado">Para bloquear Microlisto en recientes:\n\n1. Abre la pantalla de apps recientes (botón cuadrado o gesto hacia arriba y mantener).\n2. Busca Microlisto en la lista.\n3. Desliza la tarjeta de Microlisto hacia arriba.\n4. Toca el icono del candado que aparece.\n\nAsí HyperOS no cerrará la app al liberar memoria.</string>
+
+    <string name="notif_canal_grabacion">Grabación en curso</string>
+    <string name="notif_canal_grabacion_desc">Notificación persistente mientras Microlisto graba audio</string>
+    <string name="notif_grabando_titulo">Microlisto está grabando</string>
+    <string name="notif_grabando_texto">Toca para volver a la app</string>
+    <string name="notif_accion_parar">Parar grabación</string>
+
+    <string name="grabar_titulo">Grabar conversación</string>
+    <string name="grabar_boton_iniciar">Iniciar grabación</string>
+    <string name="grabar_boton_parar">Parar grabación</string>
+    <string name="grabar_tiempo_inicial">00:00:00</string>
+    <string name="grabar_hablantes_detectados">Voces detectadas: %d</string>
+    <string name="grabar_nivel_audio">Nivel de audio</string>
+    <string name="grabar_placeholder">Aquí aparecerá la transcripción en vivo cuando activemos Vosk.</string>
+
+    <string name="historial_titulo">Historial</string>
+    <string name="historial_vacio">Todavía no hay conversaciones grabadas.</string>
+    <string name="historial_buscar">Buscar en transcripciones…</string>
+    <string name="historial_duracion">Duración: %s</string>
+    <string name="historial_hablantes">Hablantes: %d</string>
+    <string name="historial_placeholder">Aquí aparecerá la lista de conversaciones grabadas.</string>
+
+    <string name="detalle_titulo">Detalle</string>
+    <string name="detalle_tab_transcripcion">Transcripción</string>
+    <string name="detalle_tab_metricas">Métricas</string>
+    <string name="detalle_tab_resumen">Resumen</string>
+    <string name="detalle_tab_audio">Audio</string>
+    <string name="detalle_exportar">Exportar</string>
+    <string name="detalle_placeholder">Aquí aparecerá el detalle de la conversación seleccionada.</string>
+
+    <string name="ajustes_titulo">Ajustes</string>
+    <string name="ajustes_motor_transcripcion">Motor de transcripción</string>
+    <string name="ajustes_motor_vosk">Vosk (rápido, offline)</string>
+    <string name="ajustes_motor_whisper">Whisper (alta calidad, descarga requerida)</string>
+    <string name="ajustes_motor_auto">Automático (Vosk en vivo, Whisper al final)</string>
+    <string name="ajustes_idioma">Idioma de transcripción</string>
+    <string name="ajustes_idioma_es">Español</string>
+    <string name="ajustes_asistente_hyperos">Asistente HyperOS</string>
+    <string name="ajustes_asistente_hyperos_desc">Volver a mostrar los pasos de configuración de segundo plano</string>
+    <string name="ajustes_descargar_whisper">Descargar modelo Whisper</string>
+    <string name="ajustes_whisper_descargado">Whisper descargado</string>
+    <string name="ajustes_whisper_no_descargado">Whisper no descargado</string>
+    <string name="ajustes_acerca_de">Acerca de Microlisto</string>
+    <string name="ajustes_acerca_de_texto">Microlisto v1.0\n\nTranscripción y análisis de conversaciones, 100%% offline.\n\nMotor: Vosk + Whisper\nDiarización: pyannote + WeSpeaker\n\nTodo el procesamiento ocurre en el dispositivo.</string>
+
+    <string name="whisper_dialogo_titulo">Motor de alta calidad</string>
+    <string name="whisper_dialogo_mensaje">Whisper mejora la precisión de la transcripción final. Ocupa aproximadamente 500 MB en el almacenamiento. No cambia el audio grabado ni lo que ya has transcrito con Vosk.</string>
+    <string name="whisper_dialogo_descargar">Descargar ahora</string>
+    <string name="whisper_dialogo_mas_tarde">Más tarde</string>
+    <string name="whisper_dialogo_no_preguntar">No volver a preguntar</string>
+
+    <string name="nav_grabar">Grabar</string>
+    <string name="nav_historial">Historial</string>
+    <string name="nav_detalle">Detalle</string>
+    <string name="nav_ajustes">Ajustes</string>
+
+    <string name="si">Sí</string>
+    <string name="no">No</string>
+    <string name="aceptar">Aceptar</string>
+    <string name="cancelar">Cancelar</string>
+    <string name="guardar">Guardar</string>
+    <string name="error_generico">Ha ocurrido un error</string>
+    <string name="permiso_denegado">Permiso denegado</string>
+    <string name="requiere_permisos_obligatorios">El micrófono y las notificaciones son obligatorios</string>
 </resources>
