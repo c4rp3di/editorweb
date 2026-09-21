@@ -1,11 +1,16 @@
 package com.carpe.microlisto
 
-// Este archivo es tuyo: el editor lo crea una vez y nunca lo vuelve a tocar
-// al regenerar con ⚡ (a diferencia de MainActivity.kt, AndroidManifest.xml
-// y build.gradle, que sí se reconstruyen cada vez). Escribe aquí tu lógica:
-// MainActivity llama a onIniciar() nada más terminar de arrancar.
+import android.content.Context
+
 object AppLogic {
-    fun onIniciar(activity: MainActivity) {
-        // Tu código aquí.
+
+    fun onIniciar(context: Context) {
+        // Punto de entrada para inicializaciones globales.
+        // Aquí irán los managers de audio, transcripción y base de datos
+        // cuando los implementemos en el Bloque 2.
+    }
+
+    fun debeMostrarConfiguracion(context: Context): Boolean {
+        return ConfiguracionInicialActivity.debeMostrarConfiguracion(context)
     }
 }
