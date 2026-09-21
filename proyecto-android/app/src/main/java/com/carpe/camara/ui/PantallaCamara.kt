@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.ColorMatrix
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.net.Uri
@@ -45,6 +44,7 @@ import java.io.InputStream
 class PantallaCamara : Fragment() {
 
     private lateinit var vistaPrevia: PreviewView
+    private lateinit var brightnessOverlay: View
     private lateinit var gridOverlay: GridOverlay
     private lateinit var btnCapturar: Button
     private lateinit var btnAjustes: Button
@@ -104,6 +104,7 @@ class PantallaCamara : Fragment() {
         super.onViewCreated(view, estado)
 
         vistaPrevia = view.findViewById(R.id.vistaPrevia)
+        brightnessOverlay = view.findViewById(R.id.brightnessOverlay)
         gridOverlay = view.findViewById(R.id.gridOverlay)
         btnCapturar = view.findViewById(R.id.btnCapturar)
         btnAjustes = view.findViewById(R.id.btnAjustes)
@@ -160,35 +161,25 @@ class PantallaCamara : Fragment() {
     }
 
     // ============================================================
-    // FILTRO DE BRILLO ARTIFICIAL PARA EL PREVIEW
+    // SIMULACIÓN DE BRILLO CON OVERLAY
     // ============================================================
-    // Cuando estamos en larga exposición, el preview NO muestra el resultado
-    // real (30s de acumulación). Aplicamos un multiplicador de brillo a los
-    // canales RGB para que te hagas una idea de cómo quedará. No es perfecto
-    // (no simula ruido ni saturación), pero sirve de referencia visual.
     private fun aplicarFiltroBrilloPreview() {
         val e = controller.estado
         if (!e.largaExposicion) {
-            vistaPrevia.setColorMatrix(null)
+            brightnessOverlay.visibility = View.GONE
             return
         }
         val segundos = e.exposicionLargaNs / 1_000_000_000.0
-        // Escala progresiva: 1s → 1.0x (sin cambio), 30s → 3.5x
-        val escala = when {
-            segundos <= 1.0 -> 1.0f
-            segundos <= 4.0 -> 1.0f + ((segundos - 1.0) / 3.0).toFloat() * 0.6f
-            segundos <= 15.0 -> 1.6f + ((segundos - 4.0) / 11.0).toFloat() * 0.9f
-            else -> 2.5f + ((segundos - 15.0) / 15.0).toFloat() * 1.0f
-        }.coerceIn(1.0f, 4.0f)
+        // Escala progresiva: 1s → 0.0, 30s → 0.45
+        val alpha = when {
+            segundos <= 1.0 -> 0.0f
+            segundos <= 4.0 -> ((segundos - 1.0) / 3.0).toFloat() * 0.15f
+            segundos <= 15.0 -> 0.15f + ((segundos - 4.0) / 11.0).toFloat() * 0.20f
+            else -> 0.35f + ((segundos - 15.0) / 15.0).toFloat() * 0.10f
+        }.coerceIn(0.0f, 0.6f)
 
-        val cm = ColorMatrix().apply {
-            setScale(escala, escala, escala, 1f)
-        }
-        try {
-            vistaPrevia.setColorMatrix(cm)
-        } catch (ex: Throwable) {
-            Log.w("PantallaCamara", "No se pudo aplicar ColorMatrix", ex)
-        }
+        brightnessOverlay.alpha = alpha
+        brightnessOverlay.visibility = if (alpha > 0.01f) View.VISIBLE else View.GONE
     }
 
     private fun configurarPanelFlotante() {
@@ -239,10 +230,11 @@ class PantallaCamara : Fragment() {
                 valorLargaFloat.text = segundosATexto(segundosDesdeProgressLarga(p))
                 if (fromUser) {
                     resetAutoHide()
-                    // Actualizar el filtro de brillo EN VIVO mientras arrastras.
-                    // Simulamos con un estado temporal para el cálculo.
+                    // Actualizar el overlay de brillo EN VIVO mientras arrastras
                     val segundos: Double = segundosDesdeProgressLarga(p)
-                    aplicarFiltroBrilloParaSegundos(segundos)
+                    val alpha = calcularAlphaBrillo(segundos)
+                    brightnessOverlay.alpha = alpha
+                    brightnessOverlay.visibility = if (alpha > 0.01f) View.VISIBLE else View.GONE
                 }
             }
             override fun onStartTrackingTouch(sb: SeekBar?) { handler.removeCallbacks(autoHideRunnable) }
@@ -314,16 +306,13 @@ class PantallaCamara : Fragment() {
         })
     }
 
-    private fun aplicarFiltroBrilloParaSegundos(segundos: Double) {
-        val escala = when {
-            segundos <= 1.0 -> 1.0f
-            segundos <= 4.0 -> 1.0f + ((segundos - 1.0) / 3.0).toFloat() * 0.6f
-            segundos <= 15.0 -> 1.6f + ((segundos - 4.0) / 11.0).toFloat() * 0.9f
-            else -> 2.5f + ((segundos - 15.0) / 15.0).toFloat() * 1.0f
-        }.coerceIn(1.0f, 4.0f)
-        try {
-            vistaPrevia.setColorMatrix(ColorMatrix().apply { setScale(escala, escala, escala, 1f) })
-        } catch (_: Throwable) {}
+    private fun calcularAlphaBrillo(segundos: Double): Float {
+        return when {
+            segundos <= 1.0 -> 0.0f
+            segundos <= 4.0 -> ((segundos - 1.0) / 3.0).toFloat() * 0.15f
+            segundos <= 15.0 -> 0.15f + ((segundos - 4.0) / 11.0).toFloat() * 0.20f
+            else -> 0.35f + ((segundos - 15.0) / 15.0).toFloat() * 0.10f
+        }.coerceIn(0.0f, 0.6f)
     }
 
     private fun actualizarPanelFlotante() {
