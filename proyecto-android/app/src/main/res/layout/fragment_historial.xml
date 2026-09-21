@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#1A1A2E">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/historial_titulo"
+        android:textSize="22sp"
+        android:textColor="#F0EEF8"
+        android:layout_marginBottom="12dp" />
+
+    <EditText
+        android:id="@+id/campo_busqueda"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/historial_buscar"
+        android:textColorHint="#8080A0"
+        android:textColor="#F0EEF8"
+        android:inputType="text"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:id="@+id/lista_conversaciones"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:text="@string/historial_placeholder"
+        android:textColor="#B0B0D0"
+        android:gravity="center" />
+
+</LinearLayout>
