@@ -90,10 +90,14 @@ class PantallaCamara : Fragment() {
     private val countdownExposicion = object : Runnable {
         var restanteSeg = 0
         override fun run() {
-            if (restanteSeg <= 0) return
-            txtExponiendo.text = "📸 EXPONIENDO ${restanteSeg}s…"
-            restanteSeg--
-            handler.postDelayed(this, 1000)
+            if (!isAdded) return
+            if (restanteSeg > 0) {
+                txtExponiendo.text = "📸 EXPONIENDO ${restanteSeg}s…"
+                restanteSeg--
+                handler.postDelayed(this, 1000)
+            } else {
+                txtExponiendo.text = "⏳ Procesando…"
+            }
         }
     }
 
@@ -137,6 +141,17 @@ class PantallaCamara : Fragment() {
         floatingPin = view.findViewById(R.id.floatingPin)
         floatingClose = view.findViewById(R.id.floatingClose)
 
+        // Long press en la miniatura → limpiarla manualmente
+        imgMiniatura.setOnLongClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle("Miniatura")
+                .setMessage("¿Ocultar la miniatura? (la foto NO se borra)")
+                .setPositiveButton("Ocultar") { _, _ -> limpiarMiniatura(); mostrarToast("Miniatura oculta") }
+                .setNegativeButton("Cancelar", null)
+                .show()
+            true
+        }
+
         configurarPanelFlotante()
 
         controller = CamaraController(requireContext())
@@ -160,26 +175,51 @@ class PantallaCamara : Fragment() {
         }, 1200)
     }
 
-    // ============================================================
-    // SIMULACIÓN DE BRILLO CON OVERLAY
-    // ============================================================
     private fun aplicarFiltroBrilloPreview() {
         val e = controller.estado
         if (!e.largaExposicion) {
             brightnessOverlay.visibility = View.GONE
             return
         }
-        val segundos = e.exposicionLargaNs / 1_000_000_000.0
-        // Escala progresiva: 1s → 0.0, 30s → 0.45
-        val alpha = when {
+        val alpha = calcularAlphaBrillo(e.exposicionLargaNs / 1_000_000_000.0)
+        brightnessOverlay.alpha = alpha
+        brightnessOverlay.visibility = if (alpha > 0.01f) View.VISIBLE else View.GONE
+    }
+
+    private fun calcularAlphaBrillo(segundos: Double): Float {
+        return when {
             segundos <= 1.0 -> 0.0f
             segundos <= 4.0 -> ((segundos - 1.0) / 3.0).toFloat() * 0.15f
             segundos <= 15.0 -> 0.15f + ((segundos - 4.0) / 11.0).toFloat() * 0.20f
             else -> 0.35f + ((segundos - 15.0) / 15.0).toFloat() * 0.10f
         }.coerceIn(0.0f, 0.6f)
+    }
 
-        brightnessOverlay.alpha = alpha
-        brightnessOverlay.visibility = if (alpha > 0.01f) View.VISIBLE else View.GONE
+    // ============================================================
+    // MINIATURA: verificación y limpieza
+    // ============================================================
+    private fun verificarMiniaturaSigueExistiendo() {
+        if (imgMiniatura.visibility != View.VISIBLE) return
+        val uri = imgMiniatura.tag as? Uri ?: run {
+            limpiarMiniatura()
+            return
+        }
+        try {
+            val existe = requireContext().contentResolver.openInputStream(uri)?.use { true } ?: false
+            if (!existe) {
+                Log.d("PantallaCamara", "Miniatura ya no existe, limpiando")
+                limpiarMiniatura()
+            }
+        } catch (e: Exception) {
+            Log.d("PantallaCamara", "Error verificando miniatura: ${e.message}")
+            limpiarMiniatura()
+        }
+    }
+
+    private fun limpiarMiniatura() {
+        imgMiniatura.setImageBitmap(null)
+        imgMiniatura.tag = null
+        imgMiniatura.visibility = View.GONE
     }
 
     private fun configurarPanelFlotante() {
@@ -190,7 +230,6 @@ class PantallaCamara : Fragment() {
             else programarAutoHide()
             mostrarToast(if (floatPinned) "Panel fijado" else "Panel se auto-ocultará")
         }
-
         floatingClose.setOnClickListener { ocultarPanelFlotante() }
 
         sliderIsoFloat.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -216,11 +255,7 @@ class PantallaCamara : Fragment() {
             override fun onStopTrackingTouch(sb: SeekBar?) {
                 if (ignorarCambiosSlider) return
                 val ns: Long = nsDesdeProgress(sliderExpFloat.progress)
-                aplicar(controller.estado.copy(
-                    exposicionNs = ns,
-                    exposicionManual = true,
-                    largaExposicion = false
-                ))
+                aplicar(controller.estado.copy(exposicionNs = ns, exposicionManual = true, largaExposicion = false))
                 programarAutoHide()
             }
         })
@@ -230,7 +265,6 @@ class PantallaCamara : Fragment() {
                 valorLargaFloat.text = segundosATexto(segundosDesdeProgressLarga(p))
                 if (fromUser) {
                     resetAutoHide()
-                    // Actualizar el overlay de brillo EN VIVO mientras arrastras
                     val segundos: Double = segundosDesdeProgressLarga(p)
                     val alpha = calcularAlphaBrillo(segundos)
                     brightnessOverlay.alpha = alpha
@@ -242,11 +276,7 @@ class PantallaCamara : Fragment() {
                 if (ignorarCambiosSlider) return
                 val segundos: Double = segundosDesdeProgressLarga(sliderLargaFloat.progress)
                 val nanos: Long = (segundos * 1_000_000_000.0).toLong()
-                aplicar(controller.estado.copy(
-                    exposicionLargaNs = nanos,
-                    largaExposicion = true,
-                    exposicionManual = false
-                ))
+                aplicar(controller.estado.copy(exposicionLargaNs = nanos, largaExposicion = true, exposicionManual = false))
                 programarAutoHide()
             }
         })
@@ -260,10 +290,7 @@ class PantallaCamara : Fragment() {
             override fun onStopTrackingTouch(sb: SeekBar?) {
                 if (ignorarCambiosSlider) return
                 val d: Float = sliderFocoFloat.progress / 100f * 10f
-                aplicar(controller.estado.copy(
-                    distanciaFocoDioptras = d,
-                    focoManual = true
-                ))
+                aplicar(controller.estado.copy(distanciaFocoDioptras = d, focoManual = true))
                 programarAutoHide()
             }
         })
@@ -277,7 +304,7 @@ class PantallaCamara : Fragment() {
             }
             AlertDialog.Builder(requireContext())
                 .setTitle("Foco fino (dioptrías)")
-                .setMessage("0 = ∞ · 10 = ~10cm\nRango: 0.00 – 10.00")
+                .setMessage("0 = ∞ · 10 = ~10cm")
                 .setView(edit)
                 .setPositiveButton("Aplicar") { _, _ ->
                     val txt = edit.text.toString().replace(',', '.')
@@ -306,22 +333,11 @@ class PantallaCamara : Fragment() {
         })
     }
 
-    private fun calcularAlphaBrillo(segundos: Double): Float {
-        return when {
-            segundos <= 1.0 -> 0.0f
-            segundos <= 4.0 -> ((segundos - 1.0) / 3.0).toFloat() * 0.15f
-            segundos <= 15.0 -> 0.15f + ((segundos - 4.0) / 11.0).toFloat() * 0.20f
-            else -> 0.35f + ((segundos - 15.0) / 15.0).toFloat() * 0.10f
-        }.coerceIn(0.0f, 0.6f)
-    }
-
     private fun actualizarPanelFlotante() {
         val e = controller.estado
         val debeMostrar = e.modo != ModoCaptura.AUTO &&
             (e.isoManual || e.exposicionManual || e.largaExposicion || e.focoManual || e.wbManual)
-
         if (!debeMostrar) { ocultarPanelFlotante(); return }
-
         ignorarCambiosSlider = true
 
         rowIsoFloat.visibility = if (e.isoManual) View.VISIBLE else View.GONE
@@ -329,34 +345,28 @@ class PantallaCamara : Fragment() {
             sliderIsoFloat.progress = (e.iso - 50).coerceIn(0, 12750)
             valorIsoFloat.text = e.iso.toString()
         }
-
         rowExpFloat.visibility = if (e.exposicionManual && !e.largaExposicion) View.VISIBLE else View.GONE
         if (e.exposicionManual && !e.largaExposicion) {
             sliderExpFloat.progress = progressDesdeNs(e.exposicionNs)
             valorExpFloat.text = nsATexto(e.exposicionNs)
         }
-
         rowLargaFloat.visibility = if (e.largaExposicion) View.VISIBLE else View.GONE
         if (e.largaExposicion) {
             val seg: Double = e.exposicionLargaNs.toDouble() / 1_000_000_000.0
             sliderLargaFloat.progress = progressDesdeSegundosLarga(seg)
             valorLargaFloat.text = segundosATexto(seg)
         }
-
         rowFocoFloat.visibility = if (e.focoManual) View.VISIBLE else View.GONE
         if (e.focoManual) {
             sliderFocoFloat.progress = (e.distanciaFocoDioptras / 10f * 100).toInt().coerceIn(0, 100)
             valorFocoFloat.text = dioptrasATexto(e.distanciaFocoDioptras)
         }
-
         rowWbFloat.visibility = if (e.wbManual) View.VISIBLE else View.GONE
         if (e.wbManual) {
             sliderWbFloat.progress = (e.temperaturaK - 2000).coerceIn(0, 6000)
             valorWbFloat.text = "${e.temperaturaK}K"
         }
-
         ignorarCambiosSlider = false
-
         floatingPanel.visibility = View.VISIBLE
         programarAutoHide()
     }
@@ -365,12 +375,10 @@ class PantallaCamara : Fragment() {
         handler.removeCallbacks(autoHideRunnable)
         if (!floatPinned) handler.postDelayed(autoHideRunnable, 3000)
     }
-
     private fun resetAutoHide() {
         handler.removeCallbacks(autoHideRunnable)
         if (!floatPinned) handler.postDelayed(autoHideRunnable, 3000)
     }
-
     private fun ocultarPanelFlotante() {
         floatingPanel.visibility = View.GONE
         handler.removeCallbacks(autoHideRunnable)
@@ -378,31 +386,24 @@ class PantallaCamara : Fragment() {
 
     private fun nsATexto(ns: Long): String {
         val ms = ns / 1_000_000.0
-        return if (ms < 1.0) "1/${(1000.0 / ms).toInt().coerceAtLeast(1)}"
-        else "%.1fs".format(ms / 1000.0)
+        return if (ms < 1.0) "1/${(1000.0 / ms).toInt().coerceAtLeast(1)}" else "%.1fs".format(ms / 1000.0)
     }
     private fun progressDesdeNs(ns: Long): Int {
-        val min = 125_000.0
-        val max = 2_000_000_000.0
+        val min = 125_000.0; val max = 2_000_000_000.0
         val v = ns.toDouble().coerceIn(min, max)
         return ((Math.log(v / min) / Math.log(max / min)) * 100.0).toInt().coerceIn(0, 100)
     }
     private fun nsDesdeProgress(p: Int): Long {
-        val min = 125_000.0
-        val max = 2_000_000_000.0
-        val v: Double = min * Math.pow(max / min, p / 100.0)
-        return v.toLong()
+        val min = 125_000.0; val max = 2_000_000_000.0
+        return (min * Math.pow(max / min, p / 100.0)).toLong()
     }
     private fun segundosDesdeProgressLarga(p: Int): Double = 1.0 * Math.pow(30.0, p / 100.0)
     private fun progressDesdeSegundosLarga(seg: Double): Int {
         val v = seg.coerceIn(1.0, 30.0)
         return ((Math.log(v) / Math.log(30.0)) * 100.0).toInt().coerceIn(0, 100)
     }
-    private fun segundosATexto(s: Double): String =
-        if (s < 10) "%.1fs".format(s) else "%.0fs".format(s)
-
-    private fun dioptrasATexto(d: Float): String =
-        if (d <= 0.05f) "∞" else "%.2f (%.0fcm)".format(d, 100f / d)
+    private fun segundosATexto(s: Double): String = if (s < 10) "%.1fs".format(s) else "%.0fs".format(s)
+    private fun dioptrasATexto(d: Float): String = if (d <= 0.05f) "∞" else "%.2f (%.0fcm)".format(d, 100f / d)
 
     @SuppressLint("ClickableViewAccessibility")
     private fun configurarGestos() {
@@ -416,13 +417,9 @@ class PantallaCamara : Fragment() {
                         return true
                     }
                 }
-                enfocarEn(e.x, e.y)
-                return true
+                enfocarEn(e.x, e.y); return true
             }
-            override fun onDoubleTap(e: MotionEvent): Boolean {
-                ciclarLente()
-                return true
-            }
+            override fun onDoubleTap(e: MotionEvent): Boolean { ciclarLente(); return true }
             override fun onLongPress(e: MotionEvent) {
                 if (e.pointerCount > 1) return
                 bloquearAEAF(e.x, e.y)
@@ -454,8 +451,7 @@ class PantallaCamara : Fragment() {
         view.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN) {
                 if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-                    lanzarCaptura()
-                    return@setOnKeyListener true
+                    lanzarCaptura(); return@setOnKeyListener true
                 }
             }
             false
@@ -495,17 +491,12 @@ class PantallaCamara : Fragment() {
             override fun run() {
                 if (!isAdded) return
                 txtContador.text = restante.toString()
-                vibrar(50)
-                beep()
+                vibrar(50); beep()
                 if (restante <= 0) {
                     txtContador.visibility = View.GONE
-                    capturaEnCola = false
-                    btnCapturar.isEnabled = true
+                    capturaEnCola = false; btnCapturar.isEnabled = true
                     capturar()
-                } else {
-                    restante--
-                    handler.postDelayed(this, 1000)
-                }
+                } else { restante--; handler.postDelayed(this, 1000) }
             }
         }
         handler.post(runnable)
@@ -513,15 +504,13 @@ class PantallaCamara : Fragment() {
 
     private fun capturar() {
         vibrar(80)
-
-        // Feedback visual: si es larga exposición, mostramos el cartel
         if (controller.estado.largaExposicion) {
-            val segundos = (controller.estado.exposicionLargaNs / 1_000_000_000L).toInt()
+            val segundos = Math.ceil(controller.estado.exposicionLargaNs / 1_000_000_000.0).toInt()
             mostrarIndicadorExposicion(segundos)
         }
-
         controller.capturar { ok, mensaje, uri ->
-            requireActivity().runOnUiThread {
+            view?.post {
+                if (!isAdded) return@post
                 ocultarIndicadorExposicion()
                 if (ok) {
                     mostrarToast(getString(R.string.guardado_ok))
@@ -532,6 +521,7 @@ class PantallaCamara : Fragment() {
     }
 
     private fun mostrarIndicadorExposicion(segundos: Int) {
+        handler.removeCallbacks(countdownExposicion)
         countdownExposicion.restanteSeg = segundos
         txtExponiendo.visibility = View.VISIBLE
         txtExponiendo.text = "📸 EXPONIENDO ${segundos}s…"
@@ -549,13 +539,9 @@ class PantallaCamara : Fragment() {
             val bmp: Bitmap? = BitmapFactory.decodeStream(stream)
             stream?.close()
             if (bmp != null) {
-                imgMiniatura.setImageBitmap(bmp)
-                imgMiniatura.visibility = View.VISIBLE
-                imgMiniatura.tag = uri
+                imgMiniatura.setImageBitmap(bmp); imgMiniatura.visibility = View.VISIBLE; imgMiniatura.tag = uri
             }
-        } catch (e: Exception) {
-            Log.e("PantallaCamara", "Miniatura", e)
-        }
+        } catch (e: Exception) { Log.e("PantallaCamara", "Miniatura", e) }
     }
 
     private fun abrirUltimaFoto() {
@@ -567,9 +553,7 @@ class PantallaCamara : Fragment() {
                 clipData = android.content.ClipData.newRawUri("", uri)
             }
             startActivity(intent)
-        } catch (e: Exception) {
-            mostrarToast("No hay app de galería disponible")
-        }
+        } catch (e: Exception) { mostrarToast("No hay app de galería disponible") }
     }
 
     private fun ciclarLente() {
@@ -590,9 +574,7 @@ class PantallaCamara : Fragment() {
             val punto = vistaPrevia.meteringPointFactory.createPoint(x, y)
             camera.cameraControl.startFocusAndMetering(FocusMeteringAction.Builder(punto).build())
             txtBloqueo.visibility = View.GONE
-        } catch (e: Exception) {
-            Log.e("PantallaCamara", "Enfoque", e)
-        }
+        } catch (e: Exception) { Log.e("PantallaCamara", "Enfoque", e) }
     }
 
     @SuppressLint("RestrictedApi")
@@ -601,15 +583,11 @@ class PantallaCamara : Fragment() {
         try {
             val punto = vistaPrevia.meteringPointFactory.createPoint(x, y)
             val accion = FocusMeteringAction.Builder(punto, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
-                .apply { setAutoCancelDuration(30, java.util.concurrent.TimeUnit.SECONDS) }
-                .build()
+                .apply { setAutoCancelDuration(30, java.util.concurrent.TimeUnit.SECONDS) }.build()
             camera.cameraControl.startFocusAndMetering(accion)
-            txtBloqueo.visibility = View.VISIBLE
-            vibrar(120)
+            txtBloqueo.visibility = View.VISIBLE; vibrar(120)
             handler.postDelayed({ if (isAdded) txtBloqueo.visibility = View.GONE }, 3000)
-        } catch (e: Exception) {
-            Log.e("PantallaCamara", "Bloqueo", e)
-        }
+        } catch (e: Exception) { Log.e("PantallaCamara", "Bloqueo", e) }
     }
 
     private fun abrirAjustes() {
@@ -617,9 +595,7 @@ class PantallaCamara : Fragment() {
         val v = layoutInflater.inflate(R.layout.panel_ajustes, null)
         bs.setContentView(v)
         PanelAjustes(
-            vista = v,
-            controller = controller,
-            cicloDeVida = viewLifecycleOwner,
+            vista = v, controller = controller, cicloDeVida = viewLifecycleOwner,
             vistaPrevia = vistaPrevia,
             onCambio = {
                 actualizarHudDesdeEstado()
@@ -642,8 +618,7 @@ class PantallaCamara : Fragment() {
     }
 
     private fun mostrarToast(mensaje: String) {
-        txtToast.text = mensaje
-        txtToast.visibility = View.VISIBLE
+        txtToast.text = mensaje; txtToast.visibility = View.VISIBLE
         txtToast.postDelayed({ txtToast.visibility = View.GONE }, 1600)
     }
 
@@ -652,15 +627,11 @@ class PantallaCamara : Fragment() {
             val vib = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 requireContext().getSystemService(VibratorManager::class.java).defaultVibrator
             } else {
-                @Suppress("DEPRECATION")
-                requireContext().getSystemService(Vibrator::class.java)
+                @Suppress("DEPRECATION") requireContext().getSystemService(Vibrator::class.java)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vib.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE))
-            } else {
-                @Suppress("DEPRECATION")
-                vib.vibrate(ms)
-            }
+            } else { @Suppress("DEPRECATION") vib.vibrate(ms) }
         } catch (_: Exception) {}
     }
 
@@ -675,6 +646,8 @@ class PantallaCamara : Fragment() {
     override fun onResume() {
         super.onResume()
         view?.requestFocus()
+        // Verificar si la última miniatura sigue existiendo
+        verificarMiniaturaSigueExistiendo()
     }
 
     override fun onDestroyView() {
