@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center"
+    android:gravity="center_horizontal"
     android:padding="24dp"
     android:background="#1A1A2E">
 
@@ -42,16 +42,26 @@
         android:textColor="#B0B0D0"
         android:layout_marginBottom="16dp" />
 
-    <TextView
-        android:id="@+id/texto_transcripcion_vivo"
+    <ScrollView
+        android:id="@+id/scroll_transcripcion"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:text="@string/grabar_placeholder"
-        android:textSize="14sp"
-        android:textColor="#B0B0D0"
-        android:padding="8dp"
         android:background="#20203A"
-        android:gravity="top|start" />
+        android:padding="8dp"
+        android:scrollbars="vertical"
+        android:fadeScrollbars="false">
+
+        <TextView
+            android:id="@+id/texto_transcripcion_vivo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/grabar_placeholder"
+            android:textSize="14sp"
+            android:textColor="#B0B0D0"
+            android:gravity="top|start"
+            android:lineSpacingExtra="4dp" />
+
+    </ScrollView>
 
 </LinearLayout>
