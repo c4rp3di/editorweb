@@ -53,3 +53,68 @@ dependencies {
 
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 }
+
+// ============================================================
+// Descarga de modelos para empaquetarlos en assets/
+// Se ejecuta antes de cada compilación. Los modelos que ya
+// estén descargados no se vuelven a descargar.
+// ============================================================
+
+def dirModelos = file("$buildDir/modelos")
+def dirAssets = file("src/main/assets")
+
+tasks.register("descargarVosk") {
+    doLast {
+        dirModelos.mkdirs()
+        def zipVosk = new File(dirModelos, "vosk-es.zip")
+        if (!zipVosk.exists() || zipVosk.length() < 1000000) {
+            println "Descargando modelo Vosk español..."
+            ant.invokeMethod("get", [
+                src   : "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip",
+                dest  : zipVosk,
+                verbose: true
+            ])
+        } else {
+            println "Modelo Vosk ya descargado, se omite."
+        }
+    }
+}
+
+tasks.register("descargarSilero") {
+    doLast {
+        dirModelos.mkdirs()
+        def onnxSilero = new File(dirModelos, "silero_vad.onnx")
+        if (!onnxSilero.exists() || onnxSilero.length() < 100000) {
+            println "Descargando modelo Silero VAD..."
+            ant.invokeMethod("get", [
+                src   : "https://huggingface.co/runanywhere/silero-vad-v5/resolve/main/silero_vad.onnx",
+                dest  : onnxSilero,
+                verbose: true
+            ])
+        } else {
+            println "Modelo Silero ya descargado, se omite."
+        }
+    }
+}
+
+tasks.register("copiarModelosAAssets", Copy) {
+    dependsOn "descargarVosk", "descargarSilero"
+    doFirst {
+        dirAssets.mkdirs()
+        // Limpiar copias antiguas para que no se acumulen
+        delete file("$dirAssets/vosk-model-small-es-0.42")
+        delete file("$dirAssets/silero_vad.onnx")
+    }
+    // Silero: copia directa del archivo
+    from("$dirModelos/silero_vad.onnx") {
+        into "$dirAssets"
+    }
+    // Vosk: descomprimir el ZIP dentro de assets/
+    from({ zipTree("$dirModelos/vosk-es.zip") }) {
+        into "$dirAssets"
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn "copiarModelosAAssets"
+}
