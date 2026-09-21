@@ -1,21 +1,11 @@
 package com.carpe.microlisto.vad
 
 import android.content.Context
+import com.carpe.microlisto.debug.DebugLog
 import org.tensorflow.lite.Interpreter
-import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.channels.FileChannel
 
-/**
- * Wrapper de LiteRT para el modelo de embeddings WeSpeaker.
- *
- * Entrada:  [1, 500, 80] float32  (500 frames de 80 bins mel)
- * Salida:   [1, 256]    float32  (embedding L2-normalizado de 256 dims)
- *
- * El modelo espera exactamente 500 frames. Si el segmento de audio tiene más,
- * se recorta; si tiene menos, se rellena con ceros hasta los 500.
- */
 class SpeakerEmbedding(
     context: Context,
     modeloEnAssets: String = "wespeaker_emb_fp16.tflite"
@@ -27,19 +17,24 @@ class SpeakerEmbedding(
     private val interpreter: Interpreter
 
     init {
+        DebugLog.info("WeSpeaker", "Cargando modelo $modeloEnAssets")
         val modelo = cargarModeloDesdeAssets(context, modeloEnAssets)
+        DebugLog.info("WeSpeaker", "Modelo cargado, ${modelo.capacity()} bytes")
         val opciones = Interpreter.Options().apply {
             setNumThreads(4)
         }
         interpreter = Interpreter(modelo, opciones)
+        try {
+            val formaEntrada = interpreter.getInputTensor(0).shape()
+            val formaSalida = interpreter.getOutputTensor(0).shape()
+            DebugLog.info("WeSpeaker", "Forma entrada: ${formaEntrada.contentToString()}")
+            DebugLog.info("WeSpeaker", "Forma salida: ${formaSalida.contentToString()}")
+        } catch (e: Exception) {
+            DebugLog.warn("WeSpeaker", "No se pudieron leer las formas del modelo: ${e.message}")
+        }
     }
 
-    /**
-     * @param fbank matriz de [numFramesReales][80]
-     * @return embedding de 256 dims, L2-normalizado
-     */
     fun calcular(fbank: Array<FloatArray>): FloatArray {
-        // Preparar entrada [1, 500, 80]
         val entrada = FloatArray(numFrames * numMelBins)
         val n = minOf(fbank.size, numFrames)
         for (f in 0 until n) {
@@ -48,7 +43,18 @@ class SpeakerEmbedding(
                 entrada[f * numMelBins + m] = if (m < fila.size) fila[m] else 0f
             }
         }
-        // Si fbank.size < 500, el resto ya está a 0 (relleno)
+
+        // Estadísticas de la entrada para detectar NaNs o silencio
+        var minV = Float.MAX_VALUE
+        var maxV = -Float.MAX_VALUE
+        var suma = 0.0
+        for (v in entrada) {
+            if (v < minV) minV = v
+            if (v > maxV) maxV = v
+            suma += v.toDouble()
+        }
+        val media = suma / entrada.size
+        DebugLog.info("WeSpeaker", "Entrada: min=$minV max=$maxV media=$media")
 
         val bufEntrada = ByteBuffer
             .allocateDirect(numFrames * numMelBins * 4)
@@ -62,7 +68,12 @@ class SpeakerEmbedding(
 
         interpreter.run(bufEntrada, bufSalida)
 
-        return l2Normalizar(bufSalida[0])
+        val normalizado = l2Normalizar(bufSalida[0])
+        var sumaNorm = 0.0
+        for (v in normalizado) sumaNorm += v * v
+        DebugLog.info("WeSpeaker", "Embedding: norma²=${sumaNorm}, primeros=[${normalizado[0]}, ${normalizado[1]}, ${normalizado[2]}]")
+
+        return normalizado
     }
 
     private fun l2Normalizar(v: FloatArray): FloatArray {
