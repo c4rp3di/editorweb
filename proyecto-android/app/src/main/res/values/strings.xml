@@ -1,12 +1,3 @@
 <resources>
-    <string name="app_name">Cámara Macro</string>
-    <string name="btn_captura">●</string>
-    <string name="btn_ajustes">⚙</string>
-    <string name="btn_grid">▦</string>
-    <string name="btn_cerrar_ajustes">✕</string>
-    <string name="guardado_ok">Foto guardada</string>
-    <string name="guardado_error">Error al guardar</string>
-    <string name="modo_auto">AUTO</string>
-    <string name="modo_pro">PRO</string>
-    <string name="bloqueado">AE/AF BLOQUEADO</string>
+    <string name="app_name">Microlisto</string>
 </resources>
