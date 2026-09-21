@@ -8,18 +8,20 @@
     <string name="config_paso_2_desc">La grabación en segundo plano requiere una notificación persistente. Sin ella, Android detendrá el servicio.</string>
     <string name="config_paso_3_titulo">Optimización de batería</string>
     <string name="config_paso_3_desc">Excluye Microlisto de la optimización de batería para que HyperOS no mate la grabación en segundo plano.</string>
-    <string name="config_paso_4_titulo">Autostart en HyperOS</string>
-    <string name="config_paso_4_desc">Activa el autostart de Microlisto en los ajustes de MIUI/HyperOS. Sin esto, la app puede cerrarse al salir de la pantalla.</string>
+    <string name="config_paso_4_titulo">Autoinicio en segundo plano</string>
+    <string name="config_paso_4_desc">Activa el autoinicio de Microlisto en los ajustes de HyperOS. Sin esto, la app puede cerrarse al salir de la pantalla.</string>
     <string name="config_paso_5_titulo">Candado en recientes</string>
     <string name="config_paso_5_desc">Bloquea Microlisto en la pantalla de apps recientes (desliza hacia arriba y toca el candado). Así HyperOS no la cerrará al liberar memoria.</string>
     <string name="config_paso_6_titulo">Acceso total a archivos</string>
     <string name="config_paso_6_desc">Para guardar grabaciones largas sin restricciones de espacio, Microlisto necesita acceso completo al almacenamiento.</string>
     <string name="config_boton_abrir_ajustes">Abrir ajustes</string>
+    <string name="config_boton_abrir_permisos">Abrir permisos de la app</string>
     <string name="config_boton_siguiente">Siguiente</string>
     <string name="config_boton_finalizar">Finalizar</string>
     <string name="config_boton_omitir">Omitir</string>
     <string name="config_boton_ya_lo_hice">Ya lo he hecho</string>
     <string name="config_completado">Configuración completada</string>
+    <string name="config_instrucciones_autostart">En HyperOS el autoinicio no está en la pantalla de información de la app. Ruta a seguir:\n\n1. Ajustes del sistema.\n2. Aplicaciones.\n3. Permisos.\n4. Autoinicio en segundo plano.\n5. Activa Microlisto.\n\nEl botón de abajo te lleva a los permisos de la app, donde puedes continuar desde el paso 3.</string>
     <string name="config_instrucciones_candado">Para bloquear Microlisto en recientes:\n\n1. Abre la pantalla de apps recientes (botón cuadrado o gesto hacia arriba y mantener).\n2. Busca Microlisto en la lista.\n3. Desliza la tarjeta de Microlisto hacia arriba.\n4. Toca el icono del candado que aparece.\n\nAsí HyperOS no cerrará la app al liberar memoria.</string>
 
     <string name="notif_canal_grabacion">Grabación en curso</string>
