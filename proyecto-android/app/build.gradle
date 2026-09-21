@@ -110,6 +110,16 @@ tasks.register("copiarVosk", Copy) {
     dependsOn "descargarVosk", "limpiarAssetsAntiguos"
     from({ zipTree("$dirModelos/vosk-es.zip") })
     into "$dirAssets"
+    // Vosk exige un archivo "uuid" en la raíz del modelo para saber si ya está
+    // descomprimido. El ZIP oficial no lo trae, así que lo creamos aquí.
+    doLast {
+        def uuidFile = file("$dirAssets/vosk-model-small-es-0.42/uuid")
+        if (!uuidFile.exists()) {
+            uuidFile.parentFile.mkdirs()
+            uuidFile.text = "microlisto-${System.currentTimeMillis()}"
+            println "Creado archivo uuid: ${uuidFile.absolutePath}"
+        }
+    }
 }
 
 tasks.named("preBuild") {
