@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ColorMatrix
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.net.Uri
@@ -53,6 +54,7 @@ class PantallaCamara : Fragment() {
     private lateinit var txtInfo: TextView
     private lateinit var txtToast: TextView
     private lateinit var txtContador: TextView
+    private lateinit var txtExponiendo: TextView
     private lateinit var txtBloqueo: TextView
     private lateinit var imgMiniatura: ImageView
 
@@ -85,6 +87,15 @@ class PantallaCamara : Fragment() {
     private var ignorarCambiosSlider = false
 
     private val autoHideRunnable = Runnable { ocultarPanelFlotante() }
+    private val countdownExposicion = object : Runnable {
+        var restanteSeg = 0
+        override fun run() {
+            if (restanteSeg <= 0) return
+            txtExponiendo.text = "📸 EXPONIENDO ${restanteSeg}s…"
+            restanteSeg--
+            handler.postDelayed(this, 1000)
+        }
+    }
 
     override fun onCreateView(inflater: LayoutInflater, contenedor: ViewGroup?, estado: Bundle?): View =
         inflater.inflate(R.layout.fragment_pantalla_camara, contenedor, false)
@@ -102,6 +113,7 @@ class PantallaCamara : Fragment() {
         txtInfo = view.findViewById(R.id.txtInfo)
         txtToast = view.findViewById(R.id.txtToast)
         txtContador = view.findViewById(R.id.txtContador)
+        txtExponiendo = view.findViewById(R.id.txtExponiendo)
         txtBloqueo = view.findViewById(R.id.txtBloqueo)
         imgMiniatura = view.findViewById(R.id.imgMiniatura)
 
@@ -148,8 +160,37 @@ class PantallaCamara : Fragment() {
     }
 
     // ============================================================
-    // PANEL FLOTANTE DE SLIDERS
+    // FILTRO DE BRILLO ARTIFICIAL PARA EL PREVIEW
     // ============================================================
+    // Cuando estamos en larga exposición, el preview NO muestra el resultado
+    // real (30s de acumulación). Aplicamos un multiplicador de brillo a los
+    // canales RGB para que te hagas una idea de cómo quedará. No es perfecto
+    // (no simula ruido ni saturación), pero sirve de referencia visual.
+    private fun aplicarFiltroBrilloPreview() {
+        val e = controller.estado
+        if (!e.largaExposicion) {
+            vistaPrevia.setColorMatrix(null)
+            return
+        }
+        val segundos = e.exposicionLargaNs / 1_000_000_000.0
+        // Escala progresiva: 1s → 1.0x (sin cambio), 30s → 3.5x
+        val escala = when {
+            segundos <= 1.0 -> 1.0f
+            segundos <= 4.0 -> 1.0f + ((segundos - 1.0) / 3.0).toFloat() * 0.6f
+            segundos <= 15.0 -> 1.6f + ((segundos - 4.0) / 11.0).toFloat() * 0.9f
+            else -> 2.5f + ((segundos - 15.0) / 15.0).toFloat() * 1.0f
+        }.coerceIn(1.0f, 4.0f)
+
+        val cm = ColorMatrix().apply {
+            setScale(escala, escala, escala, 1f)
+        }
+        try {
+            vistaPrevia.setColorMatrix(cm)
+        } catch (ex: Throwable) {
+            Log.w("PantallaCamara", "No se pudo aplicar ColorMatrix", ex)
+        }
+    }
+
     private fun configurarPanelFlotante() {
         floatingPin.setOnClickListener {
             floatPinned = !floatPinned
@@ -196,7 +237,13 @@ class PantallaCamara : Fragment() {
         sliderLargaFloat.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
                 valorLargaFloat.text = segundosATexto(segundosDesdeProgressLarga(p))
-                if (fromUser) resetAutoHide()
+                if (fromUser) {
+                    resetAutoHide()
+                    // Actualizar el filtro de brillo EN VIVO mientras arrastras.
+                    // Simulamos con un estado temporal para el cálculo.
+                    val segundos: Double = segundosDesdeProgressLarga(p)
+                    aplicarFiltroBrilloParaSegundos(segundos)
+                }
             }
             override fun onStartTrackingTouch(sb: SeekBar?) { handler.removeCallbacks(autoHideRunnable) }
             override fun onStopTrackingTouch(sb: SeekBar?) {
@@ -265,6 +312,18 @@ class PantallaCamara : Fragment() {
                 programarAutoHide()
             }
         })
+    }
+
+    private fun aplicarFiltroBrilloParaSegundos(segundos: Double) {
+        val escala = when {
+            segundos <= 1.0 -> 1.0f
+            segundos <= 4.0 -> 1.0f + ((segundos - 1.0) / 3.0).toFloat() * 0.6f
+            segundos <= 15.0 -> 1.6f + ((segundos - 4.0) / 11.0).toFloat() * 0.9f
+            else -> 2.5f + ((segundos - 15.0) / 15.0).toFloat() * 1.0f
+        }.coerceIn(1.0f, 4.0f)
+        try {
+            vistaPrevia.setColorMatrix(ColorMatrix().apply { setScale(escala, escala, escala, 1f) })
+        } catch (_: Throwable) {}
     }
 
     private fun actualizarPanelFlotante() {
@@ -345,9 +404,7 @@ class PantallaCamara : Fragment() {
         val v: Double = min * Math.pow(max / min, p / 100.0)
         return v.toLong()
     }
-    private fun segundosDesdeProgressLarga(p: Int): Double {
-        return 1.0 * Math.pow(30.0, p / 100.0)
-    }
+    private fun segundosDesdeProgressLarga(p: Int): Double = 1.0 * Math.pow(30.0, p / 100.0)
     private fun progressDesdeSegundosLarga(seg: Double): Int {
         val v = seg.coerceIn(1.0, 30.0)
         return ((Math.log(v) / Math.log(30.0)) * 100.0).toInt().coerceIn(0, 100)
@@ -358,9 +415,6 @@ class PantallaCamara : Fragment() {
     private fun dioptrasATexto(d: Float): String =
         if (d <= 0.05f) "∞" else "%.2f (%.0fcm)".format(d, 100f / d)
 
-    // ============================================================
-    // GESTOS
-    // ============================================================
     @SuppressLint("ClickableViewAccessibility")
     private fun configurarGestos() {
         gestureDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
@@ -470,14 +524,34 @@ class PantallaCamara : Fragment() {
 
     private fun capturar() {
         vibrar(80)
+
+        // Feedback visual: si es larga exposición, mostramos el cartel
+        if (controller.estado.largaExposicion) {
+            val segundos = (controller.estado.exposicionLargaNs / 1_000_000_000L).toInt()
+            mostrarIndicadorExposicion(segundos)
+        }
+
         controller.capturar { ok, mensaje, uri ->
             requireActivity().runOnUiThread {
+                ocultarIndicadorExposicion()
                 if (ok) {
                     mostrarToast(getString(R.string.guardado_ok))
                     if (uri != null) actualizarMiniatura(uri)
                 } else mostrarToast(mensaje)
             }
         }
+    }
+
+    private fun mostrarIndicadorExposicion(segundos: Int) {
+        countdownExposicion.restanteSeg = segundos
+        txtExponiendo.visibility = View.VISIBLE
+        txtExponiendo.text = "📸 EXPONIENDO ${segundos}s…"
+        handler.postDelayed(countdownExposicion, 1000)
+    }
+
+    private fun ocultarIndicadorExposicion() {
+        handler.removeCallbacks(countdownExposicion)
+        txtExponiendo.visibility = View.GONE
     }
 
     private fun actualizarMiniatura(uri: Uri) {
@@ -561,6 +635,7 @@ class PantallaCamara : Fragment() {
             onCambio = {
                 actualizarHudDesdeEstado()
                 actualizarPanelFlotante()
+                aplicarFiltroBrilloPreview()
             },
             onCerrar = { bs.dismiss() }
         ).configurar()
@@ -622,5 +697,6 @@ class PantallaCamara : Fragment() {
     private fun aplicar(nuevo: CamaraEstado) {
         controller.aplicarEstado(nuevo, viewLifecycleOwner, vistaPrevia)
         actualizarHudDesdeEstado()
+        aplicarFiltroBrilloPreview()
     }
 }
