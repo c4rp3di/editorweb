@@ -28,6 +28,10 @@ class Diarizer(
     private val embedder: SpeakerEmbedding
     private val fbank: Fbank = Fbank()
 
+    // Nombres reales del modelo pyannote_seg30, confirmados por el log
+    private val nombreEntrada = "waveform"
+    private val nombreSalida = "powerset"
+
     init {
         DebugLog.info("Diarizer", "Cargando modelo $modeloAssets")
         val modeloBytes = context.assets.open(modeloAssets).use { it.readBytes() }
@@ -64,17 +68,22 @@ class Diarizer(
 
         data class Fragmento(val inicioAbs: Long, val finAbs: Long, val audio: FloatArray)
         val fragmentos = mutableListOf<Fragmento>()
-        var framesConVoz = 0
         var framesConClase1a3 = 0
 
+        var numVentana = 0
         for ((inicioVentana, ventanaAudio) in ventanas) {
+            numVentana++
+            val t0 = System.currentTimeMillis()
             val activaciones = inferirSegmentacion(ventanaAudio)
-            var vocesEstaVentana = 0
+            val t1 = System.currentTimeMillis()
+            DebugLog.info("Diarizer", "Ventana $numVentana/${ventanas.size} procesada en ${t1 - t0} ms")
+
+            // Log de las clases detectadas: cuántos frames de cada tipo
+            val histograma = IntArray(numClases)
             for (clase in activaciones) {
-                if (clase in 1..3) vocesEstaVentana++
-                if (clase > 0) framesConVoz++
+                if (clase in 0 until numClases) histograma[clase]++
             }
-            if (vocesEstaVentana > 0) framesConClase1a3 += vocesEstaVentana
+            DebugLog.info("Diarizer", "  Histograma clases: ${histograma.contentToString()}")
 
             var i = 0
             while (i < activaciones.size) {
@@ -83,6 +92,7 @@ class Diarizer(
                     var j = i
                     while (j < activaciones.size && activaciones[j] == clase) j++
                     val durMs = (j - i) * frameSegMs
+                    framesConClase1a3 += (j - i)
                     if (durMs >= 1000L) {
                         val inicioMs = inicioVentana * 1000L / sampleRate + (i * frameSegMs)
                         val finMs = inicioVentana * 1000L / sampleRate + (j * frameSegMs)
@@ -100,18 +110,22 @@ class Diarizer(
             }
         }
 
-        DebugLog.info("Diarizer", "Frames con clase>0: $framesConVoz, con clase 1-3: $framesConClase1a3")
+        DebugLog.info("Diarizer", "Total frames con clase 1-3: $framesConClase1a3")
         DebugLog.info("Diarizer", "Fragmentos >=1s extraídos: ${fragmentos.size}")
 
         if (fragmentos.isEmpty()) {
-            DebugLog.warn("Diarizer", "Sin fragmentos extraíbles. El modelo no detectó voz de un único hablante.")
+            DebugLog.warn("Diarizer", "Sin fragmentos extraíbles.")
             return emptyList()
         }
 
-        val embeddings = fragmentos.map { frag ->
+        val embeddings = fragmentos.mapIndexed { idx, frag ->
+            val t0 = System.currentTimeMillis()
             val f = fbank.calcular(frag.audio)
-            DebugLog.info("Diarizer", "Fbank del fragmento: ${f.size} frames x ${if (f.isNotEmpty()) f[0].size else 0} bins")
-            if (f.isEmpty()) FloatArray(256) else embedder.calcular(f)
+            val t1 = System.currentTimeMillis()
+            val emb = if (f.isEmpty()) FloatArray(256) else embedder.calcular(f)
+            val t2 = System.currentTimeMillis()
+            DebugLog.info("Diarizer", "Fragmento $idx: fbank ${t1 - t0} ms, embedding ${t2 - t1} ms, ${f.size} frames")
+            emb
         }
 
         val asignaciones = clusteringAglomerativo(embeddings, umbral = 0.7046f)
@@ -145,13 +159,12 @@ class Diarizer(
 
         val tInput = OnnxTensor.createTensor(env, bufEntrada, shape)
         try {
-            val resultado = session.run(mapOf("input" to tInput))
+            val resultado = session.run(mapOf(nombreEntrada to tInput))
             try {
-                val outOpt = resultado.get("output")
+                val outOpt = resultado.get(nombreSalida)
                 if (!outOpt.isPresent) {
-                    DebugLog.warn("Diarizer", "No hay output en el resultado")
-                    val vacio = IntArray(589)
-                    return vacio
+                    DebugLog.warn("Diarizer", "No hay '$nombreSalida' en el resultado")
+                    return IntArray(589)
                 }
                 val out = outOpt.get().value as Array<*>
                 val tensor = out[0] as Array<*>
@@ -223,7 +236,7 @@ class Diarizer(
                 i++
             }
             if (mejorI == -1 || mejorSimilitud < umbral) {
-                DebugLog.info("Diarizer", "Clustering parado en iteración $iteraciones. Mejor similitud: $mejorSimilitud (umbral $umbral)")
+                DebugLog.info("Diarizer", "Clustering: parada en iter $iteraciones, mejor sim $mejorSimilitud (umbral $umbral)")
                 break
             }
             clusters[mejorI].addAll(clusters[mejorJ])
