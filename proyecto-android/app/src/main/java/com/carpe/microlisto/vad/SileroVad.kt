@@ -4,29 +4,9 @@ import android.content.Context
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
-import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.FloatBuffer
-import java.nio.LongBuffer
-import java.util.Collections
 
-/**
- * Wrapper de Silero VAD v5 (ONNX Runtime).
- *
- * El modelo recibe dos entradas por frame:
- *   input [1, 576]  ->  64 samples del frame anterior (contexto) + 512 samples nuevos
- *   state [2, 1, 128] -> estado LSTM (h, c) que se realimenta
- *   sr    scalar int64 -> 16000
- *
- * Y devuelve:
- *   output [1, 1]     -> probabilidad de voz
- *   stateN [2, 1, 128] -> estado para el siguiente frame
- *
- * Si se alimenta solo con 512 samples y sin el contexto, el modelo no da error
- * pero devuelve siempre probabilidad ~0. No detecta nada. Por eso el buffer de
- * 64 samples del frame anterior es obligatorio.
- */
 class SileroVad(
     context: Context,
     modeloEnAssets: String = "silero_vad.onnx"
@@ -47,12 +27,10 @@ class SileroVad(
     }
 
     fun calcularProbabilidad(frame512: FloatArray): Float {
-        // Concatenar contexto (64) + frame nuevo (512)
         val entrada = FloatArray(tamanoEntrada)
         System.arraycopy(bufferContexto, 0, entrada, 0, tamanoContexto)
         System.arraycopy(frame512, 0, entrada, tamanoContexto, tamanoFrame)
 
-        // Guardar los últimos 64 samples del frame actual como contexto del siguiente
         System.arraycopy(frame512, tamanoFrame - tamanoContexto, bufferContexto, 0, tamanoContexto)
 
         val shapeEntrada = longArrayOf(1, tamanoEntrada.toLong())
@@ -91,13 +69,15 @@ class SileroVad(
             )
             val resultado = session.run(entradas)
             try {
-                val salida = resultado.get("output")
+                val salidaOpt = resultado.get("output")
+                val salida = if (salidaOpt.isPresent) salidaOpt.get() else null
                 val probabilidad = (salida?.value as? Array<*>)?.let { arr ->
                     val fila = arr[0] as? FloatArray
                     fila?.get(0) ?: 0f
                 } ?: 0f
 
-                val stateN = resultado.get("stateN")?.value as? Array<*>
+                val stateNOpt = resultado.get("stateN")
+                val stateN = if (stateNOpt.isPresent) stateNOpt.get()?.value as? Array<*> else null
                 if (stateN != null) {
                     actualizarEstado(stateN)
                 }
@@ -117,7 +97,6 @@ class SileroVad(
         try {
             val dim1 = stateN[0] as Array<*>
             val dim2 = dim1[0] as FloatArray
-            // dim2 tiene 256 valores: [0..127] = h, [128..255] = c
             System.arraycopy(dim2, 0, estado[0][0], 0, 128)
             System.arraycopy(dim2, 128, estado[1][0], 0, 128)
         } catch (_: Exception) {}
