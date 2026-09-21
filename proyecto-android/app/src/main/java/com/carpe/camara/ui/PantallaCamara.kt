@@ -33,6 +33,7 @@ import androidx.appcompat.app.AlertDialog
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.carpe.camara.R
 import com.carpe.camara.data.CamaraController
+import com.carpe.camara.data.CamaraEstado
 import com.carpe.camara.data.LenteFisica
 import com.carpe.camara.data.ModoCaptura
 import androidx.camera.core.FocusMeteringAction
@@ -72,6 +73,7 @@ class PantallaCamara : Fragment() {
     private lateinit var valorFocoFloat: TextView
     private lateinit var valorWbFloat: TextView
     private lateinit var floatingPin: Button
+    private lateinit var floatingClose: Button
 
     private lateinit var controller: CamaraController
     private lateinit var gestureDetector: GestureDetector
@@ -120,6 +122,7 @@ class PantallaCamara : Fragment() {
         valorFocoFloat = view.findViewById(R.id.valorFocoFloat)
         valorWbFloat = view.findViewById(R.id.valorWbFloat)
         floatingPin = view.findViewById(R.id.floatingPin)
+        floatingClose = view.findViewById(R.id.floatingClose)
 
         configurarPanelFlotante()
 
@@ -156,36 +159,33 @@ class PantallaCamara : Fragment() {
             mostrarToast(if (floatPinned) "Panel fijado" else "Panel se auto-ocultará")
         }
 
-        view?.findViewById<Button>(R.id.floatingClose)?.setOnClickListener {
-            ocultarPanelFlotante()
-        }
+        floatingClose.setOnClickListener { ocultarPanelFlotante() }
 
-        // ISO (50-12800, progress 0-12750, valor=progress+50)
         sliderIsoFloat.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
                 valorIsoFloat.text = (p + 50).toString()
-                resetAutoHide()
+                if (fromUser) resetAutoHide()
             }
             override fun onStartTrackingTouch(sb: SeekBar?) { handler.removeCallbacks(autoHideRunnable) }
             override fun onStopTrackingTouch(sb: SeekBar?) {
                 if (ignorarCambiosSlider) return
-                val iso = (sliderIsoFloat.progress + 50).coerceIn(50, 12800)
+                val iso: Int = (sliderIsoFloat.progress + 50).coerceIn(50, 12800)
                 aplicar(controller.estado.copy(iso = iso, isoManual = true))
                 programarAutoHide()
             }
         })
 
-        // Exposición normal (mapeo log 125000ns - 2s)
         sliderExpFloat.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
                 valorExpFloat.text = nsATexto(nsDesdeProgress(p))
-                resetAutoHide()
+                if (fromUser) resetAutoHide()
             }
             override fun onStartTrackingTouch(sb: SeekBar?) { handler.removeCallbacks(autoHideRunnable) }
             override fun onStopTrackingTouch(sb: SeekBar?) {
                 if (ignorarCambiosSlider) return
+                val ns: Long = nsDesdeProgress(sliderExpFloat.progress)
                 aplicar(controller.estado.copy(
-                    exposicionNs = nsDesdeProgress(sliderExpFloat.progress),
+                    exposicionNs = ns,
                     exposicionManual = true,
                     largaExposicion = false
                 ))
@@ -193,17 +193,18 @@ class PantallaCamara : Fragment() {
             }
         })
 
-        // Exposición larga (log 1s - 30s)
         sliderLargaFloat.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
                 valorLargaFloat.text = segundosATexto(segundosDesdeProgressLarga(p))
-                resetAutoHide()
+                if (fromUser) resetAutoHide()
             }
             override fun onStartTrackingTouch(sb: SeekBar?) { handler.removeCallbacks(autoHideRunnable) }
             override fun onStopTrackingTouch(sb: SeekBar?) {
                 if (ignorarCambiosSlider) return
+                val segundos: Double = segundosDesdeProgressLarga(sliderLargaFloat.progress)
+                val nanos: Long = (segundos * 1_000_000_000.0).toLong()
                 aplicar(controller.estado.copy(
-                    exposicionLargaNs = (segundosDesdeProgressLarga(sliderLargaFloat.progress) * 1_000_000_000L),
+                    exposicionLargaNs = nanos,
                     largaExposicion = true,
                     exposicionManual = false
                 ))
@@ -211,24 +212,23 @@ class PantallaCamara : Fragment() {
             }
         })
 
-        // Foco
         sliderFocoFloat.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
                 valorFocoFloat.text = dioptrasATexto(p / 100f * 10f)
-                resetAutoHide()
+                if (fromUser) resetAutoHide()
             }
             override fun onStartTrackingTouch(sb: SeekBar?) { handler.removeCallbacks(autoHideRunnable) }
             override fun onStopTrackingTouch(sb: SeekBar?) {
                 if (ignorarCambiosSlider) return
+                val d: Float = sliderFocoFloat.progress / 100f * 10f
                 aplicar(controller.estado.copy(
-                    distanciaFocoDioptras = sliderFocoFloat.progress / 100f * 10f,
+                    distanciaFocoDioptras = d,
                     focoManual = true
                 ))
                 programarAutoHide()
             }
         })
 
-        // Foco fino: tocar el valor numérico abre diálogo
         valorFocoFloat.setOnClickListener {
             val actual = controller.estado.distanciaFocoDioptras
             val edit = EditText(requireContext()).apply {
@@ -252,16 +252,16 @@ class PantallaCamara : Fragment() {
                 .setNegativeButton("Cancelar", null).show()
         }
 
-        // WB
         sliderWbFloat.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
                 valorWbFloat.text = "${p + 2000}K"
-                resetAutoHide()
+                if (fromUser) resetAutoHide()
             }
             override fun onStartTrackingTouch(sb: SeekBar?) { handler.removeCallbacks(autoHideRunnable) }
             override fun onStopTrackingTouch(sb: SeekBar?) {
                 if (ignorarCambiosSlider) return
-                aplicar(controller.estado.copy(temperaturaK = sliderWbFloat.progress + 2000, wbManual = true))
+                val k: Int = sliderWbFloat.progress + 2000
+                aplicar(controller.estado.copy(temperaturaK = k, wbManual = true))
                 programarAutoHide()
             }
         })
@@ -276,35 +276,31 @@ class PantallaCamara : Fragment() {
 
         ignorarCambiosSlider = true
 
-        // ISO
         rowIsoFloat.visibility = if (e.isoManual) View.VISIBLE else View.GONE
         if (e.isoManual) {
             sliderIsoFloat.progress = (e.iso - 50).coerceIn(0, 12750)
             valorIsoFloat.text = e.iso.toString()
         }
 
-        // Exposición normal
         rowExpFloat.visibility = if (e.exposicionManual && !e.largaExposicion) View.VISIBLE else View.GONE
         if (e.exposicionManual && !e.largaExposicion) {
             sliderExpFloat.progress = progressDesdeNs(e.exposicionNs)
             valorExpFloat.text = nsATexto(e.exposicionNs)
         }
 
-        // Larga
         rowLargaFloat.visibility = if (e.largaExposicion) View.VISIBLE else View.GONE
         if (e.largaExposicion) {
-            sliderLargaFloat.progress = progressDesdeSegundosLarga(e.exposicionLargaNs / 1_000_000_000.0)
-            valorLargaFloat.text = segundosATexto(e.exposicionLargaNs / 1_000_000_000.0)
+            val seg: Double = e.exposicionLargaNs.toDouble() / 1_000_000_000.0
+            sliderLargaFloat.progress = progressDesdeSegundosLarga(seg)
+            valorLargaFloat.text = segundosATexto(seg)
         }
 
-        // Foco
         rowFocoFloat.visibility = if (e.focoManual) View.VISIBLE else View.GONE
         if (e.focoManual) {
             sliderFocoFloat.progress = (e.distanciaFocoDioptras / 10f * 100).toInt().coerceIn(0, 100)
             valorFocoFloat.text = dioptrasATexto(e.distanciaFocoDioptras)
         }
 
-        // WB
         rowWbFloat.visibility = if (e.wbManual) View.VISIBLE else View.GONE
         if (e.wbManual) {
             sliderWbFloat.progress = (e.temperaturaK - 2000).coerceIn(0, 6000)
@@ -332,24 +328,26 @@ class PantallaCamara : Fragment() {
         handler.removeCallbacks(autoHideRunnable)
     }
 
-    // Conversiones exposición
     private fun nsATexto(ns: Long): String {
         val ms = ns / 1_000_000.0
         return if (ms < 1.0) "1/${(1000.0 / ms).toInt().coerceAtLeast(1)}"
         else "%.1fs".format(ms / 1000.0)
     }
     private fun progressDesdeNs(ns: Long): Int {
-        val min = 125_000.0; val max = 2_000_000_000.0
+        val min = 125_000.0
+        val max = 2_000_000_000.0
         val v = ns.toDouble().coerceIn(min, max)
         return ((Math.log(v / min) / Math.log(max / min)) * 100.0).toInt().coerceIn(0, 100)
     }
     private fun nsDesdeProgress(p: Int): Long {
-        val min = 125_000.0; val max = 2_000_000_000.0
-        return (min * Math.pow(max / min, p / 100.0)).toLong()
+        val min = 125_000.0
+        val max = 2_000_000_000.0
+        val v: Double = min * Math.pow(max / min, p / 100.0)
+        return v.toLong()
     }
-    // Exposición larga: 1s a 30s, log con base 30
-    private fun segundosDesdeProgressLarga(p: Int): Double =
-        1.0 * Math.pow(30.0, p / 100.0)
+    private fun segundosDesdeProgressLarga(p: Int): Double {
+        return 1.0 * Math.pow(30.0, p / 100.0)
+    }
     private fun progressDesdeSegundosLarga(seg: Double): Int {
         val v = seg.coerceIn(1.0, 30.0)
         return ((Math.log(v) / Math.log(30.0)) * 100.0).toInt().coerceIn(0, 100)
@@ -369,7 +367,6 @@ class PantallaCamara : Fragment() {
             override fun onDown(e: MotionEvent): Boolean = true
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 if (floatingPanel.visibility != View.VISIBLE) {
-                    // Reabrir panel flotante si está activo el modo PRO
                     val e2 = controller.estado
                     if (e2.isoManual || e2.exposicionManual || e2.largaExposicion || e2.focoManual || e2.wbManual) {
                         actualizarPanelFlotante()
@@ -380,7 +377,8 @@ class PantallaCamara : Fragment() {
                 return true
             }
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                ciclarLente(); return true
+                ciclarLente()
+                return true
             }
             override fun onLongPress(e: MotionEvent) {
                 if (e.pointerCount > 1) return
@@ -392,7 +390,7 @@ class PantallaCamara : Fragment() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val camera = controller.camaraActual() ?: return false
                 val zs = camera.cameraInfo.zoomState.value ?: return false
-                val nuevo = (zs.zoomRatio * detector.scaleFactor).coerceIn(zs.minZoomRatio, zs.maxZoomRatio)
+                val nuevo: Float = (zs.zoomRatio * detector.scaleFactor).coerceIn(zs.minZoomRatio, zs.maxZoomRatio)
                 camera.cameraControl.setZoomRatio(nuevo)
                 txtInfo.text = "%.1fx".format(nuevo)
                 controller.registrarZoom(nuevo)
@@ -413,7 +411,8 @@ class PantallaCamara : Fragment() {
         view.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN) {
                 if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-                    lanzarCaptura(); return@setOnKeyListener true
+                    lanzarCaptura()
+                    return@setOnKeyListener true
                 }
             }
             false
@@ -445,18 +444,25 @@ class PantallaCamara : Fragment() {
     }
 
     private fun iniciarCuentaAtras(segundos: Int) {
-        capturaEnCola = true; btnCapturar.isEnabled = false; txtContador.visibility = View.VISIBLE
+        capturaEnCola = true
+        btnCapturar.isEnabled = false
+        txtContador.visibility = View.VISIBLE
         var restante = segundos
         val runnable = object : Runnable {
             override fun run() {
                 if (!isAdded) return
                 txtContador.text = restante.toString()
-                vibrar(50); beep()
+                vibrar(50)
+                beep()
                 if (restante <= 0) {
                     txtContador.visibility = View.GONE
-                    capturaEnCola = false; btnCapturar.isEnabled = true
+                    capturaEnCola = false
+                    btnCapturar.isEnabled = true
                     capturar()
-                } else { restante--; handler.postDelayed(this, 1000) }
+                } else {
+                    restante--
+                    handler.postDelayed(this, 1000)
+                }
             }
         }
         handler.post(runnable)
@@ -480,9 +486,13 @@ class PantallaCamara : Fragment() {
             val bmp: Bitmap? = BitmapFactory.decodeStream(stream)
             stream?.close()
             if (bmp != null) {
-                imgMiniatura.setImageBitmap(bmp); imgMiniatura.visibility = View.VISIBLE; imgMiniatura.tag = uri
+                imgMiniatura.setImageBitmap(bmp)
+                imgMiniatura.visibility = View.VISIBLE
+                imgMiniatura.tag = uri
             }
-        } catch (e: Exception) { Log.e("PantallaCamara", "Miniatura", e) }
+        } catch (e: Exception) {
+            Log.e("PantallaCamara", "Miniatura", e)
+        }
     }
 
     private fun abrirUltimaFoto() {
@@ -494,7 +504,9 @@ class PantallaCamara : Fragment() {
                 clipData = android.content.ClipData.newRawUri("", uri)
             }
             startActivity(intent)
-        } catch (e: Exception) { mostrarToast("No hay app de galería disponible") }
+        } catch (e: Exception) {
+            mostrarToast("No hay app de galería disponible")
+        }
     }
 
     private fun ciclarLente() {
@@ -515,7 +527,9 @@ class PantallaCamara : Fragment() {
             val punto = vistaPrevia.meteringPointFactory.createPoint(x, y)
             camera.cameraControl.startFocusAndMetering(FocusMeteringAction.Builder(punto).build())
             txtBloqueo.visibility = View.GONE
-        } catch (e: Exception) { Log.e("PantallaCamara", "Enfoque", e) }
+        } catch (e: Exception) {
+            Log.e("PantallaCamara", "Enfoque", e)
+        }
     }
 
     @SuppressLint("RestrictedApi")
@@ -524,11 +538,15 @@ class PantallaCamara : Fragment() {
         try {
             val punto = vistaPrevia.meteringPointFactory.createPoint(x, y)
             val accion = FocusMeteringAction.Builder(punto, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
-                .apply { setAutoCancelDuration(30, java.util.concurrent.TimeUnit.SECONDS) }.build()
+                .apply { setAutoCancelDuration(30, java.util.concurrent.TimeUnit.SECONDS) }
+                .build()
             camera.cameraControl.startFocusAndMetering(accion)
-            txtBloqueo.visibility = View.VISIBLE; vibrar(120)
+            txtBloqueo.visibility = View.VISIBLE
+            vibrar(120)
             handler.postDelayed({ if (isAdded) txtBloqueo.visibility = View.GONE }, 3000)
-        } catch (e: Exception) { Log.e("PantallaCamara", "Bloqueo", e) }
+        } catch (e: Exception) {
+            Log.e("PantallaCamara", "Bloqueo", e)
+        }
     }
 
     private fun abrirAjustes() {
@@ -536,9 +554,14 @@ class PantallaCamara : Fragment() {
         val v = layoutInflater.inflate(R.layout.panel_ajustes, null)
         bs.setContentView(v)
         PanelAjustes(
-            vista = v, controller = controller, cicloDeVida = viewLifecycleOwner,
+            vista = v,
+            controller = controller,
+            cicloDeVida = viewLifecycleOwner,
             vistaPrevia = vistaPrevia,
-            onCambio = { actualizarHudDesdeEstado(); actualizarPanelFlotante() },
+            onCambio = {
+                actualizarHudDesdeEstado()
+                actualizarPanelFlotante()
+            },
             onCerrar = { bs.dismiss() }
         ).configurar()
         bs.show()
@@ -555,7 +578,8 @@ class PantallaCamara : Fragment() {
     }
 
     private fun mostrarToast(mensaje: String) {
-        txtToast.text = mensaje; txtToast.visibility = View.VISIBLE
+        txtToast.text = mensaje
+        txtToast.visibility = View.VISIBLE
         txtToast.postDelayed({ txtToast.visibility = View.GONE }, 1600)
     }
 
@@ -564,11 +588,15 @@ class PantallaCamara : Fragment() {
             val vib = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 requireContext().getSystemService(VibratorManager::class.java).defaultVibrator
             } else {
-                @Suppress("DEPRECATION") requireContext().getSystemService(Vibrator::class.java)
+                @Suppress("DEPRECATION")
+                requireContext().getSystemService(Vibrator::class.java)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vib.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE))
-            } else { @Suppress("DEPRECATION") vib.vibrate(ms) }
+            } else {
+                @Suppress("DEPRECATION")
+                vib.vibrate(ms)
+            }
         } catch (_: Exception) {}
     }
 
@@ -580,7 +608,10 @@ class PantallaCamara : Fragment() {
         } catch (_: Exception) {}
     }
 
-    override fun onResume() { super.onResume(); view?.requestFocus() }
+    override fun onResume() {
+        super.onResume()
+        view?.requestFocus()
+    }
 
     override fun onDestroyView() {
         super.onDestroyView()
@@ -588,7 +619,7 @@ class PantallaCamara : Fragment() {
         controller.cerrar()
     }
 
-    private fun aplicar(nuevo: com.carpe.camara.data.CamaraEstado) {
+    private fun aplicar(nuevo: CamaraEstado) {
         controller.aplicarEstado(nuevo, viewLifecycleOwner, vistaPrevia)
         actualizarHudDesdeEstado()
     }
