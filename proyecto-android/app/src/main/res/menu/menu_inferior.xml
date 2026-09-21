@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/navInicio" android:title="Inicio" android:icon="@android:drawable/ic_menu_view" />
-    <item android:id="@+id/navAjustes" android:title="Ajustes" android:icon="@android:drawable/ic_menu_preferences" />
+    <item
+        android:id="@+id/nav_grabar"
+        android:title="@string/nav_grabar"
+        android:icon="@android:drawable/ic_btn_speak_now" />
+    <item
+        android:id="@+id/nav_historial"
+        android:title="@string/nav_historial"
+        android:icon="@android:drawable/ic_menu_recent_history" />
+    <item
+        android:id="@+id/nav_detalle"
+        android:title="@string/nav_detalle"
+        android:icon="@android:drawable/ic_menu_info_details" />
+    <item
+        android:id="@+id/nav_ajustes"
+        android:title="@string/nav_ajustes"
+        android:icon="@android:drawable/ic_menu_preferences" />
 </menu>
