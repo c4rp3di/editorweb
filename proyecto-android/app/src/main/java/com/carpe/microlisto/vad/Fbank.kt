@@ -6,7 +6,6 @@ import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 class Fbank(
     private val sampleRate: Int = 16000,
@@ -23,7 +22,7 @@ class Fbank(
     private val fftSize = nextPow2(frameLength)
     private val numBins = fftSize / 2 + 1
 
-    private val ventana: FloatArray = ventanaPovey(frameLength)
+    private val ventana: FloatArray = ventanaHamming(frameLength)
     private val melBanks: Array<FloatArray> = crearMelBanks()
 
     fun calcular(audio: FloatArray): Array<FloatArray> {
@@ -145,12 +144,16 @@ class Fbank(
         }
     }
 
-    private fun ventanaPovey(n: Int): FloatArray {
+    /**
+     * Ventana Hamming, que es la que usa WeSpeaker (window_type: hamming).
+     *   w[n] = 0.54 - 0.46 * cos(2*pi*n / (N-1))
+     */
+    private fun ventanaHamming(n: Int): FloatArray {
         val w = FloatArray(n)
         var i = 0
         while (i < n) {
-            val x = 0.5 - 0.5 * cos(2.0 * PI * i / (n - 1))
-            w[i] = x.pow(0.85).toFloat()
+            val x = 0.54 - 0.46 * cos(2.0 * PI * i / (n - 1))
+            w[i] = x.toFloat()
             i++
         }
         return w
