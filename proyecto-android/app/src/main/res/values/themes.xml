@@ -1,3 +1,15 @@
-<resources>
-    <style name="Theme.MiApp" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.Microlisto" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#6C5CE7</item>
+        <item name="colorPrimaryVariant">#4A3FB5</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#00B894</item>
+        <item name="colorSecondaryVariant">#008C6E</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="android:statusBarColor">#1A1A2E</item>
+        <item name="android:navigationBarColor">#1A1A2E</item>
+        <item name="android:windowBackground">#1A1A2E</item>
+        <item name="android:textColorPrimary">#F0EEF8</item>
+        <item name="android:textColorSecondary">#B0B0D0</item>
+    </style>
 </resources>
