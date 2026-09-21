@@ -87,4 +87,8 @@
     <string name="error_generico">Ha ocurrido un error</string>
     <string name="permiso_denegado">Permiso denegado</string>
     <string name="requiere_permisos_obligatorios">El micrófono y las notificaciones son obligatorios</string>
+
+<string name="ajustes_debug_titulo">Depuración</string>
+<string name="ajustes_debug_desc">Log interno de la app. Útil para diagnosticar problemas en la grabación, transcripción o diarización.</string>
+<string name="ajustes_ver_log">Ver log de depuración</string>
 </resources>
