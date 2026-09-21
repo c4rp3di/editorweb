@@ -1,6 +1,5 @@
 package com.carpe.microlisto.ui
 
-import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -78,16 +77,20 @@ class GrabarFragment : Fragment() {
                 append("… ").append(estado.textoParcial)
             }
         }
-        binding.textoTranscripcionVivo.text = if (texto.isBlank()) {
+        val textoMostrar = if (texto.isBlank()) {
             getString(R.string.grabar_placeholder)
         } else {
             texto
         }
 
-        // Auto-scroll al final
-        val scrollView = (binding.textoTranscripcionVivo.parent as? android.widget.ScrollView)
-        scrollView?.post {
-            scrollView.fullScroll(View.FOCUS_DOWN)
+        // Solo actualizar el texto si ha cambiado. Esto evita que cada frame
+        // (32 veces por segundo) dispare un relayout completo del TextView.
+        if (binding.textoTranscripcionVivo.text.toString() != textoMostrar) {
+            binding.textoTranscripcionVivo.text = textoMostrar
+            // Auto-scroll al final cuando llega texto nuevo
+            binding.scrollTranscripcion.post {
+                binding.scrollTranscripcion.fullScroll(View.FOCUS_DOWN)
+            }
         }
 
         estado.error?.let { error ->
