@@ -6139,6 +6139,7 @@ analizarEstructura();
     if (!proyectos[nombre]) { mostrarToast('⚠️ Proyecto no encontrado'); return; }
     const p = proyectos[nombre];
     if (p.tipo === 'android' && !Array.isArray(p.funcionalidades)) p.funcionalidades = [];
+    if (p.tipo === 'android' && Array.isArray(p.funcionalidades)) p.funcionalidades = canonizarFuncionalidades(p.funcionalidades);
     if (p.tipo === 'android' && (!p.configuracionFuncionalidades || typeof p.configuracionFuncionalidades !== 'object' || Array.isArray(p.configuracionFuncionalidades))) p.configuracionFuncionalidades = {};
     const vKeys = Object.keys(p.versiones);
     if (vKeys.length === 0) { mostrarToast('⚠️ El proyecto no tiene versiones'); return; }
@@ -6485,6 +6486,17 @@ if (!nombreArchivo) {
             } else {
                 proyectos = Object.assign({}, proyectos, nuevos);
             }
+            // Fix A (auditoría Fase 9/11): un backup importado puede traer
+            // p.funcionalidades en un orden no canónico (o con IDs ya
+            // retirados del catálogo). ⚡ Generar ya canoniza antes de
+            // generar, pero dejar el estado sin canonizar entre importar y
+            // generar es un hallazgo aparte; se cierra aquí también.
+            Object.keys(proyectos).forEach(nombre => {
+                const proy = proyectos[nombre];
+                if (proy && proy.tipo === 'android' && Array.isArray(proy.funcionalidades)) {
+                    proy.funcionalidades = canonizarFuncionalidades(proy.funcionalidades);
+                }
+            });
             await guardarProyectos();
             renderProyectos();
             mostrarToast('✅ Proyectos importados');
@@ -8935,7 +8947,7 @@ kotlin.code.style=official
         'copiar-portapapeles', 'guardar-galeria', 'leer-contacto', 'leer-calendario',
         'notificaciones-acciones', 'workmanager', 'servicio-foreground',
         'atajos-app', 'deep-links', 'cambiar-idioma', 'widget',
-        'onnxruntime', 'opencv'
+        'onnxruntime', 'opencv', 'acceso-total-archivos'
     ];
 
     // Las 22 funcionalidades "básicas" (el catálogo original de B4). Se usa
@@ -8965,7 +8977,11 @@ kotlin.code.style=official
         const marcadas = new Set(seleccionActual || []);
         const chk = id => marcadas.has(id) ? 'checked' : '';
         modalProyectoActivo = p || null;
-        const hayProyectosWeb = Object.keys(proyectos).some(n => proyectos[n].tipo === 'web');
+        // Mismo criterio que el resto del editor (ver p.ej. líneas ~5776,
+        // 6148, 13085): un proyecto sin `tipo` explícito se trata como web,
+        // no se excluye. Con === 'web' estricto, un proyecto web antiguo sin
+        // ese campo dejaba la casilla desactivada aunque hubiera proyectos web reales.
+        const hayProyectosWeb = Object.keys(proyectos).some(n => (proyectos[n].tipo || 'web') === 'web');
         const cfgWeb = p && p.configuracionFuncionalidades && p.configuracionFuncionalidades['pantalla-web'];
         const indicadorWeb = cfgWeb
             ? `🌐 ${escaparXml(cfgWeb.proyectoWeb || '?')} [${cfgWeb.modo === 'empaquetado' ? 'Empaquetado' : 'Remoto'}]`
@@ -8999,7 +9015,7 @@ kotlin.code.style=official
                                     Pantalla web ⚠️
                                     <button type="button" id="funcAndroidConfigurarPantallaWeb" class="btn btn-small" style="margin-left:auto;" ${(hayProyectosWeb && marcadas.has('pantalla-web')) ? '' : 'disabled'}>⚙️ Configurar</button>
                                 </label>
-                                ${hayProyectosWeb ? '' : '<p style="font-size:0.68rem; color:#8a8ab0; margin:2px 0 6px 28px;">Crea un proyecto web y publícalo primero.</p>'}
+                                ${hayProyectosWeb ? '' : '<p style="font-size:0.68rem; color:#8a8ab0; margin:2px 0 6px 28px;">Crea un proyecto web primero (no hace falta publicarlo todavía; la URL se puede añadir a mano o publicar después).</p>'}
                                 ${indicadorWeb ? `<p id="funcAndroidIndicadorWeb" style="font-size:0.7rem; color:#9adf9a; margin:2px 0 6px 28px;">${indicadorWeb}</p>` : `<p id="funcAndroidIndicadorWeb" style="font-size:0.7rem; color:#9adf9a; margin:2px 0 6px 28px; display:none;"></p>`}
                                 <label style="display:flex; align-items:center; gap:8px; margin:6px 0;"><input type="checkbox" id="funcAndroid-modo-oscuro" ${chk('modo-oscuro')}> Modo oscuro</label>
                             </div>
@@ -9093,6 +9109,7 @@ kotlin.code.style=official
                             <div style="padding:0 10px 10px;">
                                 <label style="display:flex; align-items:center; gap:8px; margin:6px 0;" title="Añade ~15-20 MB al APK. Requiere un modelo .onnx propio en assets/ (el editor no puede crearlo por ti): no se carga nada automáticamente al arrancar."><input type="checkbox" id="funcAndroid-onnxruntime" ${chk('onnxruntime')}> ONNX Runtime ⚠️</label>
                                 <label style="display:flex; align-items:center; gap:8px; margin:6px 0;" title="Añade ~30-40 MB al APK. Publicada en Maven Central desde OpenCV 4.9.0. Úsala solo si tu app necesita visión por computador de verdad."><input type="checkbox" id="funcAndroid-opencv" ${chk('opencv')}> OpenCV ⚠️</label>
+                                <label style="display:flex; align-items:center; gap:8px; margin:6px 0;" title="La mayoría de apps generadas son para uso propio (instalación directa por APK), así que el permiso es útil aunque Play Store lo mire con lupa."><input type="checkbox" id="funcAndroid-acceso-total-archivos" ${chk('acceso-total-archivos')}> Acceso total a archivos ⚠️</label>
                             </div>
                         </details>
                     </div>
@@ -9167,7 +9184,7 @@ kotlin.code.style=official
 
     // Modal secundario de configuración de "Pantalla web" (Fase 10.2).
     function pedirConfiguracionPantallaWeb(p) {
-        const proyectosWeb = Object.keys(proyectos).filter(n => proyectos[n].tipo === 'web');
+        const proyectosWeb = Object.keys(proyectos).filter(n => (proyectos[n].tipo || 'web') === 'web');
         const actual = (p.configuracionFuncionalidades && p.configuracionFuncionalidades['pantalla-web']) || null;
         const proyectoInicial = (actual && proyectosWeb.includes(actual.proyectoWeb)) ? actual.proyectoWeb : (proyectosWeb[0] || '');
 
@@ -11510,6 +11527,44 @@ abstract class AppRoomDatabase : RoomDatabase() {
         archivos['MainActivity.kt'] = mainKt;
     }
 
+    // ---- Fase 11 (catálogo 59→60): acceso-total-archivos ----
+    function generarAccesoTotalArchivos(archivos) {
+        // MANAGE_EXTERNAL_STORAGE no se declara como los demás permisos: no se
+        // pide un diálogo en la app, hay que llevar al usuario a una pantalla
+        // de Settings del sistema para que lo conceda a mano.
+        archivos['AndroidManifest.xml'] = agregarPermiso(archivos['AndroidManifest.xml'], 'MANAGE_EXTERNAL_STORAGE');
+
+        let mainKt = archivos['MainActivity.kt'];
+        if (mainKt.indexOf('fun pedirAccesoTotalArchivos(') === -1) {
+            mainKt = agregarImports(mainKt, [
+                'import android.content.Intent',
+                'import android.net.Uri',
+                'import android.os.Build',
+                'import android.os.Environment',
+                'import android.provider.Settings'
+            ]);
+            mainKt = insertarEnMarcador(mainKt, '// [METODOS:FUNCIONALIDADES]',
+                '    // Funcionalidad: acceso-total-archivos\n' +
+                '    // ⚠️ MANAGE_EXTERNAL_STORAGE es un permiso especial: Google Play lo mira\n' +
+                '    // con lupa y puede pedir justificación para publicarlo en la tienda. La\n' +
+                '    // mayoría de apps generadas aquí son para uso propio (instalación directa\n' +
+                '    // por APK), así que el permiso suele ser útil aun así — revisa las\n' +
+                '    // políticas de Play antes de publicar con esta funcionalidad activa.\n' +
+                '    private fun pedirAccesoTotalArchivos() {\n' +
+                '        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {\n' +
+                '            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {\n' +
+                '                data = Uri.parse("package:$packageName")\n' +
+                '            }\n' +
+                '            startActivity(intent)\n' +
+                '        }\n' +
+                '    }\n\n' +
+                '    private fun tieneAccesoTotalArchivos(): Boolean {\n' +
+                '        return Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()\n' +
+                '    }\n');
+        }
+        archivos['MainActivity.kt'] = mainKt;
+    }
+
     // ---- Capa 2 · Generadores de la Tanda 3 (complejas) ----
 
     function generarSaf(archivos) {
@@ -12034,6 +12089,13 @@ ${lineaCarga}
         if (!funcionalidades.includes('pantalla-web')) return problemas;
 
         const hayNavegacion = ['varias-pantallas', 'menu-lateral', 'barra-inferior'].some(id => funcionalidades.includes(id));
+        // Fix B (auditoría): "varias-pantallas" cuenta como navegación válida
+        // aquí (no bloquea), pero si NO hay también menu-lateral o
+        // barra-inferior, la PantallaWeb se genera y funciona (mostrarPantallaWebFragment
+        // existe), solo que no hay ningún ítem de menú/barra que la dispare —
+        // solo es alcanzable llamándola a mano (p.ej. desde AppLogic.kt). No
+        // es un bug: es una limitación conocida y documentada, no cubierta
+        // explícitamente por el documento de Fase 10.
         if (!hayNavegacion) {
             problemas.push({
                 funcionalidad: 'pantalla-web',
@@ -12259,7 +12321,8 @@ class PantallaFormulario : Fragment() {
         'deep-links': generarDeepLinks,
         'widget': generarWidget,
         'onnxruntime': generarOnnxRuntime,
-        'opencv': generarOpenCv
+        'opencv': generarOpenCv,
+        'acceso-total-archivos': generarAccesoTotalArchivos
     };
 
     // Varios generadores pueden necesitar el mismo import (p.ej. abrir-enlaces
