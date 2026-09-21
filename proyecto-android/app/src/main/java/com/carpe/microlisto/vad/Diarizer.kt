@@ -4,6 +4,7 @@ import android.content.Context
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import com.carpe.microlisto.debug.DebugLog
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -28,13 +29,22 @@ class Diarizer(
     private val fbank: Fbank = Fbank()
 
     init {
+        DebugLog.info("Diarizer", "Cargando modelo $modeloAssets")
         val modeloBytes = context.assets.open(modeloAssets).use { it.readBytes() }
+        DebugLog.info("Diarizer", "Modelo cargado: ${modeloBytes.size} bytes")
         session = env.createSession(modeloBytes, OrtSession.SessionOptions())
+        DebugLog.info("Diarizer", "Entradas del modelo: ${session.inputNames}")
+        DebugLog.info("Diarizer", "Salidas del modelo: ${session.outputNames}")
         embedder = SpeakerEmbedding(context)
     }
 
     fun diarizar(audio: FloatArray): List<SegmentoDiarizado> {
-        if (audio.size < sampleRate) return emptyList()
+        DebugLog.info("Diarizer", "Inicio diarización: ${audio.size} muestras (${audio.size / sampleRate} s)")
+
+        if (audio.size < sampleRate) {
+            DebugLog.warn("Diarizer", "Audio demasiado corto (<1s), se devuelve vacío")
+            return emptyList()
+        }
 
         val hopMuestras = ventanaMuestras / 2
         val ventanas = mutableListOf<Pair<Int, FloatArray>>()
@@ -50,12 +60,22 @@ class Diarizer(
             System.arraycopy(audio, inicio, restante, 0, n)
             ventanas.add(inicio to restante)
         }
+        DebugLog.info("Diarizer", "Ventanas generadas: ${ventanas.size}")
 
         data class Fragmento(val inicioAbs: Long, val finAbs: Long, val audio: FloatArray)
         val fragmentos = mutableListOf<Fragmento>()
+        var framesConVoz = 0
+        var framesConClase1a3 = 0
 
         for ((inicioVentana, ventanaAudio) in ventanas) {
             val activaciones = inferirSegmentacion(ventanaAudio)
+            var vocesEstaVentana = 0
+            for (clase in activaciones) {
+                if (clase in 1..3) vocesEstaVentana++
+                if (clase > 0) framesConVoz++
+            }
+            if (vocesEstaVentana > 0) framesConClase1a3 += vocesEstaVentana
+
             var i = 0
             while (i < activaciones.size) {
                 val clase = activaciones[i]
@@ -80,14 +100,23 @@ class Diarizer(
             }
         }
 
-        if (fragmentos.isEmpty()) return emptyList()
+        DebugLog.info("Diarizer", "Frames con clase>0: $framesConVoz, con clase 1-3: $framesConClase1a3")
+        DebugLog.info("Diarizer", "Fragmentos >=1s extraídos: ${fragmentos.size}")
+
+        if (fragmentos.isEmpty()) {
+            DebugLog.warn("Diarizer", "Sin fragmentos extraíbles. El modelo no detectó voz de un único hablante.")
+            return emptyList()
+        }
 
         val embeddings = fragmentos.map { frag ->
             val f = fbank.calcular(frag.audio)
+            DebugLog.info("Diarizer", "Fbank del fragmento: ${f.size} frames x ${if (f.isNotEmpty()) f[0].size else 0} bins")
             if (f.isEmpty()) FloatArray(256) else embedder.calcular(f)
         }
 
         val asignaciones = clusteringAglomerativo(embeddings, umbral = 0.7046f)
+        val numClusters = asignaciones.toSet().size
+        DebugLog.info("Diarizer", "Clusters finales: $numClusters")
 
         val segmentos = mutableListOf<SegmentoDiarizado>()
         for (idx in fragmentos.indices) {
@@ -101,6 +130,7 @@ class Diarizer(
                 segmentos.add(SegmentoDiarizado(hablante, frag.inicioAbs, frag.finAbs))
             }
         }
+        DebugLog.info("Diarizer", "Segmentos finales fusionados: ${segmentos.size}")
         return segmentos
     }
 
@@ -119,9 +149,8 @@ class Diarizer(
             try {
                 val outOpt = resultado.get("output")
                 if (!outOpt.isPresent) {
+                    DebugLog.warn("Diarizer", "No hay output en el resultado")
                     val vacio = IntArray(589)
-                    var v = 0
-                    while (v < 589) { vacio[v] = 0; v++ }
                     return vacio
                 }
                 val out = outOpt.get().value as Array<*>
@@ -147,6 +176,9 @@ class Diarizer(
             } finally {
                 resultado.close()
             }
+        } catch (e: Exception) {
+            DebugLog.error("Diarizer", "Error en inferencia: ${e.message}")
+            return IntArray(589)
         } finally {
             tInput.close()
         }
@@ -169,7 +201,10 @@ class Diarizer(
         val centroides = mutableListOf<FloatArray>()
         for (e in embeddings) centroides.add(e.copyOf())
 
-        while (true) {
+        var iteraciones = 0
+        val maxIteraciones = 100
+        while (iteraciones < maxIteraciones) {
+            iteraciones++
             var mejorI = -1
             var mejorJ = -1
             var mejorSimilitud = -2f
@@ -187,8 +222,10 @@ class Diarizer(
                 }
                 i++
             }
-            if (mejorI == -1 || mejorSimilitud < umbral) break
-
+            if (mejorI == -1 || mejorSimilitud < umbral) {
+                DebugLog.info("Diarizer", "Clustering parado en iteración $iteraciones. Mejor similitud: $mejorSimilitud (umbral $umbral)")
+                break
+            }
             clusters[mejorI].addAll(clusters[mejorJ])
             centroides[mejorI] = calcularCentroide(clusters[mejorI], embeddings)
             clusters.removeAt(mejorJ)
