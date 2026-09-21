@@ -55,9 +55,7 @@ dependencies {
 }
 
 // ============================================================
-// Descarga de modelos para empaquetarlos en assets/
-// Se ejecuta antes de cada compilación. Los modelos que ya
-// estén descargados no se vuelven a descargar.
+// Descarga de modelos y copia a assets/
 // ============================================================
 
 def dirModelos = file("$buildDir/modelos")
@@ -97,24 +95,23 @@ tasks.register("descargarSilero") {
     }
 }
 
-tasks.register("copiarModelosAAssets", Copy) {
-    dependsOn "descargarVosk", "descargarSilero"
-    doFirst {
-        dirAssets.mkdirs()
-        // Limpiar copias antiguas para que no se acumulen
-        delete file("$dirAssets/vosk-model-small-es-0.42")
-        delete file("$dirAssets/silero_vad.onnx")
-    }
-    // Silero: copia directa del archivo
-    from("$dirModelos/silero_vad.onnx") {
-        into "$dirAssets"
-    }
-    // Vosk: descomprimir el ZIP dentro de assets/
-    from({ zipTree("$dirModelos/vosk-es.zip") }) {
-        into "$dirAssets"
-    }
+tasks.register("limpiarAssetsAntiguos", Delete) {
+    delete "$dirAssets/vosk-model-small-es-0.42"
+    delete "$dirAssets/silero_vad.onnx"
+}
+
+tasks.register("copiarSilero", Copy) {
+    dependsOn "descargarSilero", "limpiarAssetsAntiguos"
+    from("$dirModelos/silero_vad.onnx")
+    into "$dirAssets"
+}
+
+tasks.register("copiarVosk", Copy) {
+    dependsOn "descargarVosk", "limpiarAssetsAntiguos"
+    from({ zipTree("$dirModelos/vosk-es.zip") })
+    into "$dirAssets"
 }
 
 tasks.named("preBuild") {
-    dependsOn "copiarModelosAAssets"
+    dependsOn "copiarSilero", "copiarVosk"
 }
