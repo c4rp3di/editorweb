@@ -1,9 +1,9 @@
 package com.carpe.microlisto
 
 import android.os.Bundle
+import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
-import com.carpe.microlisto.databinding.ActivityMainBinding
 import com.carpe.microlisto.ui.AjustesFragment
 import com.carpe.microlisto.ui.DetalleFragment
 import com.carpe.microlisto.ui.GrabarFragment
@@ -11,34 +11,37 @@ import com.carpe.microlisto.ui.HistorialFragment
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityMainBinding
+    private lateinit var botones: List<Button>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentView(R.layout.activity_main)
 
         AppLogic.onIniciar(this)
 
-        if (savedInstanceState == null) {
-            mostrarFragment(GrabarFragment())
-        }
+        botones = listOf(
+            findViewById(R.id.nav_grabar),
+            findViewById(R.id.nav_historial),
+            findViewById(R.id.nav_detalle),
+            findViewById(R.id.nav_ajustes)
+        )
 
-        binding.barraInferior.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.nav_grabar -> mostrarFragment(GrabarFragment())
-                R.id.nav_historial -> mostrarFragment(HistorialFragment())
-                R.id.nav_detalle -> mostrarFragment(DetalleFragment())
-                R.id.nav_ajustes -> mostrarFragment(AjustesFragment())
-                else -> return@setOnItemSelectedListener false
-            }
-            true
+        findViewById<Button>(R.id.nav_grabar).setOnClickListener { mostrarFragment(GrabarFragment(), 0) }
+        findViewById<Button>(R.id.nav_historial).setOnClickListener { mostrarFragment(HistorialFragment(), 1) }
+        findViewById<Button>(R.id.nav_detalle).setOnClickListener { mostrarFragment(DetalleFragment(), 2) }
+        findViewById<Button>(R.id.nav_ajustes).setOnClickListener { mostrarFragment(AjustesFragment(), 3) }
+
+        if (savedInstanceState == null) {
+            mostrarFragment(GrabarFragment(), 0)
         }
     }
 
-    fun mostrarFragment(fragment: Fragment) {
+    fun mostrarFragment(fragment: Fragment, indiceBoton: Int) {
         supportFragmentManager.beginTransaction()
             .replace(R.id.contenedor_fragments, fragment)
             .commit()
+        botones.forEachIndexed { i, b ->
+            b.setTextColor(if (i == indiceBoton) 0xFFF0EEF8.toInt() else 0xFFB0B0D0.toInt())
+        }
     }
 }
