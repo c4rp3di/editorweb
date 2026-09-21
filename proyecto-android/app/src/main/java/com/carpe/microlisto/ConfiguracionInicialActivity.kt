@@ -198,15 +198,32 @@ class ConfiguracionInicialActivity : AppCompatActivity() {
             }
         }
 
-        try {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:$packageName")
+        // Fallback específico para HyperOS / MIUI recientes: abrir la pantalla
+        // de permisos de la app, desde donde el usuario llega a "Autoinicio en
+        // segundo plano" en dos toques. El diálogo explica la ruta exacta.
+        mostrarAyudaAutostartHyperOS()
+    }
+
+    private fun mostrarAyudaAutostartHyperOS() {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle(R.string.config_paso_4_titulo)
+        builder.setMessage(R.string.config_instrucciones_autostart)
+        builder.setPositiveButton(R.string.config_boton_abrir_permisos) { _, _ ->
+            try {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+                pasosCompletados.add(PASO_AUTOSTART)
+                binding.botonAutostart.isEnabled = false
+                binding.botonAutostart.text = getString(R.string.config_boton_ya_lo_hice)
+                comprobarTodosLosPasos()
+            } catch (e: Exception) {
+                Toast.makeText(this, "No se pudo abrir los ajustes de la app", Toast.LENGTH_SHORT).show()
             }
-            startActivity(intent)
-            Toast.makeText(this, "Busca 'Autostart' en esta pantalla", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "No se pudo abrir los ajustes de la app", Toast.LENGTH_SHORT).show()
         }
+        builder.setNegativeButton(R.string.cancelar, null)
+        builder.show()
     }
 
     private fun mostrarInstruccionesCandado() {
