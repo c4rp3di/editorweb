@@ -6,17 +6,10 @@ enum class LenteFisica(val etiqueta: String) {
     ULTRA_GRAN_ANGULAR("0.6x")
 }
 
-enum class ModoCaptura {
-    AUTO,
-    PRO,
-    LARGA_EXPOSICION
-}
+enum class ModoCaptura { AUTO, PRO, LARGA_EXPOSICION }
 
 enum class Temporizador(val segundos: Int, val etiqueta: String) {
-    OFF(0, "Off"),
-    S2(2, "2s"),
-    S5(5, "5s"),
-    S10(10, "10s")
+    OFF(0, "Off"), S2(2, "2s"), S5(5, "5s"), S10(10, "10s")
 }
 
 data class CamaraEstado(
@@ -29,6 +22,9 @@ data class CamaraEstado(
     val exposicionNs: Long = 16_666_666L,
     val exposicionManual: Boolean = false,
 
+    val largaExposicion: Boolean = false,
+    val exposicionLargaNs: Long = 1_000_000_000L,
+
     val distanciaFocoDioptras: Float = 0f,
     val focoManual: Boolean = false,
 
@@ -38,7 +34,5 @@ data class CamaraEstado(
     val flashAuto: Boolean = true,
 
     val temporizador: Temporizador = Temporizador.OFF,
-    val mostrarGrid: Boolean = false,
-
-    val exposicionLargaNs: Long = 1_000_000_000L
+    val mostrarGrid: Boolean = false
 )
