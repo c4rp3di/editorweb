@@ -58,51 +58,47 @@ class MicrolistoService : Service() {
             startForeground(ID_NOTIFICACION, notificacion)
         }
 
-        estadoGrabacion.value = EstadoGrabacion(
+        _estado.value = EstadoGrabacion(
             grabando = true,
             tiempoMs = 0,
             transcripcionAcumulada = "",
             error = null
         )
+        _textoAcumulado.value = ""
+        _textoParcial.value = ""
+        tiempoGrabadoMs = 0
 
         try {
-            // 1. Iniciar VAD (Silero VAD v5, ONNX Runtime)
             sileroVad = SileroVad(applicationContext).also { it.reset() }
             vadSegmenter = VadSegmenter()
 
-            // 2. Iniciar transcriptor (Vosk, modelo en assets)
             transcriber = Transcriber(
                 context = applicationContext,
                 onListo = {
-                    // El recognizer está listo. Los frames que llegaron antes
-                    // se descartan, es aceptable en los primeros ms.
+                    // Listo para transcribir.
                 },
                 onParcial = { parcial ->
-                    // El parcial de Vosk incluye comillas y formato JSON crudo.
-                    // No lo mostramos como transcripción final, solo como pista.
                     _textoParcial.value = limpiarJsonVosk(parcial)
                 },
                 onFinal = { final ->
                     val limpio = limpiarJsonVosk(final)
                     if (limpio.isNotBlank()) {
                         _textoAcumulado.value = _textoAcumulado.value + limpio + " "
-                        estadoGrabacion.value = estadoGrabacion.value.copy(
+                        _estado.value = _estado.value.copy(
                             transcripcionAcumulada = _textoAcumulado.value
                         )
                     }
                 },
                 onError = { error ->
-                    estadoGrabacion.value = estadoGrabacion.value.copy(error = error)
+                    _estado.value = _estado.value.copy(error = error)
                 }
             )
             transcriber?.iniciar()
 
-            // 3. Iniciar grabación de audio
             val archivoWav = File(filesDir, "grabacion_${System.currentTimeMillis()}.wav")
             audioRecorder = AudioRecorder(
                 archivoWav = archivoWav,
                 onFrame = { frame, cantidad ->
-                    // VAD: probabilidad de voz en este frame
                     val prob = try {
                         sileroVad?.calcularProbabilidad(frame) ?: 0f
                     } catch (_: Exception) {
@@ -110,14 +106,10 @@ class MicrolistoService : Service() {
                     }
                     vadSegmenter?.actualizar(prob)
 
-                    // Transcripción: solo alimentamos a Vosk si el VAD dice que hay voz
-                    // o si acabamos de salir de un segmento. De momento, alimentamos
-                    // siempre para no perder palabras, y afinamos en el siguiente bloque.
                     transcriber?.aceptarFrame(frame, cantidad)
 
-                    // Actualizar tiempo en la UI
                     tiempoGrabadoMs += (cantidad.toLong() * 1000L) / 16000L
-                    estadoGrabacion.value = estadoGrabacion.value.copy(
+                    _estado.value = _estado.value.copy(
                         tiempoMs = tiempoGrabadoMs,
                         transcripcionAcumulada = _textoAcumulado.value,
                         textoParcial = _textoParcial.value
@@ -126,7 +118,7 @@ class MicrolistoService : Service() {
             )
             audioRecorder?.iniciar()
         } catch (e: Exception) {
-            estadoGrabacion.value = estadoGrabacion.value.copy(
+            _estado.value = _estado.value.copy(
                 grabando = false,
                 error = e.message ?: "Error al iniciar la grabación"
             )
@@ -154,7 +146,7 @@ class MicrolistoService : Service() {
         vadSegmenter?.reset()
         vadSegmenter = null
 
-        estadoGrabacion.value = estadoGrabacion.value.copy(grabando = false)
+        _estado.value = _estado.value.copy(grabando = false)
         _textoParcial.value = ""
         tiempoGrabadoMs = 0
 
@@ -213,10 +205,6 @@ class MicrolistoService : Service() {
             .build()
     }
 
-    /**
-     * Vosk devuelve JSON: {"text": "hola mundo"} o {"partial": "hola mun"}.
-     * Extraemos solo el texto interno.
-     */
     private fun limpiarJsonVosk(json: String): String {
         val regex = Regex("\"(?:text|partial)\"\\s*:\\s*\"([^\"]*)\"")
         return regex.find(json)?.groupValues?.getOrNull(1)?.trim() ?: ""
@@ -228,7 +216,6 @@ class MicrolistoService : Service() {
         const val ACTION_INICIAR = "com.carpe.microlisto.INICIAR"
         const val ACTION_PARAR = "com.carpe.microlisto.PARAR"
 
-        // Estado observable por la UI
         data class EstadoGrabacion(
             val grabando: Boolean = false,
             val tiempoMs: Long = 0,
@@ -260,13 +247,6 @@ class MicrolistoService : Service() {
                 action = ACTION_PARAR
             }
             context.startService(intent)
-        }
-
-        fun resetearEstado() {
-            _estado.value = EstadoGrabacion()
-            _textoAcumulado.value = ""
-            _textoParcial.value = ""
-            tiempoGrabadoMs = 0
         }
     }
 }
