@@ -4,15 +4,14 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import java.io.File
 
-/**
- * Capa de persistencia con SQLite directo. Dos tablas:
- *   - conversaciones: una fila por grabación
- *   - segmentos: una fila por tramo de habla etiquetado por hablante
- *
- * Si algún día hay que migrar a Room, las clases Conversacion y Segmento ya
- * están preparadas para anotarse con @Entity sin cambiar la forma.
- */
+data class Estadisticas(
+    val numConversaciones: Int,
+    val duracionTotalMs: Long,
+    val espacioWavsBytes: Long
+)
+
 class BaseDatos(context: Context) :
     SQLiteOpenHelper(context, NOMBRE_DB, null, VERSION_DB) {
 
@@ -29,7 +28,6 @@ class BaseDatos(context: Context) :
                 resumen TEXT NOT NULL DEFAULT ''
             )
         """.trimIndent())
-
         db.execSQL("""
             CREATE TABLE segmentos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,24 +40,18 @@ class BaseDatos(context: Context) :
                 FOREIGN KEY (id_conversacion) REFERENCES conversaciones(id) ON DELETE CASCADE
             )
         """.trimIndent())
-
         db.execSQL("CREATE INDEX idx_segmentos_conv ON segmentos(id_conversacion)")
         db.execSQL("CREATE INDEX idx_conversaciones_fecha ON conversaciones(fecha_ms DESC)")
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, versionAntigua: Int, versionNueva: Int) {
-        // Versión 1 inicial. Cuando haya cambios futuros de esquema, hacer
-        // ALTER TABLE aquí en lugar de DROP, para no perder datos.
-    }
+    override fun onUpgrade(db: SQLiteDatabase, versionAntigua: Int, versionNueva: Int) {}
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
         db.setForeignKeyConstraintsEnabled(true)
     }
 
-    // ----------------------------------------------------------------
     // Conversaciones
-    // ----------------------------------------------------------------
 
     fun insertarConversacion(c: Conversacion): Long {
         val valores = ContentValues().apply {
@@ -74,38 +66,17 @@ class BaseDatos(context: Context) :
         return writableDatabase.insert("conversaciones", null, valores)
     }
 
-    fun actualizarConversacion(c: Conversacion) {
-        val valores = ContentValues().apply {
-            put("titulo", c.titulo)
-            put("duracion_ms", c.duracionMs)
-            put("num_hablantes", c.numHablantes)
-            put("transcripcion", c.transcripcion)
-            put("resumen", c.resumen)
-        }
-        writableDatabase.update(
-            "conversaciones",
-            valores,
-            "id = ?",
-            arrayOf(c.id.toString())
-        )
+    fun actualizarTitulo(id: Long, nuevoTitulo: String) {
+        val valores = ContentValues().apply { put("titulo", nuevoTitulo) }
+        writableDatabase.update("conversaciones", valores, "id = ?", arrayOf(id.toString()))
     }
 
     fun listarConversaciones(): List<Conversacion> {
         val lista = mutableListOf<Conversacion>()
         val cursor = readableDatabase.query(
-            "conversaciones",
-            null,
-            null,
-            null,
-            null,
-            null,
-            "fecha_ms DESC"
+            "conversaciones", null, null, null, null, null, "fecha_ms DESC"
         )
-        cursor.use {
-            while (it.moveToNext()) {
-                lista.add(cursorAConversacion(it))
-            }
-        }
+        cursor.use { while (it.moveToNext()) lista.add(cursorAConversacion(it)) }
         return lista
     }
 
@@ -114,36 +85,20 @@ class BaseDatos(context: Context) :
         val lista = mutableListOf<Conversacion>()
         val patron = "%$texto%"
         val cursor = readableDatabase.query(
-            "conversaciones",
-            null,
+            "conversaciones", null,
             "transcripcion LIKE ? OR titulo LIKE ?",
             arrayOf(patron, patron),
-            null,
-            null,
-            "fecha_ms DESC"
+            null, null, "fecha_ms DESC"
         )
-        cursor.use {
-            while (it.moveToNext()) {
-                lista.add(cursorAConversacion(it))
-            }
-        }
+        cursor.use { while (it.moveToNext()) lista.add(cursorAConversacion(it)) }
         return lista
     }
 
     fun obtenerConversacion(id: Long): Conversacion? {
         val cursor = readableDatabase.query(
-            "conversaciones",
-            null,
-            "id = ?",
-            arrayOf(id.toString()),
-            null,
-            null,
-            null,
-            "1"
+            "conversaciones", null, "id = ?", arrayOf(id.toString()), null, null, null, "1"
         )
-        cursor.use {
-            if (it.moveToFirst()) return cursorAConversacion(it)
-        }
+        cursor.use { if (it.moveToFirst()) return cursorAConversacion(it) }
         return null
     }
 
@@ -151,9 +106,49 @@ class BaseDatos(context: Context) :
         writableDatabase.delete("conversaciones", "id = ?", arrayOf(id.toString()))
     }
 
-    // ----------------------------------------------------------------
+    fun eliminarTodasLasConversaciones() {
+        writableDatabase.delete("conversaciones", null, null)
+        writableDatabase.delete("segmentos", null, null)
+    }
+
+    fun obtenerTodasLasRutasAudio(): List<String> {
+        val rutas = mutableListOf<String>()
+        val cursor = readableDatabase.query(
+            "conversaciones", arrayOf("ruta_audio"), null, null, null, null, null
+        )
+        cursor.use {
+            while (it.moveToNext()) {
+                val r = it.getString(0)
+                if (!r.isNullOrBlank()) rutas.add(r)
+            }
+        }
+        return rutas
+    }
+
+    fun obtenerEstadisticas(): Estadisticas {
+        var numConv = 0
+        var durTotal = 0L
+        val cursor = readableDatabase.rawQuery(
+            "SELECT COUNT(*), COALESCE(SUM(duracion_ms), 0) FROM conversaciones",
+            null
+        )
+        cursor.use {
+            if (it.moveToFirst()) {
+                numConv = it.getInt(0)
+                durTotal = it.getLong(1)
+            }
+        }
+        var espacio = 0L
+        for (ruta in obtenerTodasLasRutasAudio()) {
+            try {
+                val f = File(ruta)
+                if (f.exists()) espacio += f.length()
+            } catch (_: Exception) {}
+        }
+        return Estadisticas(numConv, durTotal, espacio)
+    }
+
     // Segmentos
-    // ----------------------------------------------------------------
 
     fun insertarSegmentos(idConversacion: Long, segmentos: List<Segmento>) {
         val db = writableDatabase
@@ -179,13 +174,9 @@ class BaseDatos(context: Context) :
     fun listarSegmentos(idConversacion: Long): List<Segmento> {
         val lista = mutableListOf<Segmento>()
         val cursor = readableDatabase.query(
-            "segmentos",
-            null,
-            "id_conversacion = ?",
+            "segmentos", null, "id_conversacion = ?",
             arrayOf(idConversacion.toString()),
-            null,
-            null,
-            "inicio_ms ASC"
+            null, null, "inicio_ms ASC"
         )
         cursor.use {
             while (it.moveToNext()) {
@@ -204,8 +195,6 @@ class BaseDatos(context: Context) :
         }
         return lista
     }
-
-    // ----------------------------------------------------------------
 
     private fun cursorAConversacion(cursor: android.database.Cursor): Conversacion {
         return Conversacion(
