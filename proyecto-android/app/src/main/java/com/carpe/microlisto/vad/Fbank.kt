@@ -4,7 +4,6 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.ln
-import kotlin.math.pow
 import kotlin.math.sin
 
 class Fbank(
@@ -15,7 +14,12 @@ class Fbank(
     private val lowFreq: Float = 20f,
     private val highFreq: Float = 0f,
     private val preemph: Float = 0.97f,
-    private val removeDc: Boolean = true
+    private val removeDc: Boolean = true,
+    // kaldi.fbank (y WeSpeaker, que lo usa) trabajan internamente con muestras
+    // en escala int16 [-32768, 32767]. Nuestras muestras vienen en [-1, 1].
+    // Sin esta escala, los log-mel son ~90 unidades más pequeños de lo que el
+    // modelo espera, y los embeddings salen poco discriminativos.
+    private val escalaEntrada: Float = 32768f
 ) {
     private val frameLength = sampleRate * frameLengthMs / 1000
     private val frameShift = sampleRate * frameShiftMs / 1000
@@ -32,11 +36,19 @@ class Fbank(
 
         val resultado: Array<FloatArray> = Array(numFrames) { FloatArray(numMelBins) }
 
-        val audioPre = FloatArray(audio.size)
-        audioPre[0] = audio[0]
+        // Escalar la señal a rango int16 (lo que kaldi espera)
+        val audioEscalado = FloatArray(audio.size)
+        var iEsc = 0
+        while (iEsc < audio.size) {
+            audioEscalado[iEsc] = audio[iEsc] * escalaEntrada
+            iEsc++
+        }
+
+        val audioPre = FloatArray(audioEscalado.size)
+        audioPre[0] = audioEscalado[0]
         var iPre = 1
-        while (iPre < audio.size) {
-            audioPre[iPre] = audio[iPre] - preemph * audio[iPre - 1]
+        while (iPre < audioEscalado.size) {
+            audioPre[iPre] = audioEscalado[iPre] - preemph * audioEscalado[iPre - 1]
             iPre++
         }
 
@@ -144,10 +156,6 @@ class Fbank(
         }
     }
 
-    /**
-     * Ventana Hamming, que es la que usa WeSpeaker (window_type: hamming).
-     *   w[n] = 0.54 - 0.46 * cos(2*pi*n / (N-1))
-     */
     private fun ventanaHamming(n: Int): FloatArray {
         val w = FloatArray(n)
         var i = 0
