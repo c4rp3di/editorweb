@@ -11,7 +11,6 @@ import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-
 data class SegmentoDiarizado(
     val hablanteId: Int,
     val inicioMs: Long,
@@ -21,21 +20,20 @@ data class SegmentoDiarizado(
 
 class Diarizer(
     context: Context,
-    private val modeloAssets: String = "pyannote_seg30.onnx"
+    private val modeloAssets: String = "pyannote_seg30.onnx",
+    private val numHablantesEsperados: Int = 0,
+    private val umbralClustering: Float = 0.55f,
+    private val minFragmentoMs: Long = 2000L,
+    private val gapFusionMs: Long = 500L,
+    private val hopVentanaMs: Int = 5000
 ) {
     private val sampleRate = 16000
     private val ventanaMuestras = 10 * sampleRate
+    private val hopMuestras = hopVentanaMs * sampleRate / 1000
     private val numClases = 7
     private val frameSegMs = 10000L / 589L
     private val timeoutVentanaMs = 60_000L
     private val frameShiftMuestras = 160
-
-    // Umbral del clustering. El valor oficial de pyannote 3.1 es 0.7046, pero
-    // está calibrado para su pipeline completo con WeSpeaker. Con nuestra
-    // implementación de Fbank (posiblemente con pequeñas diferencias en la
-    // normalización) los embeddings son menos discriminativos, así que usamos
-    // un umbral más bajo. Ajustable si en pruebas futuras se afina el Fbank.
-    private val umbralClustering = 0.55f
 
     private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
     private val session: OrtSession
@@ -46,7 +44,7 @@ class Diarizer(
     private val nombreSalida = "powerset"
 
     init {
-        DebugLog.info("Diarizer", "Cargando modelo $modeloAssets")
+        DebugLog.info("Diarizer", "Ajustes: hablantes=$numHablantesEsperados umbral=$umbralClustering minFrag=${minFragmentoMs}ms gap=${gapFusionMs}ms hop=${hopVentanaMs}ms")
         val modeloBytes = context.assets.open(modeloAssets).use { it.readBytes() }
         val opciones = OrtSession.SessionOptions().apply {
             try {
@@ -61,16 +59,12 @@ class Diarizer(
 
     fun diarizar(audio: FloatArray): List<SegmentoDiarizado> {
         DebugLog.info("Diarizer", "Inicio: ${audio.size} muestras (${audio.size / sampleRate} s)")
-
         if (audio.size < sampleRate) return emptyList()
 
-        val tFbankIni = System.currentTimeMillis()
         val fbankCompleto = fbank.calcular(audio)
-        DebugLog.info("Diarizer", "Fbank: ${fbankCompleto.size} frames en ${System.currentTimeMillis() - tFbankIni} ms")
-
+        DebugLog.info("Diarizer", "Fbank: ${fbankCompleto.size} frames")
         if (fbankCompleto.isEmpty()) return emptyList()
 
-        val hopMuestras = ventanaMuestras / 2
         val ventanas = mutableListOf<Pair<Int, FloatArray>>()
         var inicio = 0
         while (inicio + ventanaMuestras <= audio.size) {
@@ -91,7 +85,7 @@ class Diarizer(
         for ((inicioVentana, ventanaAudio) in ventanas) {
             numVentana++
             val activaciones = inferirSegmentacionConTimeout(ventanaAudio)
-            var vocesEstaVentana = 0
+            var nFrags = 0
 
             var i = 0
             while (i < activaciones.size) {
@@ -100,27 +94,22 @@ class Diarizer(
                     var j = i
                     while (j < activaciones.size && activaciones[j] == clase) j++
                     val durMs = (j - i) * frameSegMs
-                    if (durMs >= 2000L) {
-                        vocesEstaVentana++
+                    if (durMs >= minFragmentoMs) {
+                        nFrags++
                         val inicioMs = inicioVentana * 1000L / sampleRate + (i * frameSegMs)
                         val finMs = inicioVentana * 1000L / sampleRate + (j * frameSegMs)
-                        val frameIniGlobal = (inicioMs * sampleRate / 1000L / frameShiftMuestras).toInt()
-                        val frameFinGlobal = (finMs * sampleRate / 1000L / frameShiftMuestras).toInt()
+                        val fi = (inicioMs * sampleRate / 1000L / frameShiftMuestras).toInt()
+                        val ff = (finMs * sampleRate / 1000L / frameShiftMuestras).toInt()
                             .coerceAtMost(fbankCompleto.size)
-                        if (frameFinGlobal > frameIniGlobal) {
-                            fragmentos.add(Fragmento(inicioMs, finMs, frameIniGlobal, frameFinGlobal))
-                        }
+                        if (ff > fi) fragmentos.add(Fragmento(inicioMs, finMs, fi, ff))
                     }
                     i = j
-                } else {
-                    i++
-                }
+                } else i++
             }
-            DebugLog.info("Diarizer", "Ventana $numVentana: $vocesEstaVentana frags")
+            DebugLog.info("Diarizer", "Ventana $numVentana: $nFrags frags")
         }
 
-        DebugLog.info("Diarizer", "Total fragmentos >=2s: ${fragmentos.size}")
-
+        DebugLog.info("Diarizer", "Total fragmentos: ${fragmentos.size}")
         if (fragmentos.isEmpty()) return emptyList()
 
         val embeddings = fragmentos.map { frag ->
@@ -129,7 +118,7 @@ class Diarizer(
             embedder.calcular(fbankFrag)
         }
 
-        val asignaciones = clusteringAglomerativo(embeddings, umbral = umbralClustering)
+        val asignaciones = clusteringAglomerativo(embeddings)
         val numClusters = asignaciones.toSet().size
         DebugLog.info("Diarizer", "Clusters: $numClusters")
 
@@ -139,7 +128,7 @@ class Diarizer(
             val hablante = asignaciones[idx]
             val ultimo = segmentos.lastOrNull()
             if (ultimo != null && ultimo.hablanteId == hablante &&
-                frag.inicioMs - ultimo.finMs < 500L) {
+                frag.inicioMs - ultimo.finMs < gapFusionMs) {
                 segmentos[segmentos.size - 1] = ultimo.copy(finMs = frag.finMs)
             } else {
                 segmentos.add(SegmentoDiarizado(hablante, frag.inicioMs, frag.finMs))
@@ -152,8 +141,7 @@ class Diarizer(
     private fun inferirSegmentacionConTimeout(ventanaAudio: FloatArray): IntArray {
         val executor = Executors.newSingleThreadExecutor()
         try {
-            val tarea = Callable { inferirSegmentacion(ventanaAudio) }
-            val futuro = executor.submit(tarea)
+            val futuro = executor.submit(Callable { inferirSegmentacion(ventanaAudio) })
             return try {
                 futuro.get(timeoutVentanaMs, TimeUnit.MILLISECONDS)
             } catch (e: Exception) {
@@ -208,7 +196,7 @@ class Diarizer(
         }
     }
 
-    private fun clusteringAglomerativo(embeddings: List<FloatArray>, umbral: Float): IntArray {
+    private fun clusteringAglomerativo(embeddings: List<FloatArray>): IntArray {
         val n = embeddings.size
         if (n == 0) return IntArray(0)
         if (n == 1) return intArrayOf(0)
@@ -226,7 +214,7 @@ class Diarizer(
         for (e in embeddings) centroides.add(e.copyOf())
 
         var iteraciones = 0
-        while (iteraciones < 100) {
+        while (iteraciones < 100 && clusters.size > 1) {
             iteraciones++
             var mejorI = -1
             var mejorJ = -1
@@ -245,10 +233,19 @@ class Diarizer(
                 }
                 i++
             }
-            if (mejorI == -1 || mejorSimilitud < umbral) {
-                DebugLog.info("Diarizer", "Clustering para en iter $iteraciones, mejor sim $mejorSimilitud")
-                break
+            if (mejorI == -1) break
+
+            if (numHablantesEsperados > 0) {
+                // Modo forzado: parar solo cuando tengamos los clusters esperados
+                if (clusters.size <= numHablantesEsperados) break
+            } else {
+                // Modo auto: parar por umbral
+                if (mejorSimilitud < umbralClustering) {
+                    DebugLog.info("Diarizer", "Clustering auto para en iter $iteraciones, sim $mejorSimilitud")
+                    break
+                }
             }
+
             clusters[mejorI].addAll(clusters[mejorJ])
             centroides[mejorI] = calcularCentroide(clusters[mejorI], embeddings)
             clusters.removeAt(mejorJ)
@@ -267,10 +264,7 @@ class Diarizer(
     private fun similitudCoseno(a: FloatArray, b: FloatArray): Float {
         var dot = 0f
         var i = 0
-        while (i < a.size) {
-            dot += a[i] * b[i]
-            i++
-        }
+        while (i < a.size) { dot += a[i] * b[i]; i++ }
         return dot
     }
 
@@ -279,26 +273,17 @@ class Diarizer(
         for (idx in indices) {
             val e = embeddings[idx]
             var i = 0
-            while (i < e.size) {
-                suma[i] = suma[i] + e[i]
-                i++
-            }
+            while (i < e.size) { suma[i] = suma[i] + e[i]; i++ }
         }
         val divisor = indices.size.toFloat()
         var i = 0
-        while (i < suma.size) {
-            suma[i] = suma[i] / divisor
-            i++
-        }
+        while (i < suma.size) { suma[i] = suma[i] / divisor; i++ }
         var norma = 0f
         for (x in suma) norma += x * x
         norma = kotlin.math.sqrt(norma)
         if (norma > 1e-10f) {
             i = 0
-            while (i < suma.size) {
-                suma[i] = suma[i] / norma
-                i++
-            }
+            while (i < suma.size) { suma[i] = suma[i] / norma; i++ }
         }
         return suma
     }
