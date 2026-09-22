@@ -20,7 +20,6 @@ import com.carpe.microlisto.vad.Diarizer
 import com.carpe.microlisto.vad.SegmentoDiarizado
 import com.carpe.microlisto.vad.SileroVad
 import com.carpe.microlisto.vad.VadSegmenter
-import com.carpe.microlisto.whisper.WhisperManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -51,9 +50,7 @@ class MicrolistoService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_INICIAR -> iniciarGrabacion()
-            ACTION_PARAR -> {
-                procesarYParar()
-            }
+            ACTION_PARAR -> procesarYParar()
             else -> iniciarGrabacion()
         }
         return START_STICKY
@@ -80,9 +77,12 @@ class MicrolistoService : Service() {
                 context = applicationContext,
                 onParcial = { parcial -> _textoParcial.value = limpiarJsonVosk(parcial) },
                 onFinal = { final ->
-                    val limpio = limpiarJsonVosk(final)
+                    val limpio = limpiarJsonVosk(final).trim()
                     if (limpio.isNotBlank()) {
-                        _textoAcumulado.value = _textoAcumulado.value + limpio + " "
+                        val anterior = _textoAcumulado.value
+                        // Añadir espacio solo si no lo hay ya
+                        val separador = if (anterior.isEmpty() || anterior.endsWith(" ")) "" else " "
+                        _textoAcumulado.value = anterior + separador + limpio
                         _estado.value = _estado.value.copy(transcripcionAcumulada = _textoAcumulado.value)
                     }
                 },
@@ -117,7 +117,7 @@ class MicrolistoService : Service() {
         detenerComponentes()
 
         val wav = archivoWavActual
-        val textoFinal = _textoAcumulado.value
+        val textoFinal = _textoAcumulado.value.trim()
         val duracionMs = tiempoGrabadoMs
 
         _estado.value = _estado.value.copy(grabando = false, procesando = true)
@@ -133,7 +133,10 @@ class MicrolistoService : Service() {
                 // 1. Diarización
                 val segmentosDiarizados = diarizarWav(wav)
 
-                // 2. Guardar en base de datos
+                // 2. Repartir la transcripción por segmentos
+                val segmentosConTexto = repartirTextoEnSegmentos(textoFinal, segmentosDiarizados, duracionMs)
+
+                // 3. Guardar en base de datos
                 val db = BaseDatos(applicationContext)
                 val idConv = db.insertarConversacion(
                     Conversacion(
@@ -145,13 +148,13 @@ class MicrolistoService : Service() {
                         transcripcion = textoFinal
                     )
                 )
-                db.insertarSegmentos(idConv, segmentosDiarizados.map {
+                db.insertarSegmentos(idConv, segmentosConTexto.map {
                     Segmento(
                         idConversacion = idConv,
                         hablanteId = it.hablanteId,
                         inicioMs = it.inicioMs,
                         finMs = it.finMs,
-                        texto = textoFinal // TODO: dividir el texto por segmentos en el Bloque 5
+                        texto = it.texto
                     )
                 })
 
@@ -167,6 +170,49 @@ class MicrolistoService : Service() {
         stopSelf()
     }
 
+    /**
+     * Reparte las palabras de la transcripción completa entre los segmentos
+     * de diarización, proporcionalmente a la duración de cada segmento.
+     *
+     * No es perfecto (Vosk no da marcas de tiempo por palabra), pero en
+     * conversaciones con turnos claros funciona bien. Si no hay segmentos o
+     * no hay texto, se devuelve la lista sin tocar.
+     */
+    private fun repartirTextoEnSegmentos(
+        texto: String,
+        segmentos: List<SegmentoDiarizado>,
+        duracionTotalMs: Long
+    ): List<SegmentoDiarizado> {
+        if (segmentos.isEmpty() || texto.isBlank()) return segmentos
+
+        val palabras = texto.split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (palabras.isEmpty()) return segmentos
+
+        val sumaDuraciones = segmentos.sumOf { it.finMs - it.inicioMs }.coerceAtLeast(1L)
+        val resultado = mutableListOf<SegmentoDiarizado>()
+        var indiceActual = 0
+
+        for (i in segmentos.indices) {
+            val seg = segmentos[i]
+            val proporcion = (seg.finMs - seg.inicioMs).toDouble() / sumaDuraciones
+            val palabrasSegmento = if (i == segmentos.size - 1) {
+                palabras.size - indiceActual
+            } else {
+                (palabras.size * proporcion).toInt().coerceAtLeast(1)
+            }
+            val fin = (indiceActual + palabrasSegmento).coerceAtMost(palabras.size)
+            val texto = if (fin > indiceActual) {
+                palabras.subList(indiceActual, fin).joinToString(" ")
+            } else {
+                ""
+            }
+            indiceActual = fin
+            resultado.add(seg.copy(texto = texto))
+        }
+
+        return resultado
+    }
+
     private fun diarizarWav(wav: File): List<SegmentoDiarizado> {
         return try {
             val muestras = leerWavFloat(wav)
@@ -180,13 +226,10 @@ class MicrolistoService : Service() {
         }
     }
 
-    /**
-     * Lee un WAV PCM 16-bit mono y lo convierte a FloatArray [-1, 1].
-     */
     private fun leerWavFloat(wav: File): FloatArray {
         try {
             RandomAccessFile(wav, "r").use { raf ->
-                raf.seek(44) // saltar cabecera WAV estándar
+                raf.seek(44)
                 val bytes = ByteArray((raf.length() - 44).toInt().coerceAtLeast(0))
                 raf.readFully(bytes)
                 val muestras = FloatArray(bytes.size / 2)
