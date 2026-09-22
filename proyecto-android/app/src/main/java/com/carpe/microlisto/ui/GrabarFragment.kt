@@ -20,9 +20,7 @@ class GrabarFragment : Fragment() {
     private val binding get() = _binding!!
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         _binding = FragmentGrabarBinding.inflate(inflater, container, false)
         return binding.root
@@ -38,11 +36,7 @@ class GrabarFragment : Fragment() {
                 if (tienePermisoAudio()) {
                     MicrolistoService.iniciar(requireContext())
                 } else {
-                    Toast.makeText(
-                        requireContext(),
-                        R.string.requiere_permisos_obligatorios,
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(requireContext(), R.string.requiere_permisos_obligatorios, Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -60,34 +54,26 @@ class GrabarFragment : Fragment() {
     }
 
     private fun actualizarUI(estado: MicrolistoService.Companion.EstadoGrabacion) {
-        binding.botonGrabar.text = if (estado.grabando) {
-            getString(R.string.grabar_boton_parar)
-        } else {
-            getString(R.string.grabar_boton_iniciar)
+        binding.botonGrabar.text = when {
+            estado.procesando -> "Procesando…"
+            estado.grabando -> getString(R.string.grabar_boton_parar)
+            else -> getString(R.string.grabar_boton_iniciar)
         }
+        binding.botonGrabar.isEnabled = !estado.procesando
 
         binding.textoTiempo.text = formatearTiempo(estado.tiempoMs)
 
         val texto = buildString {
-            if (estado.transcripcionAcumulada.isNotBlank()) {
-                append(estado.transcripcionAcumulada)
-            }
+            if (estado.transcripcionAcumulada.isNotBlank()) append(estado.transcripcionAcumulada)
             if (estado.textoParcial.isNotBlank()) {
                 if (isNotEmpty()) append("\n")
                 append("… ").append(estado.textoParcial)
             }
         }
-        val textoMostrar = if (texto.isBlank()) {
-            getString(R.string.grabar_placeholder)
-        } else {
-            texto
-        }
+        val textoMostrar = if (texto.isBlank()) getString(R.string.grabar_placeholder) else texto
 
-        // Solo actualizar el texto si ha cambiado. Esto evita que cada frame
-        // (32 veces por segundo) dispare un relayout completo del TextView.
         if (binding.textoTranscripcionVivo.text.toString() != textoMostrar) {
             binding.textoTranscripcionVivo.text = textoMostrar
-            // Auto-scroll al final cuando llega texto nuevo
             binding.scrollTranscripcion.post {
                 binding.scrollTranscripcion.fullScroll(View.FOCUS_DOWN)
             }
