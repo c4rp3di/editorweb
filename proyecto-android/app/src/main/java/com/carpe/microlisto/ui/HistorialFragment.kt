@@ -1,7 +1,10 @@
 package com.carpe.microlisto.ui
 
+import android.app.AlertDialog
 import android.graphics.Color
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -15,9 +18,11 @@ import com.carpe.microlisto.MainActivity
 import com.carpe.microlisto.data.BaseDatos
 import com.carpe.microlisto.data.Conversacion
 import com.carpe.microlisto.databinding.FragmentHistorialBinding
+import com.carpe.microlisto.debug.DebugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -27,6 +32,7 @@ class HistorialFragment : Fragment() {
     private var _binding: FragmentHistorialBinding? = null
     private val binding get() = _binding!!
     private lateinit var db: BaseDatos
+    private var textoBusqueda: String = ""
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -38,12 +44,30 @@ class HistorialFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         db = BaseDatos(requireContext())
+
+        binding.campoBusqueda.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {
+                textoBusqueda = s?.toString() ?: ""
+                cargarConversaciones()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        cargarConversaciones()
+    }
+
+    override fun onResume() {
+        super.onResume()
         cargarConversaciones()
     }
 
     private fun cargarConversaciones() {
         viewLifecycleOwner.lifecycleScope.launch {
-            val lista = withContext(Dispatchers.IO) { db.listarConversaciones() }
+            val lista = withContext(Dispatchers.IO) {
+                if (textoBusqueda.isBlank()) db.listarConversaciones()
+                else db.buscarConversaciones(textoBusqueda)
+            }
             if (_binding == null) return@launch
             pintarLista(lista)
         }
@@ -55,7 +79,8 @@ class HistorialFragment : Fragment() {
 
         if (lista.isEmpty()) {
             val vacio = TextView(requireContext()).apply {
-                text = "Todavía no hay conversaciones grabadas."
+                text = if (textoBusqueda.isBlank()) "Todavía no hay conversaciones grabadas."
+                       else "Ninguna conversación coincide con \"$textoBusqueda\"."
                 setTextColor(Color.parseColor("#B0B0D0"))
                 textSize = 14f
                 gravity = Gravity.CENTER
@@ -83,7 +108,7 @@ class HistorialFragment : Fragment() {
             }
 
             val cabecera = TextView(requireContext()).apply {
-                text = "${formatoFecha.format(Date(c.fechaMs))} · ${c.duracionMs / 1000}s · ${c.numHablantes} hablantes"
+                text = "${formatoFecha.format(Date(c.fechaMs))} · ${formatearDuracion(c.duracionMs)} · ${c.numHablantes} hablantes"
                 setTextColor(Color.parseColor("#F0EEF8"))
                 textSize = 13f
             }
@@ -110,28 +135,56 @@ class HistorialFragment : Fragment() {
                 text = "Abrir"
                 textSize = 12f
             }
-            botonAbrir.setOnClickListener {
-                abrirDetalle(c.id)
-            }
+            botonAbrir.setOnClickListener { abrirDetalle(c.id) }
             botones.addView(botonAbrir)
 
             val botonBorrar = Button(requireContext()).apply {
                 text = "Borrar"
                 textSize = 12f
             }
-            botonBorrar.setOnClickListener {
-                borrarConversacion(c.id)
-            }
+            botonBorrar.setOnClickListener { confirmarBorrado(c) }
             botones.addView(botonBorrar)
 
             tarjeta.addView(botones)
 
-            // Pulsar la tarjeta entera también abre el detalle
-            tarjeta.setOnClickListener {
-                abrirDetalle(c.id)
-            }
+            tarjeta.setOnClickListener { abrirDetalle(c.id) }
 
             contenedor.addView(tarjeta)
+        }
+    }
+
+    private fun confirmarBorrado(c: Conversacion) {
+        val formatoFecha = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        val tamanoWav = try {
+            val f = File(c.rutaAudio)
+            if (f.exists()) " El archivo de audio ocupa ${formatearTamano(f.length())}." else ""
+        } catch (_: Exception) { "" }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Borrar conversación")
+            .setMessage("¿Borrar la conversación del ${formatoFecha.format(Date(c.fechaMs))}?$tamanoWav Esta acción no se puede deshacer.")
+            .setPositiveButton("Borrar") { _, _ -> borrarConversacion(c) }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun borrarConversacion(c: Conversacion) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                // Primero borrar el archivo de audio del almacenamiento
+                try {
+                    val archivo = File(c.rutaAudio)
+                    if (archivo.exists()) {
+                        val borrado = archivo.delete()
+                        DebugLog.info("Historial", "WAV borrado: ${archivo.name} = $borrado")
+                    }
+                } catch (e: Exception) {
+                    DebugLog.warn("Historial", "No se pudo borrar WAV: ${e.message}")
+                }
+                // Luego la fila de la base de datos (con CASCADE borra los segmentos)
+                db.eliminarConversacion(c.id)
+            }
+            cargarConversaciones()
         }
     }
 
@@ -140,10 +193,20 @@ class HistorialFragment : Fragment() {
         activity.abrirDetalle(idConversacion)
     }
 
-    private fun borrarConversacion(id: Long) {
-        viewLifecycleOwner.lifecycleScope.launch {
-            withContext(Dispatchers.IO) { db.eliminarConversacion(id) }
-            cargarConversaciones()
+    private fun formatearDuracion(ms: Long): String {
+        val totalSeg = ms / 1000
+        val horas = totalSeg / 3600
+        val minutos = (totalSeg % 3600) / 60
+        val segundos = totalSeg % 60
+        return if (horas > 0) String.format("%d:%02d:%02d", horas, minutos, segundos)
+               else String.format("%d:%02d", minutos, segundos)
+    }
+
+    private fun formatearTamano(bytes: Long): String {
+        return when {
+            bytes < 1024 -> "$bytes B"
+            bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
+            else -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
         }
     }
 
