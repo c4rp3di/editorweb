@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.carpe.microlisto.audio.AudioRecorder
+import com.carpe.microlisto.data.AjustesDiarizacion
 import com.carpe.microlisto.data.BaseDatos
 import com.carpe.microlisto.data.Conversacion
 import com.carpe.microlisto.data.Segmento
@@ -80,9 +81,8 @@ class MicrolistoService : Service() {
                     val limpio = limpiarJsonVosk(final).trim()
                     if (limpio.isNotBlank()) {
                         val anterior = _textoAcumulado.value
-                        // Añadir espacio solo si no lo hay ya
-                        val separador = if (anterior.isEmpty() || anterior.endsWith(" ")) "" else " "
-                        _textoAcumulado.value = anterior + separador + limpio
+                        val sep = if (anterior.isEmpty() || anterior.endsWith(" ")) "" else " "
+                        _textoAcumulado.value = anterior + sep + limpio
                         _estado.value = _estado.value.copy(transcripcionAcumulada = _textoAcumulado.value)
                     }
                 },
@@ -130,13 +130,9 @@ class MicrolistoService : Service() {
 
         scope.launch {
             try {
-                // 1. Diarización
                 val segmentosDiarizados = diarizarWav(wav)
+                val segmentosConTexto = repartirTextoEnSegmentos(textoFinal, segmentosDiarizados)
 
-                // 2. Repartir la transcripción por segmentos
-                val segmentosConTexto = repartirTextoEnSegmentos(textoFinal, segmentosDiarizados, duracionMs)
-
-                // 3. Guardar en base de datos
                 val db = BaseDatos(applicationContext)
                 val idConv = db.insertarConversacion(
                     Conversacion(
@@ -170,21 +166,11 @@ class MicrolistoService : Service() {
         stopSelf()
     }
 
-    /**
-     * Reparte las palabras de la transcripción completa entre los segmentos
-     * de diarización, proporcionalmente a la duración de cada segmento.
-     *
-     * No es perfecto (Vosk no da marcas de tiempo por palabra), pero en
-     * conversaciones con turnos claros funciona bien. Si no hay segmentos o
-     * no hay texto, se devuelve la lista sin tocar.
-     */
     private fun repartirTextoEnSegmentos(
         texto: String,
-        segmentos: List<SegmentoDiarizado>,
-        duracionTotalMs: Long
+        segmentos: List<SegmentoDiarizado>
     ): List<SegmentoDiarizado> {
         if (segmentos.isEmpty() || texto.isBlank()) return segmentos
-
         val palabras = texto.split(Regex("\\s+")).filter { it.isNotBlank() }
         if (palabras.isEmpty()) return segmentos
 
@@ -201,15 +187,10 @@ class MicrolistoService : Service() {
                 (palabras.size * proporcion).toInt().coerceAtLeast(1)
             }
             val fin = (indiceActual + palabrasSegmento).coerceAtMost(palabras.size)
-            val texto = if (fin > indiceActual) {
-                palabras.subList(indiceActual, fin).joinToString(" ")
-            } else {
-                ""
-            }
+            val txt = if (fin > indiceActual) palabras.subList(indiceActual, fin).joinToString(" ") else ""
             indiceActual = fin
-            resultado.add(seg.copy(texto = texto))
+            resultado.add(seg.copy(texto = txt))
         }
-
         return resultado
     }
 
@@ -217,7 +198,14 @@ class MicrolistoService : Service() {
         return try {
             val muestras = leerWavFloat(wav)
             if (muestras.isEmpty()) return emptyList()
-            val diarizer = Diarizer(applicationContext)
+            val diarizer = Diarizer(
+                context = applicationContext,
+                numHablantesEsperados = AjustesDiarizacion.getNumHablantes(applicationContext),
+                umbralClustering = AjustesDiarizacion.getUmbral(applicationContext),
+                minFragmentoMs = AjustesDiarizacion.getMinFragMs(applicationContext),
+                gapFusionMs = AjustesDiarizacion.getGapMs(applicationContext),
+                hopVentanaMs = AjustesDiarizacion.getHopMs(applicationContext)
+            )
             val res = diarizer.diarizar(muestras)
             diarizer.cerrar()
             res
@@ -265,15 +253,12 @@ class MicrolistoService : Service() {
     private fun crearCanalNotificacion() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val canal = NotificationChannel(
-                CANAL_ID,
-                getString(R.string.notif_canal_grabacion),
-                NotificationManager.IMPORTANCE_LOW
+                CANAL_ID, getString(R.string.notif_canal_grabacion), NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = getString(R.string.notif_canal_grabacion_desc)
                 setShowBadge(false)
             }
-            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-                .createNotificationChannel(canal)
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(canal)
         }
     }
 
@@ -281,15 +266,11 @@ class MicrolistoService : Service() {
         val intentAbrir = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
-        val pendingAbrir = PendingIntent.getActivity(
-            this, 0, intentAbrir,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingAbrir = PendingIntent.getActivity(this, 0, intentAbrir,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val intentParar = Intent(this, MicrolistoService::class.java).apply { action = ACTION_PARAR }
-        val pendingParar = PendingIntent.getService(
-            this, 1, intentParar,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingParar = PendingIntent.getService(this, 1, intentParar,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, CANAL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle(getString(R.string.notif_grabando_titulo))
@@ -331,11 +312,8 @@ class MicrolistoService : Service() {
 
         fun iniciar(context: Context) {
             val intent = Intent(context, MicrolistoService::class.java).apply { action = ACTION_INICIAR }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+            else context.startService(intent)
         }
 
         fun parar(context: Context) {
