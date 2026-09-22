@@ -7,19 +7,110 @@
     android:background="#1A1A2E">
 
     <TextView
-        android:layout_width="wrap_content"
+        android:id="@+id/texto_titulo_detalle"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/detalle_titulo"
-        android:textSize="22sp"
-        android:textColor="#F0EEF8"
-        android:layout_marginBottom="12dp" />
+        android:text="Sin conversación seleccionada"
+        android:textSize="18sp"
+        android:textColor="#F0EEF8" />
 
     <TextView
+        android:id="@+id/texto_resumen_cabecera"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="13sp"
+        android:textColor="#B0B0D0"
+        android:paddingTop="4dp"
+        android:paddingBottom="12dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingBottom="8dp">
+
+        <Button
+            android:id="@+id/boton_tab_transcripcion"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Transcripción"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/boton_tab_metricas"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Métricas"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/boton_tab_resumen"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Resumen"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/boton_tab_audio"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Audio"
+            android:textSize="11sp" />
+
+    </LinearLayout>
+
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:text="@string/detalle_placeholder"
-        android:textColor="#B0B0D0"
-        android:gravity="center" />
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:id="@+id/contenedor_transcripcion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#20203A"
+                android:padding="12dp" />
+
+            <LinearLayout
+                android:id="@+id/contenedor_metricas"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#20203A"
+                android:padding="12dp"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/contenedor_resumen"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#20203A"
+                android:padding="12dp"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/contenedor_audio"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#20203A"
+                android:padding="12dp"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </ScrollView>
 
 </LinearLayout>
