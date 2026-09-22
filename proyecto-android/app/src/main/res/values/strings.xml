@@ -91,4 +91,8 @@
 <string name="ajustes_debug_titulo">Depuración</string>
 <string name="ajustes_debug_desc">Log interno de la app. Útil para diagnosticar problemas en la grabación, transcripción o diarización.</string>
 <string name="ajustes_ver_log">Ver log de depuración</string>
+
+<string name="ajustes_afinado_titulo">🎛 Afinado de diarización</string>
+<string name="ajustes_afinado_desc">Afecta a cómo se separan los hablantes. Se aplica en la próxima grabación.</string>
+<string name="ajustes_estadisticas_titulo">💾 Almacenamiento</string>
 </resources>
