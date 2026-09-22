@@ -6,6 +6,14 @@ import org.tensorflow.lite.Interpreter
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+/**
+ * Wrapper de LiteRT para WeSpeaker.
+ *
+ * El modelo espera [1, 500, 80] = 5 segundos de fbank. Para fragmentos más
+ * cortos, se hace padding con el propio audio (replicándolo) en lugar de
+ * ceros. Para fragmentos más largos, se desliza una ventana de 500 frames
+ * con hop 250 y se promedian los embeddings de todas las ventanas.
+ */
 class SpeakerEmbedding(
     context: Context,
     modeloEnAssets: String = "wespeaker_emb_fp16.tflite"
@@ -13,67 +21,120 @@ class SpeakerEmbedding(
     private val numFrames = 500
     private val numMelBins = 80
     private val dimEmbedding = 256
+    private val hopFrames = 250
 
     private val interpreter: Interpreter
 
     init {
         DebugLog.info("WeSpeaker", "Cargando modelo $modeloEnAssets")
         val modelo = cargarModeloDesdeAssets(context, modeloEnAssets)
-        DebugLog.info("WeSpeaker", "Modelo cargado, ${modelo.capacity()} bytes")
-        val opciones = Interpreter.Options().apply {
-            setNumThreads(4)
-        }
+        val opciones = Interpreter.Options().apply { setNumThreads(4) }
         interpreter = Interpreter(modelo, opciones)
-        try {
-            val formaEntrada = interpreter.getInputTensor(0).shape()
-            val formaSalida = interpreter.getOutputTensor(0).shape()
-            DebugLog.info("WeSpeaker", "Forma entrada: ${formaEntrada.contentToString()}")
-            DebugLog.info("WeSpeaker", "Forma salida: ${formaSalida.contentToString()}")
-        } catch (e: Exception) {
-            DebugLog.warn("WeSpeaker", "No se pudieron leer las formas del modelo: ${e.message}")
-        }
     }
 
+    /**
+     * @param fbank matriz de [N][80] (N puede ser cualquiera)
+     * @return embedding L2-normalizado de 256 dims
+     */
     fun calcular(fbank: Array<FloatArray>): FloatArray {
-        val entrada = FloatArray(numFrames * numMelBins)
-        val n = minOf(fbank.size, numFrames)
-        for (f in 0 until n) {
-            val fila = fbank[f]
+        if (fbank.isEmpty()) return FloatArray(dimEmbedding)
+
+        val nFramesReales = fbank.size
+        val embeddingsVentanas = mutableListOf<FloatArray>()
+
+        if (nFramesReales <= numFrames) {
+            // Fragmento corto: padding replicando el audio
+            val entrada = empaquetarConPadding(fbank, 0, nFramesReales)
+            val emb = ejecutarInferencia(entrada)
+            embeddingsVentanas.add(emb)
+        } else {
+            // Fragmento largo: ventana deslizante de 500 frames con hop 250
+            var inicio = 0
+            while (inicio + numFrames <= nFramesReales) {
+                val entrada = empaquetarVentanaDirecta(fbank, inicio, numFrames)
+                val emb = ejecutarInferencia(entrada)
+                embeddingsVentanas.add(emb)
+                inicio += hopFrames
+            }
+            // Última ventana si quedan frames sueltos
+            if (inicio < nFramesReales && (nFramesReales - inicio) >= 50) {
+                val restantes = nFramesReales - inicio
+                if (restantes < numFrames) {
+                    val entrada = empaquetarConPadding(fbank, inicio, restantes)
+                    val emb = ejecutarInferencia(entrada)
+                    embeddingsVentanas.add(emb)
+                }
+            }
+        }
+
+        if (embeddingsVentanas.isEmpty()) return FloatArray(dimEmbedding)
+
+        val promedio = promediarYNormalizar(embeddingsVentanas)
+        DebugLog.info("WeSpeaker", "  Embedding final: ${embeddingsVentanas.size} ventana(s) promediada(s), norma=${norma2(promedio)}")
+        return promedio
+    }
+
+    /**
+     * Ventana directa de numFrames empezando en `inicio`.
+     */
+    private fun empaquetarVentanaDirecta(fbank: Array<FloatArray>, inicio: Int, cantidad: Int): FloatArray {
+        val entrada = FloatArray(cantidad * numMelBins)
+        for (f in 0 until cantidad) {
+            val fila = fbank[inicio + f]
             for (m in 0 until numMelBins) {
                 entrada[f * numMelBins + m] = if (m < fila.size) fila[m] else 0f
             }
         }
+        return entrada
+    }
 
-        // Estadísticas de la entrada para detectar NaNs o silencio
+    /**
+     * Fragmento más corto de 500 frames: replicar los frames hasta llenar 500.
+     * Esto preserva la información acústica en lugar de añadir ceros.
+     */
+    private fun empaquetarConPadding(fbank: Array<FloatArray>, inicio: Int, cantidad: Int): FloatArray {
+        val entrada = FloatArray(numFrames * numMelBins)
+        for (f in 0 until numFrames) {
+            val frameOrigen = inicio + (f % cantidad)
+            val fila = fbank[frameOrigen]
+            for (m in 0 until numMelBins) {
+                entrada[f * numMelBins + m] = if (m < fila.size) fila[m] else 0f
+            }
+        }
+        return entrada
+    }
+
+    private fun ejecutarInferencia(entrada: FloatArray): FloatArray {
+        // Estadísticas para detectar NaNs
         var minV = Float.MAX_VALUE
         var maxV = -Float.MAX_VALUE
-        var suma = 0.0
         for (v in entrada) {
             if (v < minV) minV = v
             if (v > maxV) maxV = v
-            suma += v.toDouble()
         }
-        val media = suma / entrada.size
-        DebugLog.info("WeSpeaker", "Entrada: min=$minV max=$maxV media=$media")
+        DebugLog.info("WeSpeaker", "  Inferencia: min=$minV max=$maxV")
 
         val bufEntrada = ByteBuffer
             .allocateDirect(numFrames * numMelBins * 4)
             .order(ByteOrder.nativeOrder())
-
         val fb = bufEntrada.asFloatBuffer()
         fb.put(entrada)
         fb.rewind()
 
         val bufSalida = Array(1) { FloatArray(dimEmbedding) }
-
         interpreter.run(bufEntrada, bufSalida)
 
-        val normalizado = l2Normalizar(bufSalida[0])
-        var sumaNorm = 0.0
-        for (v in normalizado) sumaNorm += v * v
-        DebugLog.info("WeSpeaker", "Embedding: norma²=${sumaNorm}, primeros=[${normalizado[0]}, ${normalizado[1]}, ${normalizado[2]}]")
+        return l2Normalizar(bufSalida[0])
+    }
 
-        return normalizado
+    private fun promediarYNormalizar(embeddings: List<FloatArray>): FloatArray {
+        val suma = FloatArray(dimEmbedding)
+        for (e in embeddings) {
+            for (i in 0 until dimEmbedding) suma[i] += e[i]
+        }
+        val divisor = embeddings.size.toFloat()
+        for (i in 0 until dimEmbedding) suma[i] /= divisor
+        return l2Normalizar(suma)
     }
 
     private fun l2Normalizar(v: FloatArray): FloatArray {
@@ -84,6 +145,12 @@ class SpeakerEmbedding(
         val out = FloatArray(v.size)
         for (i in v.indices) out[i] = v[i] / norma
         return out
+    }
+
+    private fun norma2(v: FloatArray): Float {
+        var suma = 0f
+        for (x in v) suma += x * x
+        return suma
     }
 
     private fun cargarModeloDesdeAssets(context: Context, nombre: String): ByteBuffer {
