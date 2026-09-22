@@ -44,4 +44,12 @@ class MainActivity : AppCompatActivity() {
             b.setTextColor(if (i == indiceBoton) 0xFFF0EEF8.toInt() else 0xFFB0B0D0.toInt())
         }
     }
+
+    /**
+     * Abre el DetalleFragment cargando la conversación indicada y activa el
+     * botón "Detalle" de la barra inferior.
+     */
+    fun abrirDetalle(idConversacion: Long) {
+        mostrarFragment(DetalleFragment.nuevo(idConversacion), 2)
+    }
 }
