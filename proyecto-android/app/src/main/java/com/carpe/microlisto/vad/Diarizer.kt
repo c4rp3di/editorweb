@@ -11,10 +11,12 @@ import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
+
 data class SegmentoDiarizado(
     val hablanteId: Int,
     val inicioMs: Long,
-    val finMs: Long
+    val finMs: Long,
+    val texto: String = ""
 )
 
 class Diarizer(
