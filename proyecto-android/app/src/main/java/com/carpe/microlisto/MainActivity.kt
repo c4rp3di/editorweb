@@ -16,7 +16,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
         AppLogic.onIniciar(this)
 
         botones = listOf(
@@ -31,9 +30,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.nav_detalle).setOnClickListener { mostrarFragment(DetalleFragment(), 2) }
         findViewById<Button>(R.id.nav_ajustes).setOnClickListener { mostrarFragment(AjustesFragment(), 3) }
 
-        if (savedInstanceState == null) {
-            mostrarFragment(GrabarFragment(), 0)
-        }
+        if (savedInstanceState == null) mostrarFragment(GrabarFragment(), 0)
     }
 
     fun mostrarFragment(fragment: Fragment, indiceBoton: Int) {
@@ -45,11 +42,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Abre el DetalleFragment cargando la conversación indicada y activa el
-     * botón "Detalle" de la barra inferior.
-     */
     fun abrirDetalle(idConversacion: Long) {
         mostrarFragment(DetalleFragment.nuevo(idConversacion), 2)
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        val frag = supportFragmentManager.findFragmentById(R.id.contenedor_fragments)
+        when (frag) {
+            is DetalleFragment -> mostrarFragment(HistorialFragment(), 1)
+            is HistorialFragment, is AjustesFragment -> mostrarFragment(GrabarFragment(), 0)
+            else -> super.onBackPressed()
+        }
     }
 }
