@@ -26,7 +26,14 @@ class Diarizer(
     private val numClases = 7
     private val frameSegMs = 10000L / 589L
     private val timeoutVentanaMs = 60_000L
-    private val frameShiftMuestras = 160  // 10 ms
+    private val frameShiftMuestras = 160
+
+    // Umbral del clustering. El valor oficial de pyannote 3.1 es 0.7046, pero
+    // está calibrado para su pipeline completo con WeSpeaker. Con nuestra
+    // implementación de Fbank (posiblemente con pequeñas diferencias en la
+    // normalización) los embeddings son menos discriminativos, así que usamos
+    // un umbral más bajo. Ajustable si en pruebas futuras se afina el Fbank.
+    private val umbralClustering = 0.55f
 
     private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
     private val session: OrtSession
@@ -51,22 +58,16 @@ class Diarizer(
     }
 
     fun diarizar(audio: FloatArray): List<SegmentoDiarizado> {
-        DebugLog.info("Diarizer", "Inicio diarización: ${audio.size} muestras (${audio.size / sampleRate} s)")
+        DebugLog.info("Diarizer", "Inicio: ${audio.size} muestras (${audio.size / sampleRate} s)")
 
-        if (audio.size < sampleRate) {
-            DebugLog.warn("Diarizer", "Audio demasiado corto (<1s)")
-            return emptyList()
-        }
+        if (audio.size < sampleRate) return emptyList()
 
-        // Fbank global una sola vez
         val tFbankIni = System.currentTimeMillis()
         val fbankCompleto = fbank.calcular(audio)
-        val tFbankFin = System.currentTimeMillis()
-        DebugLog.info("Diarizer", "Fbank completo: ${fbankCompleto.size} frames en ${tFbankFin - tFbankIni} ms")
+        DebugLog.info("Diarizer", "Fbank: ${fbankCompleto.size} frames en ${System.currentTimeMillis() - tFbankIni} ms")
 
         if (fbankCompleto.isEmpty()) return emptyList()
 
-        // Segmentación por ventanas deslizantes
         val hopMuestras = ventanaMuestras / 2
         val ventanas = mutableListOf<Pair<Int, FloatArray>>()
         var inicio = 0
@@ -80,7 +81,6 @@ class Diarizer(
             System.arraycopy(audio, inicio, restante, 0, n)
             ventanas.add(inicio to restante)
         }
-        DebugLog.info("Diarizer", "Ventanas generadas: ${ventanas.size}")
 
         data class Fragmento(val inicioMs: Long, val finMs: Long, val frameIni: Int, val frameFin: Int)
         val fragmentos = mutableListOf<Fragmento>()
@@ -89,12 +89,7 @@ class Diarizer(
         for ((inicioVentana, ventanaAudio) in ventanas) {
             numVentana++
             val activaciones = inferirSegmentacionConTimeout(ventanaAudio)
-
-            val histograma = IntArray(numClases)
-            for (clase in activaciones) {
-                if (clase in 0 until numClases) histograma[clase]++
-            }
-            DebugLog.info("Diarizer", "Ventana $numVentana: ${histograma.contentToString()}")
+            var vocesEstaVentana = 0
 
             var i = 0
             while (i < activaciones.size) {
@@ -103,8 +98,8 @@ class Diarizer(
                     var j = i
                     while (j < activaciones.size && activaciones[j] == clase) j++
                     val durMs = (j - i) * frameSegMs
-                    // Subimos el mínimo a 2 segundos para reducir fragmentos basura
                     if (durMs >= 2000L) {
+                        vocesEstaVentana++
                         val inicioMs = inicioVentana * 1000L / sampleRate + (i * frameSegMs)
                         val finMs = inicioVentana * 1000L / sampleRate + (j * frameSegMs)
                         val frameIniGlobal = (inicioMs * sampleRate / 1000L / frameShiftMuestras).toInt()
@@ -119,28 +114,22 @@ class Diarizer(
                     i++
                 }
             }
+            DebugLog.info("Diarizer", "Ventana $numVentana: $vocesEstaVentana frags")
         }
 
-        DebugLog.info("Diarizer", "Fragmentos >=2s: ${fragmentos.size}")
+        DebugLog.info("Diarizer", "Total fragmentos >=2s: ${fragmentos.size}")
 
-        if (fragmentos.isEmpty()) {
-            DebugLog.warn("Diarizer", "Sin fragmentos extraíbles")
-            return emptyList()
-        }
+        if (fragmentos.isEmpty()) return emptyList()
 
-        val embeddings = fragmentos.mapIndexed { idx, frag ->
-            val t0 = System.currentTimeMillis()
+        val embeddings = fragmentos.map { frag ->
             val nFrames = frag.frameFin - frag.frameIni
             val fbankFrag = Array(nFrames) { k -> fbankCompleto[frag.frameIni + k] }
-            val emb = embedder.calcular(fbankFrag)
-            val t1 = System.currentTimeMillis()
-            DebugLog.info("Diarizer", "  Frag $idx (${nFrames} frames): embedding en ${t1 - t0}ms")
-            emb
+            embedder.calcular(fbankFrag)
         }
 
-        val asignaciones = clusteringAglomerativo(embeddings, umbral = 0.7046f)
+        val asignaciones = clusteringAglomerativo(embeddings, umbral = umbralClustering)
         val numClusters = asignaciones.toSet().size
-        DebugLog.info("Diarizer", "Clusters finales: $numClusters")
+        DebugLog.info("Diarizer", "Clusters: $numClusters")
 
         val segmentos = mutableListOf<SegmentoDiarizado>()
         for (idx in fragmentos.indices) {
@@ -154,7 +143,7 @@ class Diarizer(
                 segmentos.add(SegmentoDiarizado(hablante, frag.inicioMs, frag.finMs))
             }
         }
-        DebugLog.info("Diarizer", "Segmentos finales: ${segmentos.size}")
+        DebugLog.info("Diarizer", "Segmentos: ${segmentos.size}")
         return segmentos
     }
 
@@ -166,7 +155,6 @@ class Diarizer(
             return try {
                 futuro.get(timeoutVentanaMs, TimeUnit.MILLISECONDS)
             } catch (e: Exception) {
-                DebugLog.error("Diarizer", "Timeout: ${e.message}")
                 futuro.cancel(true)
                 IntArray(589)
             }
@@ -200,10 +188,7 @@ class Diarizer(
                     var maxVal = fila[0]
                     var k = 1
                     while (k < fila.size) {
-                        if (fila[k] > maxVal) {
-                            maxVal = fila[k]
-                            maxIdx = k
-                        }
+                        if (fila[k] > maxVal) { maxVal = fila[k]; maxIdx = k }
                         k++
                     }
                     activaciones[i] = maxIdx
@@ -214,7 +199,7 @@ class Diarizer(
                 resultado.close()
             }
         } catch (e: Exception) {
-            DebugLog.error("Diarizer", "Error inferencia: ${e.message}")
+            DebugLog.error("Diarizer", "Error: ${e.message}")
             return IntArray(589)
         } finally {
             tInput.close()
@@ -259,7 +244,7 @@ class Diarizer(
                 i++
             }
             if (mejorI == -1 || mejorSimilitud < umbral) {
-                DebugLog.info("Diarizer", "Clustering: parada iter $iteraciones, mejor sim $mejorSimilitud")
+                DebugLog.info("Diarizer", "Clustering para en iter $iteraciones, mejor sim $mejorSimilitud")
                 break
             }
             clusters[mejorI].addAll(clusters[mejorJ])
