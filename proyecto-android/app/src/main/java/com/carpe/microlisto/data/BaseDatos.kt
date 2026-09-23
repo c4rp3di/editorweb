@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import com.carpe.microlisto.debug.DebugLog
 import java.io.File
 
 data class Estadisticas(
@@ -14,6 +15,8 @@ data class Estadisticas(
 
 class BaseDatos(context: Context) :
     SQLiteOpenHelper(context, NOMBRE_DB, null, VERSION_DB) {
+
+    private val appContext = context.applicationContext
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""
@@ -50,6 +53,73 @@ class BaseDatos(context: Context) :
         super.onConfigure(db)
         db.setForeignKeyConstraintsEnabled(true)
     }
+
+    // ==== Backup / Restore ====
+
+    /**
+     * Copia la BD interna a /storage/emulated/0/Microlisto/microlisto.db.
+     * Sobrevive a desinstalaciones de la app.
+     */
+    fun exportarBackup(): Boolean {
+        return try {
+            if (!RutasPublicas.hayAcceso()) {
+                DebugLog.warn("BD", "Sin acceso a carpeta pública para backup")
+                return false
+            }
+            val origen = File(appContext.getDatabasePath(NOMBRE_DB).absolutePath)
+            if (!origen.exists()) {
+                DebugLog.warn("BD", "No existe la BD interna para exportar")
+                return false
+            }
+            // Asegurar que los cambios están en disco
+            writableDatabase.beginTransaction()
+            try { writableDatabase.setTransactionSuccessful() } finally { writableDatabase.endTransaction() }
+            close()
+
+            val destino = RutasPublicas.archivoBackupBD()
+            origen.copyTo(destino, overwrite = true)
+            DebugLog.info("BD", "Backup exportado: ${destino.length()} bytes")
+            true
+        } catch (e: Exception) {
+            DebugLog.error("BD", "Error exportando backup: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Si la BD interna está vacía y hay un backup en la carpeta pública,
+     * lo importa. Llamar al arrancar la app.
+     * @return true si se importó algo.
+     */
+    fun importarBackupSiVacio(): Boolean {
+        return try {
+            if (!RutasPublicas.hayAcceso()) return false
+            val backup = RutasPublicas.archivoBackupBD()
+            if (!backup.exists() || backup.length() < 1000) return false
+
+            // Comprobar si la BD interna está vacía
+            var numConv = 0
+            val cursor = readableDatabase.rawQuery("SELECT COUNT(*) FROM conversaciones", null)
+            cursor.use { if (it.moveToFirst()) numConv = it.getInt(0) }
+            if (numConv > 0) {
+                DebugLog.info("BD", "BD interna ya tiene $numConv conversaciones, no se importa backup")
+                return false
+            }
+
+            // Cerrar la BD antes de sobreescribirla
+            close()
+
+            val destino = File(appContext.getDatabasePath(NOMBRE_DB).absolutePath)
+            backup.copyTo(destino, overwrite = true)
+            DebugLog.info("BD", "Backup importado: ${backup.length()} bytes")
+            true
+        } catch (e: Exception) {
+            DebugLog.error("BD", "Error importando backup: ${e.message}")
+            false
+        }
+    }
+
+    // ==== Conversaciones ====
 
     fun insertarConversacion(c: Conversacion): Long {
         val valores = ContentValues().apply {
