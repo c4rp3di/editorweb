@@ -1,13 +1,14 @@
 package com.carpe.microlisto.reprocesado
 
 import android.content.Context
+import com.carpe.microlisto.analisis.AnalizadorConversacion
+import com.carpe.microlisto.analisis.GeneradorResumen
 import com.carpe.microlisto.data.BaseDatos
 import com.carpe.microlisto.data.Conversacion
 import com.carpe.microlisto.data.Segmento
 import com.carpe.microlisto.debug.DebugLog
 import com.carpe.microlisto.vad.Diarizer
 import com.carpe.microlisto.vad.SegmentoDiarizado
-import com.carpe.microlisto.whisper.WhisperManager
 import java.io.File
 import java.io.RandomAccessFile
 
@@ -28,10 +29,6 @@ data class ResultadoReproceso(
 
 object Reprocesador {
 
-    /**
-     * Reprocesa una conversación existente: vuelve a diarizar y, si hay un
-     * transcriber disponible (Whisper), vuelve a transcribir el WAV.
-     */
     fun reprocesar(
         context: Context,
         conversacion: Conversacion,
@@ -67,15 +64,11 @@ object Reprocesador {
         }
 
         val numHablantes = segmentosDiarizados.map { it.hablanteId }.distinct().size
-
-        // Texto a usar: si se ha pasado una transcripción nueva (Whisper), esa;
-        // si no, la que ya tenía la conversación (Vosk).
         val textoFinal = transcripcionNueva ?: conversacion.transcripcion
-
         val segmentosConTexto = repartirTextoEnSegmentos(textoFinal, segmentosDiarizados)
 
         db.eliminarSegmentosDeConversacion(conversacion.id)
-        db.insertarSegmentos(conversacion.id, segmentosConTexto.map {
+        val segmentosBD = segmentosConTexto.map {
             Segmento(
                 idConversacion = conversacion.id,
                 hablanteId = it.hablanteId,
@@ -83,10 +76,21 @@ object Reprocesador {
                 finMs = it.finMs,
                 texto = it.texto
             )
-        })
+        }
+        db.insertarSegmentos(conversacion.id, segmentosBD)
         db.actualizarNumHablantes(conversacion.id, numHablantes)
         if (transcripcionNueva != null) {
             db.actualizarTranscripcion(conversacion.id, transcripcionNueva)
+        }
+
+        // Generar y guardar el resumen
+        try {
+            val metricas = AnalizadorConversacion.analizar(segmentosBD, conversacion.duracionMs)
+            val resumen = GeneradorResumen.generar(metricas)
+            db.actualizarResumen(conversacion.id, resumen)
+            DebugLog.info("Reprocesador", "Resumen generado: ${resumen.length} caracteres")
+        } catch (e: Exception) {
+            DebugLog.warn("Reprocesador", "Error generando resumen: ${e.message}")
         }
 
         return ResultadoReproceso(
