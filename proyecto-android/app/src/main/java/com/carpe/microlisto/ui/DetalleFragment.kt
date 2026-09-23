@@ -442,45 +442,46 @@ class DetalleFragment : Fragment() {
     }
 
     private fun ejecutarReproceso() {
-        val conv = conversacionActual ?: return
-        val rg = radioReprocesar ?: return
+    val conv = conversacionActual ?: return
+    val rg = radioReprocesar ?: return
 
-        var numH = 0
-        for (i in 0 until rg.childCount) {
-            val rb = rg.getChildAt(i) as RadioButton
-            if (rb.isChecked) { numH = rb.tag as Int; break }
+    var numH = 0
+    for (i in 0 until rg.childCount) {
+        val rb = rg.getChildAt(i) as RadioButton
+        if (rb.isChecked) { numH = rb.tag as Int; break }
+    }
+    val umbral = inputUmbral?.text?.toString()?.toFloatOrNull() ?: 0.55f
+    val minFrag = inputMinFrag?.text?.toString()?.toLongOrNull() ?: 2000L
+    val gap = inputGap?.text?.toString()?.toLongOrNull() ?: 500L
+    val hop = inputHop?.text?.toString()?.toIntOrNull() ?: 5000
+
+    botonReprocesar?.isEnabled = false
+    textoEstadoReproceso?.text = "⏳ Procesando… (Whisper + diarización, puede tardar varios minutos)"
+    textoEstadoReproceso?.setTextColor(Color.parseColor("#FDCB6E"))
+
+    viewLifecycleOwner.lifecycleScope.launch {
+        val resultado = withContext(Dispatchers.IO) {
+            Reprocesador.reprocesar(
+                context = requireContext().applicationContext,
+                conversacion = conv,
+                ajustes = AjustesReproceso(numH, umbral, minFrag, gap, hop),
+                db = db
+            )
         }
-        val umbral = inputUmbral?.text?.toString()?.toFloatOrNull() ?: 0.55f
-        val minFrag = inputMinFrag?.text?.toString()?.toLongOrNull() ?: 2000L
-        val gap = inputGap?.text?.toString()?.toLongOrNull() ?: 500L
-        val hop = inputHop?.text?.toString()?.toIntOrNull() ?: 5000
-
-        botonReprocesar?.isEnabled = false
-        textoEstadoReproceso?.text = "⏳ Procesando… (puede tardar varios minutos)"
-        textoEstadoReproceso?.setTextColor(Color.parseColor("#FDCB6E"))
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            val resultado = withContext(Dispatchers.Default) {
-                Reprocesador.reprocesar(
-                    context = requireContext().applicationContext,
-                    conversacion = conv,
-                    ajustes = AjustesReproceso(numH, umbral, minFrag, gap, hop),
-                    db = db
-                )
-            }
-            if (_binding == null) return@launch
-            botonReprocesar?.isEnabled = true
-            if (resultado.ok) {
-                textoEstadoReproceso?.text = "✅ ${resultado.numHablantes} hablantes, ${resultado.numSegmentos} segmentos"
-                textoEstadoReproceso?.setTextColor(Color.parseColor("#00B894"))
-                val id = conversacionActual?.id ?: return@launch
-                cargarConversacion(id)
-            } else {
-                textoEstadoReproceso?.text = "❌ ${resultado.mensaje}"
-                textoEstadoReproceso?.setTextColor(Color.parseColor("#E17055"))
-            }
+        if (_binding == null) return@launch
+        botonReprocesar?.isEnabled = true
+        if (resultado.ok) {
+            val motor = if (resultado.transcribioConWhisper) "Whisper" else "Vosk"
+            textoEstadoReproceso?.text = "✅ $motor · ${resultado.numHablantes} hablantes, ${resultado.numSegmentos} segmentos"
+            textoEstadoReproceso?.setTextColor(Color.parseColor("#00B894"))
+            val id = conversacionActual?.id ?: return@launch
+            cargarConversacion(id)
+        } else {
+            textoEstadoReproceso?.text = "❌ ${resultado.mensaje}"
+            textoEstadoReproceso?.setTextColor(Color.parseColor("#E17055"))
         }
     }
+}
 
     private fun mostrarDialogoRenombrar(conv: Conversacion) {
         val input = EditText(requireContext()).apply {
