@@ -55,8 +55,6 @@ class AjustesFragment : Fragment() {
         binding.botonResetearAjustes.setOnClickListener { resetearAjustes() }
         binding.botonLimpiarWavs.setOnClickListener { confirmarLimpiarWavs() }
         binding.botonBorrarTodo.setOnClickListener { confirmarBorrarTodo() }
-
-        // Whisper
         binding.botonDescargarWhisper.setOnClickListener { descargarWhisper() }
         binding.botonBorrarWhisper.setOnClickListener { borrarWhisper() }
 
@@ -145,8 +143,7 @@ class AjustesFragment : Fragment() {
         AlertDialog.Builder(requireContext())
             .setTitle("Descargar modelo Whisper")
             .setMessage("Se descargará large-v3-turbo Q5_K_M (~809 MB). " +
-                    "Usa WiFi si es posible. El proceso se puede interrumpir y " +
-                    "reanudar. La descarga se guarda en el almacenamiento interno.")
+                    "Usa WiFi si es posible. El proceso se puede interrumpir y reanudar.")
             .setPositiveButton("Descargar") { _, _ ->
                 val pd = ProgressDialog(requireContext()).apply {
                     setTitle("Descargando Whisper…")
@@ -176,10 +173,12 @@ class AjustesFragment : Fragment() {
             .setTitle("Borrar modelo Whisper")
             .setMessage("Se liberarán ~809 MB de almacenamiento. La app seguirá funcionando con Vosk.")
             .setPositiveButton("Borrar") { _, _ ->
-                whisperManager.borrar()
-                actualizarEstadoWhisper()
-                cargarEstadisticas()
-                Toast.makeText(requireContext(), "Modelo borrado", Toast.LENGTH_SHORT).show()
+                viewLifecycleOwner.lifecycleScope.launch {
+                    whisperManager.borrar()
+                    actualizarEstadoWhisper()
+                    cargarEstadisticas()
+                    Toast.makeText(requireContext(), "Modelo borrado", Toast.LENGTH_SHORT).show()
+                }
             }
             .setNegativeButton("Cancelar", null)
             .show()
