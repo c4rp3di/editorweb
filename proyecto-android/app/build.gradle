@@ -3,64 +3,6 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
-// ============================================================
-// Descarga del AAR de Whisper en fase de configuración usando
-// java.net.URL (API estándar de Java, siempre disponible).
-// ant.invokeMethod("get") NO funciona en fase de configuración.
-// ============================================================
-def dirLibs = file("libs")
-def aarFinal = new File(dirLibs, "whisper-android.aar")
-
-if (!aarFinal.exists() || aarFinal.length() < 1000000) {
-    dirLibs.mkdirs()
-    def zipAar = new File(dirLibs, "whisper-android-v3.zip")
-
-    if (!zipAar.exists() || zipAar.length() < 1000000) {
-        println "Descargando whisperGF AAR v3.0.0..."
-        try {
-            def url = new URL("https://github.com/volt-PRd/whisperGF/raw/main/release/whisper-android-v3.zip")
-            url.openStream().withStream { input ->
-                zipAar.withOutputStream { output ->
-                    output << input
-                }
-            }
-            println "Descarga completada: ${zipAar.length()} bytes"
-        } catch (Exception e) {
-            println "ERROR descargando AAR: ${e.message}"
-            e.printStackTrace()
-        }
-    } else {
-        println "ZIP del AAR ya presente: ${zipAar.length()} bytes"
-    }
-
-    if (zipAar.exists() && zipAar.length() > 1000000) {
-        println "Descomprimiendo AAR..."
-        try {
-            copy {
-                from zipTree(zipAar)
-                into dirLibs
-            }
-            def aarEncontrado = fileTree(dirLibs).matching { include '**/*.aar' }.files.find { it.name == 'whisper-android.aar' }
-            if (aarEncontrado != null && aarEncontrado.parentFile != dirLibs) {
-                aarFinal.delete()
-                aarEncontrado.renameTo(aarFinal)
-            }
-            if (aarFinal.exists()) {
-                println "AAR listo: ${aarFinal.absolutePath} (${aarFinal.length()} bytes)"
-            } else {
-                println "ERROR: no se encontró whisper-android.aar tras descomprimir"
-            }
-        } catch (Exception e) {
-            println "ERROR descomprimiendo AAR: ${e.message}"
-            e.printStackTrace()
-        }
-    } else {
-        println "ERROR: no se pudo descargar el ZIP del AAR. El build fallará."
-    }
-} else {
-    println "AAR de Whisper ya presente: ${aarFinal.length()} bytes"
-}
-
 android {
     namespace 'com.carpe.microlisto'
     compileSdk 34
@@ -111,8 +53,66 @@ dependencies {
 
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
-    // Whisper AAR (ya descargado arriba en fase de configuración)
+    // Whisper AAR (se descarga en projectsEvaluated, antes de resolver dependencias)
     implementation files('libs/whisper-android.aar')
+}
+
+// ============================================================
+// Descarga del AAR de Whisper usando gradle.projectsEvaluated.
+// Este hook se ejecuta después de evaluar todos los proyectos
+// pero ANTES de que Gradle resuelva las dependencias.
+// ============================================================
+gradle.projectsEvaluated {
+    def dirLibs = file("libs")
+    def aarFinal = new File(dirLibs, "whisper-android.aar")
+
+    if (!aarFinal.exists() || aarFinal.length() < 1000000) {
+        dirLibs.mkdirs()
+        def zipAar = new File(dirLibs, "whisper-android-v3.zip")
+
+        if (!zipAar.exists() || zipAar.length() < 1000000) {
+            println "📥 Descargando whisperGF AAR v3.0.0..."
+            try {
+                def url = new URL("https://github.com/volt-PRd/whisperGF/releases/download/v3.0.0/whisper-android-v3.zip")
+                url.openStream().withStream { input ->
+                    zipAar.withOutputStream { output ->
+                        output << input
+                    }
+                }
+                println "✅ Descarga completada: ${zipAar.length()} bytes"
+            } catch (Exception e) {
+                println "❌ ERROR descargando AAR: ${e.message}"
+                e.printStackTrace()
+            }
+        }
+
+        if (zipAar.exists() && zipAar.length() > 1000000) {
+            println "📦 Descomprimiendo AAR..."
+            try {
+                copy {
+                    from zipTree(zipAar)
+                    into dirLibs
+                }
+                def aarEncontrado = fileTree(dirLibs).matching { include '**/*.aar' }.files.find { it.name == 'whisper-android.aar' }
+                if (aarEncontrado != null && aarEncontrado.parentFile != dirLibs) {
+                    aarFinal.delete()
+                    aarEncontrado.renameTo(aarFinal)
+                }
+                if (aarFinal.exists()) {
+                    println "✅ AAR listo: ${aarFinal.absolutePath} (${aarFinal.length()} bytes)"
+                } else {
+                    println "❌ ERROR: no se encontró whisper-android.aar tras descomprimir"
+                }
+            } catch (Exception e) {
+                println "❌ ERROR descomprimiendo AAR: ${e.message}"
+                e.printStackTrace()
+            }
+        } else {
+            println "❌ ERROR: no se pudo descargar el ZIP del AAR"
+        }
+    } else {
+        println "✅ AAR de Whisper ya presente: ${aarFinal.length()} bytes"
+    }
 }
 
 // ============================================================
