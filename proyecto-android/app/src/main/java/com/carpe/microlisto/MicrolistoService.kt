@@ -16,8 +16,9 @@ import com.carpe.microlisto.data.AjustesDiarizacion
 import com.carpe.microlisto.data.BaseDatos
 import com.carpe.microlisto.data.Conversacion
 import com.carpe.microlisto.data.Segmento
+import com.carpe.microlisto.reprocesado.AjustesReproceso
+import com.carpe.microlisto.reprocesado.Reprocesador
 import com.carpe.microlisto.transcripcion.Transcriber
-import com.carpe.microlisto.vad.Diarizer
 import com.carpe.microlisto.vad.SegmentoDiarizado
 import com.carpe.microlisto.vad.SileroVad
 import com.carpe.microlisto.vad.VadSegmenter
@@ -29,7 +30,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
-import java.io.RandomAccessFile
 
 class MicrolistoService : Service() {
 
@@ -130,29 +130,36 @@ class MicrolistoService : Service() {
 
         scope.launch {
             try {
-                val segmentosDiarizados = diarizarWav(wav)
-                val segmentosConTexto = repartirTextoEnSegmentos(textoFinal, segmentosDiarizados)
-
                 val db = BaseDatos(applicationContext)
+
+                // Insertar primero la conversación (con num_hablantes a 0 provisional)
                 val idConv = db.insertarConversacion(
                     Conversacion(
                         titulo = "Conversación ${formatearFecha(System.currentTimeMillis())}",
                         fechaMs = System.currentTimeMillis(),
                         duracionMs = duracionMs,
-                        numHablantes = segmentosDiarizados.map { it.hablanteId }.distinct().size,
+                        numHablantes = 0,
                         rutaAudio = wav.absolutePath,
                         transcripcion = textoFinal
                     )
                 )
-                db.insertarSegmentos(idConv, segmentosConTexto.map {
-                    Segmento(
-                        idConversacion = idConv,
-                        hablanteId = it.hablanteId,
-                        inicioMs = it.inicioMs,
-                        finMs = it.finMs,
-                        texto = it.texto
+
+                // Reprocesar con los ajustes actuales
+                val conv = db.obtenerConversacion(idConv)
+                if (conv != null) {
+                    Reprocesador.reprocesar(
+                        context = applicationContext,
+                        conversacion = conv,
+                        ajustes = AjustesReproceso(
+                            numHablantes = AjustesDiarizacion.getNumHablantes(applicationContext),
+                            umbral = AjustesDiarizacion.getUmbral(applicationContext),
+                            minFragMs = AjustesDiarizacion.getMinFragMs(applicationContext),
+                            gapMs = AjustesDiarizacion.getGapMs(applicationContext),
+                            hopMs = AjustesDiarizacion.getHopMs(applicationContext)
+                        ),
+                        db = db
                     )
-                })
+                }
 
                 _estado.value = _estado.value.copy(procesando = false, idUltimaConversacion = idConv)
             } catch (e: Exception) {
@@ -164,74 +171,6 @@ class MicrolistoService : Service() {
 
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
-    }
-
-    private fun repartirTextoEnSegmentos(
-        texto: String,
-        segmentos: List<SegmentoDiarizado>
-    ): List<SegmentoDiarizado> {
-        if (segmentos.isEmpty() || texto.isBlank()) return segmentos
-        val palabras = texto.split(Regex("\\s+")).filter { it.isNotBlank() }
-        if (palabras.isEmpty()) return segmentos
-
-        val sumaDuraciones = segmentos.sumOf { it.finMs - it.inicioMs }.coerceAtLeast(1L)
-        val resultado = mutableListOf<SegmentoDiarizado>()
-        var indiceActual = 0
-
-        for (i in segmentos.indices) {
-            val seg = segmentos[i]
-            val proporcion = (seg.finMs - seg.inicioMs).toDouble() / sumaDuraciones
-            val palabrasSegmento = if (i == segmentos.size - 1) {
-                palabras.size - indiceActual
-            } else {
-                (palabras.size * proporcion).toInt().coerceAtLeast(1)
-            }
-            val fin = (indiceActual + palabrasSegmento).coerceAtMost(palabras.size)
-            val txt = if (fin > indiceActual) palabras.subList(indiceActual, fin).joinToString(" ") else ""
-            indiceActual = fin
-            resultado.add(seg.copy(texto = txt))
-        }
-        return resultado
-    }
-
-    private fun diarizarWav(wav: File): List<SegmentoDiarizado> {
-        return try {
-            val muestras = leerWavFloat(wav)
-            if (muestras.isEmpty()) return emptyList()
-            val diarizer = Diarizer(
-                context = applicationContext,
-                numHablantesEsperados = AjustesDiarizacion.getNumHablantes(applicationContext),
-                umbralClustering = AjustesDiarizacion.getUmbral(applicationContext),
-                minFragmentoMs = AjustesDiarizacion.getMinFragMs(applicationContext),
-                gapFusionMs = AjustesDiarizacion.getGapMs(applicationContext),
-                hopVentanaMs = AjustesDiarizacion.getHopMs(applicationContext)
-            )
-            val res = diarizer.diarizar(muestras)
-            diarizer.cerrar()
-            res
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    private fun leerWavFloat(wav: File): FloatArray {
-        try {
-            RandomAccessFile(wav, "r").use { raf ->
-                raf.seek(44)
-                val bytes = ByteArray((raf.length() - 44).toInt().coerceAtLeast(0))
-                raf.readFully(bytes)
-                val muestras = FloatArray(bytes.size / 2)
-                for (i in muestras.indices) {
-                    val lo = bytes[i * 2].toInt() and 0xFF
-                    val hi = bytes[i * 2 + 1].toInt()
-                    val v = ((hi shl 8) or lo).toShort()
-                    muestras[i] = v / 32768f
-                }
-                return muestras
-            }
-        } catch (e: Exception) {
-            return FloatArray(0)
-        }
     }
 
     private fun detenerComponentes() {
