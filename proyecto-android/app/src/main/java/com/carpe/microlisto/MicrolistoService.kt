@@ -16,10 +16,11 @@ import com.carpe.microlisto.data.AjustesDiarizacion
 import com.carpe.microlisto.data.BaseDatos
 import com.carpe.microlisto.data.Conversacion
 import com.carpe.microlisto.data.Segmento
+import com.carpe.microlisto.debug.DebugLog
 import com.carpe.microlisto.reprocesado.AjustesReproceso
 import com.carpe.microlisto.reprocesado.Reprocesador
 import com.carpe.microlisto.transcripcion.Transcriber
-import com.carpe.microlisto.vad.SegmentoDiarizado
+import com.carpe.microlisto.transcripcion.VoskManager
 import com.carpe.microlisto.vad.SileroVad
 import com.carpe.microlisto.vad.VadSegmenter
 import kotlinx.coroutines.CoroutineScope
@@ -74,21 +75,32 @@ class MicrolistoService : Service() {
             sileroVad = SileroVad(applicationContext).also { it.reset() }
             vadSegmenter = VadSegmenter()
 
-            transcriber = Transcriber(
-                context = applicationContext,
-                onParcial = { parcial -> _textoParcial.value = limpiarJsonVosk(parcial) },
-                onFinal = { final ->
-                    val limpio = limpiarJsonVosk(final).trim()
-                    if (limpio.isNotBlank()) {
-                        val anterior = _textoAcumulado.value
-                        val sep = if (anterior.isEmpty() || anterior.endsWith(" ")) "" else " "
-                        _textoAcumulado.value = anterior + sep + limpio
-                        _estado.value = _estado.value.copy(transcripcionAcumulada = _textoAcumulado.value)
-                    }
-                },
-                onError = { error -> _estado.value = _estado.value.copy(error = error) }
-            )
-            transcriber?.iniciar()
+            // Transcriber opcional: si no hay modelo Vosk, grabamos sin transcribir.
+            val vm = VoskManager(applicationContext)
+            if (vm.estaDescargado()) {
+                transcriber = Transcriber(
+                    context = applicationContext,
+                    rutaModelo = vm.rutaModelo(),
+                    onListo = { DebugLog.info("Servicio", "Transcriber listo") },
+                    onParcial = { parcial -> _textoParcial.value = limpiarJsonVosk(parcial) },
+                    onFinal = { final ->
+                        val limpio = limpiarJsonVosk(final).trim()
+                        if (limpio.isNotBlank()) {
+                            val anterior = _textoAcumulado.value
+                            val sep = if (anterior.isEmpty() || anterior.endsWith(" ")) "" else " "
+                            _textoAcumulado.value = anterior + sep + limpio
+                            _estado.value = _estado.value.copy(transcripcionAcumulada = _textoAcumulado.value)
+                        }
+                    },
+                    onError = { error -> _estado.value = _estado.value.copy(error = error) }
+                )
+                transcriber?.iniciar()
+            } else {
+                DebugLog.warn("Servicio", "Modelo Vosk no descargado, se grabará sin transcripción")
+                _estado.value = _estado.value.copy(
+                    error = "Modelo Vosk no descargado. Se grabará sin transcripción."
+                )
+            }
 
             archivoWavActual = File(filesDir, "grabacion_${System.currentTimeMillis()}.wav")
             audioRecorder = AudioRecorder(
@@ -96,7 +108,9 @@ class MicrolistoService : Service() {
                 onFrame = { frame, cantidad ->
                     val prob = try { sileroVad?.calcularProbabilidad(frame) ?: 0f } catch (_: Exception) { 0f }
                     vadSegmenter?.actualizar(prob)
-                    transcriber?.aceptarFrame(frame, cantidad)
+                    if (transcriber?.estaListo() == true) {
+                        transcriber?.aceptarFrame(frame, cantidad)
+                    }
                     tiempoGrabadoMs += (cantidad.toLong() * 1000L) / 16000L
                     _estado.value = _estado.value.copy(
                         tiempoMs = tiempoGrabadoMs,
@@ -132,7 +146,8 @@ class MicrolistoService : Service() {
             try {
                 val db = BaseDatos(applicationContext)
 
-                // Insertar primero la conversación (con num_hablantes a 0 provisional)
+                // Si no hay texto de Vosk, dejamos la transcripción vacía.
+                // El usuario podrá reprocesar cuando tenga modelo descargado.
                 val idConv = db.insertarConversacion(
                     Conversacion(
                         titulo = "Conversación ${formatearFecha(System.currentTimeMillis())}",
@@ -144,9 +159,10 @@ class MicrolistoService : Service() {
                     )
                 )
 
-                // Reprocesar con los ajustes actuales
                 val conv = db.obtenerConversacion(idConv)
-                if (conv != null) {
+                if (conv != null && textoFinal.isNotBlank()) {
+                    // Solo diarizamos si hubo transcripción.
+                    // La diarización tiene sentido una vez que hay texto que repartir.
                     Reprocesador.reprocesar(
                         context = applicationContext,
                         conversacion = conv,
@@ -161,10 +177,11 @@ class MicrolistoService : Service() {
                     )
                 }
 
-    AppLogic.exportarBackup(applicationContext)
+                AppLogic.exportarBackup(applicationContext)
 
-    _estado.value = _estado.value.copy(procesando = false, idUltimaConversacion = idConv)
-} catch (e: Exception) {
+                _estado.value = _estado.value.copy(procesando = false, idUltimaConversacion = idConv)
+            } catch (e: Exception) {
+                DebugLog.error("Servicio", "Error procesando: ${e.message}")
                 _estado.value = _estado.value.copy(procesando = false, error = e.message)
             } finally {
                 archivoWavActual = null
