@@ -117,26 +117,36 @@ class WhisperManager(private val context: Context) {
             DebugLog.info("Whisper", "Transcribiendo ${muestras.size} muestras")
 
             val ctxActual = ctx ?: return@withContext null
-            val config = TranscribeConfig()
+
+            // Idioma español forzado. Sin esto, con fragmentos cortos el
+            // detector puede confundir español con italiano o portugués.
+            val config = TranscribeConfig(
+                language = "es",
+                detectLanguage = false,
+                translate = false
+            )
+
             val resultado = ctxActual.transcribe(muestras, config)
             val texto = extraerTexto(resultado)
             DebugLog.info("Whisper", "Transcripción completada: ${texto?.length ?: 0} caracteres")
             texto?.trim()
         } catch (e: Exception) {
             DebugLog.error("Whisper", "Error transcribiendo: ${e.message}")
+            e.printStackTrace()
             null
         }
     }
 
     private fun extraerTexto(resultado: Any?): String? {
         if (resultado == null) return null
-        try {
-            val m = resultado.javaClass.getMethod("getFullText")
-            return m.invoke(resultado) as? String
-        } catch (_: Exception) {}
+        // La API expone result.fullText como propiedad Kotlin.
         try {
             val f = resultado.javaClass.getField("fullText")
             return f.get(resultado) as? String
+        } catch (_: Exception) {}
+        try {
+            val m = resultado.javaClass.getMethod("getFullText")
+            return m.invoke(resultado) as? String
         } catch (_: Exception) {}
         return resultado.toString()
     }
