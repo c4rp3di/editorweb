@@ -18,6 +18,47 @@
             android:textColor="#F0EEF8"
             android:layout_marginBottom="16dp" />
 
+        <!-- Motor Vosk -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🎙️ Motor Vosk (transcripción en vivo)"
+            android:textSize="16sp"
+            android:textColor="#F0EEF8"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Vosk transcribe mientras grabas. Requiere descargar el modelo la primera vez."
+            android:textSize="12sp"
+            android:textColor="#B0B0D0"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/texto_estado_vosk"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Comprobando…"
+            android:textSize="13sp"
+            android:textColor="#F0EEF8"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/boton_descargar_vosk"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📥 Descargar modelo (~1.4 GB)"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/boton_borrar_vosk"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🗑 Borrar modelo Vosk"
+            android:layout_marginBottom="24dp" />
+
         <!-- Afinado diarización -->
         <TextView
             android:layout_width="wrap_content"
@@ -31,7 +72,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Afecta a cómo se separan los hablantes. Se aplica en la próxima grabación."
+            android:text="Afecta a cómo se separan los hablantes."
             android:textSize="12sp"
             android:textColor="#B0B0D0"
             android:layout_marginBottom="8dp" />
@@ -76,101 +117,6 @@
             <Button android:id="@+id/boton_resetear_ajustes" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="↺ Restablecer" />
         </LinearLayout>
 
-        <!-- Motor Whisper -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🧠 Motor Whisper (alta calidad)"
-            android:textSize="16sp"
-            android:textColor="#F0EEF8"
-            android:layout_marginTop="24dp"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Whisper transcribe el WAV completo al final. Requiere descargar el modelo la primera vez."
-            android:textSize="12sp"
-            android:textColor="#B0B0D0"
-            android:layout_marginBottom="8dp" />
-
-        <TextView
-            android:id="@+id/texto_estado_whisper"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Comprobando…"
-            android:textSize="13sp"
-            android:textColor="#F0EEF8"
-            android:layout_marginBottom="8dp" />
-
-        <Button
-            android:id="@+id/boton_descargar_whisper"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="📥 Descargar modelo (~620 MB)"
-            android:layout_marginBottom="8dp" />
-
-        <Button
-            android:id="@+id/boton_seleccionar_modelo"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="📂 Seleccionar archivo .gguf"
-            android:layout_marginBottom="8dp" />
-<Button
-    android:id="@+id/boton_exportar_backup"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:text="💾 Exportar backup de BD"
-    android:layout_marginBottom="8dp" />
-
-        <Button
-            android:id="@+id/boton_borrar_whisper"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🗑 Borrar modelo Whisper"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Idioma de transcripción -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🌍 Idioma de transcripción"
-            android:textSize="16sp"
-            android:textColor="#F0EEF8"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Forzar el idioma mejora la precisión. Usa Auto si no sabes en qué idioma se hablará."
-            android:textSize="12sp"
-            android:textColor="#B0B0D0"
-            android:layout_marginBottom="8dp" />
-
-        <RadioGroup
-            android:id="@+id/grupo_idioma"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-
-            <RadioButton android:id="@+id/radio_idioma_auto" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Auto (detectar)" android:textColor="#F0EEF8" />
-            <RadioButton android:id="@+id/radio_idioma_es" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Español" android:textColor="#F0EEF8" android:checked="true" />
-            <RadioButton android:id="@+id/radio_idioma_en" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Inglés" android:textColor="#F0EEF8" />
-            <RadioButton android:id="@+id/radio_idioma_fr" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Francés" android:textColor="#F0EEF8" />
-            <RadioButton android:id="@+id/radio_idioma_de" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Alemán" android:textColor="#F0EEF8" />
-            <RadioButton android:id="@+id/radio_idioma_it" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Italiano" android:textColor="#F0EEF8" />
-            <RadioButton android:id="@+id/radio_idioma_pt" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Portugués" android:textColor="#F0EEF8" />
-        </RadioGroup>
-
-        <Button
-            android:id="@+id/boton_guardar_idioma"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="💾 Guardar idioma"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="16dp" />
-
         <!-- Almacenamiento -->
         <TextView
             android:layout_width="wrap_content"
@@ -178,7 +124,7 @@
             android:text="💾 Almacenamiento"
             android:textSize="16sp"
             android:textColor="#F0EEF8"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="24dp"
             android:layout_marginBottom="4dp" />
 
         <TextView
@@ -188,6 +134,13 @@
             android:text="Cargando…"
             android:textSize="13sp"
             android:textColor="#B0B0D0"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/boton_exportar_backup"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="💾 Exportar backup de BD"
             android:layout_marginBottom="8dp" />
 
         <Button
