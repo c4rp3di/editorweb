@@ -23,6 +23,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import com.carpe.microlisto.analisis.AnalizadorConversacion
 import com.carpe.microlisto.data.BaseDatos
 import com.carpe.microlisto.data.Conversacion
 import com.carpe.microlisto.data.Segmento
@@ -51,7 +52,6 @@ class DetalleFragment : Fragment() {
     private var reproductor: MediaPlayer? = null
     private var botonPlayPausa: Button? = null
 
-    // Valores actuales del formulario de reproceso (los del Detalle, temporales)
     private var radioReprocesar: RadioGroup? = null
     private var inputUmbral: EditText? = null
     private var inputMinFrag: EditText? = null
@@ -115,7 +115,7 @@ class DetalleFragment : Fragment() {
         binding.textoResumenCabecera.text =
             "${formatoFecha.format(Date(conv.fechaMs))} · ${formatearDuracion(conv.duracionMs)} · ${conv.numHablantes} hablantes"
 
-        // Transcripción
+        // ==== Transcripción ====
         val contT = binding.contenedorTranscripcion
         contT.removeAllViews()
 
@@ -124,7 +124,7 @@ class DetalleFragment : Fragment() {
         }
 
         val botonCompartir = Button(requireContext()).apply {
-            text = "📤 Compartir"
+            text = "📤 TXT"
             textSize = 11f
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
@@ -134,6 +134,18 @@ class DetalleFragment : Fragment() {
             }
         }
         filaAcciones.addView(botonCompartir)
+
+        val botonJson = Button(requireContext()).apply {
+            text = "📤 JSON"
+            textSize = 11f
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        botonJson.setOnClickListener {
+            if (!Exportador.compartirJson(requireContext(), conv, segmentos)) {
+                Toast.makeText(requireContext(), "No se pudo generar", Toast.LENGTH_SHORT).show()
+            }
+        }
+        filaAcciones.addView(botonJson)
 
         val botonCopiar = Button(requireContext()).apply {
             text = "📋 Copiar"
@@ -148,9 +160,9 @@ class DetalleFragment : Fragment() {
         filaAcciones.addView(botonCopiar)
 
         val botonRenombrar = Button(requireContext()).apply {
-            text = "✏️ Título"
+            text = "✏️"
             textSize = 11f
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.5f)
         }
         botonRenombrar.setOnClickListener { mostrarDialogoRenombrar(conv) }
         filaAcciones.addView(botonRenombrar)
@@ -191,7 +203,7 @@ class DetalleFragment : Fragment() {
             }
             for (h in hablantesUnicos) {
                 val chip = TextView(requireContext()).apply {
-                    text = "● Hablante ${h + 1}"
+                    text = "● H${h + 1}"
                     setTextColor(colorPorHablante(h))
                     textSize = 12f
                     setPadding(0, 0, 16, 0)
@@ -201,21 +213,25 @@ class DetalleFragment : Fragment() {
             contT.addView(leyenda)
         }
 
-        // Métricas (con bloque de reproceso arriba)
+        // ==== Métricas ====
         pintarPestanaMetricas(conv, segmentos)
 
-        // Resumen
+        // ==== Resumen ====
         val contR = binding.contenedorResumen
         contR.removeAllViews()
         val txtR = TextView(requireContext()).apply {
-            text = if (conv.resumen.isBlank()) "Sin resumen guardado." else conv.resumen
+            text = if (conv.resumen.isBlank()) {
+                "Sin resumen generado. Pulsa Reprocesar en la pestaña Métricas para generarlo."
+            } else {
+                conv.resumen
+            }
             setTextColor(Color.parseColor("#F0EEF8"))
             textSize = 14f
             setPadding(0, 8, 0, 8)
         }
         contR.addView(txtR)
 
-        // Audio
+        // ==== Audio ====
         pintarPestanaAudio(conv)
 
         mostrarTab(0)
@@ -225,38 +241,24 @@ class DetalleFragment : Fragment() {
         val contM = binding.contenedorMetricas
         contM.removeAllViews()
 
-        // ===== Bloque de reproceso =====
+        // Bloque de reproceso
         val bloque = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 0, 0, 16)
         }
-
-        val titulo = TextView(requireContext()).apply {
+        bloque.addView(TextView(requireContext()).apply {
             text = "🎛 Ajustes de reproceso"
             textSize = 15f
             setTextColor(Color.parseColor("#F0EEF8"))
-        }
-        bloque.addView(titulo)
-
-        val subtitulo = TextView(requireContext()).apply {
-            text = "Cambia los valores y pulsa Reprocesar para volver a analizar este mismo audio sin volver a grabarlo. Los cambios no afectan a los ajustes globales de Ajustes."
+        })
+        bloque.addView(TextView(requireContext()).apply {
+            text = "Cambia los valores y pulsa Reprocesar para volver a analizar este audio. También regenera el resumen."
             textSize = 11f
             setTextColor(Color.parseColor("#B0B0D0"))
             setPadding(0, 4, 0, 8)
-        }
-        bloque.addView(subtitulo)
+        })
 
-        // Número de hablantes
-        val etiquetaH = TextView(requireContext()).apply {
-            text = "Número de hablantes"
-            textSize = 12f
-            setTextColor(Color.parseColor("#F0EEF8"))
-        }
-        bloque.addView(etiquetaH)
-
-        val rg = RadioGroup(requireContext()).apply {
-            orientation = RadioGroup.HORIZONTAL
-        }
+        val rg = RadioGroup(requireContext()).apply { orientation = RadioGroup.HORIZONTAL }
         val opciones = listOf("Auto" to 0, "1" to 1, "2" to 2, "3" to 3, "4" to 4, "5" to 5, "6" to 6)
         for ((texto, valor) in opciones) {
             val rb = RadioButton(requireContext()).apply {
@@ -264,26 +266,20 @@ class DetalleFragment : Fragment() {
                 textSize = 11f
                 tag = valor
                 setTextColor(Color.parseColor("#F0EEF8"))
-                if (valor == (segmentos.map { it.hablanteId }.distinct().size.coerceAtMost(6))) {
-                    // marca el detectado actualmente como referencia
-                }
             }
             rg.addView(rb)
         }
-        // Auto marcado por defecto
         (rg.getChildAt(0) as RadioButton).isChecked = true
         radioReprocesar = rg
         bloque.addView(rg)
 
-        // Helper para crear una fila etiqueta + input
         fun crearCampo(etiqueta: String, valorInicial: String): EditText {
-            val et = TextView(requireContext()).apply {
+            bloque.addView(TextView(requireContext()).apply {
                 text = etiqueta
                 textSize = 12f
                 setTextColor(Color.parseColor("#F0EEF8"))
                 setPadding(0, 8, 0, 0)
-            }
-            bloque.addView(et)
+            })
             val input = EditText(requireContext()).apply {
                 setText(valorInicial)
                 textSize = 13f
@@ -293,7 +289,7 @@ class DetalleFragment : Fragment() {
             return input
         }
 
-        inputUmbral = crearCampo("Umbral de clustering (0.30 – 0.90)", "0.55")
+        inputUmbral = crearCampo("Umbral de clustering", "0.55")
         inputMinFrag = crearCampo("Duración mínima de fragmento (ms)", "2000")
         inputGap = crearCampo("Gap de fusión de turnos (ms)", "500")
         inputHop = crearCampo("Hop de ventana (ms)", "5000")
@@ -302,7 +298,6 @@ class DetalleFragment : Fragment() {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, 12, 0, 0)
         }
-
         val botonR = Button(requireContext()).apply {
             text = "🔄 Reprocesar"
             textSize = 13f
@@ -313,7 +308,7 @@ class DetalleFragment : Fragment() {
         filaBotones.addView(botonR)
 
         val botonCargar = Button(requireContext()).apply {
-            text = "📥 Cargar de Ajustes"
+            text = "📥 Cargar"
             textSize = 13f
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
@@ -331,74 +326,118 @@ class DetalleFragment : Fragment() {
             Toast.makeText(c, "Valores de Ajustes cargados", Toast.LENGTH_SHORT).show()
         }
         filaBotones.addView(botonCargar)
-
         bloque.addView(filaBotones)
 
-        val estado = TextView(requireContext()).apply {
+        textoEstadoReproceso = TextView(requireContext()).apply {
             text = ""
             textSize = 12f
             setTextColor(Color.parseColor("#9ad0e0"))
             setPadding(0, 8, 0, 0)
         }
-        textoEstadoReproceso = estado
-        bloque.addView(estado)
-
+        bloque.addView(textoEstadoReproceso)
         contM.addView(bloque)
 
-        // Separador visual
         val sep = View(requireContext()).apply {
             setBackgroundColor(Color.parseColor("#34345A"))
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 2)
         }
         contM.addView(sep)
 
-        // ===== Métricas actuales =====
         if (segmentos.isEmpty()) {
-            val vacio = TextView(requireContext()).apply {
+            contM.addView(TextView(requireContext()).apply {
                 text = "Sin datos de diarización."
                 setTextColor(Color.parseColor("#B0B0D0"))
                 textSize = 13f
                 setPadding(0, 24, 0, 0)
+            })
+            return
+        }
+
+        // Análisis avanzado
+        val metricas = AnalizadorConversacion.analizar(segmentos, conv.duracionMs)
+        val total = metricas.tiempoPorHablante.values.sum().coerceAtLeast(1L)
+
+        contM.addView(TextView(requireContext()).apply {
+            text = "Tiempo por hablante"
+            textSize = 14f
+            setTextColor(Color.parseColor("#F0EEF8"))
+            setPadding(0, 16, 0, 8)
+        })
+
+        for ((h, t) in metricas.tiempoPorHablante.toList().sortedByDescending { it.second }) {
+            val pct = (t * 100.0 / total).toInt()
+            val turnos = metricas.turnosPorHablante[h] ?: 0
+            val palabras = metricas.palabrasPorHablante[h] ?: 0
+            val fila = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, 8, 0, 8)
             }
-            contM.addView(vacio)
+            fila.addView(TextView(requireContext()).apply {
+                text = "H${h + 1}: $pct% · ${formatearDuracion(t)} · $turnos turnos · $palabras palabras"
+                setTextColor(Color.parseColor("#F0EEF8"))
+                textSize = 13f
+            })
+            val bc = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, 4, 0, 0)
+            }
+            bc.addView(View(requireContext()).apply {
+                setBackgroundColor(colorPorHablante(h))
+                layoutParams = LinearLayout.LayoutParams(0, 20, pct.toFloat() / 100f)
+            })
+            bc.addView(View(requireContext()).apply {
+                layoutParams = LinearLayout.LayoutParams(0, 20, 1f - pct.toFloat() / 100f)
+            })
+            fila.addView(bc)
+            contM.addView(fila)
+        }
+
+        // Interrupciones
+        contM.addView(TextView(requireContext()).apply {
+            text = "Interrupciones: ${metricas.interrupciones.size}"
+            textSize = 14f
+            setTextColor(Color.parseColor("#F0EEF8"))
+            setPadding(0, 16, 0, 4)
+        })
+        if (metricas.interrupciones.isEmpty()) {
+            contM.addView(TextView(requireContext()).apply {
+                text = "Ninguna detectada."
+                setTextColor(Color.parseColor("#B0B0D0"))
+                textSize = 12f
+            })
         } else {
-            val tiempoPorH = mutableMapOf<Int, Long>()
-            val turnosPorH = mutableMapOf<Int, Int>()
-            for (s in segmentos) {
-                val d = s.finMs - s.inicioMs
-                tiempoPorH[s.hablanteId] = (tiempoPorH[s.hablanteId] ?: 0L) + d
-                turnosPorH[s.hablanteId] = (turnosPorH[s.hablanteId] ?: 0) + 1
+            val porCortador = metricas.interrupciones.groupingBy { it.hablanteQueCorta }.eachCount()
+            for ((h, n) in porCortador.toList().sortedByDescending { it.second }) {
+                contM.addView(TextView(requireContext()).apply {
+                    text = "• H${h + 1} interrumpe $n ${if (n == 1) "vez" else "veces"}"
+                    setTextColor(Color.parseColor("#B0B0D0"))
+                    textSize = 12f
+                })
             }
-            val total = tiempoPorH.values.sum().coerceAtLeast(1L)
-            for ((h, t) in tiempoPorH.toList().sortedByDescending { it.second }) {
-                val pct = (t * 100.0 / total).toInt()
-                val turnos = turnosPorH[h] ?: 0
-                val fila = LinearLayout(requireContext()).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(0, 12, 0, 12)
-                }
-                val tit = TextView(requireContext()).apply {
-                    text = "Hablante ${h + 1}: ${pct}% (${formatearDuracion(t)}, $turnos turnos)"
-                    setTextColor(Color.parseColor("#F0EEF8"))
-                    textSize = 14f
-                }
-                fila.addView(tit)
-                val bc = LinearLayout(requireContext()).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    setPadding(0, 6, 0, 0)
-                }
-                val b = View(requireContext()).apply {
-                    setBackgroundColor(colorPorHablante(h))
-                    layoutParams = LinearLayout.LayoutParams(0, 24, pct.toFloat() / 100f)
-                }
-                bc.addView(b)
-                val r = View(requireContext()).apply {
-                    layoutParams = LinearLayout.LayoutParams(0, 24, 1f - pct.toFloat() / 100f)
-                }
-                bc.addView(r)
-                fila.addView(bc)
-                contM.addView(fila)
-            }
+        }
+
+        // Silencios
+        if (metricas.silencios.isNotEmpty()) {
+            val durTotal = metricas.silencios.sumOf { it.duracionMs }
+            contM.addView(TextView(requireContext()).apply {
+                text = "Silencios largos: ${metricas.silencios.size} (${formatearDuracion(durTotal)})"
+                textSize = 14f
+                setTextColor(Color.parseColor("#F0EEF8"))
+                setPadding(0, 16, 0, 4)
+            })
+        }
+
+        // Ritmo
+        val totalPalabras = metricas.palabrasPorHablante.values.sum()
+        val minutos = conv.duracionMs / 60000.0
+        if (minutos > 0.5 && totalPalabras > 0) {
+            val ppm = (totalPalabras / minutos).toInt()
+            contM.addView(TextView(requireContext()).apply {
+                text = "Ritmo medio: $ppm palabras/min"
+                textSize = 13f
+                setTextColor(Color.parseColor("#B0B0D0"))
+                setPadding(0, 16, 0, 0)
+            })
         }
     }
 
@@ -406,7 +445,6 @@ class DetalleFragment : Fragment() {
         val conv = conversacionActual ?: return
         val rg = radioReprocesar ?: return
 
-        // Leer valores
         var numH = 0
         for (i in 0 until rg.childCount) {
             val rb = rg.getChildAt(i) as RadioButton
@@ -418,7 +456,7 @@ class DetalleFragment : Fragment() {
         val hop = inputHop?.text?.toString()?.toIntOrNull() ?: 5000
 
         botonReprocesar?.isEnabled = false
-        textoEstadoReproceso?.text = "⏳ Procesando… (puede tardar varios minutos en audios largos)"
+        textoEstadoReproceso?.text = "⏳ Procesando… (puede tardar varios minutos)"
         textoEstadoReproceso?.setTextColor(Color.parseColor("#FDCB6E"))
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -435,7 +473,6 @@ class DetalleFragment : Fragment() {
             if (resultado.ok) {
                 textoEstadoReproceso?.text = "✅ ${resultado.numHablantes} hablantes, ${resultado.numSegmentos} segmentos"
                 textoEstadoReproceso?.setTextColor(Color.parseColor("#00B894"))
-                // Recargar la conversación completa con los nuevos segmentos
                 val id = conversacionActual?.id ?: return@launch
                 cargarConversacion(id)
             } else {
@@ -458,8 +495,7 @@ class DetalleFragment : Fragment() {
                 val nuevo = input.text.toString().trim().ifBlank { conv.titulo }
                 viewLifecycleOwner.lifecycleScope.launch {
                     withContext(Dispatchers.IO) { db.actualizarTitulo(conv.id, nuevo) }
-                    val actualizada = conv.copy(titulo = nuevo)
-                    conversacionActual = actualizada
+                    conversacionActual = conv.copy(titulo = nuevo)
                     binding.textoTituloDetalle.text = nuevo
                     Toast.makeText(requireContext(), "Título actualizado", Toast.LENGTH_SHORT).show()
                 }
@@ -473,21 +509,19 @@ class DetalleFragment : Fragment() {
         contA.removeAllViews()
         val archivo = File(conv.rutaAudio)
         if (!archivo.exists()) {
-            val v = TextView(requireContext()).apply {
+            contA.addView(TextView(requireContext()).apply {
                 text = "El archivo de audio ya no está disponible."
                 setTextColor(Color.parseColor("#B0B0D0"))
                 textSize = 13f
-            }
-            contA.addView(v)
+            })
             return
         }
-        val info = TextView(requireContext()).apply {
+        contA.addView(TextView(requireContext()).apply {
             text = "Archivo: ${archivo.name}\nTamaño: ${formatearTamano(archivo.length())}"
             setTextColor(Color.parseColor("#B0B0D0"))
             textSize = 13f
             setPadding(0, 0, 0, 12)
-        }
-        contA.addView(info)
+        })
 
         val fila = LinearLayout(requireContext()).apply { orientation = LinearLayout.HORIZONTAL }
         val bp = Button(requireContext()).apply {
@@ -530,23 +564,18 @@ class DetalleFragment : Fragment() {
     private fun alternarReproduccion(archivo: File) {
         val rep = reproductor
         if (rep != null && rep.isPlaying) {
-            rep.pause()
-            botonPlayPausa?.text = "▶ Reproducir"
-            return
+            rep.pause(); botonPlayPausa?.text = "▶ Reproducir"; return
         }
         if (rep != null) {
-            rep.start()
-            botonPlayPausa?.text = "⏸ Pausar"
-            return
+            rep.start(); botonPlayPausa?.text = "⏸ Pausar"; return
         }
         try {
-            val nuevo = MediaPlayer().apply {
+            reproductor = MediaPlayer().apply {
                 setDataSource(archivo.absolutePath)
                 setOnCompletionListener { botonPlayPausa?.text = "▶ Reproducir" }
                 prepare()
                 start()
             }
-            reproductor = nuevo
             botonPlayPausa?.text = "⏸ Pausar"
         } catch (e: Exception) {
             DebugLog.error("Detalle", "Error al reproducir: ${e.message}")
