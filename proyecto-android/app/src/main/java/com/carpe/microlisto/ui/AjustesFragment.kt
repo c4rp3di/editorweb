@@ -13,10 +13,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RadioButton
-import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -25,6 +23,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.carpe.microlisto.ConfiguracionInicialActivity
 import com.carpe.microlisto.data.AjustesDiarizacion
+import com.carpe.microlisto.data.AjustesWhisper
 import com.carpe.microlisto.data.BaseDatos
 import com.carpe.microlisto.databinding.FragmentAjustesBinding
 import com.carpe.microlisto.debug.DebugLog
@@ -43,9 +42,7 @@ class AjustesFragment : Fragment() {
     private val selectorModelo = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        if (uri != null) {
-            cargarModeloDesdeUri(uri)
-        }
+        if (uri != null) cargarModeloDesdeUri(uri)
     }
 
     override fun onCreateView(
@@ -69,7 +66,8 @@ class AjustesFragment : Fragment() {
         binding.botonBorrarTodo.setOnClickListener { confirmarBorrarTodo() }
         binding.botonDescargarWhisper.setOnClickListener { descargarWhisper() }
         binding.botonBorrarWhisper.setOnClickListener { borrarWhisper() }
-        binding.botonSeleccionarModelo.setOnClickListener { abrirSelectorModelo() }
+        binding.botonSeleccionarModelo.setOnClickListener { selectorModelo.launch(arrayOf("*/*")) }
+        binding.botonGuardarIdioma.setOnClickListener { guardarIdioma() }
 
         cargarAjustesActuales()
         cargarEstadisticas()
@@ -98,6 +96,19 @@ class AjustesFragment : Fragment() {
         binding.inputMinFrag.setText(AjustesDiarizacion.getMinFragMs(c).toString())
         binding.inputGap.setText(AjustesDiarizacion.getGapMs(c).toString())
         binding.inputHop.setText(AjustesDiarizacion.getHopMs(c).toString())
+
+        // Idioma de Whisper
+        val idioma = AjustesWhisper.getIdioma(c)
+        when (idioma) {
+            AjustesWhisper.AUTO -> binding.radioIdiomaAuto.isChecked = true
+            AjustesWhisper.ESPANOL -> binding.radioIdiomaEs.isChecked = true
+            AjustesWhisper.INGLES -> binding.radioIdiomaEn.isChecked = true
+            AjustesWhisper.FRANCES -> binding.radioIdiomaFr.isChecked = true
+            AjustesWhisper.ALEMAN -> binding.radioIdiomaDe.isChecked = true
+            AjustesWhisper.ITALIANO -> binding.radioIdiomaIt.isChecked = true
+            AjustesWhisper.PORTUGUES -> binding.radioIdiomaPt.isChecked = true
+            else -> binding.radioIdiomaEs.isChecked = true
+        }
     }
 
     private fun guardarAjustes() {
@@ -123,6 +134,20 @@ class AjustesFragment : Fragment() {
         AjustesDiarizacion.resetear(requireContext())
         cargarAjustesActuales()
         Toast.makeText(requireContext(), "Valores restablecidos", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun guardarIdioma() {
+        val codigo = when {
+            binding.radioIdiomaAuto.isChecked -> AjustesWhisper.AUTO
+            binding.radioIdiomaEn.isChecked -> AjustesWhisper.INGLES
+            binding.radioIdiomaFr.isChecked -> AjustesWhisper.FRANCES
+            binding.radioIdiomaDe.isChecked -> AjustesWhisper.ALEMAN
+            binding.radioIdiomaIt.isChecked -> AjustesWhisper.ITALIANO
+            binding.radioIdiomaPt.isChecked -> AjustesWhisper.PORTUGUES
+            else -> AjustesWhisper.ESPANOL
+        }
+        AjustesWhisper.setIdioma(requireContext(), codigo)
+        Toast.makeText(requireContext(), "Idioma: ${AjustesWhisper.etiqueta(codigo)}", Toast.LENGTH_SHORT).show()
     }
 
     private fun cargarEstadisticas() {
@@ -164,24 +189,18 @@ class AjustesFragment : Fragment() {
                     show()
                 }
                 viewLifecycleOwner.lifecycleScope.launch {
-                    val ok = whisperManager.descargar { pct ->
-                        pd.setMessage("$pct%")
-                    }
+                    val ok = whisperManager.descargar { pct -> pd.setMessage("$pct%") }
                     pd.dismiss()
-                    if (ok) {
-                        Toast.makeText(requireContext(), "Modelo descargado", Toast.LENGTH_LONG).show()
-                    } else {
-                        Toast.makeText(requireContext(), "Error en la descarga", Toast.LENGTH_LONG).show()
-                    }
+                    Toast.makeText(
+                        requireContext(),
+                        if (ok) "Modelo descargado" else "Error en la descarga",
+                        Toast.LENGTH_LONG
+                    ).show()
                     actualizarEstadoWhisper()
                 }
             }
             .setNegativeButton("Cancelar", null)
             .show()
-    }
-
-    private fun abrirSelectorModelo() {
-        selectorModelo.launch(arrayOf("*/*"))
     }
 
     private fun cargarModeloDesdeUri(uri: Uri) {
@@ -190,22 +209,19 @@ class AjustesFragment : Fragment() {
                 try {
                     val cursor = requireContext().contentResolver.query(uri, null, null, null, null)
                     cursor?.use {
+                        if (!it.moveToFirst()) return@withContext false
                         val nombreIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        if (it.moveToFirst()) {
-                            val nombre = it.getString(nombreIndex)
-                            if (!nombre.endsWith(".gguf", ignoreCase = true)) {
-                                DebugLog.warn("Whisper", "El archivo no es .gguf: $nombre")
-                                return@withContext false
-                            }
-                            val destino = File(requireContext().filesDir, "whisper/$nombre")
-                            destino.parentFile?.mkdirs()
-                            requireContext().contentResolver.openInputStream(uri)?.use { entrada ->
-                                destino.outputStream().use { salida ->
-                                    entrada.copyTo(salida)
-                                }
-                            }
-                            whisperManager.cargarDesdeArchivo(destino.absolutePath)
-                        } else false
+                        val nombre = it.getString(nombreIndex)
+                        if (!nombre.endsWith(".gguf", ignoreCase = true)) {
+                            DebugLog.warn("Whisper", "El archivo no es .gguf: $nombre")
+                            return@withContext false
+                        }
+                        val destino = File(requireContext().filesDir, "whisper/$nombre")
+                        destino.parentFile?.mkdirs()
+                        requireContext().contentResolver.openInputStream(uri)?.use { entrada ->
+                            destino.outputStream().use { salida -> entrada.copyTo(salida) }
+                        }
+                        whisperManager.cargarDesdeArchivo(destino.absolutePath)
                     } ?: false
                 } catch (e: Exception) {
                     DebugLog.error("Whisper", "Error copiando archivo: ${e.message}")
@@ -213,11 +229,11 @@ class AjustesFragment : Fragment() {
                 }
             }
             if (_binding == null) return@launch
-            if (ok) {
-                Toast.makeText(requireContext(), "Modelo cargado desde archivo", Toast.LENGTH_LONG).show()
-            } else {
-                Toast.makeText(requireContext(), "No se pudo cargar el archivo", Toast.LENGTH_LONG).show()
-            }
+            Toast.makeText(
+                requireContext(),
+                if (ok) "Modelo cargado desde archivo" else "No se pudo cargar el archivo",
+                Toast.LENGTH_LONG
+            ).show()
             actualizarEstadoWhisper()
         }
     }
