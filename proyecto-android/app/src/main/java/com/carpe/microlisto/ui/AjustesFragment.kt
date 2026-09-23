@@ -137,6 +137,7 @@ class AjustesFragment : Fragment() {
                     "Usa WiFi. Durante el proceso se necesitan ~4 GB libres temporalmente. " +
                     "El modelo se guarda en /Microlisto/vosk/ y no se borra al desinstalar la app.")
             .setPositiveButton("Descargar") { _, _ ->
+                val activity = activity ?: return@setPositiveButton
                 val pd = ProgressDialog(requireContext()).apply {
                     setTitle("Descargando Vosk…")
                     setMessage("Iniciando…")
@@ -145,9 +146,13 @@ class AjustesFragment : Fragment() {
                 }
                 viewLifecycleOwner.lifecycleScope.launch {
                     val ok = voskManager.descargar { pct, texto ->
-                        pd.setMessage("$pct% — $texto")
+                        // El callback se ejecuta desde un hilo de fondo.
+                        // Hay que saltar al hilo principal para tocar la UI.
+                        activity.runOnUiThread {
+                            try { pd.setMessage("$pct% — $texto") } catch (_: Exception) {}
+                        }
                     }
-                    pd.dismiss()
+                    try { pd.dismiss() } catch (_: Exception) {}
                     Toast.makeText(
                         requireContext(),
                         if (ok) "Modelo Vosk descargado" else "Error en la descarga",
