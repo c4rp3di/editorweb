@@ -71,6 +71,11 @@ class BaseDatos(context: Context) :
         writableDatabase.update("conversaciones", valores, "id = ?", arrayOf(id.toString()))
     }
 
+    fun actualizarNumHablantes(id: Long, n: Int) {
+        val valores = ContentValues().apply { put("num_hablantes", n) }
+        writableDatabase.update("conversaciones", valores, "id = ?", arrayOf(id.toString()))
+    }
+
     fun listarConversaciones(): List<Conversacion> {
         val lista = mutableListOf<Conversacion>()
         val cursor = readableDatabase.query(
@@ -169,6 +174,10 @@ class BaseDatos(context: Context) :
         } finally {
             db.endTransaction()
         }
+    }
+
+    fun eliminarSegmentosDeConversacion(idConversacion: Long) {
+        writableDatabase.delete("segmentos", "id_conversacion = ?", arrayOf(idConversacion.toString()))
     }
 
     fun listarSegmentos(idConversacion: Long): List<Segmento> {
