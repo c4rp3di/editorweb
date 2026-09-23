@@ -3,6 +3,48 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+// ============================================================
+// Descarga del AAR de Whisper en fase de configuración.
+// Debe ocurrir ANTES de que Gradle resuelva las dependencias,
+// por eso no se hace como una tarea (tasks.register) sino aquí.
+// ============================================================
+def dirLibs = file("libs")
+def aarFinal = new File(dirLibs, "whisper-android.aar")
+
+if (!aarFinal.exists() || aarFinal.length() < 1000000) {
+    dirLibs.mkdirs()
+    def zipAar = new File(dirLibs, "whisper-android-v3.zip")
+    if (!zipAar.exists() || zipAar.length() < 1000000) {
+        println "Descargando whisperGF AAR v3.0.0..."
+        try {
+            ant.invokeMethod("get", [
+                src   : "https://github.com/volt-PRd/whisperGF/raw/main/release/whisper-android-v3.zip",
+                dest  : zipAar,
+                verbose: true
+            ])
+        } catch (e) {
+            println "ERROR descargando AAR: ${e.message}"
+        }
+    }
+    if (zipAar.exists() && zipAar.length() > 1000000) {
+        println "Descomprimiendo AAR..."
+        try {
+            copy {
+                from zipTree(zipAar)
+                into dirLibs
+            }
+            // El ZIP puede contener el AAR en la raíz o en una subcarpeta
+            def aarEncontrado = fileTree(dirLibs).matching { include '**/*.aar' }.files.find { it.name == 'whisper-android.aar' }
+            if (aarEncontrado != null && aarEncontrado.parentFile != dirLibs) {
+                aarFinal.delete()
+                aarEncontrado.renameTo(aarFinal)
+            }
+        } catch (e) {
+            println "ERROR descomprimiendo AAR: ${e.message}"
+        }
+    }
+}
+
 android {
     namespace 'com.carpe.microlisto'
     compileSdk 34
@@ -53,17 +95,16 @@ dependencies {
 
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
-    // Whisper AAR (se descarga en la compilación)
+    // Whisper AAR (ya descargado arriba en fase de configuración)
     implementation files('libs/whisper-android.aar')
 }
 
 // ============================================================
-// Descarga de modelos y AAR
+// Descarga de modelos para assets/
 // ============================================================
 
 def dirModelos = file("$buildDir/modelos")
 def dirAssets = file("src/main/assets")
-def dirLibs = file("libs")
 
 tasks.register("descargarVosk") {
     doLast {
@@ -125,37 +166,6 @@ tasks.register("descargarWeSpeaker") {
     }
 }
 
-tasks.register("descargarWhisperAar") {
-    doLast {
-        dirLibs.mkdirs()
-        def zipAar = new File(dirModelos, "whisper-android-v3.zip")
-        def aarFinal = new File(dirLibs, "whisper-android.aar")
-        if (!aarFinal.exists() || aarFinal.length() < 1000000) {
-            if (!zipAar.exists() || zipAar.length() < 1000000) {
-                println "Descargando whisperGF AAR v3.0.0..."
-                ant.invokeMethod("get", [
-                    src   : "https://github.com/volt-PRd/whisperGF/raw/main/release/whisper-android-v3.zip",
-                    dest  : zipAar,
-                    verbose: true
-                ])
-            }
-            println "Descomprimiendo AAR..."
-            copy {
-                from zipTree(zipAar)
-                into dirLibs
-            }
-            // El ZIP puede contener el AAR en la raíz o en una subcarpeta
-            def aarEncontrado = fileTree(dirLibs).matching { include '**/*.aar' }.files.find { it.name == 'whisper-android.aar' }
-            if (aarEncontrado != null && aarEncontrado.parentFile != dirLibs) {
-                aarFinal.delete()
-                aarEncontrado.renameTo(aarFinal)
-            }
-        } else {
-            println "AAR de Whisper ya presente."
-        }
-    }
-}
-
 tasks.register("limpiarAssetsAntiguos", Delete) {
     delete "$dirAssets/vosk-model-small-es-0.42"
     delete "$dirAssets/silero_vad.onnx"
@@ -180,5 +190,5 @@ tasks.register("copiarModelos", Copy) {
 }
 
 tasks.named("preBuild") {
-    dependsOn "copiarModelos", "descargarWhisperAar"
+    dependsOn "copiarModelos"
 }
