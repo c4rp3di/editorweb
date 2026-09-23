@@ -7,10 +7,9 @@ import com.carpe.microlisto.data.BaseDatos
 import com.carpe.microlisto.data.Conversacion
 import com.carpe.microlisto.data.Segmento
 import com.carpe.microlisto.debug.DebugLog
-import com.carpe.microlisto.transcripcion.Transcriber
-import com.carpe.microlisto.transcripcion.VoskManager
 import com.carpe.microlisto.vad.Diarizer
 import com.carpe.microlisto.vad.SegmentoDiarizado
+import com.carpe.microlisto.whisper.WhisperManager
 import java.io.File
 import java.io.RandomAccessFile
 
@@ -32,6 +31,14 @@ data class ResultadoReproceso(
 
 object Reprocesador {
 
+    /**
+     * Reprocesa una conversación. Cambios respecto a la versión anterior:
+     * - Es suspend (necesario para llamar a WhisperManager.transcribirWav)
+     * - Si Whisper está descargado y carga bien, se usa para re-transcribir
+     *   el WAV completo antes de repartir el texto entre segmentos.
+     * - Si Whisper no está disponible o falla, se conserva la transcripción
+     *   original (Vosk) y se sigue con la diarización normal.
+     */
     suspend fun reprocesar(
         context: Context,
         conversacion: Conversacion,
@@ -43,24 +50,28 @@ object Reprocesador {
             return ResultadoReproceso(false, mensaje = "El archivo de audio ya no existe")
         }
 
-        // === PASO 1: Re-transcribir si hay modelo Vosk disponible ===
+        // === PASO 1: Intentar re-transcribir con Whisper ===
         var textoFinal = conversacion.transcripcion
         var usoWhisper = false
 
         try {
-            val vm = VoskManager(context.applicationContext)
-            if (vm.estaDescargado()) {
-                DebugLog.info("Reprocesador", "Modelo Vosk disponible, re-transcribiendo WAV completo…")
-                val textoNuevo = transcribirConVosk(context, vm.rutaModelo(), archivo)
-                if (!textoNuevo.isNullOrBlank()) {
-                    textoFinal = textoNuevo
-                    DebugLog.info("Reprocesador", "Vosk devolvió ${textoNuevo.length} caracteres")
+            val wm = WhisperManager(context.applicationContext)
+            if (wm.estaDescargado()) {
+                DebugLog.info("Reprocesador", "Whisper disponible, transcribiendo WAV completo…")
+                val textoWhisper = wm.transcribirWav(archivo)
+                if (!textoWhisper.isNullOrBlank()) {
+                    textoFinal = textoWhisper
+                    usoWhisper = true
+                    DebugLog.info("Reprocesador", "Whisper devolvió ${textoWhisper.length} caracteres")
+                } else {
+                    DebugLog.warn("Reprocesador", "Whisper devolvió texto vacío, se conserva la transcripción de Vosk")
                 }
             } else {
-                DebugLog.info("Reprocesador", "Sin modelo Vosk, se conserva transcripción actual")
+                DebugLog.info("Reprocesador", "Whisper no descargado, se conserva la transcripción de Vosk")
             }
         } catch (e: Exception) {
-            DebugLog.error("Reprocesador", "Error re-transcribiendo: ${e.message}")
+            DebugLog.error("Reprocesador", "Error usando Whisper: ${e.message}")
+            // Se conserva textoFinal tal cual
         }
 
         // === PASO 2: Diarización ===
@@ -87,6 +98,8 @@ object Reprocesador {
         }
 
         val numHablantes = segmentosDiarizados.map { it.hablanteId }.distinct().size
+
+        // === PASO 3: Reparto del texto entre segmentos ===
         val segmentosConTexto = repartirTextoEnSegmentos(textoFinal, segmentosDiarizados)
 
         db.eliminarSegmentosDeConversacion(conversacion.id)
@@ -101,15 +114,16 @@ object Reprocesador {
         }
         db.insertarSegmentos(conversacion.id, segmentosBD)
         db.actualizarNumHablantes(conversacion.id, numHablantes)
-        if (textoFinal != conversacion.transcripcion) {
+        if (usoWhisper) {
             db.actualizarTranscripcion(conversacion.id, textoFinal)
         }
 
-        // === PASO 3: Resumen ===
+        // === PASO 4: Resumen ===
         try {
             val metricas = AnalizadorConversacion.analizar(segmentosBD, conversacion.duracionMs)
             val resumen = GeneradorResumen.generar(metricas)
             db.actualizarResumen(conversacion.id, resumen)
+            DebugLog.info("Reprocesador", "Resumen generado: ${resumen.length} caracteres")
         } catch (e: Exception) {
             DebugLog.warn("Reprocesador", "Error generando resumen: ${e.message}")
         }
@@ -120,61 +134,6 @@ object Reprocesador {
             numSegmentos = segmentosConTexto.size,
             transcribioConWhisper = usoWhisper
         )
-    }
-
-    /**
-     * Transcribe un WAV con Vosk usando el modelo grande.
-     * Alimenta el WAV completo al recognizer en bloques y acumula el texto.
-     */
-    private suspend fun transcribirConVosk(context: Context, rutaModelo: String, wav: File): String? {
-        return try {
-            var textoCompleto = StringBuilder()
-            var error: String? = null
-
-            val transcriber = Transcriber(
-                context = context,
-                rutaModelo = rutaModelo,
-                onListo = {},
-                onParcial = {},
-                onFinal = { final ->
-                    val regex = Regex("\"text\"\\s*:\\s*\"([^\"]*)\"")
-                    val limpio = regex.find(final)?.groupValues?.getOrNull(1)?.trim() ?: ""
-                    if (limpio.isNotBlank()) {
-                        if (textoCompleto.isNotEmpty()) textoCompleto.append(" ")
-                        textoCompleto.append(limpio)
-                    }
-                },
-                onError = { error = it }
-            )
-            transcriber.iniciar()
-
-            if (!transcriber.estaListo()) {
-                return null
-            }
-
-            // Leer el WAV en bloques de 512 muestras y alimentar al recognizer
-            val muestras = leerWavFloat(wav)
-            var i = 0
-            val bloque = FloatArray(512)
-            while (i + 512 <= muestras.size) {
-                System.arraycopy(muestras, i, bloque, 0, 512)
-                transcriber.aceptarFrame(bloque, 512)
-                i += 512
-            }
-
-            // Forzar el cierre del último segmento
-            transcriber.cerrar()
-
-            if (error != null) {
-                DebugLog.warn("Reprocesador", "Vosk reportó error: $error")
-                return null
-            }
-
-            textoCompleto.toString().trim().ifBlank { null }
-        } catch (e: Exception) {
-            DebugLog.error("Reprocesador", "Error en Vosk: ${e.message}")
-            null
-        }
     }
 
     fun repartirTextoEnSegmentos(
