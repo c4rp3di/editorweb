@@ -2,6 +2,7 @@ package com.carpe.microlisto.whisper
 
 import android.content.Context
 import com.carpe.microlisto.data.AjustesWhisper
+import com.carpe.microlisto.data.RutasPublicas
 import com.carpe.microlisto.debug.DebugLog
 import com.whispercpp.whisper.WhisperContext
 import com.whispercpp.whisper.TranscribeConfig
@@ -13,11 +14,22 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 
+/**
+ * Gestor de Whisper. El modelo se guarda en /storage/emulated/0/Microlisto/whisper/
+ * para sobrevivir a desinstalaciones. Si la carpeta pública no es accesible,
+ * cae a filesDir como respaldo.
+ */
 class WhisperManager(private val context: Context) {
 
-    private val dirWhisper = File(context.filesDir, "whisper")
-    private val archivoModelo = File(dirWhisper, "whisper-large-v3-turbo-Q5_K_M.gguf")
+    private val nombreModelo = "whisper-large-v3-turbo-Q5_K_M.gguf"
     private val urlModelo = "https://huggingface.co/handy-computer/whisper-large-v3-turbo-gguf/resolve/main/whisper-large-v3-turbo-Q5_K_M.gguf"
+
+    private val archivoModelo: File
+        get() = if (RutasPublicas.hayAcceso()) {
+            RutasPublicas.archivoModeloWhisper(nombreModelo)
+        } else {
+            File(File(context.filesDir, "whisper"), nombreModelo)
+        }
 
     private val cliente = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -31,10 +43,12 @@ class WhisperManager(private val context: Context) {
         return archivoModelo.exists() && archivoModelo.length() > 100_000_000L
     }
 
+    fun rutaModelo(): String = archivoModelo.absolutePath
+
     suspend fun descargar(onProgress: (Int) -> Unit): Boolean = withContext(Dispatchers.IO) {
         return@withContext try {
-            dirWhisper.mkdirs()
-            DebugLog.info("Whisper", "Iniciando descarga manual desde Hugging Face")
+            archivoModelo.parentFile?.mkdirs()
+            DebugLog.info("Whisper", "Descargando a ${archivoModelo.absolutePath}")
 
             val peticion = Request.Builder().url(urlModelo).build()
             val respuesta = cliente.newCall(peticion).execute()
@@ -77,7 +91,7 @@ class WhisperManager(private val context: Context) {
         if (!archivoModelo.exists()) return@withContext false
 
         return@withContext try {
-            DebugLog.info("Whisper", "Cargando modelo local: ${archivoModelo.absolutePath}")
+            DebugLog.info("Whisper", "Cargando modelo: ${archivoModelo.absolutePath}")
             ctx = WhisperContext.createContextFromFile(archivoModelo.absolutePath)
             true
         } catch (e: Exception) {
@@ -88,13 +102,21 @@ class WhisperManager(private val context: Context) {
 
     suspend fun cargarDesdeArchivo(rutaAbsoluta: String): Boolean = withContext(Dispatchers.IO) {
         return@withContext try {
-            val archivo = File(rutaAbsoluta)
-            if (!archivo.exists()) {
+            val origen = File(rutaAbsoluta)
+            if (!origen.exists()) {
                 DebugLog.warn("Whisper", "El archivo no existe: $rutaAbsoluta")
                 return@withContext false
             }
-            DebugLog.info("Whisper", "Cargando modelo desde ruta manual: $rutaAbsoluta")
-            ctx = WhisperContext.createContextFromFile(archivo.absolutePath)
+
+            // Copiar a la carpeta pública si no está ya allí
+            if (origen.absolutePath != archivoModelo.absolutePath) {
+                DebugLog.info("Whisper", "Copiando modelo a ${archivoModelo.absolutePath}")
+                archivoModelo.parentFile?.mkdirs()
+                origen.copyTo(archivoModelo, overwrite = true)
+            }
+
+            DebugLog.info("Whisper", "Cargando modelo desde ${archivoModelo.absolutePath}")
+            ctx = WhisperContext.createContextFromFile(archivoModelo.absolutePath)
             true
         } catch (e: Exception) {
             DebugLog.error("Whisper", "Error cargando desde ruta manual: ${e.message}")
@@ -118,23 +140,11 @@ class WhisperManager(private val context: Context) {
             DebugLog.info("Whisper", "Transcribiendo ${muestras.size} muestras")
 
             val ctxActual = ctx ?: return@withContext null
-
-            // Leer idioma preferido del usuario
             val codigoIdioma = AjustesWhisper.getIdioma(context)
             val config = if (codigoIdioma == AjustesWhisper.AUTO) {
-                DebugLog.info("Whisper", "Idioma: auto (detectar)")
-                TranscribeConfig(
-                    language = null,
-                    detectLanguage = true,
-                    translate = false
-                )
+                TranscribeConfig(language = null, detectLanguage = true, translate = false)
             } else {
-                DebugLog.info("Whisper", "Idioma forzado: $codigoIdioma")
-                TranscribeConfig(
-                    language = codigoIdioma,
-                    detectLanguage = false,
-                    translate = false
-                )
+                TranscribeConfig(language = codigoIdioma, detectLanguage = false, translate = false)
             }
 
             val resultado = ctxActual.transcribe(muestras, config)
