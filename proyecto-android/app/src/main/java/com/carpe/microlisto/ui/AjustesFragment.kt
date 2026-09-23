@@ -64,6 +64,10 @@ class AjustesFragment : Fragment() {
         binding.botonResetearAjustes.setOnClickListener { resetearAjustes() }
         binding.botonLimpiarWavs.setOnClickListener { confirmarLimpiarWavs() }
         binding.botonBorrarTodo.setOnClickListener { confirmarBorrarTodo() }
+        binding.botonExportarBackup.setOnClickListener {
+    com.carpe.microlisto.AppLogic.exportarBackup(requireContext())
+    Toast.makeText(requireContext(), "Backup exportado a /Microlisto/", Toast.LENGTH_SHORT).show()
+}
         binding.botonDescargarWhisper.setOnClickListener { descargarWhisper() }
         binding.botonBorrarWhisper.setOnClickListener { borrarWhisper() }
         binding.botonSeleccionarModelo.setOnClickListener { selectorModelo.launch(arrayOf("*/*")) }
