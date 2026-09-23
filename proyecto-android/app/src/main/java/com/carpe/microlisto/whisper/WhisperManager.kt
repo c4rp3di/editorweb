@@ -1,6 +1,7 @@
 package com.carpe.microlisto.whisper
 
 import android.content.Context
+import com.carpe.microlisto.data.AjustesWhisper
 import com.carpe.microlisto.debug.DebugLog
 import com.whispercpp.whisper.WhisperContext
 import com.whispercpp.whisper.TranscribeConfig
@@ -118,13 +119,23 @@ class WhisperManager(private val context: Context) {
 
             val ctxActual = ctx ?: return@withContext null
 
-            // Idioma español forzado. Sin esto, con fragmentos cortos el
-            // detector puede confundir español con italiano o portugués.
-            val config = TranscribeConfig(
-                language = "es",
-                detectLanguage = false,
-                translate = false
-            )
+            // Leer idioma preferido del usuario
+            val codigoIdioma = AjustesWhisper.getIdioma(context)
+            val config = if (codigoIdioma == AjustesWhisper.AUTO) {
+                DebugLog.info("Whisper", "Idioma: auto (detectar)")
+                TranscribeConfig(
+                    language = null,
+                    detectLanguage = true,
+                    translate = false
+                )
+            } else {
+                DebugLog.info("Whisper", "Idioma forzado: $codigoIdioma")
+                TranscribeConfig(
+                    language = codigoIdioma,
+                    detectLanguage = false,
+                    translate = false
+                )
+            }
 
             val resultado = ctxActual.transcribe(muestras, config)
             val texto = extraerTexto(resultado)
@@ -139,7 +150,6 @@ class WhisperManager(private val context: Context) {
 
     private fun extraerTexto(resultado: Any?): String? {
         if (resultado == null) return null
-        // La API expone result.fullText como propiedad Kotlin.
         try {
             val f = resultado.javaClass.getField("fullText")
             return f.get(resultado) as? String
