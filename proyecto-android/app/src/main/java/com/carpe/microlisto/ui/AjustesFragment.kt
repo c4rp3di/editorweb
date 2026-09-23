@@ -6,9 +6,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
-import android.provider.OpenableColumns
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -18,16 +16,14 @@ import android.widget.RadioButton
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.carpe.microlisto.ConfiguracionInicialActivity
 import com.carpe.microlisto.data.AjustesDiarizacion
-import com.carpe.microlisto.data.AjustesWhisper
 import com.carpe.microlisto.data.BaseDatos
 import com.carpe.microlisto.databinding.FragmentAjustesBinding
 import com.carpe.microlisto.debug.DebugLog
-import com.carpe.microlisto.whisper.WhisperManager
+import com.carpe.microlisto.transcripcion.VoskManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -37,13 +33,7 @@ class AjustesFragment : Fragment() {
 
     private var _binding: FragmentAjustesBinding? = null
     private val binding get() = _binding!!
-    private lateinit var whisperManager: WhisperManager
-
-    private val selectorModelo = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri != null) cargarModeloDesdeUri(uri)
-    }
+    private lateinit var voskManager: VoskManager
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -54,7 +44,7 @@ class AjustesFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        whisperManager = WhisperManager(requireContext().applicationContext)
+        voskManager = VoskManager(requireContext().applicationContext)
 
         binding.botonAsistenteHyperos.setOnClickListener {
             startActivity(Intent(requireContext(), ConfiguracionInicialActivity::class.java))
@@ -65,23 +55,21 @@ class AjustesFragment : Fragment() {
         binding.botonLimpiarWavs.setOnClickListener { confirmarLimpiarWavs() }
         binding.botonBorrarTodo.setOnClickListener { confirmarBorrarTodo() }
         binding.botonExportarBackup.setOnClickListener {
-    com.carpe.microlisto.AppLogic.exportarBackup(requireContext())
-    Toast.makeText(requireContext(), "Backup exportado a /Microlisto/", Toast.LENGTH_SHORT).show()
-}
-        binding.botonDescargarWhisper.setOnClickListener { descargarWhisper() }
-        binding.botonBorrarWhisper.setOnClickListener { borrarWhisper() }
-        binding.botonSeleccionarModelo.setOnClickListener { selectorModelo.launch(arrayOf("*/*")) }
-        binding.botonGuardarIdioma.setOnClickListener { guardarIdioma() }
+            com.carpe.microlisto.AppLogic.exportarBackup(requireContext())
+            Toast.makeText(requireContext(), "Backup exportado a /Microlisto/", Toast.LENGTH_SHORT).show()
+        }
+        binding.botonDescargarVosk.setOnClickListener { descargarVosk() }
+        binding.botonBorrarVosk.setOnClickListener { borrarVosk() }
 
         cargarAjustesActuales()
         cargarEstadisticas()
-        actualizarEstadoWhisper()
+        actualizarEstadoVosk()
     }
 
     override fun onResume() {
         super.onResume()
         cargarEstadisticas()
-        actualizarEstadoWhisper()
+        actualizarEstadoVosk()
     }
 
     private fun cargarAjustesActuales() {
@@ -100,19 +88,6 @@ class AjustesFragment : Fragment() {
         binding.inputMinFrag.setText(AjustesDiarizacion.getMinFragMs(c).toString())
         binding.inputGap.setText(AjustesDiarizacion.getGapMs(c).toString())
         binding.inputHop.setText(AjustesDiarizacion.getHopMs(c).toString())
-
-        // Idioma de Whisper
-        val idioma = AjustesWhisper.getIdioma(c)
-        when (idioma) {
-            AjustesWhisper.AUTO -> binding.radioIdiomaAuto.isChecked = true
-            AjustesWhisper.ESPANOL -> binding.radioIdiomaEs.isChecked = true
-            AjustesWhisper.INGLES -> binding.radioIdiomaEn.isChecked = true
-            AjustesWhisper.FRANCES -> binding.radioIdiomaFr.isChecked = true
-            AjustesWhisper.ALEMAN -> binding.radioIdiomaDe.isChecked = true
-            AjustesWhisper.ITALIANO -> binding.radioIdiomaIt.isChecked = true
-            AjustesWhisper.PORTUGUES -> binding.radioIdiomaPt.isChecked = true
-            else -> binding.radioIdiomaEs.isChecked = true
-        }
     }
 
     private fun guardarAjustes() {
@@ -140,18 +115,70 @@ class AjustesFragment : Fragment() {
         Toast.makeText(requireContext(), "Valores restablecidos", Toast.LENGTH_SHORT).show()
     }
 
-    private fun guardarIdioma() {
-        val codigo = when {
-            binding.radioIdiomaAuto.isChecked -> AjustesWhisper.AUTO
-            binding.radioIdiomaEn.isChecked -> AjustesWhisper.INGLES
-            binding.radioIdiomaFr.isChecked -> AjustesWhisper.FRANCES
-            binding.radioIdiomaDe.isChecked -> AjustesWhisper.ALEMAN
-            binding.radioIdiomaIt.isChecked -> AjustesWhisper.ITALIANO
-            binding.radioIdiomaPt.isChecked -> AjustesWhisper.PORTUGUES
-            else -> AjustesWhisper.ESPANOL
+    private fun actualizarEstadoVosk() {
+        val descargado = voskManager.estaDescargado()
+        if (descargado) {
+            binding.textoEstadoVosk.text = "✅ Modelo Vosk cargado (español grande, ~2.5 GB)"
+            binding.botonDescargarVosk.isEnabled = false
+            binding.botonDescargarVosk.text = "Descargado"
+            binding.botonBorrarVosk.isEnabled = true
+        } else {
+            binding.textoEstadoVosk.text = "❌ No descargado. Sin modelo, se graba WAV pero no se transcribe."
+            binding.botonDescargarVosk.isEnabled = true
+            binding.botonDescargarVosk.text = "📥 Descargar modelo (~1.4 GB)"
+            binding.botonBorrarVosk.isEnabled = false
         }
-        AjustesWhisper.setIdioma(requireContext(), codigo)
-        Toast.makeText(requireContext(), "Idioma: ${AjustesWhisper.etiqueta(codigo)}", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun descargarVosk() {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Descargar modelo Vosk")
+            .setMessage("Se descargará el modelo español grande (~1.4 GB comprimido, ~2.5 GB descomprimido). " +
+                    "Usa WiFi. Durante el proceso se necesitan ~4 GB libres temporalmente. " +
+                    "El modelo se guarda en /Microlisto/vosk/ y no se borra al desinstalar la app.")
+            .setPositiveButton("Descargar") { _, _ ->
+                val pd = ProgressDialog(requireContext()).apply {
+                    setTitle("Descargando Vosk…")
+                    setMessage("Iniciando…")
+                    setCancelable(false)
+                    show()
+                }
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val ok = voskManager.descargar { pct, texto ->
+                        pd.setMessage("$pct% — $texto")
+                    }
+                    pd.dismiss()
+                    Toast.makeText(
+                        requireContext(),
+                        if (ok) "Modelo Vosk descargado" else "Error en la descarga",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    actualizarEstadoVosk()
+                    cargarEstadisticas()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun borrarVosk() {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Borrar modelo Vosk")
+            .setMessage("Se liberarán ~2.5 GB. La app seguirá grabando WAV pero no transcribirá hasta que descargues otro modelo.")
+            .setPositiveButton("Borrar") { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val ok = withContext(Dispatchers.IO) { voskManager.borrar() }
+                    Toast.makeText(
+                        requireContext(),
+                        if (ok) "Modelo borrado" else "No se pudo borrar",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    actualizarEstadoVosk()
+                    cargarEstadisticas()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     private fun cargarEstadisticas() {
@@ -164,98 +191,6 @@ class AjustesFragment : Fragment() {
                 "Tiempo total: ${formatearDuracion(stats.duracionTotalMs)}\n" +
                 "Espacio WAVs: ${formatearTamano(stats.espacioWavsBytes)}"
         }
-    }
-
-    private fun actualizarEstadoWhisper() {
-        val descargado = whisperManager.estaDescargado()
-        if (descargado) {
-            binding.textoEstadoWhisper.text = "✅ Modelo cargado (large-v3-turbo Q5_K_M)"
-            binding.botonDescargarWhisper.isEnabled = false
-            binding.botonDescargarWhisper.text = "Cargado"
-            binding.botonBorrarWhisper.isEnabled = true
-        } else {
-            binding.textoEstadoWhisper.text = "❌ No disponible. Descarga o selecciona un modelo."
-            binding.botonDescargarWhisper.isEnabled = true
-            binding.botonDescargarWhisper.text = "📥 Descargar modelo (~620 MB)"
-            binding.botonBorrarWhisper.isEnabled = false
-        }
-    }
-
-    private fun descargarWhisper() {
-        AlertDialog.Builder(requireContext())
-            .setTitle("Descargar modelo Whisper")
-            .setMessage("Se descargará large-v3-turbo Q5_K_M (~620 MB). Usa WiFi si es posible.")
-            .setPositiveButton("Descargar") { _, _ ->
-                val pd = ProgressDialog(requireContext()).apply {
-                    setTitle("Descargando Whisper…")
-                    setMessage("Iniciando…")
-                    setCancelable(false)
-                    show()
-                }
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val ok = whisperManager.descargar { pct -> pd.setMessage("$pct%") }
-                    pd.dismiss()
-                    Toast.makeText(
-                        requireContext(),
-                        if (ok) "Modelo descargado" else "Error en la descarga",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    actualizarEstadoWhisper()
-                }
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
-    }
-
-    private fun cargarModeloDesdeUri(uri: Uri) {
-        viewLifecycleOwner.lifecycleScope.launch {
-            val ok = withContext(Dispatchers.IO) {
-                try {
-                    val cursor = requireContext().contentResolver.query(uri, null, null, null, null)
-                    cursor?.use {
-                        if (!it.moveToFirst()) return@withContext false
-                        val nombreIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        val nombre = it.getString(nombreIndex)
-                        if (!nombre.endsWith(".gguf", ignoreCase = true)) {
-                            DebugLog.warn("Whisper", "El archivo no es .gguf: $nombre")
-                            return@withContext false
-                        }
-                        val destino = File(requireContext().filesDir, "whisper/$nombre")
-                        destino.parentFile?.mkdirs()
-                        requireContext().contentResolver.openInputStream(uri)?.use { entrada ->
-                            destino.outputStream().use { salida -> entrada.copyTo(salida) }
-                        }
-                        whisperManager.cargarDesdeArchivo(destino.absolutePath)
-                    } ?: false
-                } catch (e: Exception) {
-                    DebugLog.error("Whisper", "Error copiando archivo: ${e.message}")
-                    false
-                }
-            }
-            if (_binding == null) return@launch
-            Toast.makeText(
-                requireContext(),
-                if (ok) "Modelo cargado desde archivo" else "No se pudo cargar el archivo",
-                Toast.LENGTH_LONG
-            ).show()
-            actualizarEstadoWhisper()
-        }
-    }
-
-    private fun borrarWhisper() {
-        AlertDialog.Builder(requireContext())
-            .setTitle("Borrar modelo Whisper")
-            .setMessage("Se liberará el espacio ocupado por el modelo. La app seguirá funcionando con Vosk.")
-            .setPositiveButton("Borrar") { _, _ ->
-                viewLifecycleOwner.lifecycleScope.launch {
-                    whisperManager.borrar()
-                    actualizarEstadoWhisper()
-                    cargarEstadisticas()
-                    Toast.makeText(requireContext(), "Modelo borrado", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
     }
 
     private fun confirmarLimpiarWavs() {
