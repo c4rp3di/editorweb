@@ -9,6 +9,7 @@ import com.carpe.microlisto.data.Segmento
 import com.carpe.microlisto.debug.DebugLog
 import com.carpe.microlisto.vad.Diarizer
 import com.carpe.microlisto.vad.SegmentoDiarizado
+import com.carpe.microlisto.whisper.WhisperManager
 import java.io.File
 import java.io.RandomAccessFile
 
@@ -24,23 +25,56 @@ data class ResultadoReproceso(
     val ok: Boolean,
     val numHablantes: Int = 0,
     val numSegmentos: Int = 0,
-    val mensaje: String = ""
+    val mensaje: String = "",
+    val transcribioConWhisper: Boolean = false
 )
 
 object Reprocesador {
 
-    fun reprocesar(
+    /**
+     * Reprocesa una conversación. Cambios respecto a la versión anterior:
+     * - Es suspend (necesario para llamar a WhisperManager.transcribirWav)
+     * - Si Whisper está descargado y carga bien, se usa para re-transcribir
+     *   el WAV completo antes de repartir el texto entre segmentos.
+     * - Si Whisper no está disponible o falla, se conserva la transcripción
+     *   original (Vosk) y se sigue con la diarización normal.
+     */
+    suspend fun reprocesar(
         context: Context,
         conversacion: Conversacion,
         ajustes: AjustesReproceso,
-        db: BaseDatos,
-        transcripcionNueva: String? = null
+        db: BaseDatos
     ): ResultadoReproceso {
         val archivo = File(conversacion.rutaAudio)
         if (!archivo.exists()) {
             return ResultadoReproceso(false, mensaje = "El archivo de audio ya no existe")
         }
 
+        // === PASO 1: Intentar re-transcribir con Whisper ===
+        var textoFinal = conversacion.transcripcion
+        var usoWhisper = false
+
+        try {
+            val wm = WhisperManager(context.applicationContext)
+            if (wm.estaDescargado()) {
+                DebugLog.info("Reprocesador", "Whisper disponible, transcribiendo WAV completo…")
+                val textoWhisper = wm.transcribirWav(archivo)
+                if (!textoWhisper.isNullOrBlank()) {
+                    textoFinal = textoWhisper
+                    usoWhisper = true
+                    DebugLog.info("Reprocesador", "Whisper devolvió ${textoWhisper.length} caracteres")
+                } else {
+                    DebugLog.warn("Reprocesador", "Whisper devolvió texto vacío, se conserva la transcripción de Vosk")
+                }
+            } else {
+                DebugLog.info("Reprocesador", "Whisper no descargado, se conserva la transcripción de Vosk")
+            }
+        } catch (e: Exception) {
+            DebugLog.error("Reprocesador", "Error usando Whisper: ${e.message}")
+            // Se conserva textoFinal tal cual
+        }
+
+        // === PASO 2: Diarización ===
         val muestras = leerWavFloat(archivo)
         if (muestras.isEmpty()) {
             return ResultadoReproceso(false, mensaje = "No se pudo leer el audio")
@@ -64,7 +98,8 @@ object Reprocesador {
         }
 
         val numHablantes = segmentosDiarizados.map { it.hablanteId }.distinct().size
-        val textoFinal = transcripcionNueva ?: conversacion.transcripcion
+
+        // === PASO 3: Reparto del texto entre segmentos ===
         val segmentosConTexto = repartirTextoEnSegmentos(textoFinal, segmentosDiarizados)
 
         db.eliminarSegmentosDeConversacion(conversacion.id)
@@ -79,11 +114,11 @@ object Reprocesador {
         }
         db.insertarSegmentos(conversacion.id, segmentosBD)
         db.actualizarNumHablantes(conversacion.id, numHablantes)
-        if (transcripcionNueva != null) {
-            db.actualizarTranscripcion(conversacion.id, transcripcionNueva)
+        if (usoWhisper) {
+            db.actualizarTranscripcion(conversacion.id, textoFinal)
         }
 
-        // Generar y guardar el resumen
+        // === PASO 4: Resumen ===
         try {
             val metricas = AnalizadorConversacion.analizar(segmentosBD, conversacion.duracionMs)
             val resumen = GeneradorResumen.generar(metricas)
@@ -96,7 +131,8 @@ object Reprocesador {
         return ResultadoReproceso(
             ok = true,
             numHablantes = numHablantes,
-            numSegmentos = segmentosConTexto.size
+            numSegmentos = segmentosConTexto.size,
+            transcribioConWhisper = usoWhisper
         )
     }
 
