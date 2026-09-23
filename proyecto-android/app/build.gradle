@@ -29,65 +29,79 @@ if (!aarFinal.exists() || aarFinal.length() < 1000000) {
 }
 
 // ============================================================
-// Copiar libomp.so desde el NDK a jniLibs/
+// Copiar libomp.so desde el NDK a jniLibs/arm64-v8a/
+//
+// whisperGF v3.0.0 es arm64-v8a only (confirmado en la release).
+// NDK por defecto en ubuntu-latest: r27d (27.3.13750724), clang 18.
+// Ruta verificada:
+//   toolchains/llvm/prebuilt/linux-x86_64/lib/clang/18/lib/linux/aarch64/libomp.so
+//
+// Si no se encuentra, el build FALLA (GradleException) para no producir
+// un APK que crashee en runtime con UnsatisfiedLinkError.
 // ============================================================
 tasks.register("copiarLibomp") {
     doLast {
-        // NDK instalado en GitHub Actions
         def ndkDir = System.getenv("ANDROID_NDK_HOME")
             ?: System.getenv("ANDROID_NDK")
             ?: "/usr/local/lib/android/sdk/ndk/27.3.13750724"
 
         def ndkPath = file(ndkDir)
+
         if (!ndkPath.exists()) {
-            println "⚠️ NDK no encontrado en $ndkDir"
-            return
+            throw new GradleException("NDK no encontrado en: $ndkDir")
         }
 
-        def jniLibs = file("src/main/jniLibs")
+        def jniLibs = file("src/main/jniLibs/arm64-v8a")
         jniLibs.mkdirs()
 
-        // Buscar libomp.so en el NDK para arm64-v8a
-        def candidatosArm64 = fileTree(ndkPath) {
-            include "**/libomp.so"
-            include "**/aarch64/libomp.so"
-        }.files
+        // Ruta exacta verificada para NDK r27d con clang 18
+        def rutaExacta = file(
+            "$ndkDir/toolchains/llvm/prebuilt/linux-x86_64/" +
+            "lib/clang/18/lib/linux/aarch64/libomp.so"
+        )
 
-        def origenArm64 = candidatosArm64.find { it.absolutePath.contains("aarch64") }
-            ?: candidatosArm64.firstOrNull()
-
-        if (origenArm64 != null) {
-            def destino = file("$jniLibs/arm64-v8a")
-            destino.mkdirs()
+        if (rutaExacta.exists()) {
             copy {
-                from origenArm64
-                into destino
+                from rutaExacta
+                into jniLibs
             }
-            println "✅ libomp.so copiado a arm64-v8a desde: $origenArm64"
+            println "✅ libomp.so copiado desde ruta exacta:"
+            println "   $rutaExacta"
         } else {
-            println "⚠️ No se encontró libomp.so para arm64-v8a en el NDK"
+            println "⚠️ Ruta exacta no encontrada:"
+            println "   $rutaExacta"
+            println "   Buscando dentro del NDK..."
+
+            def candidatos = fileTree(ndkPath) {
+                include "**/linux/aarch64/libomp.so"
+            }.files
+
+            if (candidatos.isEmpty()) {
+                throw new GradleException(
+                    "No se encontró libomp.so para arm64-v8a en: $ndkDir"
+                )
+            }
+
+            if (candidatos.size() > 1) {
+                println "⚠️ Se encontraron varias libomp.so:"
+                candidatos.each { println "   $it" }
+            }
+
+            def origen = candidatos.first()
+            copy {
+                from origen
+                into jniLibs
+            }
+            println "✅ libomp.so copiado desde:"
+            println "   $origen"
         }
 
-        // Buscar libomp.so en el NDK para armeabi-v7a
-        def candidatosArm32 = fileTree(ndkPath) {
-            include "**/arm/libomp.so"
-            include "**/armv7*/libomp.so"
-            include "**/armeabi-v7a/libomp.so"
-        }.files
-
-        def origenArm32 = candidatosArm32.firstOrNull()
-
-        if (origenArm32 != null) {
-            def destino = file("$jniLibs/armeabi-v7a")
-            destino.mkdirs()
-            copy {
-                from origenArm32
-                into destino
-            }
-            println "✅ libomp.so copiado a armeabi-v7a desde: $origenArm32"
-        } else {
-            println "⚠️ No se encontró libomp.so para armeabi-v7a en el NDK"
+        def destino = new File(jniLibs, "libomp.so")
+        if (!destino.exists()) {
+            throw new GradleException("La copia falló: no existe $destino")
         }
+        println "✅ libomp.so verificado en:"
+        println "   $destino (${destino.length()} bytes)"
     }
 }
 
