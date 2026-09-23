@@ -1,6 +1,7 @@
 package com.carpe.microlisto.ui
 
 import android.app.AlertDialog
+import android.app.ProgressDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -24,6 +25,7 @@ import com.carpe.microlisto.data.AjustesDiarizacion
 import com.carpe.microlisto.data.BaseDatos
 import com.carpe.microlisto.databinding.FragmentAjustesBinding
 import com.carpe.microlisto.debug.DebugLog
+import com.carpe.microlisto.whisper.WhisperManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -32,6 +34,7 @@ class AjustesFragment : Fragment() {
 
     private var _binding: FragmentAjustesBinding? = null
     private val binding get() = _binding!!
+    private lateinit var whisperManager: WhisperManager
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -42,6 +45,7 @@ class AjustesFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        whisperManager = WhisperManager(requireContext().applicationContext)
 
         binding.botonAsistenteHyperos.setOnClickListener {
             startActivity(Intent(requireContext(), ConfiguracionInicialActivity::class.java))
@@ -52,13 +56,19 @@ class AjustesFragment : Fragment() {
         binding.botonLimpiarWavs.setOnClickListener { confirmarLimpiarWavs() }
         binding.botonBorrarTodo.setOnClickListener { confirmarBorrarTodo() }
 
+        // Whisper
+        binding.botonDescargarWhisper.setOnClickListener { descargarWhisper() }
+        binding.botonBorrarWhisper.setOnClickListener { borrarWhisper() }
+
         cargarAjustesActuales()
         cargarEstadisticas()
+        actualizarEstadoWhisper()
     }
 
     override fun onResume() {
         super.onResume()
         cargarEstadisticas()
+        actualizarEstadoWhisper()
     }
 
     private fun cargarAjustesActuales() {
@@ -95,7 +105,7 @@ class AjustesFragment : Fragment() {
         val hop = binding.inputHop.text.toString().toIntOrNull() ?: 5000
 
         AjustesDiarizacion.guardar(requireContext(), numH, umbral, minFrag, gap, hop)
-        Toast.makeText(requireContext(), "Ajustes guardados. Se aplicarán en la próxima grabación.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(requireContext(), "Ajustes guardados", Toast.LENGTH_SHORT).show()
     }
 
     private fun resetearAjustes() {
@@ -109,19 +119,76 @@ class AjustesFragment : Fragment() {
             val db = BaseDatos(requireContext())
             val stats = withContext(Dispatchers.IO) { db.obtenerEstadisticas() }
             if (_binding == null) return@launch
-            val duracionTexto = formatearDuracion(stats.duracionTotalMs)
-            val espacioTexto = formatearTamano(stats.espacioWavsBytes)
             binding.textoStats.text =
                 "Conversaciones: ${stats.numConversaciones}\n" +
-                "Tiempo total grabado: $duracionTexto\n" +
-                "Espacio ocupado por WAVs: $espacioTexto"
+                "Tiempo total: ${formatearDuracion(stats.duracionTotalMs)}\n" +
+                "Espacio WAVs: ${formatearTamano(stats.espacioWavsBytes)}"
         }
+    }
+
+    private fun actualizarEstadoWhisper() {
+        val descargado = whisperManager.estaDescargado()
+        if (descargado) {
+            binding.textoEstadoWhisper.text = "✅ Modelo descargado (large-v3-turbo Q5_K_M, ~809 MB)"
+            binding.botonDescargarWhisper.isEnabled = false
+            binding.botonDescargarWhisper.text = "Descargado"
+            binding.botonBorrarWhisper.isEnabled = true
+        } else {
+            binding.textoEstadoWhisper.text = "❌ No descargado. Whisper mejora la transcripción final."
+            binding.botonDescargarWhisper.isEnabled = true
+            binding.botonDescargarWhisper.text = "📥 Descargar modelo (~809 MB)"
+            binding.botonBorrarWhisper.isEnabled = false
+        }
+    }
+
+    private fun descargarWhisper() {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Descargar modelo Whisper")
+            .setMessage("Se descargará large-v3-turbo Q5_K_M (~809 MB). " +
+                    "Usa WiFi si es posible. El proceso se puede interrumpir y " +
+                    "reanudar. La descarga se guarda en el almacenamiento interno.")
+            .setPositiveButton("Descargar") { _, _ ->
+                val pd = ProgressDialog(requireContext()).apply {
+                    setTitle("Descargando Whisper…")
+                    setMessage("Iniciando…")
+                    setCancelable(false)
+                    show()
+                }
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val ok = whisperManager.descargar { pct ->
+                        pd.setMessage("$pct%")
+                    }
+                    pd.dismiss()
+                    if (ok) {
+                        Toast.makeText(requireContext(), "Modelo descargado", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(requireContext(), "Error en la descarga", Toast.LENGTH_LONG).show()
+                    }
+                    actualizarEstadoWhisper()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun borrarWhisper() {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Borrar modelo Whisper")
+            .setMessage("Se liberarán ~809 MB de almacenamiento. La app seguirá funcionando con Vosk.")
+            .setPositiveButton("Borrar") { _, _ ->
+                whisperManager.borrar()
+                actualizarEstadoWhisper()
+                cargarEstadisticas()
+                Toast.makeText(requireContext(), "Modelo borrado", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     private fun confirmarLimpiarWavs() {
         AlertDialog.Builder(requireContext())
             .setTitle("Limpiar audios")
-            .setMessage("Se borrarán todos los archivos WAV de audio. Las transcripciones y las métricas se conservan. Esta acción no se puede deshacer.")
+            .setMessage("Se borrarán todos los archivos WAV. Las transcripciones se conservan.")
             .setPositiveButton("Borrar audios") { _, _ ->
                 viewLifecycleOwner.lifecycleScope.launch {
                     val db = BaseDatos(requireContext())
@@ -146,7 +213,7 @@ class AjustesFragment : Fragment() {
     private fun confirmarBorrarTodo() {
         AlertDialog.Builder(requireContext())
             .setTitle("Borrar todo")
-            .setMessage("Se borrarán TODAS las conversaciones, transcripciones, métricas y archivos de audio. Esta acción no se puede deshacer.")
+            .setMessage("Se borrarán TODAS las conversaciones, transcripciones y audios.")
             .setPositiveButton("Borrar todo") { _, _ ->
                 viewLifecycleOwner.lifecycleScope.launch {
                     val db = BaseDatos(requireContext())
@@ -170,36 +237,25 @@ class AjustesFragment : Fragment() {
 
     private fun mostrarDialogoLog() {
         val contexto = requireContext()
-
         val layout = LinearLayout(contexto).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(24, 24, 24, 24)
         }
-
-        val titulo = TextView(contexto).apply {
-            text = "Log de depuración"
-            textSize = 18f
-        }
-        layout.addView(titulo)
-
+        layout.addView(TextView(contexto).apply { text = "Log de depuración"; textSize = 18f })
         val textView = TextView(contexto).apply {
             text = DebugLog.obtenerTodo()
             textSize = 11f
             setTextIsSelectable(true)
             setPadding(8, 8, 8, 8)
         }
-
-        val scroll = ScrollView(contexto).apply {
+        layout.addView(ScrollView(contexto).apply {
             addView(textView)
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
-        }
-        layout.addView(scroll)
-
+        })
         val botones = LinearLayout(contexto).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, 16, 0, 0)
         }
-
         val botonCopiar = Button(contexto).apply { text = "📋 Copiar" }
         val botonLimpiar = Button(contexto).apply { text = "🧹 Limpiar" }
         val botonCerrar = Button(contexto).apply { text = "Cerrar" }
@@ -209,11 +265,7 @@ class AjustesFragment : Fragment() {
         botones.addView(botonCerrar, lp)
         layout.addView(botones)
 
-        val dialogo = AlertDialog.Builder(contexto)
-            .setView(layout)
-            .setCancelable(true)
-            .create()
-
+        val dialogo = AlertDialog.Builder(contexto).setView(layout).setCancelable(true).create()
         botonCopiar.setOnClickListener {
             val cm = contexto.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             cm.setPrimaryClip(ClipData.newPlainText("microlisto_log", textView.text))
