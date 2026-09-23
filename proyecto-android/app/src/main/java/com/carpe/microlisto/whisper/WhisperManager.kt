@@ -4,21 +4,14 @@ import android.content.Context
 import com.carpe.microlisto.debug.DebugLog
 import com.whispercpp.whisper.WhisperContext
 import com.whispercpp.whisper.WhisperModel
+import com.whispercpp.whisper.TranscribeConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/**
- * Gestor de Whisper basado en whisperGF (AAR).
- *
- * Usa imports directos: el AAR expone las clases com.whispercpp.whisper.*
- * y compila sin problemas. El único detalle era que release() es suspend.
- */
 class WhisperManager(private val context: Context) {
 
     private val dirWhisper = File(context.filesDir, "whisper")
-
-    // Modelo elegido: large-v3-turbo en Q5_K_M (~809 MB).
     private val modeloElegido = WhisperModel.LARGE_V3_TURBO_Q5_K_M
 
     @Volatile
@@ -50,7 +43,6 @@ class WhisperManager(private val context: Context) {
                 cacheDir = dirWhisper,
                 onProgress = { progress ->
                     try {
-                        // El objeto progress suele exponer una propiedad "percent" (0f..1f)
                         val pct = (progress.percent * 100).toInt()
                         onProgress(pct)
                     } catch (_: Exception) {
@@ -58,7 +50,7 @@ class WhisperManager(private val context: Context) {
                     }
                 }
             )
-            ctx?.release()
+            try { ctx?.release() } catch (_: Exception) {}
             ctx = nuevoCtx
             DebugLog.info("Whisper", "Modelo descargado y cargado")
             true
@@ -98,14 +90,12 @@ class WhisperManager(private val context: Context) {
             DebugLog.info("Whisper", "Transcribiendo ${muestras.size} muestras")
 
             val ctxActual = ctx ?: return@withContext null
-            // La firma exacta de transcribe varía según versión del AAR.
-            // Probamos con el patrón documentado más común: array + idioma.
+            val config = TranscribeConfig()
             val texto = try {
-                val resultado = ctxActual.transcribe(muestras, "es")
+                val resultado = ctxActual.transcribe(muestras, config)
                 extraerTexto(resultado)
             } catch (e: NoSuchMethodError) {
-                // Fallback: transcribe sin idioma
-                DebugLog.warn("Whisper", "Firma transcribe(FloatArray, String) no disponible, probando alternativa")
+                DebugLog.warn("Whisper", "transcribe(FloatArray, TranscribeConfig) no disponible: ${e.message}")
                 null
             } catch (e: Exception) {
                 DebugLog.error("Whisper", "Error en transcribe: ${e.message}")
@@ -120,23 +110,16 @@ class WhisperManager(private val context: Context) {
         }
     }
 
-    /**
-     * Extrae el texto completo del resultado de transcribe(). La clase de
-     * resultado de whisperGF expone un campo "fullText" o propiedad similar.
-     */
     private fun extraerTexto(resultado: Any?): String? {
         if (resultado == null) return null
-        // Intento 1: propiedad fullText
         try {
             val m = resultado.javaClass.getMethod("getFullText")
             return m.invoke(resultado) as? String
         } catch (_: Exception) {}
-        // Intento 2: campo directo fullText
         try {
             val f = resultado.javaClass.getField("fullText")
             return f.get(resultado) as? String
         } catch (_: Exception) {}
-        // Fallback: toString
         return resultado.toString()
     }
 
