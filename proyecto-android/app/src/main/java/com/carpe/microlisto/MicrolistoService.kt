@@ -161,8 +161,10 @@ class MicrolistoService : Service() {
                     )
                 }
 
-                _estado.value = _estado.value.copy(procesando = false, idUltimaConversacion = idConv)
-            } catch (e: Exception) {
+    AppLogic.exportarBackup(applicationContext)
+
+    _estado.value = _estado.value.copy(procesando = false, idUltimaConversacion = idConv)
+} catch (e: Exception) {
                 _estado.value = _estado.value.copy(procesando = false, error = e.message)
             } finally {
                 archivoWavActual = null
