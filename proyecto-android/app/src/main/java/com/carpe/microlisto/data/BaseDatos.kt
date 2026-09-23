@@ -51,8 +51,6 @@ class BaseDatos(context: Context) :
         db.setForeignKeyConstraintsEnabled(true)
     }
 
-    // Conversaciones
-
     fun insertarConversacion(c: Conversacion): Long {
         val valores = ContentValues().apply {
             put("titulo", c.titulo)
@@ -73,6 +71,11 @@ class BaseDatos(context: Context) :
 
     fun actualizarNumHablantes(id: Long, n: Int) {
         val valores = ContentValues().apply { put("num_hablantes", n) }
+        writableDatabase.update("conversaciones", valores, "id = ?", arrayOf(id.toString()))
+    }
+
+    fun actualizarTranscripcion(id: Long, texto: String) {
+        val valores = ContentValues().apply { put("transcripcion", texto) }
         writableDatabase.update("conversaciones", valores, "id = ?", arrayOf(id.toString()))
     }
 
@@ -152,8 +155,6 @@ class BaseDatos(context: Context) :
         }
         return Estadisticas(numConv, durTotal, espacio)
     }
-
-    // Segmentos
 
     fun insertarSegmentos(idConversacion: Long, segmentos: List<Segmento>) {
         val db = writableDatabase
