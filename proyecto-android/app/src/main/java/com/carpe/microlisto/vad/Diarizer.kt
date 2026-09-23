@@ -61,10 +61,6 @@ class Diarizer(
         DebugLog.info("Diarizer", "Inicio: ${audio.size} muestras (${audio.size / sampleRate} s)")
         if (audio.size < sampleRate) return emptyList()
 
-        val fbankCompleto = fbank.calcular(audio)
-        DebugLog.info("Diarizer", "Fbank: ${fbankCompleto.size} frames")
-        if (fbankCompleto.isEmpty()) return emptyList()
-
         val ventanas = mutableListOf<Pair<Int, FloatArray>>()
         var inicio = 0
         while (inicio + ventanaMuestras <= audio.size) {
@@ -78,7 +74,7 @@ class Diarizer(
             ventanas.add(inicio to restante)
         }
 
-        data class Fragmento(val inicioMs: Long, val finMs: Long, val frameIni: Int, val frameFin: Int)
+        data class Fragmento(val inicioMs: Long, val finMs: Long, val audio: FloatArray)
         val fragmentos = mutableListOf<Fragmento>()
 
         var numVentana = 0
@@ -98,10 +94,14 @@ class Diarizer(
                         nFrags++
                         val inicioMs = inicioVentana * 1000L / sampleRate + (i * frameSegMs)
                         val finMs = inicioVentana * 1000L / sampleRate + (j * frameSegMs)
-                        val fi = (inicioMs * sampleRate / 1000L / frameShiftMuestras).toInt()
-                        val ff = (finMs * sampleRate / 1000L / frameShiftMuestras).toInt()
-                            .coerceAtMost(fbankCompleto.size)
-                        if (ff > fi) fragmentos.add(Fragmento(inicioMs, finMs, fi, ff))
+                        val inicioM = (inicioMs * sampleRate / 1000L).toInt()
+                            .coerceAtLeast(0)
+                        val finM = (finMs * sampleRate / 1000L).toInt()
+                            .coerceAtMost(audio.size)
+                        if (finM > inicioM) {
+                            val audioFrag = audio.copyOfRange(inicioM, finM)
+                            fragmentos.add(Fragmento(inicioMs, finMs, audioFrag))
+                        }
                     }
                     i = j
                 } else i++
@@ -112,10 +112,13 @@ class Diarizer(
         DebugLog.info("Diarizer", "Total fragmentos: ${fragmentos.size}")
         if (fragmentos.isEmpty()) return emptyList()
 
-        val embeddings = fragmentos.map { frag ->
-            val nFrames = frag.frameFin - frag.frameIni
-            val fbankFrag = Array(nFrames) { k -> fbankCompleto[frag.frameIni + k] }
-            embedder.calcular(fbankFrag)
+        // Para cada fragmento: Fbank + CMN por fragmento + embedding
+        // (esta es la secuencia que usa WeSpeaker con subseg_cmn=true)
+        val embeddings = fragmentos.mapIndexed { idx, frag ->
+            val fbankFrag = fbank.calcular(frag.audio)
+            val fbankCmn = aplicarCmnPorFragmento(fbankFrag)
+            DebugLog.info("Diarizer", "Frag $idx: ${fbankFrag.size} frames")
+            embedder.calcular(fbankCmn)
         }
 
         val asignaciones = clusteringAglomerativo(embeddings)
@@ -136,6 +139,45 @@ class Diarizer(
         }
         DebugLog.info("Diarizer", "Segmentos: ${segmentos.size}")
         return segmentos
+    }
+
+    /**
+     * CMN por fragmento: restar la media de cada bin mel a lo largo del tiempo,
+     * solo dentro del fragmento. Replica subseg_cmn=true de WeSpeaker.
+     */
+    private fun aplicarCmnPorFragmento(matriz: Array<FloatArray>): Array<FloatArray> {
+        if (matriz.isEmpty()) return matriz
+        val numFrames = matriz.size
+        val numBins = matriz[0].size
+
+        val medias = FloatArray(numBins)
+        var f = 0
+        while (f < numFrames) {
+            var m = 0
+            while (m < numBins) {
+                medias[m] += matriz[f][m]
+                m++
+            }
+            f++
+        }
+        val divisor = numFrames.toFloat()
+        var m = 0
+        while (m < numBins) {
+            medias[m] /= divisor
+            m++
+        }
+
+        val resultado: Array<FloatArray> = Array(numFrames) { FloatArray(numBins) }
+        f = 0
+        while (f < numFrames) {
+            m = 0
+            while (m < numBins) {
+                resultado[f][m] = matriz[f][m] - medias[m]
+                m++
+            }
+            f++
+        }
+        return resultado
     }
 
     private fun inferirSegmentacionConTimeout(ventanaAudio: FloatArray): IntArray {
@@ -236,10 +278,8 @@ class Diarizer(
             if (mejorI == -1) break
 
             if (numHablantesEsperados > 0) {
-                // Modo forzado: parar solo cuando tengamos los clusters esperados
                 if (clusters.size <= numHablantesEsperados) break
             } else {
-                // Modo auto: parar por umbral
                 if (mejorSimilitud < umbralClustering) {
                     DebugLog.info("Diarizer", "Clustering auto para en iter $iteraciones, sim $mejorSimilitud")
                     break
