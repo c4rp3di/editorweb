@@ -116,6 +116,12 @@
             android:layout_height="wrap_content"
             android:text="📂 Seleccionar archivo .gguf"
             android:layout_marginBottom="8dp" />
+<Button
+    android:id="@+id/boton_exportar_backup"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="💾 Exportar backup de BD"
+    android:layout_marginBottom="8dp" />
 
         <Button
             android:id="@+id/boton_borrar_whisper"
