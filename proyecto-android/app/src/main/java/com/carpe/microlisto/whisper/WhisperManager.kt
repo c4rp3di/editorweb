@@ -3,70 +3,81 @@ package com.carpe.microlisto.whisper
 import android.content.Context
 import com.carpe.microlisto.debug.DebugLog
 import com.whispercpp.whisper.WhisperContext
-import com.whispercpp.whisper.WhisperModel
 import com.whispercpp.whisper.TranscribeConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
+import java.io.FileOutputStream
+import java.util.concurrent.TimeUnit
 
 class WhisperManager(private val context: Context) {
 
     private val dirWhisper = File(context.filesDir, "whisper")
-    private val modeloElegido = WhisperModel.LARGE_V3_TURBO_Q5_K_M
+    private val archivoModelo = File(dirWhisper, "whisper-large-v3-turbo-Q5_K_M.gguf")
+    private val urlModelo = "https://huggingface.co/handy-computer/whisper-large-v3-turbo-gguf/resolve/main/whisper-large-v3-turbo-Q5_K_M.gguf"
+
+    private val cliente = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .build()
 
     @Volatile
     private var ctx: WhisperContext? = null
 
     fun estaDescargado(): Boolean {
-        return try {
-            val archivo = buscarArchivoGguf()
-            archivo != null && archivo.exists() && archivo.length() > 100_000_000L
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    private fun buscarArchivoGguf(): File? {
-        if (!dirWhisper.exists()) return null
-        return dirWhisper.listFiles()?.firstOrNull {
-            it.name.endsWith(".gguf", ignoreCase = true)
-        }
+        return archivoModelo.exists() && archivoModelo.length() > 100_000_000L
     }
 
     suspend fun descargar(onProgress: (Int) -> Unit): Boolean = withContext(Dispatchers.IO) {
         return@withContext try {
             dirWhisper.mkdirs()
-            DebugLog.info("Whisper", "Iniciando descarga de ${modeloElegido.name}")
+            DebugLog.info("Whisper", "Iniciando descarga manual desde Hugging Face")
 
-            val nuevoCtx = WhisperContext.createFromDownload(
-                model = modeloElegido,
-                cacheDir = dirWhisper,
-                onProgress = { progress ->
-                    try {
-                        val pct = (progress.percent * 100).toInt()
-                        onProgress(pct)
-                    } catch (_: Exception) {
-                        onProgress(0)
+            val peticion = Request.Builder().url(urlModelo).build()
+            val respuesta = cliente.newCall(peticion).execute()
+
+            if (!respuesta.isSuccessful) {
+                DebugLog.error("Whisper", "Error HTTP: ${respuesta.code}")
+                return@withContext false
+            }
+
+            val cuerpo = respuesta.body ?: return@withContext false
+            val tamanoTotal = cuerpo.contentLength()
+            var bytesLeidos = 0L
+
+            cuerpo.byteStream().use { entrada ->
+                FileOutputStream(archivoModelo).use { salida ->
+                    val buffer = ByteArray(8192)
+                    var leidos: Int
+                    while (entrada.read(buffer).also { leidos = it } != -1) {
+                        salida.write(buffer, 0, leidos)
+                        bytesLeidos += leidos
+                        if (tamanoTotal > 0) {
+                            onProgress(((bytesLeidos * 100) / tamanoTotal).toInt())
+                        }
                     }
                 }
-            )
-            try { ctx?.release() } catch (_: Exception) {}
-            ctx = nuevoCtx
-            DebugLog.info("Whisper", "Modelo descargado y cargado")
+            }
+
+            DebugLog.info("Whisper", "Descarga completada: ${archivoModelo.length()} bytes")
             true
         } catch (e: Exception) {
             DebugLog.error("Whisper", "Error descargando: ${e.message}")
             e.printStackTrace()
+            try { archivoModelo.delete() } catch (_: Exception) {}
             false
         }
     }
 
     suspend fun cargarSiDescargado(): Boolean = withContext(Dispatchers.IO) {
         if (ctx != null) return@withContext true
-        val archivo = buscarArchivoGguf() ?: return@withContext false
+        if (!archivoModelo.exists()) return@withContext false
+
         return@withContext try {
-            DebugLog.info("Whisper", "Cargando modelo desde ${archivo.absolutePath}")
-            ctx = WhisperContext.createContextFromFile(archivo.absolutePath)
+            DebugLog.info("Whisper", "Cargando modelo local: ${archivoModelo.absolutePath}")
+            ctx = WhisperContext.createContextFromFile(archivoModelo.absolutePath)
             true
         } catch (e: Exception) {
             DebugLog.error("Whisper", "Error cargando modelo: ${e.message}")
@@ -74,10 +85,6 @@ class WhisperManager(private val context: Context) {
         }
     }
 
-    /**
-     * Carga un modelo desde una ruta arbitraria en el dispositivo.
-     * Útil cuando la descarga automática falla y el usuario copia el archivo .gguf manualmente.
-     */
     suspend fun cargarDesdeArchivo(rutaAbsoluta: String): Boolean = withContext(Dispatchers.IO) {
         return@withContext try {
             val archivo = File(rutaAbsoluta)
@@ -111,21 +118,12 @@ class WhisperManager(private val context: Context) {
 
             val ctxActual = ctx ?: return@withContext null
             val config = TranscribeConfig()
-            val texto = try {
-                val resultado = ctxActual.transcribe(muestras, config)
-                extraerTexto(resultado)
-            } catch (e: NoSuchMethodError) {
-                DebugLog.warn("Whisper", "transcribe(FloatArray, TranscribeConfig) no disponible: ${e.message}")
-                null
-            } catch (e: Exception) {
-                DebugLog.error("Whisper", "Error en transcribe: ${e.message}")
-                null
-            }
+            val resultado = ctxActual.transcribe(muestras, config)
+            val texto = extraerTexto(resultado)
             DebugLog.info("Whisper", "Transcripción completada: ${texto?.length ?: 0} caracteres")
             texto?.trim()
         } catch (e: Exception) {
             DebugLog.error("Whisper", "Error transcribiendo: ${e.message}")
-            e.printStackTrace()
             null
         }
     }
@@ -167,7 +165,7 @@ class WhisperManager(private val context: Context) {
         try {
             try { ctx?.release() } catch (_: Exception) {}
             ctx = null
-            dirWhisper.listFiles()?.forEach { it.delete() }
+            archivoModelo.delete()
             DebugLog.info("Whisper", "Modelo borrado")
         } catch (e: Exception) {
             DebugLog.warn("Whisper", "Error borrando: ${e.message}")
