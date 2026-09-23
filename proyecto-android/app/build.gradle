@@ -237,19 +237,11 @@ tasks.register("limpiarAssetsAntiguos", Delete) {
 }
 
 tasks.register("copiarModelos", Copy) {
-    dependsOn "descargarVosk", "descargarSilero", "descargarPyannote", "descargarWeSpeaker", "limpiarAssetsAntiguos"
+    dependsOn "descargarSilero", "descargarPyannote", "descargarWeSpeaker", "limpiarAssetsAntiguos"
     from "$dirModelos/silero_vad.onnx"
     from "$dirModelos/pyannote_seg30.onnx"
     from "$dirModelos/wespeaker_emb_fp16.tflite"
-    from({ zipTree("$dirModelos/vosk-es.zip") })
     into "$dirAssets"
-    doLast {
-        def uuidFile = file("$dirAssets/vosk-model-small-es-0.42/uuid")
-        if (!uuidFile.exists()) {
-            uuidFile.parentFile.mkdirs()
-            uuidFile.text = "microlisto-${System.currentTimeMillis()}"
-        }
-    }
 }
 
 tasks.named("preBuild") {
