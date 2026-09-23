@@ -3,6 +3,94 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+// ============================================================
+// Descarga del AAR de Whisper en fase de configuración.
+// ============================================================
+def dirLibs = file("libs")
+def aarFinal = new File(dirLibs, "whisper-android.aar")
+
+if (!aarFinal.exists() || aarFinal.length() < 1000000) {
+    dirLibs.mkdirs()
+    println "📥 Descargando whisperGF AAR v3.0.0..."
+    try {
+        def url = new URL("https://github.com/volt-PRd/whisperGF/raw/main/release/whisper-android-v3.aar")
+        url.openStream().withStream { input ->
+            aarFinal.withOutputStream { output ->
+                output << input
+            }
+        }
+        println "✅ AAR listo: ${aarFinal.absolutePath} (${aarFinal.length()} bytes)"
+    } catch (Exception e) {
+        println "❌ ERROR descargando AAR: ${e.message}"
+        e.printStackTrace()
+    }
+} else {
+    println "✅ AAR de Whisper ya presente: ${aarFinal.length()} bytes"
+}
+
+// ============================================================
+// Copiar libomp.so desde el NDK a jniLibs/
+// ============================================================
+tasks.register("copiarLibomp") {
+    doLast {
+        // NDK instalado en GitHub Actions
+        def ndkDir = System.getenv("ANDROID_NDK_HOME")
+            ?: System.getenv("ANDROID_NDK")
+            ?: "/usr/local/lib/android/sdk/ndk/27.3.13750724"
+
+        def ndkPath = file(ndkDir)
+        if (!ndkPath.exists()) {
+            println "⚠️ NDK no encontrado en $ndkDir"
+            return
+        }
+
+        def jniLibs = file("src/main/jniLibs")
+        jniLibs.mkdirs()
+
+        // Buscar libomp.so en el NDK para arm64-v8a
+        def candidatosArm64 = fileTree(ndkPath) {
+            include "**/libomp.so"
+            include "**/aarch64/libomp.so"
+        }.files
+
+        def origenArm64 = candidatosArm64.find { it.absolutePath.contains("aarch64") }
+            ?: candidatosArm64.firstOrNull()
+
+        if (origenArm64 != null) {
+            def destino = file("$jniLibs/arm64-v8a")
+            destino.mkdirs()
+            copy {
+                from origenArm64
+                into destino
+            }
+            println "✅ libomp.so copiado a arm64-v8a desde: $origenArm64"
+        } else {
+            println "⚠️ No se encontró libomp.so para arm64-v8a en el NDK"
+        }
+
+        // Buscar libomp.so en el NDK para armeabi-v7a
+        def candidatosArm32 = fileTree(ndkPath) {
+            include "**/arm/libomp.so"
+            include "**/armv7*/libomp.so"
+            include "**/armeabi-v7a/libomp.so"
+        }.files
+
+        def origenArm32 = candidatosArm32.firstOrNull()
+
+        if (origenArm32 != null) {
+            def destino = file("$jniLibs/armeabi-v7a")
+            destino.mkdirs()
+            copy {
+                from origenArm32
+                into destino
+            }
+            println "✅ libomp.so copiado a armeabi-v7a desde: $origenArm32"
+        } else {
+            println "⚠️ No se encontró libomp.so para armeabi-v7a en el NDK"
+        }
+    }
+}
+
 android {
     namespace 'com.carpe.microlisto'
     compileSdk 34
@@ -53,41 +141,11 @@ dependencies {
 
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
-    // Whisper AAR (se descarga en projectsEvaluated, antes de resolver dependencias)
+    // Whisper AAR
     implementation files('libs/whisper-android.aar')
+
+    // libc++_shared.so para whisper.cpp
     runtimeOnly("dev.atsushieno:libcxx-provider:28.0.13004108")
-}
-
-// ============================================================
-// Descarga del AAR de Whisper usando gradle.projectsEvaluated.
-// Descarga DIRECTA del .aar (sin ZIP ni descompresión).
-// ============================================================
-gradle.projectsEvaluated {
-    def dirLibs = file("libs")
-    def aarFinal = new File(dirLibs, "whisper-android.aar")
-
-    if (!aarFinal.exists() || aarFinal.length() < 1000000) {
-        dirLibs.mkdirs()
-        println "📥 Descargando whisperGF AAR v3.0.0..."
-        try {
-            def url = new URL("https://github.com/volt-PRd/whisperGF/raw/main/release/whisper-android-v3.aar")
-            url.openStream().withStream { input ->
-                aarFinal.withOutputStream { output ->
-                    output << input
-                }
-            }
-            if (aarFinal.exists()) {
-                println "✅ AAR listo: ${aarFinal.absolutePath} (${aarFinal.length()} bytes)"
-            } else {
-                println "❌ ERROR: el AAR no se creó tras la descarga"
-            }
-        } catch (Exception e) {
-            println "❌ ERROR descargando AAR: ${e.message}"
-            e.printStackTrace()
-        }
-    } else {
-        println "✅ AAR de Whisper ya presente: ${aarFinal.length()} bytes"
-    }
 }
 
 // ============================================================
@@ -181,5 +239,5 @@ tasks.register("copiarModelos", Copy) {
 }
 
 tasks.named("preBuild") {
-    dependsOn "copiarModelos"
+    dependsOn "copiarModelos", "copiarLibomp"
 }
