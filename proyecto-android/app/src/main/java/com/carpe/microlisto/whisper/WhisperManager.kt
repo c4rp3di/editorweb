@@ -16,8 +16,13 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Gestor de Whisper. El modelo se guarda en /storage/emulated/0/Microlisto/whisper/
- * para sobrevivir a desinstalaciones. Si la carpeta pública no es accesible,
- * cae a filesDir como respaldo.
+ * para sobrevivir a desinstalaciones.
+ *
+ * Carga explícita de libwhisper.so y libwhisper_v8fp16_va.so:
+ * El AAR de whisperGF v3.0.0 incluye AMBAS librerías nativas, pero su
+ * <clinit> solo carga una de ellas automáticamente. Algunos símbolos JNI
+ * (como initContext) residen en la otra, así que forzamos la carga de las
+ * dos antes de cualquier llamada nativa.
  */
 class WhisperManager(private val context: Context) {
 
@@ -30,6 +35,25 @@ class WhisperManager(private val context: Context) {
         } else {
             File(File(context.filesDir, "whisper"), nombreModelo)
         }
+
+    init {
+        // Cargar explícitamente ambas librerías nativas de whisperGF.
+        // El AAR carga una automáticamente en su <clinit>, pero los símbolos
+        // JNI pueden estar repartidos entre las dos. Forzando ambas, nos
+        // aseguramos de que initContext y el resto están disponibles.
+        try {
+            System.loadLibrary("whisper")
+            DebugLog.info("Whisper", "✅ libwhisper.so cargada")
+        } catch (e: UnsatisfiedLinkError) {
+            DebugLog.warn("Whisper", "⚠️ libwhisper.so: ${e.message}")
+        }
+        try {
+            System.loadLibrary("whisper_v8fp16_va")
+            DebugLog.info("Whisper", "✅ libwhisper_v8fp16_va.so cargada")
+        } catch (e: UnsatisfiedLinkError) {
+            DebugLog.warn("Whisper", "⚠️ libwhisper_v8fp16_va.so: ${e.message}")
+        }
+    }
 
     private val cliente = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -94,8 +118,9 @@ class WhisperManager(private val context: Context) {
             DebugLog.info("Whisper", "Cargando modelo: ${archivoModelo.absolutePath}")
             ctx = WhisperContext.createContextFromFile(archivoModelo.absolutePath)
             true
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             DebugLog.error("Whisper", "Error cargando modelo: ${e.message}")
+            e.printStackTrace()
             false
         }
     }
@@ -107,18 +132,15 @@ class WhisperManager(private val context: Context) {
                 DebugLog.warn("Whisper", "El archivo no existe: $rutaAbsoluta")
                 return@withContext false
             }
-
-            // Copiar a la carpeta pública si no está ya allí
             if (origen.absolutePath != archivoModelo.absolutePath) {
                 DebugLog.info("Whisper", "Copiando modelo a ${archivoModelo.absolutePath}")
                 archivoModelo.parentFile?.mkdirs()
                 origen.copyTo(archivoModelo, overwrite = true)
             }
-
             DebugLog.info("Whisper", "Cargando modelo desde ${archivoModelo.absolutePath}")
             ctx = WhisperContext.createContextFromFile(archivoModelo.absolutePath)
             true
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             DebugLog.error("Whisper", "Error cargando desde ruta manual: ${e.message}")
             false
         }
@@ -151,7 +173,7 @@ class WhisperManager(private val context: Context) {
             val texto = extraerTexto(resultado)
             DebugLog.info("Whisper", "Transcripción completada: ${texto?.length ?: 0} caracteres")
             texto?.trim()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             DebugLog.error("Whisper", "Error transcribiendo: ${e.message}")
             e.printStackTrace()
             null
@@ -193,7 +215,7 @@ class WhisperManager(private val context: Context) {
 
     suspend fun borrar() = withContext(Dispatchers.IO) {
         try {
-            try { ctx?.release() } catch (_: Exception) {}
+            try { ctx?.release() } catch (_: Throwable) {}
             ctx = null
             archivoModelo.delete()
             DebugLog.info("Whisper", "Modelo borrado")
@@ -206,6 +228,6 @@ class WhisperManager(private val context: Context) {
         try {
             ctx?.release()
             ctx = null
-        } catch (_: Exception) {}
+        } catch (_: Throwable) {}
     }
 }
