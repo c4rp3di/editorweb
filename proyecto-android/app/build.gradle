@@ -55,6 +55,7 @@ dependencies {
 
     // Whisper AAR (se descarga en projectsEvaluated, antes de resolver dependencias)
     implementation files('libs/whisper-android.aar')
+    runtimeOnly("dev.atsushieno:libcxx-provider:28.0.13004108")
 }
 
 // ============================================================
