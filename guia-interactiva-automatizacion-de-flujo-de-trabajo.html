@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guía Interactiva · Automatización de Flujo de Trabajo</title>
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --surface: #1a1a2e;
+            --surface2: #25253e;
+            --accent: #7c5cff;
+            --accent2: #00d4aa;
+            --text: #e8e8f0;
+            --text-dim: #a0a0b8;
+            --success: #00d4aa;
+            --border: #2e2e4a;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            padding: 2rem 1rem;
+        }
+        .container { max-width: 820px; margin: 0 auto; }
+        h1 {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        h2 {
+            font-size: 1.3rem;
+            color: var(--accent2);
+            margin: 2rem 0 0.8rem;
+            padding-bottom: 0.3rem;
+            border-bottom: 1px solid var(--border);
+        }
+        h3 { font-size: 1.1rem; color: var(--accent); margin: 1.2rem 0 0.5rem; }
+        p { margin: 0.6rem 0; color: var(--text-dim); }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.2rem 1.4rem;
+            margin: 1rem 0;
+        }
+        .card-accent {
+            border-left: 3px solid var(--accent2);
+            background: linear-gradient(135deg, var(--surface), var(--surface2));
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-right: 0.4rem;
+        }
+        .badge-green { background: #00d4aa22; color: var(--accent2); border: 1px solid #00d4aa44; }
+        .badge-purple { background: #7c5cff22; color: var(--accent); border: 1px solid #7c5cff44; }
+        .badge-orange { background: #ff9f4322; color: #ff9f43; border: 1px solid #ff9f4344; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+        th, td {
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th { color: var(--accent2); font-weight: 600; background: var(--surface2); }
+        code {
+            background: var(--surface2);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: var(--accent2);
+        }
+        pre {
+            background: #0a0a12;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            margin: 0.8rem 0;
+        }
+        pre code { background: none; padding: 0; color: var(--text); }
+        .step {
+            display: flex;
+            gap: 1rem;
+            margin: 1rem 0;
+            align-items: flex-start;
+        }
+        .step-num {
+            flex-shrink: 0;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: #fff;
+        }
+        .step-content { flex: 1; }
+        .check {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.4rem 0;
+            color: var(--text-dim);
+        }
+        .check::before {
+            content: '✓';
+            color: var(--success);
+            font-weight: 700;
+        }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .toc {
+            background: var(--surface2);
+            border-radius: 10px;
+            padding: 1rem 1.4rem;
+            margin: 1.5rem 0;
+        }
+        .toc a { display: block; padding: 0.3rem 0; color: var(--text-dim); font-size: 0.9rem; }
+        .toc a:hover { color: var(--accent2); }
+        .toc .active { color: var(--accent2); font-weight: 600; }
+        .toc .pending { color: #555; }
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <h1>🔧 Guía Interactiva de Automatización</h1>
+    <p>Para tu proyecto <strong>EditorWeb</strong> · Septiembre 2026</p>
+
+    <div class="card card-accent">
+        <h3>📌 ¿Qué es esta guía?</h3>
+        <p>
+            Esta guía te lleva paso a paso para automatizar las partes repetitivas de tu flujo de trabajo
+            con herramientas <strong>gratuitas, sin tarjeta de crédito y sin registro obligatorio</strong>.
+            Cada sección termina con una confirmación. Si has hecho los pasos, puedes pasar a la siguiente.
+        </p>
+        <p style="margin-top:0.5rem;">
+            No necesitas saber programar. Solo seguir las instrucciones en orden.
+        </p>
+    </div>
+
+    <h2>🗺️ Hoja de ruta de la guía</h2>
+    <p>La guía tiene 5 partes. Estás en la <strong>Parte 1</strong>.</p>
+
+    <div class="toc">
+        <a href="#parte1" class="active">✅ Parte 1 · Introducción e integración en tu momento actual</a>
+        <a href="#parte2" class="pending">⏳ Parte 2 · Gestión de roadmap y bloques (Paca + Taskade)</a>
+        <a href="#parte3" class="pending">⏳ Parte 3 · Verificación de código (diffray CLI + Saguaro)</a>
+        <a href="#parte4" class="pending">⏳ Parte 4 · Orquestación multiagente (GoiabaSeeds + Nexora)</a>
+        <a href="#parte5" class="pending">⏳ Parte 5 · Gestión de pendientes (Taskade + FreeTodo)</a>
+    </div>
+
+    <h2 id="parte1">📋 Parte 1 · Tu momento actual y qué vamos a automatizar</h2>
+
+    <h3>Tu situación ahora mismo</h3>
+    <p>
+        Tienes un roadmap enorme con bloques B5 a B14, asistentes por bloque, verificaciones de dos niveles,
+        pendientes agrupados y una cola general. El trabajo está muy organizado <em>en papel</em>,
+        pero cada tarea se hace a mano.
+    </p>
+    <p>Estas son las partes que más tiempo te consumen y que vamos a automatizar:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Parte de tu flujo</th>
+                <th>Qué haces ahora</th>
+                <th>Qué vamos a automatizar</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Roadmap y bloques</strong></td>
+                <td>Leer el roadmap, decidir qué bloque toca, redactar el encargo del asistente</td>
+                <td>Un tablero donde los agentes de IA son compañeros de equipo y reciben tareas solos</td>
+            </tr>
+            <tr>
+                <td><strong>Verificación de código</strong></td>
+                <td>Verificación mínima (tú) + verificación larga (verificador aparte)</td>
+                <td>Un revisor automático que analiza cada cambio antes de que lo veas</td>
+            </tr>
+            <tr>
+                <td><strong>Reparto de tareas entre asistentes</strong></td>
+                <td>Asignas manualmente cada bloque a un asistente</td>
+                <td>Un sistema que reparte el trabajo entre agentes especializados solo</td>
+            </tr>
+            <tr>
+                <td><strong>Gestión de pendientes</strong></td>
+                <td>Anotas los pendientes a mano en el roadmap y la cola general</td>
+                <td>Una herramienta que extrae los TODO del código y los convierte en tareas</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Las 7 herramientas que vamos a usar</h3>
+    <p>Todas son gratuitas, sin tarjeta de crédito y sin registro obligatorio (o con registro gratuito).</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Herramienta</th>
+                <th>Para qué sirve</th>
+                <th>Tipo</th>
+                <th>¿Tarjeta?</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Paca</strong></td>
+                <td>Tablero de proyecto donde la IA es un compañero de equipo</td>
+                <td>Autoalojada</td>
+                <td><span class="badge badge-green">No</span></td>
+            </tr>
+            <tr>
+                <td><strong>Taskade</strong></td>
+                <td>Gestión de tareas + agentes de IA + automatización</td>
+                <td>Nube</td>
+                <td><span class="badge badge-green">No</span></td>
+            </tr>
+            <tr>
+                <td><strong>diffray CLI</strong></td>
+                <td>Revisor de código automático con múltiples agentes</td>
+                <td>Terminal</td>
+                <td><span class="badge badge-green">No</span></td>
+            </tr>
+            <tr>
+                <td><strong>Saguaro</strong></td>
+                <td>Revisor de código que aplica tus propias reglas</td>
+                <td>Terminal</td>
+                <td><span class="badge badge-green">No</span></td>
+            </tr>
+            <tr>
+                <td><strong>GoiabaSeeds</strong></td>
+                <td>Framework para crear equipos de agentes que trabajan solos</td>
+                <td>Terminal / IDE</td>
+                <td><span class="badge badge-green">No</span></td>
+            </tr>
+            <tr>
+                <td><strong>Nexora</strong></td>
+                <td>Plataforma para orquestar agentes con herramientas (Slack, Jira, etc.)</td>
+                <td>Autoalojada</td>
+                <td><span class="badge badge-green">No</span></td>
+            </tr>
+            <tr>
+                <td><strong>FreeTodo</strong></td>
+                <td>Gestión de tareas con IA que descompone proyectos</td>
+                <td>Escritorio / Web</td>
+                <td><span class="badge badge-green">No</span></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Orden de integración recomendado</h3>
+    <p>No hace falta hacerlo todo de golpe. Este es el orden que menos fricción tiene:</p>
+
+    <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+            <strong>Empieza con Taskade</strong>
+            <p>Es lo más fácil: te registras en 1 minuto y puedes ver tu roadmap como un tablero visual el mismo día. No requiere instalar nada.</p>
+        </div>
+    </div>
+
+    <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+            <strong>Añade diffray CLI y Saguaro</strong>
+            <p>Son dos comandos en la terminal. Una vez instalados, cada cambio de código se revisa solo antes de que lo mires.</p>
+        </div>
+    </div>
+
+    <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+            <strong>Prueba GoiabaSeeds</strong>
+            <p>Es el más ligero de los orquestadores. Un comando y ya tienes un equipo de agentes para una misión concreta.</p>
+        </div>
+    </div>
+
+    <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+            <strong>Si necesitas más, añade Paca y Nexora</strong>
+            <p>Estos requieren autoalojamiento (Docker). Son más potentes pero también más trabajo de configuración inicial.</p>
+        </div>
+    </div>
+
+    <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+            <strong>FreeTodo como capa personal</strong>
+            <p>Para tus tareas del día a día, separado del roadmap del proyecto.</p>
+        </div>
+    </div>
+
+    <div class="card card-accent">
+        <h3>✅ Confirmación de la Parte 1</h3>
+        <p>Has completado esta parte si:</p>
+        <div class="check">Entiendes qué partes de tu flujo se van a automatizar</div>
+        <div class="check">Conoces las 7 herramientas y para qué sirve cada una</div>
+        <div class="check">Sabes en qué orden las vas a integrar</div>
+        <p style="margin-top:0.8rem;">
+            <strong>Siguiente:</strong> en la <strong>Parte 2</strong> empezamos con Taskade (registro paso a paso)
+            y Paca (instalación autoalojada).
+        </p>
+    </div>
+
+    <!-- La Parte 2 se añadirá aquí en la siguiente tanda -->
+<!-- ============================================================ -->
+<!-- PARTE 2 · GESTIÓN DE ROADMAP Y BLOQUES                      -->
+<!-- Herramientas: Paca + Taskade                                -->
+<!-- ============================================================ -->
+
+<h2 id="parte2">📋 Parte 2 · Gestión de roadmap y bloques</h2>
+
+<div class="card card-accent">
+    <h3>🎯 ¿Qué vamos a conseguir aquí?</h3>
+    <p>
+        Al terminar esta parte tendrás dos cosas funcionando:
+    </p>
+    <div class="check"><strong>Taskade</strong>: un tablero visual donde verás tu roadmap de un vistazo y podrás crear agentes de IA que te ayuden con tareas repetitivas.</div>
+    <div class="check"><strong>Paca</strong>: un "Jira personal" donde los propios agentes de IA aparecen como compañeros de equipo en el mismo tablero, cogen tareas del backlog y actualizan su estado.</div>
+    <p style="margin-top:0.8rem;">
+        <strong>Orden recomendado:</strong> empieza por Taskade (5 minutos, sin instalar nada). Paca requiere Docker y es un paso más técnico, pero es el que más se acerca a tu forma actual de trabajar.
+    </p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECCIÓN 2.1 · TASKADE                                      -->
+<!-- ============================================================ -->
+
+<h3>2.1 · Taskade · Tu tablero visual en 5 minutos</h3>
+
+<p>
+    Taskade es una herramienta en la nube. No hay que instalar nada. Te registras, creas un proyecto y ya tienes tu roadmap como un tablero con columnas.
+</p>
+
+<div class="card">
+    <h4>✅ Datos clave de Taskade (según su documentación oficial)</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Dato</th>
+                <th>Valor</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Plan gratuito</strong></td>
+                <td><span class="badge badge-green">Free Forever</span> Sin límite de tiempo</td>
+            </tr>
+            <tr>
+                <td><strong>¿Tarjeta de crédito?</strong></td>
+                <td><strong>No.</strong> Puedes registrarte y empezar sin introducir datos de pago[reference:0]</td>
+            </tr>
+            <tr>
+                <td><strong>¿Qué incluye gratis?</strong></td>
+                <td>Proyectos ilimitados, 6 vistas (Lista, Tablero, Tabla, Mapa Mental, Docs, Calendario), colaboración en tiempo real, chat con IA, agentes básicos y automatizaciones[reference:1]</td>
+            </tr>
+            <tr>
+                <td><strong>Créditos de IA gratis</strong></td>
+                <td>Al verificar tu email recibes un <strong>único grant de 6.000 créditos</strong> (1.000 al verificar + 5.000 al crear tu primer "build"). No se renuevan mensualmente[reference:2]</td>
+            </tr>
+            <tr>
+                <td><strong>Registro</strong></td>
+                <td><a href="https://www.taskade.com" target="_blank">taskade.com</a> → "Sign up for free"</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h4>Paso a paso para tener tu roadmap en Taskade</h4>
+
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+        <strong>Regístrate en taskade.com</strong>
+        <p>Ve a <a href="https://www.taskade.com" target="_blank">taskade.com</a> y haz clic en <strong>"Sign up for free"</strong>. Puedes usar tu email o una cuenta de Google. No te pedirá tarjeta.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+        <strong>Crea un proyecto nuevo</strong>
+        <p>En tu espacio de trabajo, haz clic en <strong>"+ New Project"</strong>. Ponle un nombre, por ejemplo: <code>Roadmap EditorWeb</code>.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+        <strong>Elige la vista de Tablero (Board)</strong>
+        <p>Arriba del proyecto verás varias vistas: Lista, Tablero, Tabla, etc. Haz clic en <strong>"Board"</strong>. Verás columnas que puedes renombrar.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+        <strong>Crea las columnas de tus bloques</strong>
+        <p>Renombra las columnas para que coincidan con tus estados. Por ejemplo:</p>
+        <ul style="margin-left:1.5rem; color:var(--text-dim);">
+            <li><strong>Planificado</strong> → B14, B13 Fases 2-9, B9, B12</li>
+            <li><strong>En curso</strong> → B8, B12-B</li>
+            <li><strong>Verificación</strong> → Fusion-2-corregido, B11.B</li>
+            <li><strong>Cerrado</strong> → B5, B6, B7.x, B10, B11.A, B13 Fase 1</li>
+        </ul>
+        <p>Así ves de un vistazo qué toca hacer y qué está esperando verificación.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">5</div>
+    <div class="step-content">
+        <strong>Añade tarjetas para los pendientes inmediatos</strong>
+        <p>Crea una tarjeta por cada uno de los 8 pendientes de la sección "PENDIENTE INMEDIATO" de tu roadmap. Arrástralas a la columna que corresponda.</p>
+    </div>
+</div>
+
+<div class="card card-accent">
+    <h4>🤖 Bonus: crea un agente de IA en Taskade</h4>
+    <p>
+        Taskade te deja crear <strong>agentes especializados</strong> que actúan como miembros de tu equipo digital[reference:3]. Por ejemplo:
+    </p>
+    <div class="check">Ve a la sección de <strong>AI Agents</strong> en tu workspace</div>
+    <div class="check">Define un rol: <em>"Eres un asistente que revisa el roadmap de bloques. Cuando te pido un resumen, me dices qué está en curso, qué bloquea a qué y qué toca verificar."</em></div>
+    <div class="check">Entrena al agente subiendo tu propio roadmap (puedes pegar el texto como documento de conocimiento)</div>
+    <div class="check">Pruébalo preguntándole: <em>"¿Cuál es el siguiente paso después de que B8 se verifique?"</em></div>
+    <p style="margin-top:0.5rem;">
+        Los agentes de Taskade tienen <strong>memoria persistente</strong> y aprenden de tus correcciones[reference:4]. Cuanto más lo uses, mejor te ayudará.
+    </p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECCIÓN 2.2 · PACA                                         -->
+<!-- ============================================================ -->
+
+<h3>2.2 · Paca · Tu Jira personal con agentes como compañeros de equipo</h3>
+
+<p>
+    Paca es la herramienta que <strong>mejor encaja con tu forma actual de trabajar</strong>: es un tablero Scrum donde los agentes de IA son <strong>compañeros de equipo con nombre y apellidos</strong>, no chatbots[reference:5]. Se asignan a sprints, cogen tareas del backlog y actualizan su estado en el mismo tablero que tú[reference:6].
+</p>
+
+<div class="card">
+    <h4>✅ Datos clave de Paca (según su documentación oficial en GitHub)</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Dato</th>
+                <th>Valor</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Precio</strong></td>
+                <td><span class="badge badge-green">Free forever</span> 100% open-source (Apache 2.0)[reference:7]</td>
+            </tr>
+            <tr>
+                <td><strong>¿Tarjeta de crédito?</strong></td>
+                <td><strong>No.</strong> Es autoalojado. Tú lo ejecutas en tu propia máquina o servidor.</td>
+            </tr>
+            <tr>
+                <td><strong>¿Dónde vive?</strong></td>
+                <td>En tu ordenador o en un servidor Linux con <strong>Docker</strong> instalado[reference:8]</td>
+            </tr>
+            <tr>
+                <td><strong>¿Qué necesitas?</strong></td>
+                <td>Un ordenador con Linux/macOS, o un servidor. También funciona en Windows con WSL2.</td>
+            </tr>
+            <tr>
+                <td><strong>Instalación</strong></td>
+                <td>Un solo comando en la terminal. El script te guía paso a paso[reference:9]</td>
+            </tr>
+            <tr>
+                <td><strong>Documentación</strong></td>
+                <td><a href="https://github.com/Paca-AI/paca" target="_blank">github.com/Paca-AI/paca</a> → sección "Getting Started"</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h4>Paso a paso para instalar Paca</h4>
+
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+        <strong>Comprueba que tienes Docker instalado</strong>
+        <p>Abre una terminal y escribe:</p>
+        <pre><code>docker --version</code></pre>
+        <p>Si te sale un número de versión, perfecto. Si no, instala Docker Desktop desde <a href="https://www.docker.com/products/docker-desktop/" target="_blank">docker.com</a>.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+        <strong>Ejecuta el script de instalación</strong>
+        <p>Copia y pega este comando en la terminal y pulsa Enter[reference:10]:</p>
+        <pre><code>curl -fsSL https://github.com/Paca-AI/paca/releases/latest/download/install.sh | bash</code></pre>
+        <p>El script te irá preguntando cosas (puerto, dominio, contraseña de administrador). Para un uso personal en tu ordenador, acepta los valores por defecto.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+        <strong>Abre Paca en el navegador</strong>
+        <p>Cuando termine la instalación, abre tu navegador y ve a:</p>
+        <pre><code>http://localhost</code></pre>
+        <p>Verás la pantalla de login de Paca. Usa la contraseña de administrador que configuraste en el paso anterior.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+        <strong>Crea tu primer proyecto</strong>
+        <p>Dentro de Paca, crea un proyecto nuevo llamado <code>EditorWeb</code>. Verás un tablero Scrumban con columnas configurables.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">5</div>
+    <div class="step-content">
+        <strong>Añade una columna por cada bloque de tu roadmap</strong>
+        <p>Paca te permite configurar workflows y estados[reference:11]. Renombra las columnas para reflejar tus bloques:</p>
+        <ul style="margin-left:1.5rem; color:var(--text-dim);">
+            <li>Backlog → <em>Bloques futuros</em></li>
+            <li>En curso → <em>B8, B12-B</em></li>
+            <li>Verificación → <em>Fusion-2-corregido, B11.B</em></li>
+            <li>Done → <em>Bloques cerrados</em></li>
+        </ul>
+    </div>
+</div>
+
+<div class="card card-accent">
+    <h4>🤖 La ventaja de Paca: agentes como compañeros de equipo</h4>
+    <p>
+        Aquí está lo que hace especial a Paca. Puedes crear <strong>agentes de IA que aparecen en el tablero como si fueran personas</strong>[reference:12]:
+    </p>
+    <div class="check">Un agente <strong>"Asistente B8"</strong> que tiene asignadas las tareas del bloque B8</div>
+    <div class="check">Un agente <strong>"Verificador"</strong> que coge las tarjetas que llegan a la columna "Verificación"</div>
+    <div class="check">Un agente <strong>"Fusionador"</strong> que se activa cuando dos bloques están verificados</div>
+    <p style="margin-top:0.5rem;">
+        Estos agentes <strong>cogen tareas del backlog, actualizan su estado en tiempo real y colaboran en las especificaciones BDD</strong>[reference:13]. No son automatizaciones rígidas: son compañeros que participan en el sprint planning contigo.
+    </p>
+</div>
+
+<!-- ============================================================ -->
+<!-- CONFIRMACIÓN PARTE 2                                        -->
+<!-- ============================================================ -->
+
+<div class="card card-accent">
+    <h3>✅ Confirmación de la Parte 2</h3>
+    <p>Has completado esta parte si:</p>
+    <div class="check">Tienes una cuenta de Taskade (gratuita, sin tarjeta)</div>
+    <div class="check">Has creado el proyecto "Roadmap EditorWeb" con las columnas de bloques</div>
+    <div class="check">Has creado al menos 1 agente de IA en Taskade con tu roadmap como conocimiento</div>
+    <div class="check">Tienes Docker instalado y funcionando en tu máquina</div>
+    <div class="check">Has instalado Paca con el script y puedes acceder a <code>http://localhost</code></div>
+    <div class="check">Has creado el proyecto "EditorWeb" en Paca con las columnas de bloques</div>
+    <p style="margin-top:0.8rem;">
+        <strong>Siguiente:</strong> en la <strong>Parte 3</strong> vamos a por la verificación automática de código con <strong>diffray CLI</strong> y <strong>Saguaro</strong>. Esas herramientas se instalan en la terminal y revisan tu código por ti antes de que lo mires.
+    </p>
+</div>
+<!-- ============================================================ -->
+<!-- PARTE 3 · VERIFICACIÓN DE CÓDIGO                            -->
+<!-- Herramientas: diffray CLI + Saguaro                         -->
+<!-- ============================================================ -->
+
+<h2 id="parte3">🔍 Parte 3 · Verificación automática de código</h2>
+
+<div class="card card-accent">
+    <h3>🎯 ¿Qué vamos a conseguir aquí?</h3>
+    <p>
+        Ahora mismo, cada vez que un asistente entrega un bloque, tienes que revisarlo tú o esperar a un verificador aparte. Eso es lento y depende de que alguien esté disponible.
+    </p>
+    <p style="margin-top:0.5rem;">
+        Con estas dos herramientas, <strong>cada cambio de código se revisa solo antes de que lo mires</strong>. Es como tener un compañero que echa un vistazo rápido y te avisa si algo huele mal.
+    </p>
+    <div class="check"><strong>diffray CLI</strong>: ejecuta varios agentes especializados (seguridad, bugs, rendimiento) sobre tus cambios de git. Funciona en la terminal con un comando.</div>
+    <div class="check"><strong>Saguaro</strong>: aplica <em>tus propias reglas</em> (por ejemplo, "no usar eval", "preservar formato") y bloquea al asistente si las incumple, antes de que termine su turno.</div>
+</div>
+
+<div class="card">
+    <h4>⚠️ Antes de empezar: lo que necesitas tener instalado</h4>
+    <p>Ambas herramientas necesitan un <strong>agente de codificación</strong> ya instalado y autorizado. Según la documentación oficial:</p>
+    <table>
+        <thead>
+            <tr><th>Requisito</th><th>Para qué</th><th>¿Gratis?</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Node.js 20+</strong></td>
+                <td>Para instalar diffray y Saguaro con <code>npm</code></td>
+                <td><span class="badge badge-green">Sí</span></td>
+            </tr>
+            <tr>
+                <td><strong>Git</strong></td>
+                <td>diffray revisa <em>cambios</em> de git, no archivos sueltos</td>
+                <td><span class="badge badge-green">Sí</span></td>
+            </tr>
+            <tr>
+                <td><strong>Claude Code CLI</strong> (o Cursor/Codex/Gemini)</td>
+                <td>Es el "motor de IA" que hace la revisión. diffray y Saguaro <strong>no traen su propio modelo</strong>: usan el que ya tengas.</td>
+                <td>Depende de tu suscripción</td>
+            </tr>
+        </tbody>
+    </table>
+    <p style="margin-top:0.5rem;">
+        Si ya usas Claude Code, Cursor o similar para programar, lo tienes hecho. Si no, instala uno primero (por ejemplo, <code>npm install -g @anthropic-ai/claude-code</code> y luego <code>claude auth login</code>).
+    </p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECCIÓN 3.1 · DIFFRAY CLI                                   -->
+<!-- ============================================================ -->
+
+<h3>3.1 · diffray CLI · Revisión multi-agente en un comando</h3>
+
+<p>
+    diffray es una herramienta de terminal que <strong>lanza varios agentes a la vez</strong>: uno busca fallos de seguridad, otro errores lógicos, otro problemas de rendimiento, otro de estilo. Cada uno se centra en lo suyo y te da un informe limpio.
+</p>
+
+<div class="card">
+    <h4>✅ Datos clave de diffray CLI (según su documentación oficial)</h4>
+    <table>
+        <thead>
+            <tr><th>Dato</th><th>Valor</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Precio</strong></td>
+                <td><span class="badge badge-green">Gratis para siempre</span> Sin prueba, sin tarjeta, sin límite de uso</td>
+            </tr>
+            <tr>
+                <td><strong>Licencia</strong></td>
+                <td>MIT (código abierto, puedes inspeccionarlo)</td>
+            </tr>
+            <tr>
+                <td><strong>¿Envía tu código a la nube?</strong></td>
+                <td><strong>No.</strong> Todo se procesa en tu máquina con tu agente de IA local</td>
+            </tr>
+            <tr>
+                <td><strong>Instalación</strong></td>
+                <td>Un comando: <code>npm install -g diffray</code></td>
+            </tr>
+            <tr>
+                <td><strong>Uso básico</strong></td>
+                <td><code>diffray review</code> dentro de tu repositorio git</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h4>Paso a paso para instalar diffray CLI</h4>
+
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+        <strong>Comprueba que tienes Node.js</strong>
+        <p>Abre una terminal y escribe:</p>
+        <pre><code>node --version</code></pre>
+        <p>Debe salir un número 20 o superior. Si no, instala Node.js desde <a href="https://nodejs.org" target="_blank">nodejs.org</a>.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+        <strong>Instala diffray</strong>
+        <pre><code>npm install -g diffray</code></pre>
+        <p>El <code>-g</code> significa "global": se instala una vez y lo puedes usar en cualquier proyecto.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+        <strong>Comprueba que funciona</strong>
+        <pre><code>diffray --version</code></pre>
+        <p>Si sale un número de versión, está listo.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+        <strong>Ve a tu proyecto y lanza una revisión</strong>
+        <p>Ábre una terminal <strong>dentro de la carpeta de tu proyecto</strong> (donde está el repositorio git) y escribe:</p>
+        <pre><code>diffray review</code></pre>
+        <p>diffray revisará los cambios que aún no has guardado en git (los "uncommitted changes"). Verás un informe con los problemas encontrados, clasificados por severidad.</p>
+    </div>
+</div>
+
+<div class="card card-accent">
+    <h4>💡 Comandos útiles de diffray para tu flujo</h4>
+    <p>Estos son los que más te van a servir con tu roadmap:</p>
+    <table>
+        <thead>
+            <tr><th>Comando</th><th>Qué hace</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>diffray review --base main</code></td>
+                <td>Revisa todos los cambios de tu rama actual comparados con <code>main</code>. Útil antes de fusionar.</td>
+            </tr>
+            <tr>
+                <td><code>diffray review --agent security</code></td>
+                <td>Ejecuta <strong>solo</strong> el agente de seguridad. Más rápido y enfocado.</td>
+            </tr>
+            <tr>
+                <td><code>diffray review --agent bug-hunter</code></td>
+                <td>Solo el agente que busca errores lógicos y casos borde.</td>
+            </tr>
+            <tr>
+                <td><code>diffray review --severity critical,high</code></td>
+                <td>Muestra solo los problemas críticos y altos. Ideal para una revisión rápida antes de verificar.</td>
+            </tr>
+            <tr>
+                <td><code>diffray agents</code></td>
+                <td>Lista todos los agentes disponibles para que sepas cuáles puedes usar.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECCIÓN 3.2 · SAGUARO                                       -->
+<!-- ============================================================ -->
+
+<h3>3.2 · Saguaro · Tus reglas, aplicadas solas</h3>
+
+<p>
+    Si diffray es un "segundo par de ojos", Saguaro es un <strong>guardia de seguridad que se pone delante de tu asistente</strong>. Tú escribes reglas en lenguaje natural (por ejemplo: <em>"no usar eval"</em>, <em>"preservar el formato del código"</em>, <em>"no añadir dependencias externas"</em>) y Saguaro bloquea al asistente si intenta violarlas, <strong>antes de que termine su turno</strong>.
+</p>
+
+<div class="card">
+    <h4>✅ Datos clave de Saguaro (según su documentación oficial)</h4>
+    <table>
+        <thead>
+            <tr><th>Dato</th><th>Valor</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Precio</strong></td>
+                <td><span class="badge badge-green">Gratis</span> Licencia Apache 2.0</td>
+            </tr>
+            <tr>
+                <td><strong>¿Tarjeta de crédito?</strong></td>
+                <td><strong>No.</strong> Usa tu suscripción existente de Claude Code, Codex o Gemini</td>
+            </tr>
+            <tr>
+                <td><strong>¿Cómo funciona?</strong></td>
+                <td>Se integra con tu agente de codificación mediante <em>hooks</em>. Cuando el asistente va a escribir código, Saguaro le inyecta las reglas. Cuando termina, revisa los cambios y si hay violaciones, le pide que las corrija.</td>
+            </tr>
+            <tr>
+                <td><strong>Instalación</strong></td>
+                <td><code>npm install -g @mesadev/saguaro</code> o <code>brew install mesa-dot-dev/homebrew-tap/saguaro</code></td>
+            </tr>
+            <tr>
+                <td><strong>Inicialización</strong></td>
+                <td><code>sag init</code> dentro de tu repositorio</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h4>Paso a paso para configurar Saguaro</h4>
+
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+        <strong>Instala Saguaro</strong>
+        <p>Elige una opción:</p>
+        <pre><code># Opción A · con npm (macOS y Linux)
+npm install -g @mesadev/saguaro
+
+# Opción B · con Homebrew (solo macOS)
+brew install mesa-dot-dev/homebrew-tap/saguaro</code></pre>
+        <p>Si no tienes Homebrew, usa npm. Es la más universal.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+        <strong>Inicializa Saguaro en tu repositorio</strong>
+        <p>Ve a la carpeta de tu proyecto y escribe:</p>
+        <pre><code>sag init</code></pre>
+        <p>Este comando te hace unas preguntas y crea una carpeta <code>.saguaro/</code> con la configuración y las reglas. Te ofrece tres opciones:</p>
+        <ul style="margin-left:1.5rem; color:var(--text-dim);">
+            <li><strong>Generar reglas desde tu código</strong>: analiza tu codebase y propone reglas basadas en tus patrones</li>
+            <li><strong>Usar reglas de inicio</strong>: reglas básicas predeterminadas</li>
+            <li><strong>Empezar de cero</strong>: creas tus propias reglas manualmente</li>
+        </ul>
+        <p>Para tu caso, elige <strong>"generar reglas desde tu código"</strong>. Es lo más automático.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+        <strong>Genera las reglas</strong>
+        <p>Después de <code>sag init</code>, ejecuta:</p>
+        <pre><code>sag rules generate</code></pre>
+        <p>Saguaro analizará tu proyecto y creará archivos de reglas en <code>.saguaro/rules/</code>. Son archivos Markdown que puedes editar a mano si quieres ajustar algo.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+        <strong>Ejecuta una revisión manual (para probar)</strong>
+        <pre><code>sag review</code></pre>
+        <p>Si no hay violaciones, Saguaro no dice nada (eso es bueno: <strong>silencio significa que todo está bien</strong>). Si hay violaciones, las lista y el comando termina con un código de error.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">5</div>
+    <div class="step-content">
+        <strong>Activa la integración automática (lo más importante)</strong>
+        <p><code>sag init</code> ya debería haber configurado los <em>hooks</em> automáticamente. Si quieres asegurarte, ejecuta:</p>
+        <pre><code>sag hook install</code></pre>
+        <p>Esto instala dos hooks en tu agente de codificación:</p>
+        <ul style="margin-left:1.5rem; color:var(--text-dim);">
+            <li><strong>PreToolUse</strong>: antes de que el asistente escriba código, le inyecta tus reglas para que las conozca</li>
+            <li><strong>Stop</strong>: cuando el asistente termina su turno, Saguaro revisa los cambios. Si hay violaciones, <strong>bloquea al asistente y le pide que las corrija</strong> antes de dar por terminado el trabajo.</li>
+        </ul>
+    </div>
+</div>
+
+<div class="card card-accent">
+    <h4>💡 Ejemplos de reglas que puedes escribir para tu proyecto</h4>
+    <p>Las reglas de Saguaro son archivos Markdown dentro de <code>.saguaro/rules/</code>. Así de simple:</p>
+    <pre><code>---
+name: sin-eval
+description: Prohibido usar eval o new Function
+globs: ["**/*.js"]
+---
+
+No uses `eval()` ni `new Function()` en ningún archivo JavaScript.
+Si necesitas ejecutar código dinámico, usa alternativas seguras.</code></pre>
+    <pre><code>---
+name: preservar-formato
+description: No reformatear código existente
+globs: ["**/*.html", "**/*.js"]
+---
+
+No cambies la indentación ni el formato del código que no estás modificando.
+Los diffs deben ser aditivos: solo añade o cambia lo necesario.</code></pre>
+    <pre><code>---
+name: sin-dependencias
+description: No añadir librerías externas
+globs: ["**/*"]
+---
+
+No añadas dependencias externas (CDN, imports de librerías) sin autorización explícita.
+El proyecto debe seguir siendo autónomo.</code></pre>
+    <p style="margin-top:0.5rem;">
+        Estas reglas ya están en tus "Decisiones estructurales cerradas". Saguaro las aplicará automáticamente cada vez que un asistente escriba código.
+    </p>
+</div>
+
+<!-- ============================================================ -->
+<!-- CONFIRMACIÓN PARTE 3                                        -->
+<!-- ============================================================ -->
+
+<div class="card card-accent">
+    <h3>✅ Confirmación de la Parte 3</h3>
+    <p>Has completado esta parte si:</p>
+    <div class="check">Tienes Node.js 20 o superior instalado</div>
+    <div class="check">Tienes un agente de codificación (Claude Code, Cursor, Codex o Gemini) autorizado</div>
+    <div class="check">Has instalado <code>diffray</code> con <code>npm install -g diffray</code></div>
+    <div class="check">Has ejecutado <code>diffray review</code> dentro de tu proyecto y has visto un informe</div>
+    <div class="check">Has instalado <code>@mesadev/saguaro</code> con npm o Homebrew</div>
+    <div class="check">Has ejecutado <code>sag init</code> en tu repositorio y has generado reglas con <code>sag rules generate</code></div>
+    <div class="check">Has comprobado que <code>sag review</code> funciona (silencio = todo bien)</div>
+    <div class="check">Has creado al menos una regla personalizada en <code>.saguaro/rules/</code> (por ejemplo, <code>sin-eval</code>)</div>
+    <p style="margin-top:0.8rem;">
+        <strong>Resultado:</strong> a partir de ahora, cada vez que un asistente escriba código, Saguaro le bloqueará si incumple tus reglas. Y cuando quieras una revisión rápida, <code>diffray review --severity critical,high</code> te da los problemas importantes en segundos.
+    </p>
+    <p style="margin-top:0.5rem;">
+        <strong>Siguiente:</strong> en la <strong>Parte 4</strong> montamos el equipo de agentes que reparte el trabajo solo, con <strong>GoiabaSeeds</strong> y <strong>Nexora</strong>.
+    </p>
+</div>
+<!-- ============================================================ -->
+<!-- PARTE 4 · ORQUESTACIÓN MULTIAGENTE                          -->
+<!-- Herramientas: GoiabaSeeds + Nexora                          -->
+<!-- ============================================================ -->
+
+<h2 id="parte4">🤖 Parte 4 · Orquestación multiagente</h2>
+
+<div class="card card-accent">
+    <h3>🎯 ¿Qué vamos a conseguir aquí?</h3>
+    <p>
+        Hasta ahora tienes el roadmap organizado (Taskade/Paca) y la verificación automática (diffray/Saguaro). Pero el reparto de trabajo entre asistentes sigue siendo manual.
+    </p>
+    <p style="margin-top:0.5rem;">
+        Estas dos herramientas te permiten <strong>describir una misión y que varios agentes especializados se repartan el trabajo solos</strong>.
+    </p>
+    <div class="check"><strong>GoiabaSeeds</strong>: framework ligero que crea "Departamentos" (equipos de agentes) dentro de tu IDE. Describes la misión y cada agente hace su parte en cadena. Sin registro, sin cuenta.</div>
+    <div class="check"><strong>Nexora</strong>: plataforma autoalojada que permite a los agentes <strong>delegar en sub-agentes, ejecutar ~90 herramientas y hablar con Slack, Jira o Notion</strong>. Es el "modo avanzado" para cuando quieras control total.</div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECCIÓN 4.1 · GOIABASEEDS                                   -->
+<!-- ============================================================ -->
+
+<h3>4.1 · GoiabaSeeds · Tu equipo de agentes dentro del IDE</h3>
+
+<p>
+    GoiabaSeeds es un framework gratuito y de código abierto que crea <strong>"Departamentos"</strong>: equipos de agentes especializados que trabajan en cadena sobre una misión. Tú describes qué necesitas y cada agente asume su rol (investigador, estratega, escritor, revisor…) de forma automática.
+</p>
+
+<div class="card">
+    <h4>✅ Datos clave de GoiabaSeeds (según su documentación oficial en npm)</h4>
+    <table>
+        <thead>
+            <tr><th>Dato</th><th>Valor</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Precio</strong></td>
+                <td><span class="badge badge-green">Gratis</span> Licencia MIT · "free to install and use"</td>
+            </tr>
+            <tr>
+                <td><strong>¿Cuenta o registro?</strong></td>
+                <td><strong>No.</strong> "No account required" según la documentación[reference:0]</td>
+            </tr>
+            <tr>
+                <td><strong>¿Tarjeta de crédito?</strong></td>
+                <td><strong>No.</strong> Solo necesitas tu propia clave de API de LLM (Anthropic, OpenAI o Gemini)</td>
+            </tr>
+            <tr>
+                <td><strong>Requisito</strong></td>
+                <td>Node.js 20 o superior[reference:1]</td>
+            </tr>
+            <tr>
+                <td><strong>Instalación</strong></td>
+                <td>Un comando: <code>npx goiabaseeds init</code>[reference:2]</td>
+            </tr>
+            <tr>
+                <td><strong>IDE recomendado</strong></td>
+                <td>Kiro, VS Code + Copilot, Claude Code, Cursor, Codex y Open Code[reference:3]</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h4>Paso a paso para instalar GoiabaSeeds</h4>
+
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+        <strong>Comprueba que tienes Node.js 20+</strong>
+        <p>Abre una terminal y escribe:</p>
+        <pre><code>node --version</code></pre>
+        <p>Debe salir un número 20 o superior. Si no, instala Node.js desde <a href="https://nodejs.org" target="_blank">nodejs.org</a>.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+        <strong>Inicializa GoiabaSeeds en tu proyecto</strong>
+        <p>Ve a la carpeta de tu proyecto y escribe:</p>
+        <pre><code>npx goiabaseeds init</code></pre>
+        <p>Este comando descarga e inicializa el framework. Te hará unas preguntas para configurar tu primer Departamento.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+        <strong>Elige el modo "Autonomous" (opcional)</strong>
+        <p>Si quieres controlar los agentes desde Telegram sin abrir el IDE, elige la opción <strong>2) Autonomous</strong> cuando te pregunte[reference:4]. Necesitarás una clave de API de Anthropic, OpenAI o Gemini.</p>
+        <p>Si prefieres trabajar dentro del IDE, salta este paso. Puedes cambiarlo después.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+        <strong>Verifica que funciona</strong>
+        <p>Después de la inicialización, verás que se ha creado una carpeta con la configuración de tu Departamento. Si elegiste modo autónomo, ejecuta:</p>
+        <pre><code>npx goiabaseeds pair</code></pre>
+        <p>Esto abre un enlace de Telegram y muestra un código QR. Al pulsar "Start" en Telegram, se genera una clave de API para tu espacio de trabajo[reference:5].</p>
+    </div>
+</div>
+
+<div class="card card-accent">
+    <h4>💡 ¿Cómo funciona un "Departamento"?</h4>
+    <p>Según la documentación oficial, un Departamento es un <strong>colectivo de agentes especializados</strong> construido para resolver una única misión[reference:6]:</p>
+    <table>
+        <thead>
+            <tr><th>Característica</th><th>Qué significa</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Roles especializados</strong></td>
+                <td>Cada agente tiene una tarea concreta en la cadena. Ejemplo: Investigador → Estratega → Escritor → Revisor[reference:7]</td>
+            </tr>
+            <tr>
+                <td><strong>Pipeline automatizado</strong></td>
+                <td>El trabajo fluye por una secuencia estructurada. No tienes que asignar tareas manualmente[reference:8]</td>
+            </tr>
+            <tr>
+                <td><strong>Supervisión humana</strong></td>
+                <td>El proceso se pausa solo para tu decisión final o checkpoint[reference:9]</td>
+            </tr>
+        </tbody>
+    </table>
+    <p style="margin-top:0.5rem;">
+        <strong>Ejemplo aplicado a tu proyecto:</strong> podrías crear un Departamento "Bloque B8" con un agente que lea el plan de B8, otro que implemente el código, otro que verifique la sintaxis y otro que prepare el reporte. Tú solo apruebas el resultado final.
+    </p>
+</div>
+
+<div class="card">
+    <h4>📊 Dashboard y aprobación de resultados</h4>
+    <p>GoiabaSeeds incluye un <strong>Dashboard en tiempo real</strong> donde ves a los agentes trabajar y puedes aprobar o revisar sus resultados[reference:10]. Para abrirlo:</p>
+    <pre><code>cd dashboard
+npm run dev</code></pre>
+    <p>Si usas el modo Telegram, las aprobaciones aparecen como botones inline en el chat: <strong>[✅ Approve]</strong> y <strong>[✏️ Revise]</strong>[reference:11].</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECCIÓN 4.2 · NEXORA                                        -->
+<!-- ============================================================ -->
+
+<h3>4.2 · Nexora · Orquestación avanzada autoalojada</h3>
+
+<p>
+    Nexora es una plataforma de orquestación multiagente <strong>autoalojada y con licencia MIT</strong>. A diferencia de GoiabaSeeds, aquí los agentes pueden <strong>delegar en sub-agentes, usar ~90 herramientas integradas (Slack, Jira, Notion, GitHub…) y ejecutar tareas en paralelo</strong>[reference:12].
+</p>
+
+<div class="card">
+    <h4>✅ Datos clave de Nexora (según su documentación oficial en GitHub)</h4>
+    <table>
+        <thead>
+            <tr><th>Dato</th><th>Valor</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Precio</strong></td>
+                <td><span class="badge badge-green">Gratis</span> Licencia MIT · "free, MIT-licensed OSS core"[reference:13]</td>
+            </tr>
+            <tr>
+                <td><strong>¿Tarjeta de crédito?</strong></td>
+                <td><strong>No.</strong> Es autoalojado, lo ejecutas en tu propia máquina o servidor</td>
+            </tr>
+            <tr>
+                <td><strong>Requisitos</strong></td>
+                <td>Docker + Docker Compose + Git[reference:14]</td>
+            </tr>
+            <tr>
+                <td><strong>Instalación</strong></td>
+                <td>Un comando para Linux/macOS o PowerShell para Windows[reference:15]</td>
+            </tr>
+            <tr>
+                <td><strong>Proveedores LLM</strong></td>
+                <td>~46 proveedores: Claude, Gemini, OpenAI, Ollama, Vertex, Bedrock, Azure, Cohere, DeepSeek, Groq, Mistral, xAI, Perplexity, OpenRouter…[reference:16]</td>
+            </tr>
+            <tr>
+                <td><strong>Herramientas integradas</strong></td>
+                <td>~90 herramientas: Slack, Discord, Jira, Linear, Notion, PagerDuty, Google Drive, S3, Kubernetes, Playwright…[reference:17]</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h4>Paso a paso para instalar Nexora</h4>
+
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+        <strong>Comprueba que tienes Docker</strong>
+        <p>Abre una terminal y escribe:</p>
+        <pre><code>docker --version</code></pre>
+        <p>Si no lo tienes, instala Docker Desktop desde <a href="https://www.docker.com/products/docker-desktop/" target="_blank">docker.com</a>.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+        <strong>Ejecuta el instalador automático</strong>
+        <p>Elige según tu sistema operativo:</p>
+        <pre><code># Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/ParendumOU/Nexora/main/install.sh | bash
+
+# Windows (PowerShell)
+powershell -c "irm https://raw.githubusercontent.com/ParendumOU/Nexora/main/install.ps1 | iex"</code></pre>
+        <p>El instalador te hace unas preguntas, genera todas las contraseñas automáticamente, escribe el archivo <code>.env</code>, arranca los contenedores y ejecuta las migraciones[reference:18].</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+        <strong>Primer acceso y creación del administrador</strong>
+        <p>Cuando termine, abre tu navegador y ve a:</p>
+        <pre><code>http://localhost</code></pre>
+        <p>La primera vez, Nexora detecta que no hay usuarios y te redirige a <code>/setup</code>. Ahí creas tu cuenta de administrador[reference:19].</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+        <strong>Crea tu primer agente</strong>
+        <p>Nexora incluye un <strong>Agent Builder visual</strong> (un grafo tipo React Flow) donde defines personalidades, habilidades, herramientas y sub-agentes para cada agente[reference:20].</p>
+        <p>Para tu caso, puedes crear agentes como:</p>
+        <ul style="margin-left:1.5rem; color:var(--text-dim);">
+            <li><strong>Agente "Planificador"</strong>: lee el roadmap y descompone un bloque en tareas</li>
+            <li><strong>Agente "Implementador"</strong>: escribe el código del bloque</li>
+            <li><strong>Agente "Verificador"</strong>: revisa el código y ejecuta las autocomprobaciones</li>
+            <li><strong>Agente "Fusionador"</strong>: combina ramas cuando dos bloques están listos</li>
+        </ul>
+    </div>
+</div>
+
+<div class="card card-accent">
+    <h4>💡 ¿Por qué Nexora es diferente?</h4>
+    <p>Lo que distingue a Nexora de otras herramientas es que <strong>no es un solo bucle de chat</strong>. Los agentes pueden:</p>
+    <div class="check"><strong>Delegar en sub-agentes</strong>: un agente puede crear agentes temporales para una tarea concreta y disolverlos al terminar</div>
+    <div class="check"><strong>Ejecutar tareas en paralelo</strong>: varios agentes trabajan a la vez en partes distintas del mismo proyecto</div>
+    <div class="check"><strong>Usar herramientas externas</strong>: el agente "Verificador" puede abrir un PR en GitHub o crear un issue en Jira directamente</div>
+    <div class="check"><strong>Memoria semántica y RAG</strong>: los agentes recuerdan decisiones pasadas y consultan tu documentación[reference:21]</div>
+    <p style="margin-top:0.5rem;">
+        Esto encaja perfectamente con tu modelo de "asistentes por bloque": cada agente puede ser un especialista con sus propias herramientas y memoria.
+    </p>
+</div>
+
+<div class="card">
+    <h4>🔒 Nota sobre seguridad (según la documentación oficial)</h4>
+    <p>
+        Nexora ejecuta los agentes en <strong>contenedores sandbox aislados</strong>. No le da al backend acceso directo al socket de Docker del host. En su lugar, hay un <strong>proxy de filtrado</strong> que solo permite los comandos autorizados[reference:22].
+    </p>
+    <p style="margin-top:0.5rem;">
+        Esto significa que aunque un agente intente ejecutar un comando peligroso, el proxy lo bloquea. Tu máquina está protegida.
+    </p>
+</div>
+
+<!-- ============================================================ -->
+<!-- CONFIRMACIÓN PARTE 4                                        -->
+<!-- ============================================================ -->
+
+<div class="card card-accent">
+    <h3>✅ Confirmación de la Parte 4</h3>
+    <p>Has completado esta parte si:</p>
+    <div class="check">Tienes Node.js 20+ instalado</div>
+    <div class="check">Has ejecutado <code>npx goiabaseeds init</code> en tu proyecto</div>
+    <div class="check">Has creado al menos un "Departamento" de prueba (por ejemplo, un equipo de 3 agentes para una misión sencilla)</div>
+    <div class="check">Has visto el Dashboard de GoiabaSeeds (<code>cd dashboard && npm run dev</code>)</div>
+    <div class="check">Tienes Docker instalado y funcionando</div>
+    <div class="check">Has instalado Nexora con el script de un comando</div>
+    <div class="check">Has accedido a <code>http://localhost</code> y creado tu cuenta de administrador</div>
+    <div class="check">Has explorado el Agent Builder visual y entiendes cómo se definen personas, habilidades y sub-agentes</div>
+    <p style="margin-top:0.8rem;">
+        <strong>Resultado:</strong> tienes dos capas de orquestación. GoiabaSeeds para misiones ligeras dentro del IDE (sin cuenta, sin configurar nada más allá del <code>init</code>). Nexora para cuando necesites agentes que deleguen, usen herramientas externas y trabajen en paralelo.
+    </p>
+    <p style="margin-top:0.5rem;">
+        <strong>Siguiente:</strong> en la <strong>Parte 5</strong> cerramos la guía con la <strong>gestión de pendientes</strong> (Taskade + FreeTodo) y el cierre del HTML.
+    </p>
+</div>
+<!-- ============================================================ -->
+<!-- PARTE 5 · GESTIÓN DE PENDIENTES                             -->
+<!-- Herramientas: Taskade (conversión código→tablero) + FreeTodo -->
+<!-- ============================================================ -->
+
+<h2 id="parte5">📋 Parte 5 · Gestión de pendientes</h2>
+
+<div class="card card-accent">
+    <h3>🎯 ¿Qué vamos a conseguir aquí?</h3>
+    <p>
+        Ya tienes el roadmap organizado, la verificación automática y los agentes repartiéndose el trabajo. Pero <strong>los pendientes siguen anotándose a mano</strong>: hallazgos de auditoría, mejoras UI, deuda técnica, TODO sueltos en el código…
+    </p>
+    <p style="margin-top:0.5rem;">
+        Con estas dos herramientas, <strong>el código genera sus propias tareas</strong> y tú solo decides cuándo entran en el flujo.
+    </p>
+    <div class="check"><strong>Taskade</strong>: convierte los comentarios <code>// TODO</code> y <code>// FIXME</code> de tu código directamente en tarjetas de un tablero Kanban, sin copiar y pegar.</div>
+    <div class="check"><strong>FreeTodo</strong>: app de escritorio con IA que <strong>descompone un proyecto complejo en subtareas accionables</strong> mediante una conversación. Ideal para tus pendientes personales y la cola general.</div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECCIÓN 5.1 · TASKADE · CONVERSIÓN CÓDIGO → TABLERO         -->
+<!-- ============================================================ -->
+
+<h3>5.1 · Taskade · De comentarios en el código a tareas en el tablero</h3>
+
+<p>
+    Ya tienes Taskade instalado de la Parte 2. Ahora vamos a usar una función específica: el <strong>Convertidor de Código a Tablero de Proyecto</strong>. Según la documentación oficial de Taskade, esta herramienta <strong>analiza tu código, extrae todos los comentarios TODO, FIXME, HACK y NOTE, y los organiza automáticamente en columnas por urgencia y módulo</strong>. [reference:0]
+</p>
+
+<div class="card">
+    <h4>✅ Datos clave (según la documentación oficial de Taskade)</h4>
+    <table>
+        <thead>
+            <tr><th>Dato</th><th>Valor</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>¿Qué extrae?</strong></td>
+                <td>Comentarios <code>TODO</code>, <code>FIXME</code>, <code>HACK</code> y <code>NOTE</code> de tu código [reference:1]</td>
+            </tr>
+            <tr>
+                <td><strong>¿Cómo se usa?</strong></td>
+                <td>Pegas el código (o lo importas) directamente en Taskade. La IA extrae los items y los organiza [reference:2]</td>
+            </tr>
+            <tr>
+                <td><strong>Vistas disponibles</strong></td>
+                <td>Tablero (Kanban), Gantt (planificación de sprints), Tabla (backlog) [reference:3]</td>
+            </tr>
+            <tr>
+                <td><strong>¿Automatiza la clasificación?</strong></td>
+                <td>Sí. Puedes usar <strong>AI Agents</strong> para triage automático de nuevos issues [reference:4]</td>
+            </tr>
+            <tr>
+                <td><strong>Precio</strong></td>
+                <td><span class="badge badge-green">Gratis</span> Incluido en el plan Free Forever</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h4>Paso a paso para convertir tu código en tablero</h4>
+
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+        <strong>Ve a la herramienta de conversión en Taskade</strong>
+        <p>Abre Taskade en tu navegador y busca la sección de <strong>Converters</strong> o <strong>AI Tools</strong>. También puedes acceder directamente desde la URL del convertidor de código a proyecto.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+        <strong>Pega el código de tu proyecto</strong>
+        <p>Copia el contenido de uno de tus archivos HTML (por ejemplo, <code>Fusion-2-B13F1.html</code>) y pégalo en el área de texto del convertidor.</p>
+        <p>Taskade es <strong>format-aware</strong>: entiende HTML, JavaScript, CSS y muchos otros lenguajes. [reference:5]</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+        <strong>Deja que la IA extraiga los pendientes</strong>
+        <p>Haz clic en el botón de conversión. La IA analizará el código y extraerá todos los comentarios TODO/FIXME/HACK que encuentre. Los organizará en tarjetas categorizadas.</p>
+        <p><strong>Ejemplo de lo que saldrá:</strong> si en tu código tienes <code>// TODO: verificar firma debug B11.B</code>, aparecerá como una tarjeta nueva en el tablero.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+        <strong>Cambia a vista de Tablero (Board)</strong>
+        <p>Una vez importado, haz clic en <strong>"Board"</strong> para ver las tareas en formato Kanban. Verás columnas como <em>To Do</em>, <em>Doing</em> y <em>Done</em>. [reference:6]</p>
+        <p>Puedes renombrar las columnas para que coincidan con tus bloques:</p>
+        <ul style="margin-left:1.5rem; color:var(--text-dim);">
+            <li><strong>Backlog</strong> → Cola general de pendientes</li>
+            <li><strong>En curso</strong> → Lo que estás tocando ahora</li>
+            <li><strong>Bloqueado</strong> → Pendiente de otro bloque</li>
+            <li><strong>Done</strong> → Resueltos</li>
+        </ul>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">5</div>
+    <div class="step-content">
+        <strong>Usa el AI Assistant para clasificar automáticamente</strong>
+        <p>Dentro del proyecto, abre el <strong>AI Assistant</strong> de Taskade (el icono de chat flotante) y pídele:</p>
+        <pre><code>Clasifica estas tareas por urgencia y asígnalas a las columnas
+correspondientes según su módulo (B5, B6, B10, B11.A, B12-B v2).</code></pre>
+        <p>El asistente leerá las tarjetas y las organizará por ti. [reference:7]</p>
+    </div>
+</div>
+
+<div class="card card-accent">
+    <h4>💡 Casos de uso alineados con tu roadmap</h4>
+    <p>La documentación de Taskade menciona explícitamente tres casos que encajan con tu proyecto: [reference:8]</p>
+    <table>
+        <thead>
+            <tr><th>Caso</th><th>Aplicación a tu proyecto</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Sprint Planning desde TODOs del código</strong></td>
+                <td>Extraer los <code>TODO</code> que han ido dejando los asistentes B8, B12-B, etc. y asignarlos a un sprint</td>
+            </tr>
+            <tr>
+                <td><strong>Technical Debt Tracking</strong></td>
+                <td>Visualizar y priorizar la deuda técnica que has ido anotando (hallazgos de auditoría, regex frágiles, etc.)</td>
+            </tr>
+            <tr>
+                <td><strong>Feature Roadmap Generation</strong></td>
+                <td>Construir el roadmap de bloques futuros (B14, B12 v2) desde la actividad del código</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECCIÓN 5.2 · FREETODO                                      -->
+<!-- ============================================================ -->
+
+<h3>5.2 · FreeTodo · Descompón un proyecto en pasos con una conversación</h3>
+
+<p>
+    FreeTodo es una aplicación de escritorio <strong>gratuita y de código abierto</strong> que usa IA para <strong>descomponer un proyecto complejo en subtareas accionables</strong> mediante un flujo de preguntas guiadas. [reference:9]
+</p>
+
+<div class="card">
+    <h4>✅ Datos clave de FreeTodo (según su documentación oficial en GitHub)</h4>
+    <table>
+        <thead>
+            <tr><th>Dato</th><th>Valor</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Precio</strong></td>
+                <td><span class="badge badge-green">Gratis</span> Open-source. El software es gratuito</td>
+            </tr>
+            <tr>
+                <td><strong>¿Tarjeta de crédito?</strong></td>
+                <td><strong>No.</strong> El software es gratuito. Solo pagarías la API de tu LLM si usas uno en la nube (con Ollama local es coste cero)</td>
+            </tr>
+            <tr>
+                <td><strong>Tipo de app</strong></td>
+                <td>Aplicación de escritorio (Electron) para Windows y macOS [reference:10]</td>
+            </tr>
+            <tr>
+                <td><strong>Requisitos</strong></td>
+                <td>Python 3.12 + Node.js 20+ + pnpm [reference:11]</td>
+            </tr>
+            <tr>
+                <td><strong>Instalación</strong></td>
+                <td>Script de un comando o desde el código fuente [reference:12]</td>
+            </tr>
+            <tr>
+                <td><strong>Documentación</strong></td>
+                <td><a href="https://freeyou.club/lifetrace/introduction.html" target="_blank">freeyou.club/lifetrace/introduction.html</a> [reference:13]</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h4>Paso a paso para instalar FreeTodo</h4>
+
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+        <strong>Comprueba los requisitos</strong>
+        <p>Abre una terminal y verifica:</p>
+        <pre><code>python3 --version   # Debe ser 3.12 o superior
+node --version     # Debe ser 20 o superior</code></pre>
+        <p>Si te falta algo, instala <a href="https://www.python.org/downloads/" target="_blank">Python</a> y <a href="https://nodejs.org" target="_blank">Node.js</a> primero.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+        <strong>Instala pnpm (gestor de paquetes)</strong>
+        <pre><code>npm install -g pnpm</code></pre>
+        <p>pnpm es más rápido y ligero que npm. FreeTodo lo usa para el frontend. [reference:14]</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+        <strong>Ejecuta el script de instalación</strong>
+        <p>Elige según tu sistema operativo: [reference:15]</p>
+        <pre><code># macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash
+
+# Windows (PowerShell)
+iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex</code></pre>
+        <p>El script descarga el backend, el frontend y todas las dependencias automáticamente.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+        <strong>Arranca FreeTodo</strong>
+        <p>Cuando termine la instalación, arranca la aplicación:</p>
+        <pre><code>cd FreeTodo
+pnpm start</code></pre>
+        <p>Se abrirá una ventana de escritorio con la interfaz de FreeTodo.</p>
+    </div>
+</div>
+
+<div class="step">
+    <div class="step-num">5</div>
+    <div class="step-content">
+        <strong>Prueba la descomposición de tareas</strong>
+        <p>En el panel de chat de FreeTodo, escribe algo como:</p>
+        <pre><code>Necesito preparar la verificación larga de Fusion-2-corregido.
+¿Qué pasos debería seguir?</code></pre>
+        <p>FreeTodo te hará preguntas guiadas (¿tienes Chromium instalado?, ¿qué autocomprobaciones B7 quieres ejecutar?) y <strong>descompondrá el proyecto en subtareas concretas</strong>. [reference:16]</p>
+    </div>
+</div>
+
+<div class="card card-accent">
+    <h4>💡 ¿Para qué usar FreeTodo en tu flujo?</h4>
+    <p>FreeTodo encaja mejor en <strong>dos momentos concretos</strong>:</p>
+    <div class="check">
+        <strong>Antes de redactar un encargo de bloque</strong>
+        <p style="margin-left:1.8rem;">Describes el bloque y FreeTodo te ayuda a descomponerlo en sub-apartados y tareas concretas.</p>
+    </div>
+    <div class="check">
+        <strong>Cuando un pendiente de la cola general es vago</strong>
+        <p style="margin-left:1.8rem;">Por ejemplo: <em>"hallazgo 5.2 · retrofit pantalla-web acoplado al texto"</em>. FreeTodo te hace preguntas hasta convertirlo en pasos accionables.</p>
+    </div>
+    <p style="margin-top:0.5rem;">
+        FreeTodo guarda las tareas en una base de datos local (SQLite + ChromaDB) y tiene vistas de calendario con arrastrar y soltar. [reference:17]
+    </p>
+</div>
+
+<!-- ============================================================ -->
+<!-- CONFIRMACIÓN PARTE 5                                        -->
+<!-- ============================================================ -->
+
+<div class="card card-accent">
+    <h3>✅ Confirmación de la Parte 5</h3>
+    <p>Has completado esta parte si:</p>
+    <div class="check">Has usado el convertidor de código a tablero de Taskade con un archivo de tu proyecto</div>
+    <div class="check">Has visto las tareas extraídas (TODO/FIXME) organizadas en columnas por urgencia</div>
+    <div class="check">Has probado el AI Assistant de Taskade para clasificar automáticamente las tareas</div>
+    <div class="check">Tienes Python 3.12+ y Node.js 20+ instalados</div>
+    <div class="check">Has instalado FreeTodo con el script de un comando</div>
+    <div class="check">Has probado a descomponer un pendiente vago en subtareas concretas con FreeTodo</div>
+    <p style="margin-top:0.8rem;">
+        <strong>Resultado:</strong> el código ya no es un cajón de sastre. Los TODO se convierten solos en tarjetas. Y FreeTodo te ayuda a convertir pendientes vagos en pasos accionables.
+    </p>
+</div>
+
+<!-- ============================================================ -->
+<!-- CIERRE DE LA GUÍA · RESUMEN FINAL                           -->
+<!-- ============================================================ -->
+
+<h2 id="resumen">🎉 Resumen final · Tu flujo automatizado</h2>
+
+<div class="card">
+    <h3>Así queda tu flujo completo</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Momento</th>
+                <th>Herramienta</th>
+                <th>Qué hace</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Planificas</strong></td>
+                <td>Taskade / Paca</td>
+                <td>Ves el roadmap como tablero. Los agentes cogen tareas del backlog solos.</td>
+            </tr>
+            <tr>
+                <td><strong>Implementas</strong></td>
+                <td>GoiabaSeeds / Nexora</td>
+                <td>Describes el bloque y los agentes se reparten el trabajo en cadena o en paralelo.</td>
+            </tr>
+            <tr>
+                <td><strong>Verificas</strong></td>
+                <td>diffray / Saguaro</td>
+                <td>Revisión automática antes de que mires el código. Las reglas bloquean al asistente si incumple.</td>
+            </tr>
+            <tr>
+                <td><strong>Anotas pendientes</strong></td>
+                <td>Taskade / FreeTodo</td>
+                <td>Los TODO del código se convierten en tarjetas. FreeTodo descompone pendientes vagos.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="card card-accent">
+    <h3>📌 Recordatorio: todo es gratuito y sin tarjeta</h3>
+    <table>
+        <thead>
+            <tr><th>Herramienta</th><th>Precio</th><th>¿Tarjeta?</th><th>¿Registro?</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Taskade</td><td>Free Forever</td><td>No</td><td>Sí (email o Google)</td></tr>
+            <tr><td>Paca</td><td>Open-source (Apache 2.0)</td><td>No</td><td>No (autoalojado)</td></tr>
+            <tr><td>diffray CLI</td><td>Gratis (MIT)</td><td>No</td><td>No (npm global)</td></tr>
+            <tr><td>Saguaro</td><td>Gratis (Apache 2.0)</td><td>No</td><td>No (npm global)</td></tr>
+            <tr><td>GoiabaSeeds</td><td>Gratis (MIT)</td><td>No</td><td>No (npx)</td></tr>
+            <tr><td>Nexora</td><td>Open-source (MIT)</td><td>No</td><td>No (autoalojado)</td></tr>
+            <tr><td>FreeTodo</td><td>Open-source (gratis)</td><td>No</td><td>No (escritorio)</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="card card-accent">
+    <h3>🗺️ Orden recomendado si empiezas de cero</h3>
+    <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+            <strong>Taskade</strong> · 5 minutos, sin instalar nada. Crea tu roadmap como tablero hoy mismo.
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+            <strong>diffray CLI</strong> · Un comando en la terminal. Revisión automática de código desde el primer día.
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+            <strong>Saguaro</strong> · Añade tus reglas (sin eval, preservar formato, sin dependencias). El asistente se autocorrige.
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+            <strong>GoiabaSeeds</strong> · Un <code>npx init</code> y ya tienes un equipo de agentes para una misión.
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+            <strong>FreeTodo</strong> · Para descomponer pendientes vagos en pasos concretos.
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-content">
+            <strong>Paca y Nexora</strong> · Cuando quieras control total: agentes como compañeros de equipo y orquestación avanzada.
+        </div>
+    </div>
+</div>
+
+<div class="card card-accent" style="text-align:center; margin-top:2rem;">
+    <h3>🏁 Fin de la guía</h3>
+    <p style="font-size:1.05rem;">
+        Ya tienes todo lo necesario para automatizar tu flujo de trabajo con el EditorWeb.
+    </p>
+    <p style="margin-top:0.5rem;">
+        Empieza por Taskade. Cuando lo tengas, añade la siguiente. Sin prisa. Una herramienta bien configurada vale más que cinco a medias.
+    </p>
+    <p style="margin-top:1rem; color:var(--accent2); font-weight:600;">
+        ✅ 7 herramientas · 0 € · 0 tarjetas de crédito · 0 cuentas obligatorias
+    </p>
+</div>
+
+<div class="footer">
+    Guía Interactiva de Automatización · EditorWeb · Septiembre 2026<br>
+    Generada a partir de documentación oficial de cada herramienta.
+</div>
+
+</div> <!-- cierre .container -->
+</body>
+</html>
