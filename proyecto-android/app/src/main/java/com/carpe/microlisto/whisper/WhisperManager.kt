@@ -74,6 +74,26 @@ class WhisperManager(private val context: Context) {
         }
     }
 
+    /**
+     * Carga un modelo desde una ruta arbitraria en el dispositivo.
+     * Útil cuando la descarga automática falla y el usuario copia el archivo .gguf manualmente.
+     */
+    suspend fun cargarDesdeArchivo(rutaAbsoluta: String): Boolean = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val archivo = File(rutaAbsoluta)
+            if (!archivo.exists()) {
+                DebugLog.warn("Whisper", "El archivo no existe: $rutaAbsoluta")
+                return@withContext false
+            }
+            DebugLog.info("Whisper", "Cargando modelo desde ruta manual: $rutaAbsoluta")
+            ctx = WhisperContext.createContextFromFile(archivo.absolutePath)
+            true
+        } catch (e: Exception) {
+            DebugLog.error("Whisper", "Error cargando desde ruta manual: ${e.message}")
+            false
+        }
+    }
+
     suspend fun transcribirWav(wav: File): String? = withContext(Dispatchers.IO) {
         if (ctx == null) {
             if (!cargarSiDescargado()) {
