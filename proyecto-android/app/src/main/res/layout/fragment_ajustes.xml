@@ -76,7 +76,7 @@
             <Button android:id="@+id/boton_resetear_ajustes" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="↺ Restablecer" />
         </LinearLayout>
 
-        <!-- Whisper -->
+        <!-- Motor Whisper -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -89,7 +89,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Whisper transcribe el WAV completo al final, ofreciendo mucha mejor precisión que Vosk. Requiere descargar el modelo la primera vez."
+            android:text="Whisper transcribe el WAV completo al final, ofreciendo mejor precisión que Vosk. Requiere descargar el modelo o seleccionar un .gguf manualmente."
             android:textSize="12sp"
             android:textColor="#B0B0D0"
             android:layout_marginBottom="8dp" />
@@ -107,7 +107,14 @@
             android:id="@+id/boton_descargar_whisper"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="📥 Descargar modelo (~809 MB)"
+            android:text="📥 Descargar modelo (~620 MB)"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/boton_seleccionar_modelo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📂 Seleccionar archivo .gguf"
             android:layout_marginBottom="8dp" />
 
         <Button
@@ -149,26 +156,6 @@
             android:layout_height="wrap_content"
             android:text="🗑 Borrar todas las conversaciones"
             android:layout_marginBottom="16dp" />
-<Button
-    android:id="@+id/boton_descargar_whisper"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:text="📥 Descargar modelo (~620 MB)"
-    android:layout_marginBottom="8dp" />
-
-<Button
-    android:id="@+id/boton_seleccionar_modelo"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:text="📂 Seleccionar archivo .gguf"
-    android:layout_marginBottom="8dp" />
-
-<Button
-    android:id="@+id/boton_borrar_whisper"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:text="🗑 Borrar modelo Whisper"
-    android:layout_marginBottom="16dp" />
 
         <!-- HyperOS -->
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/ajustes_asistente_hyperos" android:textSize="16sp" android:textColor="#F0EEF8" android:layout_marginTop="16dp" android:layout_marginBottom="4dp" />
