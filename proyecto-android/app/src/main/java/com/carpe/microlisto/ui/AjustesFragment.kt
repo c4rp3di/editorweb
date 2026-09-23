@@ -6,7 +6,9 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -18,6 +20,7 @@ import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.carpe.microlisto.ConfiguracionInicialActivity
@@ -29,12 +32,21 @@ import com.carpe.microlisto.whisper.WhisperManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 class AjustesFragment : Fragment() {
 
     private var _binding: FragmentAjustesBinding? = null
     private val binding get() = _binding!!
     private lateinit var whisperManager: WhisperManager
+
+    private val selectorModelo = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            cargarModeloDesdeUri(uri)
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -57,6 +69,7 @@ class AjustesFragment : Fragment() {
         binding.botonBorrarTodo.setOnClickListener { confirmarBorrarTodo() }
         binding.botonDescargarWhisper.setOnClickListener { descargarWhisper() }
         binding.botonBorrarWhisper.setOnClickListener { borrarWhisper() }
+        binding.botonSeleccionarModelo.setOnClickListener { abrirSelectorModelo() }
 
         cargarAjustesActuales()
         cargarEstadisticas()
@@ -127,14 +140,14 @@ class AjustesFragment : Fragment() {
     private fun actualizarEstadoWhisper() {
         val descargado = whisperManager.estaDescargado()
         if (descargado) {
-            binding.textoEstadoWhisper.text = "✅ Modelo descargado (large-v3-turbo Q5_K_M, ~809 MB)"
+            binding.textoEstadoWhisper.text = "✅ Modelo cargado (large-v3-turbo Q5_K_M)"
             binding.botonDescargarWhisper.isEnabled = false
-            binding.botonDescargarWhisper.text = "Descargado"
+            binding.botonDescargarWhisper.text = "Cargado"
             binding.botonBorrarWhisper.isEnabled = true
         } else {
-            binding.textoEstadoWhisper.text = "❌ No descargado. Whisper mejora la transcripción final."
+            binding.textoEstadoWhisper.text = "❌ No disponible. Descarga o selecciona un modelo."
             binding.botonDescargarWhisper.isEnabled = true
-            binding.botonDescargarWhisper.text = "📥 Descargar modelo (~809 MB)"
+            binding.botonDescargarWhisper.text = "📥 Descargar modelo (~620 MB)"
             binding.botonBorrarWhisper.isEnabled = false
         }
     }
@@ -142,8 +155,7 @@ class AjustesFragment : Fragment() {
     private fun descargarWhisper() {
         AlertDialog.Builder(requireContext())
             .setTitle("Descargar modelo Whisper")
-            .setMessage("Se descargará large-v3-turbo Q5_K_M (~809 MB). " +
-                    "Usa WiFi si es posible. El proceso se puede interrumpir y reanudar.")
+            .setMessage("Se descargará large-v3-turbo Q5_K_M (~620 MB). Usa WiFi si es posible.")
             .setPositiveButton("Descargar") { _, _ ->
                 val pd = ProgressDialog(requireContext()).apply {
                     setTitle("Descargando Whisper…")
@@ -168,10 +180,52 @@ class AjustesFragment : Fragment() {
             .show()
     }
 
+    private fun abrirSelectorModelo() {
+        selectorModelo.launch(arrayOf("*/*"))
+    }
+
+    private fun cargarModeloDesdeUri(uri: Uri) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val cursor = requireContext().contentResolver.query(uri, null, null, null, null)
+                    cursor?.use {
+                        val nombreIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (it.moveToFirst()) {
+                            val nombre = it.getString(nombreIndex)
+                            if (!nombre.endsWith(".gguf", ignoreCase = true)) {
+                                DebugLog.warn("Whisper", "El archivo no es .gguf: $nombre")
+                                return@withContext false
+                            }
+                            val destino = File(requireContext().filesDir, "whisper/$nombre")
+                            destino.parentFile?.mkdirs()
+                            requireContext().contentResolver.openInputStream(uri)?.use { entrada ->
+                                destino.outputStream().use { salida ->
+                                    entrada.copyTo(salida)
+                                }
+                            }
+                            whisperManager.cargarDesdeArchivo(destino.absolutePath)
+                        } else false
+                    } ?: false
+                } catch (e: Exception) {
+                    DebugLog.error("Whisper", "Error copiando archivo: ${e.message}")
+                    false
+                }
+            }
+            if (_binding == null) return@launch
+            if (ok) {
+                Toast.makeText(requireContext(), "Modelo cargado desde archivo", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(requireContext(), "No se pudo cargar el archivo", Toast.LENGTH_LONG).show()
+            }
+            actualizarEstadoWhisper()
+        }
+    }
+
     private fun borrarWhisper() {
         AlertDialog.Builder(requireContext())
             .setTitle("Borrar modelo Whisper")
-            .setMessage("Se liberarán ~809 MB de almacenamiento. La app seguirá funcionando con Vosk.")
+            .setMessage("Se liberará el espacio ocupado por el modelo. La app seguirá funcionando con Vosk.")
             .setPositiveButton("Borrar") { _, _ ->
                 viewLifecycleOwner.lifecycleScope.launch {
                     whisperManager.borrar()
@@ -196,7 +250,7 @@ class AjustesFragment : Fragment() {
                     withContext(Dispatchers.IO) {
                         for (r in rutas) {
                             try {
-                                val f = java.io.File(r)
+                                val f = File(r)
                                 if (f.exists() && f.delete()) borrados++
                             } catch (_: Exception) {}
                         }
@@ -220,7 +274,7 @@ class AjustesFragment : Fragment() {
                         val rutas = db.obtenerTodasLasRutasAudio()
                         for (r in rutas) {
                             try {
-                                val f = java.io.File(r)
+                                val f = File(r)
                                 if (f.exists()) f.delete()
                             } catch (_: Exception) {}
                         }
