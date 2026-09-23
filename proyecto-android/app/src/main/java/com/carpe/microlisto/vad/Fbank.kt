@@ -6,6 +6,24 @@ import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.sin
 
+/**
+ * Front-end de audio que replica el comportamiento de kaldi.fbank con
+ * window_type=hamming, tal como lo usa WeSpeaker para los embeddings.
+ *
+ * Orden de operaciones por frame (kaldi ProcessWindow):
+ *   1. Extraer frame del audio
+ *   2. Escalar a rango int16 (×32768)
+ *   3. Remove DC offset (restar la media del frame)
+ *   4. Preénfasis (x[n] -= 0.97 * x[n-1], con x[0] -= 0.97 * x[0])
+ *   5. Aplicar ventana Hamming
+ *   6. FFT
+ *   7. Espectro de potencia
+ *   8. Mel filterbanks (triángulos lineales en escala Mel)
+ *   9. log
+ *
+ * Este Fbank NO hace CMN. El CMN se aplica por fragmento en el Diarizer,
+ * como hace WeSpeaker con subseg_cmn=true.
+ */
 class Fbank(
     private val sampleRate: Int = 16000,
     private val numMelBins: Int = 80,
@@ -15,16 +33,17 @@ class Fbank(
     private val highFreq: Float = 0f,
     private val preemph: Float = 0.97f,
     private val removeDc: Boolean = true,
-    // kaldi.fbank (y WeSpeaker, que lo usa) trabajan internamente con muestras
-    // en escala int16 [-32768, 32767]. Nuestras muestras vienen en [-1, 1].
-    // Sin esta escala, los log-mel son ~90 unidades más pequeños de lo que el
-    // modelo espera, y los embeddings salen poco discriminativos.
     private val escalaEntrada: Float = 32768f
 ) {
     private val frameLength = sampleRate * frameLengthMs / 1000
     private val frameShift = sampleRate * frameShiftMs / 1000
     private val fftSize = nextPow2(frameLength)
-    private val numBins = fftSize / 2 + 1
+
+    // Kaldi usa los bins 0..fftSize/2-1, excluyendo el de Nyquist
+    private val numFftBins = fftSize / 2
+    // El vector de potencia tiene numFftBins+1 posiciones (incluye el Nyquist
+    // para la FFT), pero al calcular mel solo se usan las primeras numFftBins.
+    private val numBinsPotencia = fftSize / 2 + 1
 
     private val ventana: FloatArray = ventanaHamming(frameLength)
     private val melBanks: Array<FloatArray> = crearMelBanks()
@@ -36,22 +55,6 @@ class Fbank(
 
         val resultado: Array<FloatArray> = Array(numFrames) { FloatArray(numMelBins) }
 
-        // Escalar la señal a rango int16 (lo que kaldi espera)
-        val audioEscalado = FloatArray(audio.size)
-        var iEsc = 0
-        while (iEsc < audio.size) {
-            audioEscalado[iEsc] = audio[iEsc] * escalaEntrada
-            iEsc++
-        }
-
-        val audioPre = FloatArray(audioEscalado.size)
-        audioPre[0] = audioEscalado[0]
-        var iPre = 1
-        while (iPre < audioEscalado.size) {
-            audioPre[iPre] = audioEscalado[iPre] - preemph * audioEscalado[iPre - 1]
-            iPre++
-        }
-
         val frame = FloatArray(fftSize)
         val real = FloatArray(fftSize)
         val imag = FloatArray(fftSize)
@@ -60,34 +63,50 @@ class Fbank(
         while (f < numFrames) {
             val inicio = f * frameShift
 
+            // 1-2. Extraer frame y escalar a rango int16
             var suma = 0f
             var i = 0
             while (i < frameLength) {
-                val v = audioPre[inicio + i]
+                val v = audio[inicio + i] * escalaEntrada
                 frame[i] = v
                 suma += v
                 i++
             }
+
+            // 3. Remove DC offset (restar la media del frame)
             if (removeDc && frameLength > 0) {
                 val media = suma / frameLength
                 var j = 0
                 while (j < frameLength) {
-                    frame[j] = frame[j] - media
+                    frame[j] -= media
                     j++
                 }
             }
 
+            // 4. Preénfasis por frame
+            if (preemph != 0f && frameLength > 0) {
+                var j = frameLength - 1
+                while (j > 0) {
+                    frame[j] -= preemph * frame[j - 1]
+                    j--
+                }
+                frame[0] -= preemph * frame[0]
+            }
+
+            // 5. Ventana Hamming
             var j2 = 0
             while (j2 < frameLength) {
-                frame[j2] = frame[j2] * ventana[j2]
+                frame[j2] *= ventana[j2]
                 j2++
             }
+            // Relleno con ceros hasta fftSize
             var j3 = frameLength
             while (j3 < fftSize) {
                 frame[j3] = 0f
                 j3++
             }
 
+            // 6. FFT
             var j4 = 0
             while (j4 < fftSize) {
                 real[j4] = frame[j4]
@@ -96,19 +115,21 @@ class Fbank(
             }
             fft(real, imag)
 
-            val potencia = FloatArray(numBins)
+            // 7. Espectro de potencia
+            val potencia = FloatArray(numBinsPotencia)
             var k = 0
-            while (k < numBins) {
+            while (k < numBinsPotencia) {
                 potencia[k] = real[k] * real[k] + imag[k] * imag[k]
                 k++
             }
 
+            // 8. Mel filterbanks + log
             var m = 0
             while (m < numMelBins) {
                 var sumaBand = 0f
                 val banco = melBanks[m]
                 var kk = 0
-                while (kk < numBins) {
+                while (kk < numFftBins) {
                     if (banco[kk] != 0f) sumaBand += banco[kk] * potencia[kk]
                     kk++
                 }
@@ -119,41 +140,7 @@ class Fbank(
             f++
         }
 
-        aplicarCmn(resultado)
         return resultado
-    }
-
-    private fun aplicarCmn(matriz: Array<FloatArray>) {
-        if (matriz.isEmpty()) return
-        val numFrames = matriz.size
-        val medias = FloatArray(numMelBins)
-
-        var f = 0
-        while (f < numFrames) {
-            var m = 0
-            while (m < numMelBins) {
-                medias[m] = medias[m] + matriz[f][m]
-                m++
-            }
-            f++
-        }
-
-        val divisor = numFrames.toFloat()
-        var m = 0
-        while (m < numMelBins) {
-            medias[m] = medias[m] / divisor
-            m++
-        }
-
-        f = 0
-        while (f < numFrames) {
-            m = 0
-            while (m < numMelBins) {
-                matriz[f][m] = matriz[f][m] - medias[m]
-                m++
-            }
-            f++
-        }
     }
 
     private fun ventanaHamming(n: Int): FloatArray {
@@ -167,40 +154,45 @@ class Fbank(
         return w
     }
 
+    /**
+     * Construye el banco de filtros mel triangulares en el dominio Mel,
+     * replicando mel-computations.cc de kaldi.
+     *
+     * A diferencia de una implementación lineal en Hz, kaldi convierte
+     * cada frecuencia FFT a escala Mel y calcula los pesos triangulares
+     * directamente en Mel.
+     */
     private fun crearMelBanks(): Array<FloatArray> {
         val fMax = if (highFreq > 0f) highFreq else (sampleRate / 2).toFloat()
         val melLow = hzAMel(lowFreq)
         val melHigh = hzAMel(fMax)
 
-        val puntos = FloatArray(numMelBins + 2)
+        // Puntos centrales en dominio Mel
+        val puntosMel = FloatArray(numMelBins + 2)
         var i = 0
         while (i < numMelBins + 2) {
-            val m = melLow + (melHigh - melLow) * i / (numMelBins + 1)
-            puntos[i] = melAhz(m)
+            puntosMel[i] = melLow + (melHigh - melLow) * i / (numMelBins + 1)
             i++
         }
 
-        val frecuenciaBins = FloatArray(numBins)
-        var k = 0
-        while (k < numBins) {
-            frecuenciaBins[k] = k.toFloat() * sampleRate / fftSize
-            k++
-        }
+        val bancos: Array<FloatArray> = Array(numMelBins) { FloatArray(numFftBins) }
 
-        val bancos: Array<FloatArray> = Array(numMelBins) { FloatArray(numBins) }
         var m = 1
         while (m <= numMelBins) {
-            val fIzq = puntos[m - 1]
-            val fCen = puntos[m]
-            val fDer = puntos[m + 1]
-            k = 0
-            while (k < numBins) {
-                val f = frecuenciaBins[k]
+            val leftMel = puntosMel[m - 1]
+            val centerMel = puntosMel[m]
+            val rightMel = puntosMel[m + 1]
+
+            var k = 0
+            while (k < numFftBins) {
+                val freq = k.toFloat() * sampleRate / fftSize
+                val mel = hzAMel(freq)
+
                 var v = 0f
-                if (f in fIzq..fCen && fCen > fIzq) {
-                    v = (f - fIzq) / (fCen - fIzq)
-                } else if (f in fCen..fDer && fDer > fCen) {
-                    v = (fDer - f) / (fDer - fCen)
+                if (mel > leftMel && mel <= centerMel && centerMel > leftMel) {
+                    v = (mel - leftMel) / (centerMel - leftMel)
+                } else if (mel > centerMel && mel < rightMel && rightMel > centerMel) {
+                    v = (rightMel - mel) / (rightMel - centerMel)
                 }
                 bancos[m - 1][k] = v
                 k++
@@ -211,7 +203,6 @@ class Fbank(
     }
 
     private fun hzAMel(hz: Float): Float = 1127f * ln(1f + hz / 700f)
-    private fun melAhz(mel: Float): Float = 700f * (exp(mel / 1127f) - 1f)
 
     private fun fft(real: FloatArray, imag: FloatArray) {
         val n = real.size
