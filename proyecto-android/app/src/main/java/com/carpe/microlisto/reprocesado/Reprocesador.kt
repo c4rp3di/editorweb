@@ -7,14 +7,10 @@ import com.carpe.microlisto.data.Segmento
 import com.carpe.microlisto.debug.DebugLog
 import com.carpe.microlisto.vad.Diarizer
 import com.carpe.microlisto.vad.SegmentoDiarizado
+import com.carpe.microlisto.whisper.WhisperManager
 import java.io.File
 import java.io.RandomAccessFile
 
-/**
- * Datos de entrada para un reproceso. Se pasan explícitamente en lugar de
- * leerlos de SharedPreferences, porque el Detalle permite ajustes
- * temporales que no deben afectar a la configuración global.
- */
 data class AjustesReproceso(
     val numHablantes: Int = 0,
     val umbral: Float = 0.55f,
@@ -30,25 +26,18 @@ data class ResultadoReproceso(
     val mensaje: String = ""
 )
 
-/**
- * Envuelve el pipeline de diarización + reparto de texto + persistencia
- * para poder reprocesar un WAV ya grabado sin volver a grabar. Lo usan
- * tanto MicrolistoService (al parar una grabación) como DetalleFragment
- * (botón Reprocesar).
- */
 object Reprocesador {
 
     /**
-     * Reprocesa una conversación existente. Borra sus segmentos actuales,
-     * vuelve a diarizar y a repartir el texto, y guarda los nuevos segmentos.
-     *
-     * @return ResultadoReproceso con el número de hablantes y segmentos
+     * Reprocesa una conversación existente: vuelve a diarizar y, si hay un
+     * transcriber disponible (Whisper), vuelve a transcribir el WAV.
      */
     fun reprocesar(
         context: Context,
         conversacion: Conversacion,
         ajustes: AjustesReproceso,
-        db: BaseDatos
+        db: BaseDatos,
+        transcripcionNueva: String? = null
     ): ResultadoReproceso {
         val archivo = File(conversacion.rutaAudio)
         if (!archivo.exists()) {
@@ -79,9 +68,12 @@ object Reprocesador {
 
         val numHablantes = segmentosDiarizados.map { it.hablanteId }.distinct().size
 
-        val segmentosConTexto = repartirTextoEnSegmentos(conversacion.transcripcion, segmentosDiarizados)
+        // Texto a usar: si se ha pasado una transcripción nueva (Whisper), esa;
+        // si no, la que ya tenía la conversación (Vosk).
+        val textoFinal = transcripcionNueva ?: conversacion.transcripcion
 
-        // Guardar: borrar segmentos viejos, insertar nuevos, actualizar contador
+        val segmentosConTexto = repartirTextoEnSegmentos(textoFinal, segmentosDiarizados)
+
         db.eliminarSegmentosDeConversacion(conversacion.id)
         db.insertarSegmentos(conversacion.id, segmentosConTexto.map {
             Segmento(
@@ -93,6 +85,9 @@ object Reprocesador {
             )
         })
         db.actualizarNumHablantes(conversacion.id, numHablantes)
+        if (transcripcionNueva != null) {
+            db.actualizarTranscripcion(conversacion.id, transcripcionNueva)
+        }
 
         return ResultadoReproceso(
             ok = true,
@@ -101,10 +96,6 @@ object Reprocesador {
         )
     }
 
-    /**
-     * Reparte las palabras de la transcripción completa entre los segmentos
-     * de diarización, proporcionalmente a la duración de cada segmento.
-     */
     fun repartirTextoEnSegmentos(
         texto: String,
         segmentos: List<SegmentoDiarizado>
