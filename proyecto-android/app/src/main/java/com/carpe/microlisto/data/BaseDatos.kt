@@ -79,6 +79,11 @@ class BaseDatos(context: Context) :
         writableDatabase.update("conversaciones", valores, "id = ?", arrayOf(id.toString()))
     }
 
+    fun actualizarResumen(id: Long, resumen: String) {
+        val valores = ContentValues().apply { put("resumen", resumen) }
+        writableDatabase.update("conversaciones", valores, "id = ?", arrayOf(id.toString()))
+    }
+
     fun listarConversaciones(): List<Conversacion> {
         val lista = mutableListOf<Conversacion>()
         val cursor = readableDatabase.query(
