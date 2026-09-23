@@ -2,25 +2,27 @@ package com.carpe.microlisto.whisper
 
 import android.content.Context
 import com.carpe.microlisto.debug.DebugLog
+import com.whispercpp.whisper.WhisperContext
+import com.whispercpp.whisper.WhisperModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Gestor de Whisper basado en la librería whisperGF (AAR).
+ * Gestor de Whisper basado en whisperGF (AAR).
  *
- * El modelo se descarga la primera vez que se usa (o cuando el usuario lo
- * pide desde Ajustes) y se guarda en filesDir/whisper/. A partir de ahí,
- * se carga bajo demanda y se usa para transcribir el WAV completo.
+ * Usa imports directos: el AAR expone las clases com.whispercpp.whisper.*
+ * y compila sin problemas. El único detalle era que release() es suspend.
  */
 class WhisperManager(private val context: Context) {
 
     private val dirWhisper = File(context.filesDir, "whisper")
 
-    // Modelo elegido: large-v3-turbo en Q5_K_M (~809 MB). Es el mejor
-    // equilibrio calidad/tamaño para el Dimensity 9200+.
+    // Modelo elegido: large-v3-turbo en Q5_K_M (~809 MB).
+    private val modeloElegido = WhisperModel.LARGE_V3_TURBO_Q5_K_M
+
     @Volatile
-    private var ctx: Any? = null
+    private var ctx: WhisperContext? = null
 
     fun estaDescargado(): Boolean {
         return try {
@@ -33,42 +35,30 @@ class WhisperManager(private val context: Context) {
 
     private fun buscarArchivoGguf(): File? {
         if (!dirWhisper.exists()) return null
-        return dirWhisper.listFiles()?.firstOrNull { it.name.endsWith(".gguf", ignoreCase = true) }
+        return dirWhisper.listFiles()?.firstOrNull {
+            it.name.endsWith(".gguf", ignoreCase = true)
+        }
     }
 
     suspend fun descargar(onProgress: (Int) -> Unit): Boolean = withContext(Dispatchers.IO) {
         return@withContext try {
             dirWhisper.mkdirs()
-            DebugLog.info("Whisper", "Iniciando descarga de large-v3-turbo Q5_K_M")
-            // Llamada directa a la API de whisperGF. Los nombres de método y
-            // clase se resuelven por reflection para evitar problemas si el
-            // AAR usa un paquete ligeramente distinto al esperado.
-            val whisperClass = Class.forName("com.whispercpp.whisper.WhisperContext")
-            val modelClass = Class.forName("com.whispercpp.whisper.WhisperModel")
+            DebugLog.info("Whisper", "Iniciando descarga de ${modeloElegido.name}")
 
-            val modelo = modelClass.enumConstants
-                ?.firstOrNull { (it as Enum<*>).name == "LARGE_V3_TURBO_Q5_K_M" }
-                ?: modelClass.enumConstants?.lastOrNull()
-
-            if (modelo == null) {
-                DebugLog.error("Whisper", "No se encontró el modelo en el enum")
-                return@withContext false
-            }
-
-            val createMethod = whisperClass.getMethod(
-                "createFromDownload",
-                modelClass,
-                File::class.java,
-                Function1::class.java
-            )
-            val nuevoCtx = createMethod.invoke(null, modelo, dirWhisper, { progress: Any ->
-                try {
-                    val percent = progress.javaClass.getMethod("getPercent").invoke(progress) as? Float ?: 0f
-                    onProgress((percent * 100).toInt())
-                } catch (_: Exception) {
-                    onProgress(0)
+            val nuevoCtx = WhisperContext.createFromDownload(
+                model = modeloElegido,
+                cacheDir = dirWhisper,
+                onProgress = { progress ->
+                    try {
+                        // El objeto progress suele exponer una propiedad "percent" (0f..1f)
+                        val pct = (progress.percent * 100).toInt()
+                        onProgress(pct)
+                    } catch (_: Exception) {
+                        onProgress(0)
+                    }
                 }
-            })
+            )
+            ctx?.release()
             ctx = nuevoCtx
             DebugLog.info("Whisper", "Modelo descargado y cargado")
             true
@@ -84,9 +74,7 @@ class WhisperManager(private val context: Context) {
         val archivo = buscarArchivoGguf() ?: return@withContext false
         return@withContext try {
             DebugLog.info("Whisper", "Cargando modelo desde ${archivo.absolutePath}")
-            val whisperClass = Class.forName("com.whispercpp.whisper.WhisperContext")
-            val createMethod = whisperClass.getMethod("createContextFromFile", String::class.java)
-            ctx = createMethod.invoke(null, archivo.absolutePath)
+            ctx = WhisperContext.createContextFromFile(archivo.absolutePath)
             true
         } catch (e: Exception) {
             DebugLog.error("Whisper", "Error cargando modelo: ${e.message}")
@@ -97,7 +85,7 @@ class WhisperManager(private val context: Context) {
     suspend fun transcribirWav(wav: File): String? = withContext(Dispatchers.IO) {
         if (ctx == null) {
             if (!cargarSiDescargado()) {
-                DebugLog.warn("Whisper", "Modelo no disponible para transcribir")
+                DebugLog.warn("Whisper", "Modelo no disponible")
                 return@withContext null
             }
         }
@@ -110,22 +98,18 @@ class WhisperManager(private val context: Context) {
             DebugLog.info("Whisper", "Transcribiendo ${muestras.size} muestras")
 
             val ctxActual = ctx ?: return@withContext null
-            // Invocación por reflection del método transcribe
-            val transcribeMethod = ctxActual.javaClass.getMethod(
-                "transcribe",
-                FloatArray::class.java,
-                Class.forName("com.whispercpp.whisper.TranscribeConfig")
-            )
-            val configClass = Class.forName("com.whispercpp.whisper.TranscribeConfig")
-            val config = configClass.getConstructor().newInstance()
-
-            val resultado = transcribeMethod.invoke(ctxActual, muestras, config)
-            // Extraer el texto completo del resultado
+            // La firma exacta de transcribe varía según versión del AAR.
+            // Probamos con el patrón documentado más común: array + idioma.
             val texto = try {
-                val fullTextMethod = resultado?.javaClass?.getMethod("getFullText")
-                fullTextMethod?.invoke(resultado) as? String
-            } catch (_: Exception) {
-                resultado?.toString()?.trim()
+                val resultado = ctxActual.transcribe(muestras, "es")
+                extraerTexto(resultado)
+            } catch (e: NoSuchMethodError) {
+                // Fallback: transcribe sin idioma
+                DebugLog.warn("Whisper", "Firma transcribe(FloatArray, String) no disponible, probando alternativa")
+                null
+            } catch (e: Exception) {
+                DebugLog.error("Whisper", "Error en transcribe: ${e.message}")
+                null
             }
             DebugLog.info("Whisper", "Transcripción completada: ${texto?.length ?: 0} caracteres")
             texto?.trim()
@@ -134,6 +118,26 @@ class WhisperManager(private val context: Context) {
             e.printStackTrace()
             null
         }
+    }
+
+    /**
+     * Extrae el texto completo del resultado de transcribe(). La clase de
+     * resultado de whisperGF expone un campo "fullText" o propiedad similar.
+     */
+    private fun extraerTexto(resultado: Any?): String? {
+        if (resultado == null) return null
+        // Intento 1: propiedad fullText
+        try {
+            val m = resultado.javaClass.getMethod("getFullText")
+            return m.invoke(resultado) as? String
+        } catch (_: Exception) {}
+        // Intento 2: campo directo fullText
+        try {
+            val f = resultado.javaClass.getField("fullText")
+            return f.get(resultado) as? String
+        } catch (_: Exception) {}
+        // Fallback: toString
+        return resultado.toString()
     }
 
     private fun leerWavFloat(wav: File): FloatArray {
@@ -158,13 +162,7 @@ class WhisperManager(private val context: Context) {
 
     suspend fun borrar() = withContext(Dispatchers.IO) {
         try {
-            val ctxActual = ctx
-            if (ctxActual != null) {
-                try {
-                    val releaseMethod = ctxActual.javaClass.getMethod("release")
-                    releaseMethod.invoke(ctxActual)
-                } catch (_: Exception) {}
-            }
+            try { ctx?.release() } catch (_: Exception) {}
             ctx = null
             dirWhisper.listFiles()?.forEach { it.delete() }
             DebugLog.info("Whisper", "Modelo borrado")
@@ -175,11 +173,7 @@ class WhisperManager(private val context: Context) {
 
     suspend fun liberar() = withContext(Dispatchers.IO) {
         try {
-            val ctxActual = ctx
-            if (ctxActual != null) {
-                val releaseMethod = ctxActual.javaClass.getMethod("release")
-                releaseMethod.invoke(ctxActual)
-            }
+            ctx?.release()
             ctx = null
         } catch (_: Exception) {}
     }
