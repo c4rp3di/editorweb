@@ -1,21 +1,22 @@
 package com.carpe.microlisto.transcripcion
 
 import android.content.Context
-import com.carpe.microlisto.debug.DebugLog
 import org.vosk.LibVosk
 import org.vosk.LogLevel
 import org.vosk.Model
 import org.vosk.Recognizer
+import org.vosk.android.StorageService
 
 /**
- * Wrapper de Vosk. El modelo se carga desde una ruta externa
- * (/storage/emulated/0/Microlisto/vosk/vosk-model-es-0.42/) en lugar de
- * desde assets. Si el modelo no está disponible, la app graba WAV sin
- * transcribir, y el usuario puede reprocesar más adelante.
+ * Wrapper de Vosk. El modelo viene empaquetado en assets/vosk-model-small-es-0.42
+ * y se copia a la carpeta interna de la app la primera vez que se usa (39 MB,
+ * tarda unos segundos).
+ *
+ * Acepta buffers de 512 samples float [-1..1] a 16 kHz. Internamente los
+ * convierte a ShortArray que es lo que Vosk espera.
  */
 class Transcriber(
     private val context: Context,
-    private val rutaModelo: String,
     private val onListo: () -> Unit = {},
     private val onParcial: (String) -> Unit = {},
     private val onFinal: (String) -> Unit = {},
@@ -28,22 +29,33 @@ class Transcriber(
     fun iniciar() {
         try {
             LibVosk.setLogLevel(LogLevel.WARNINGS)
-            DebugLog.info("Transcriber", "Cargando modelo desde $rutaModelo")
-
-            val modelCargado = Model(rutaModelo)
-            model = modelCargado
-            recognizer = Recognizer(modelCargado, 16000.0f)
-            listo = true
-            onListo()
-            DebugLog.info("Transcriber", "Modelo Vosk cargado, recognizer listo")
+            StorageService.unpack(
+                context,
+                "vosk-model-small-es-0.42",
+                "modelo",
+                { modelDesempaquetado ->
+                    model = modelDesempaquetado
+                    try {
+                        recognizer = Recognizer(modelDesempaquetado, 16000.0f)
+                        listo = true
+                        onListo()
+                    } catch (e: Exception) {
+                        onError("Error al crear el recognizer: ${e.message}")
+                    }
+                },
+                { error ->
+                    onError("Error al desempaquetar el modelo: ${error.message}")
+                }
+            )
         } catch (e: Exception) {
-            DebugLog.error("Transcriber", "Error al cargar modelo: ${e.message}")
-            onError("Error al cargar modelo Vosk: ${e.message}")
+            onError("Error al iniciar Vosk: ${e.message}")
         }
     }
 
-    fun estaListo(): Boolean = listo
-
+    /**
+     * Recibe un frame de 512 samples float. Los convierte a ShortArray y los
+     * pasa al recognizer. Emite resultados parciales y finales por los callbacks.
+     */
     fun aceptarFrame(frame512: FloatArray, cantidad: Int) {
         val rec = recognizer ?: return
         if (!listo) return
@@ -72,9 +84,13 @@ class Transcriber(
     }
 
     fun cerrar() {
-        try { recognizer?.close() } catch (_: Exception) {}
+        try {
+            recognizer?.close()
+        } catch (_: Exception) {}
         recognizer = null
-        try { model?.close() } catch (_: Exception) {}
+        try {
+            model?.close()
+        } catch (_: Exception) {}
         model = null
         listo = false
     }
