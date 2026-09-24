@@ -6986,10 +6986,15 @@ if (esAndroid) {
         fileInput.value = '';
     });
 
-    pegarBtn.addEventListener('click', async function() {
-        try {
-            const texto = await navigator.clipboard.readText();
-            if (texto && texto.trim() !== '') {
+pegarBtn.addEventListener('click', async function() {
+    try {
+        let texto;
+        if (window.AndroidPuente && typeof window.AndroidPuente.leerPortapapeles === 'function') {
+            texto = window.AndroidPuente.leerPortapapeles();
+        } else {
+            texto = await navigator.clipboard.readText();
+        }
+        if (texto && texto.trim() !== '') {
                 historialAntesDeCambio();
                 textarea.value = texto;
                 historialSincronizar();
@@ -7039,10 +7044,23 @@ if (!nombreArchivo) {
         nombreArchivo = 'mi_pagina_web';
     }
 }
-        if (!nombreArchivo.endsWith('.html') && !nombreArchivo.endsWith('.htm')) {
-            nombreArchivo += '.html';
-        }
-        const blob = new Blob([contenido], { type: 'text/html; charset=utf-8' });
+if (!nombreArchivo.endsWith('.html') && !nombreArchivo.endsWith('.htm')) {
+    nombreArchivo += '.html';
+}
+if (window.AndroidPuente && typeof window.AndroidPuente.guardarDescarga === 'function') {
+    try {
+        const bytes = new TextEncoder().encode(contenido);
+        let binario = '';
+        for (let i = 0; i < bytes.length; i++) binario += String.fromCharCode(bytes[i]);
+        const base64 = btoa(binario);
+        const ok = window.AndroidPuente.guardarDescarga(nombreArchivo, base64);
+        mostrarToast(ok ? `⬇️ Guardado en Descargas: ${nombreArchivo}` : `⚠️ No se pudo guardar: ${nombreArchivo}`);
+    } catch (e) {
+        mostrarToast('⚠️ Error al guardar: ' + e.message);
+    }
+    return;
+}
+const blob = new Blob([contenido], { type: 'text/html; charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const enlace = document.createElement('a');
         enlace.href = url;
