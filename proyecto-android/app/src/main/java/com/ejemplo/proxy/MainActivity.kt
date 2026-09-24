@@ -17,7 +17,6 @@ import android.content.ClipboardManager
 import android.content.Context
 // [IMPORTS:FUNCIONALIDADES]
 
-
 class MainActivity : AppCompatActivity() {
 
     // Funcionalidad: saf
