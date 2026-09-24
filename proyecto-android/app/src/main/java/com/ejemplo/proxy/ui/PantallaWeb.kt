@@ -179,7 +179,5 @@ class PantallaWeb : Fragment() {
                 false
             }
         }
-
     }
-
 }
