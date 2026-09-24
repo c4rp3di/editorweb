@@ -45,9 +45,12 @@ class PantallaWeb : Fragment() {
         val callback = filePathCallback
         filePathCallback = null
         if (callback == null) return@registerForActivityResult
-        val uri = resultado.data?.data
-        val ok = resultado.resultCode == Activity.RESULT_OK && uri != null
-        callback.onReceiveValue(if (ok) arrayOf(uri) else null)
+        val uri: Uri? = resultado.data?.data
+        if (resultado.resultCode == Activity.RESULT_OK && uri != null) {
+            callback.onReceiveValue(arrayOf<Uri>(uri))
+        } else {
+            callback.onReceiveValue(null)
+        }
     }
 
     override fun onCreateView(
