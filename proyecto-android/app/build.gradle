@@ -13,7 +13,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode 1
-        versionName "v3.0"
+        versionName "v4.0"
     }
 
     buildFeatures {
