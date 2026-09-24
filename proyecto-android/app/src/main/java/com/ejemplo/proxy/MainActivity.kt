@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.ejemplo.proxy.AppLogic
 import androidx.fragment.app.Fragment
-import com.ejemplo.proxy.ui.PantallaEjemplo
 import com.ejemplo.proxy.ui.PantallaWeb
 import android.content.Intent
 import android.net.Uri
