@@ -1,117 +1,16 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-}
-
-// ============================================================
-// Descarga del AAR de Whisper en fase de configuración.
-// ============================================================
-def dirLibs = file("libs")
-def aarFinal = new File(dirLibs, "whisper-android.aar")
-
-if (!aarFinal.exists() || aarFinal.length() < 1000000) {
-    dirLibs.mkdirs()
-    println "📥 Descargando whisperGF AAR v3.0.0..."
-    try {
-        def url = new URL("https://github.com/volt-PRd/whisperGF/raw/main/release/whisper-android-v3.aar")
-        url.openStream().withStream { input ->
-            aarFinal.withOutputStream { output ->
-                output << input
-            }
-        }
-        println "✅ AAR listo: ${aarFinal.absolutePath} (${aarFinal.length()} bytes)"
-    } catch (Exception e) {
-        println "❌ ERROR descargando AAR: ${e.message}"
-        e.printStackTrace()
-    }
-} else {
-    println "✅ AAR de Whisper ya presente: ${aarFinal.length()} bytes"
-}
-
-// ============================================================
-// Copiar libomp.so desde el NDK a jniLibs/arm64-v8a/
-//
-// whisperGF v3.0.0 es arm64-v8a only (confirmado en la release).
-// NDK por defecto en ubuntu-latest: r27d (27.3.13750724), clang 18.
-// Ruta verificada:
-//   toolchains/llvm/prebuilt/linux-x86_64/lib/clang/18/lib/linux/aarch64/libomp.so
-//
-// Si no se encuentra, el build FALLA (GradleException) para no producir
-// un APK que crashee en runtime con UnsatisfiedLinkError.
-// ============================================================
-tasks.register("copiarLibomp") {
-    doLast {
-        def ndkDir = System.getenv("ANDROID_NDK_HOME")
-            ?: System.getenv("ANDROID_NDK")
-            ?: "/usr/local/lib/android/sdk/ndk/27.3.13750724"
-
-        def ndkPath = file(ndkDir)
-
-        if (!ndkPath.exists()) {
-            throw new GradleException("NDK no encontrado en: $ndkDir")
-        }
-
-        def jniLibs = file("src/main/jniLibs/arm64-v8a")
-        jniLibs.mkdirs()
-
-        // Ruta exacta verificada para NDK r27d con clang 18
-        def rutaExacta = file(
-            "$ndkDir/toolchains/llvm/prebuilt/linux-x86_64/" +
-            "lib/clang/18/lib/linux/aarch64/libomp.so"
-        )
-
-        if (rutaExacta.exists()) {
-            copy {
-                from rutaExacta
-                into jniLibs
-            }
-            println "✅ libomp.so copiado desde ruta exacta:"
-            println "   $rutaExacta"
-        } else {
-            println "⚠️ Ruta exacta no encontrada:"
-            println "   $rutaExacta"
-            println "   Buscando dentro del NDK..."
-
-            def candidatos = fileTree(ndkPath) {
-                include "**/linux/aarch64/libomp.so"
-            }.files
-
-            if (candidatos.isEmpty()) {
-                throw new GradleException(
-                    "No se encontró libomp.so para arm64-v8a en: $ndkDir"
-                )
-            }
-
-            if (candidatos.size() > 1) {
-                println "⚠️ Se encontraron varias libomp.so:"
-                candidatos.each { println "   $it" }
-            }
-
-            def origen = candidatos.first()
-            copy {
-                from origen
-                into jniLibs
-            }
-            println "✅ libomp.so copiado desde:"
-            println "   $origen"
-        }
-
-        def destino = new File(jniLibs, "libomp.so")
-        if (!destino.exists()) {
-            throw new GradleException("La copia falló: no existe $destino")
-        }
-        println "✅ libomp.so verificado en:"
-        println "   $destino (${destino.length()} bytes)"
-    }
+    // [PLUGINS:FUNCIONALIDADES]
 }
 
 android {
-    namespace 'com.carpe.microlisto'
+    namespace 'com.ejemplo.proxy'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.carpe.microlisto"
-        minSdk 26
+        applicationId "com.ejemplo.proxy"
+        minSdk 24
         targetSdk 34
         versionCode 1
         versionName "1.0"
@@ -128,130 +27,13 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    packagingOptions {
-        resources {
-            excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/LICENSE.txt', 'META-INF/NOTICE', 'META-INF/NOTICE.txt']
-        }
-    }
 }
 
 dependencies {
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.fragment:fragment-ktx:1.8.4'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.4'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
-
-    implementation 'net.java.dev.jna:jna:5.13.0@aar'
-    implementation 'com.alphacephei:vosk-android:0.3.47'
-
-    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.20.0'
-
-    implementation 'com.google.ai.edge.litert:litert:1.4.2'
-
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-
-    // Whisper AAR
-    implementation files('libs/whisper-android.aar')
-
-    // libc++_shared.so para whisper.cpp
-    runtimeOnly("dev.atsushieno:libcxx-provider:28.0.13004108")
-}
-
-// ============================================================
-// Descarga de modelos para assets/
-// ============================================================
-
-def dirModelos = file("$buildDir/modelos")
-def dirAssets = file("src/main/assets")
-
-tasks.register("descargarVosk") {
-    doLast {
-        dirModelos.mkdirs()
-        def zipVosk = new File(dirModelos, "vosk-es.zip")
-        if (!zipVosk.exists() || zipVosk.length() < 1000000) {
-            println "Descargando modelo Vosk español..."
-            ant.invokeMethod("get", [
-                src   : "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip",
-                dest  : zipVosk,
-                verbose: true
-            ])
-        }
-    }
-}
-
-tasks.register("descargarSilero") {
-    doLast {
-        dirModelos.mkdirs()
-        def onnxSilero = new File(dirModelos, "silero_vad.onnx")
-        if (!onnxSilero.exists() || onnxSilero.length() < 100000) {
-            println "Descargando modelo Silero VAD..."
-            ant.invokeMethod("get", [
-                src   : "https://huggingface.co/runanywhere/silero-vad-v5/resolve/main/silero_vad.onnx",
-                dest  : onnxSilero,
-                verbose: true
-            ])
-        }
-    }
-}
-
-tasks.register("descargarPyannote") {
-    doLast {
-        dirModelos.mkdirs()
-        def onnxPyannote = new File(dirModelos, "pyannote_seg30.onnx")
-        if (!onnxPyannote.exists() || onnxPyannote.length() < 1000000) {
-            println "Descargando modelo pyannote segmentation..."
-            ant.invokeMethod("get", [
-                src   : "https://huggingface.co/litert-community/Speaker-Diarization-LiteRT/resolve/main/pyannote_seg30.onnx",
-                dest  : onnxPyannote,
-                verbose: true
-            ])
-        }
-    }
-}
-
-tasks.register("descargarWeSpeaker") {
-    doLast {
-        dirModelos.mkdirs()
-        def tfliteWeSpeaker = new File(dirModelos, "wespeaker_emb_fp16.tflite")
-        if (!tfliteWeSpeaker.exists() || tfliteWeSpeaker.length() < 1000000) {
-            println "Descargando modelo WeSpeaker embeddings..."
-            ant.invokeMethod("get", [
-                src   : "https://huggingface.co/litert-community/Speaker-Diarization-LiteRT/resolve/main/wespeaker_emb_fp16.tflite",
-                dest  : tfliteWeSpeaker,
-                verbose: true
-            ])
-        }
-    }
-}
-
-tasks.register("limpiarAssetsAntiguos", Delete) {
-    delete "$dirAssets/vosk-model-small-es-0.42"
-    delete "$dirAssets/silero_vad.onnx"
-    delete "$dirAssets/pyannote_seg30.onnx"
-    delete "$dirAssets/wespeaker_emb_fp16.tflite"
-}
-
-tasks.register("copiarModelos", Copy) {
-    dependsOn "descargarVosk", "descargarSilero", "descargarPyannote", "descargarWeSpeaker", "limpiarAssetsAntiguos"
-    from "$dirModelos/silero_vad.onnx"
-    from "$dirModelos/pyannote_seg30.onnx"
-    from "$dirModelos/wespeaker_emb_fp16.tflite"
-    from({ zipTree("$dirModelos/vosk-es.zip") })
-    into "$dirAssets"
-    doLast {
-        def uuidFile = file("$dirAssets/vosk-model-small-es-0.42/uuid")
-        if (!uuidFile.exists()) {
-            uuidFile.parentFile.mkdirs()
-            uuidFile.text = "microlisto-${System.currentTimeMillis()}"
-        }
-    }
-}
-
-tasks.named("preBuild") {
-    dependsOn "copiarModelos", "copiarLibomp"
+    implementation 'androidx.documentfile:documentfile:1.0.1'
+    // [DEPENDENCIAS:FUNCIONALIDADES]
 }
