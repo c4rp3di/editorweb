@@ -9,6 +9,14 @@ on:
         description: 'Paquete de la app'
         required: false
         default: ''
+      app_version_code:
+        description: 'Código de versión (informativo; ya va horneado en build.gradle)'
+        required: false
+        default: ''
+      app_version_name:
+        description: 'Nombre de versión, usado para el nombre del APK del release'
+        required: false
+        default: ''
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -44,8 +52,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APP_NAME: ${{ github.event.inputs.app_name }}
           APP_PACKAGE: ${{ github.event.inputs.app_package }}
+          APP_VERSION_NAME: ${{ github.event.inputs.app_version_name }}
         run: |
           set -e
           TAG="apk-nativo-$(date +%s)"
           APK_PATH=$(find . -name "*.apk" | head -n1)
-          gh release create "$TAG" "$APK_PATH" --title "APK nativo: $APP_NAME" --notes "Paquete: $APP_PACKAGE. Compilado desde el código Kotlin/XML/Gradle generado por el editor."
+          SAFE_NAME=$(echo "$APP_NAME" | tr -c 'A-Za-z0-9._-' '_')
+          if [ -n "$APP_VERSION_NAME" ]; then
+            APK_FINAL="$SAFE_NAME-$APP_VERSION_NAME.apk"
+          else
+            APK_FINAL="$SAFE_NAME.apk"
+          fi
+          cp "$APK_PATH" "$APK_FINAL"
+          gh release create "$TAG" "$APK_FINAL" --title "APK nativo: $APP_NAME" --notes "Paquete: $APP_PACKAGE. Compilado desde el código Kotlin/XML/Gradle generado por el editor."
