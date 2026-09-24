@@ -39,7 +39,6 @@ class MainActivity : AppCompatActivity() {
         prefs = getSharedPreferences("datos_app", MODE_PRIVATE)
         // [ONCREATE:FUNCIONALIDADES]
         setContentView(R.layout.activity_main)
-        if (savedInstanceState == null) mostrarPantalla(PantallaEjemplo())
         // [ONCREATE_FIN:FUNCIONALIDADES]
         AppLogic.onIniciar(this)
     }
