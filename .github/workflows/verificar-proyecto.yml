@@ -347,7 +347,7 @@ jobs:
                         console.error('Fallo de infraestructura durante la verificación:', e);
                         process.exit(1);
                     });
-          VERIFICARJS
+                    VERIFICARJS
 
       - name: Verificar en Chromium real
         run: node verificar.js
