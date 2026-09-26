@@ -1,0 +1,501 @@
+{
+  "ok": true,
+  "resumen": {
+    "errores": 0,
+    "avisos": 107,
+    "info": 3
+  },
+  "secciones": [
+    {
+      "titulo": "Errores de consola",
+      "entradas": []
+    },
+    {
+      "titulo": "Errores de JavaScript en ejecución",
+      "entradas": []
+    },
+    {
+      "titulo": "Recursos que no cargaron (imágenes, scripts, estilos, fuentes)",
+      "entradas": []
+    },
+    {
+      "titulo": "Peticiones de red fallidas (fetch/XHR)",
+      "entradas": []
+    },
+    {
+      "titulo": "CORS",
+      "entradas": []
+    },
+    {
+      "titulo": "Enlaces internos rotos",
+      "entradas": []
+    },
+    {
+      "titulo": "Referencias a archivos locales no encontradas en el paquete",
+      "entradas": []
+    },
+    {
+      "titulo": "CSS: selectores sin coincidencias (huérfanos)",
+      "entradas": [
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .btn:active"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .tab-btn:active"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .proyectos-header h2"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .proyecto-item"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .proyecto-item:active"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .proyecto-item.active"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .proyecto-item .proy-header"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .proyecto-item .proy-nombre"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .proyecto-item .proy-nombre .fecha"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .proyecto-item .proy-actions"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .proyecto-item .proy-actions button"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .proyecto-item .proy-actions button.del"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .proyecto-item .versiones"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .version-item"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .version-item .v-info"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .version-item .v-tag"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .version-item .v-desc"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .version-item .v-actions"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .version-item .v-actions button"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .version-item .v-actions button.del"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .line-numbers span:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .editor-textarea-wrap textarea:focus"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .editor-textarea-wrap textarea::placeholder"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .isolated-indicator.active"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .archivos-panel-flecha:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .archivos-panel-pestanita:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .archivos-panel-pestanita.visible"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .archivo-item"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .archivo-item:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .archivo-item.active"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .archivo-item-nombre"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .archivo-item-borrar"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .archivo-item-borrar:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .editor-toolbar .filename-input:focus"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .find-input:focus"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: #findClearBtn:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: #findPrevBtn:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: #findNextBtn:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: #replaceOneBtn:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: #replaceAllBtn:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .editor-toolbar .goto-line input:focus"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .editor-toolbar .goto-line button:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item.active"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item .icon"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item .tag-name"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item .line-info"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item .badge-type"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-style"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-js"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-html"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-head"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-body"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-funcion"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-flecha"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-asignada"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-metodo"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-asincrona"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-anonima"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-callback"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-kotlin"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-xml"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-gradle"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-otro"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item .anotacion-tipo"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item .btn-colapsar"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item .btn-colapsar-placeholder"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item .btn-colapsar:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item[data-profundidad=\"1\"]"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item[data-profundidad=\"2\"]"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item[data-profundidad=\"3\"]"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item[data-profundidad=\"4\"]"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-generado"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .badge-coincide-cuerpo"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item-enlace .tag-name"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item-enlace-pasiva"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item-enlace-pasiva:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-item-aviso .tag-name"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .struct-warning"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .structure-tools .buscar-input:focus"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .structure-tools .filtro-btn:hover"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .btn-flecha"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .btn-flecha:active"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .preview-inspector-main-actions"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .preview-inspector-bottom-actions"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .preview-inspector-bottom-actions button"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: #previewInspectorSave:disabled"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .settings-trigger:active"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .settings-popover.visible"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .settings-view.visible"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .storage-section-title"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .storage-key"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .storage-key:last-child"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .storage-key input"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .storage-key-name"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .storage-key-check-wrap"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .storage-key-externa"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .storage-key-badge"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Selector sin coincidencias en el documento: .storage-key-app .storage-key-badge"
+        }
+      ]
+    },
+    {
+      "titulo": "CSS: propiedades con valor no soportado",
+      "entradas": []
+    },
+    {
+      "titulo": "JavaScript: errores de sintaxis",
+      "entradas": []
+    },
+    {
+      "titulo": "JavaScript: variables globales posiblemente sin usar",
+      "entradas": [
+        {
+          "severidad": "aviso",
+          "mensaje": "Variable \"previewConsoleToggle\" declarada en inline#1 de index.html y no parece usarse después (heurístico, sin análisis de scopes)"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Variable \"previewConsoleFullscreen\" declarada en inline#1 de index.html y no parece usarse después (heurístico, sin análisis de scopes)"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Variable \"previewLayout\" declarada en inline#1 de index.html y no parece usarse después (heurístico, sin análisis de scopes)"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Variable \"tipoProyectoPendiente\" declarada en inline#1 de index.html y no parece usarse después (heurístico, sin análisis de scopes)"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Variable \"resumenLineas\" declarada en inline#1 de index.html y no parece usarse después (heurístico, sin análisis de scopes)"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Variable \"FUNCIONALIDADES_BASICAS_22\" declarada en inline#1 de index.html y no parece usarse después (heurístico, sin análisis de scopes)"
+        },
+        {
+          "severidad": "aviso",
+          "mensaje": "Variable \"ultimoToken\" declarada en inline#1 de index.html y no parece usarse después (heurístico, sin análisis de scopes)"
+        }
+      ]
+    },
+    {
+      "titulo": "Métricas",
+      "entradas": [
+        {
+          "severidad": "info",
+          "mensaje": "Tamaño total transferido: 1266 KB"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Número de recursos cargados: 1"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Tiempo de carga hasta el evento load: 261 ms"
+        }
+      ]
+    }
+  ]
+}
