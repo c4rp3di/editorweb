@@ -1,0 +1,368 @@
+name: Verificar proyecto en la nube
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: 'Nombre del proyecto en el editor'
+        required: true
+        type: string
+      project_slug:
+        description: 'Nombre del proyecto normalizado (slug), usado en la ruta del repo'
+        required: true
+        type: string
+      run_folder:
+        description: 'Subcarpeta de esta ejecucion (marca de tiempo); evita choques entre verificaciones solapadas del mismo proyecto'
+        required: true
+        type: string
+      project_type:
+        description: 'Tipo de proyecto web: plano o carpetas'
+        required: true
+        type: string
+      entry_file:
+        description: 'Ruta del HTML de entrada dentro del paquete subido (puede estar en una subcarpeta)'
+        required: true
+        type: string
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      PROJECT_NAME: ${{ github.event.inputs.project_name }}
+      PROJECT_SLUG: ${{ github.event.inputs.project_slug }}
+      RUN_FOLDER: ${{ github.event.inputs.run_folder }}
+      PROJECT_TYPE: ${{ github.event.inputs.project_type }}
+      ENTRY_FILE: ${{ github.event.inputs.entry_file }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar Playwright y Chromium
+        run: |
+          npm init -y > /dev/null
+          npm install playwright@1.47.0 > /dev/null 2>&1
+          npx playwright install --with-deps chromium
+
+      - name: Calcular carpeta del paquete subido
+        run: echo "PACKAGE_DIR=verificaciones/$PROJECT_SLUG/$RUN_FOLDER" >> "$GITHUB_ENV"
+
+      - name: Comprobar que el paquete subido existe
+        run: |
+          if [ ! -d "$PACKAGE_DIR" ]; then
+            echo "No se encontro $PACKAGE_DIR en el repo (subida incompleta)."
+            exit 1
+          fi
+          if [ ! -f "$PACKAGE_DIR/$ENTRY_FILE" ]; then
+            echo "No se encontro el HTML de entrada $PACKAGE_DIR/$ENTRY_FILE."
+            exit 1
+          fi
+
+      - name: Levantar servidor estatico
+        run: |
+          cd "$PACKAGE_DIR"
+          nohup python3 -m http.server 8080 > /tmp/servidor-estatico.log 2>&1 &
+          disown
+          sleep 1
+
+      - name: Escribir script de verificacion
+        run: |
+          cat > verificar.js <<'          VERIFICARJS'
+                    // Analiza PACKAGE_DIR/ENTRY_FILE en un Chromium real (Playwright) y escribe resultado.json
+                    // junto al script. A propósito no usa comillas invertidas ni la secuencia de interpolación
+                    // de plantillas de JS en ningún punto: este archivo se genera dentro de un heredoc embebido
+                    // en un YAML embebido en el propio editor (una plantilla JS de un solo archivo), y evita
+                    // cualquier secuencia que ese anfitrión pudiera interpretar como interpolación.
+                    var chromium = require('playwright').chromium;
+                    var fs = require('fs');
+                    var path = require('path');
+
+                    var PACKAGE_DIR = process.env.PACKAGE_DIR;
+                    var ENTRY_FILE = process.env.ENTRY_FILE;
+                    var PROJECT_TYPE = process.env.PROJECT_TYPE;
+                    var URL_ENTRADA = 'http://localhost:8080/' + ENTRY_FILE;
+
+                    function listarArchivos(dir, base) {
+                        base = base || dir;
+                        var resultado = [];
+                        var nombres = fs.readdirSync(dir);
+                        for (var i = 0; i < nombres.length; i++) {
+                            var completo = path.join(dir, nombres[i]);
+                            if (fs.statSync(completo).isDirectory()) {
+                                resultado = resultado.concat(listarArchivos(completo, base));
+                            } else {
+                                resultado.push(path.relative(base, completo).split(path.sep).join('/'));
+                            }
+                        }
+                        return resultado;
+                    }
+
+                    function esUrlExterna(url) {
+                        return /^[a-z][a-z0-9+.-]*:/i.test(url) && !/^file:/i.test(url);
+                    }
+
+                    function resolverRelativa(baseFile, ref) {
+                        var limpia = ref.split('#')[0].split('?')[0];
+                        if (!limpia) return null;
+                        var dirBase = path.posix.dirname(baseFile);
+                        var resuelta = path.posix.normalize(path.posix.join(dirBase === '.' ? '' : dirBase, limpia));
+                        if (resuelta.indexOf('..') === 0) return null; // fuera del paquete, no evaluable
+                        return resuelta.replace(/^\//, '');
+                    }
+
+                    function agregar(lista, severidad, mensaje, linea) {
+                        var entrada = { severidad: severidad, mensaje: mensaje };
+                        if (Number.isFinite(linea)) entrada.linea = linea;
+                        lista.push(entrada);
+                    }
+
+                    (async function main() {
+                        var archivosPaquete = {};
+                        listarArchivos(PACKAGE_DIR).forEach(function (r) { archivosPaquete[r] = true; });
+
+                        var errConsola = [];
+                        var errJs = [];
+                        var errRecursos = [];
+                        var errRed = [];
+                        var errCors = [];
+                        var errEnlaces = [];
+                        var errReferenciasLocales = [];
+                        var errCssHuerfanos = [];
+                        var errCssInvalidas = [];
+                        var errSintaxis = [];
+                        var avisosGlobales = [];
+
+                        var browser = await chromium.launch();
+                        var page = await browser.newPage();
+
+                        page.on('console', function (msg) {
+                            if (msg.type() === 'error') {
+                                if (/cors|cross-origin|access-control-allow-origin/i.test(msg.text())) {
+                                    agregar(errCors, 'error', msg.text());
+                                } else {
+                                    agregar(errConsola, 'error', msg.text());
+                                }
+                            }
+                        });
+                        page.on('pageerror', function (err) {
+                            agregar(errJs, 'error', String(err && err.message ? err.message : err));
+                        });
+                        page.on('requestfailed', function (req) {
+                            var fallo = req.failure();
+                            var motivo = fallo && fallo.errorText ? fallo.errorText : 'desconocido';
+                            var mensaje = req.resourceType() + ' no cargó: ' + req.url() + ' (' + motivo + ')';
+                            if (/cors|cross-origin/i.test(motivo)) {
+                                agregar(errCors, 'error', mensaje);
+                            } else if (req.resourceType() === 'fetch' || req.resourceType() === 'xhr') {
+                                agregar(errRed, 'error', mensaje);
+                            } else {
+                                agregar(errRecursos, 'error', mensaje);
+                            }
+                        });
+
+                        var tiempoInicio = Date.now();
+                        var totalBytes = 0;
+                        var totalRecursos = 0;
+                        page.on('response', async function (res) {
+                            totalRecursos++;
+                            try {
+                                var buf = await res.body();
+                                totalBytes += buf.length;
+                            } catch (e) { /* respuesta sin cuerpo accesible (redirect, opaque...) — se ignora en el total */ }
+                        });
+
+                        var fallaInfra = null;
+                        try {
+                            await page.goto(URL_ENTRADA, { waitUntil: 'load', timeout: 30000 });
+                        } catch (e) {
+                            fallaInfra = 'No se pudo cargar ' + URL_ENTRADA + ': ' + (e && e.message ? e.message : e);
+                        }
+                        var tiempoCarga = Date.now() - tiempoInicio;
+
+                        if (fallaInfra) {
+                            agregar(errConsola, 'error', fallaInfra);
+                        } else {
+                            // ---- Enlaces internos rotos y referencias a archivos locales ausentes ----
+                            var referencias = await page.evaluate(function () {
+                                var enlaces = Array.prototype.map.call(document.querySelectorAll('a[href]'), function (a) {
+                                    return a.getAttribute('href');
+                                });
+                                var locales = [];
+                                Array.prototype.forEach.call(document.querySelectorAll('img[src]'), function (el) {
+                                    locales.push({ tipo: 'img', valor: el.getAttribute('src') });
+                                });
+                                Array.prototype.forEach.call(document.querySelectorAll('script[src]'), function (el) {
+                                    locales.push({ tipo: 'script', valor: el.getAttribute('src') });
+                                });
+                                Array.prototype.forEach.call(document.querySelectorAll('link[href]'), function (el) {
+                                    locales.push({ tipo: 'link', valor: el.getAttribute('href') });
+                                });
+                                return { enlaces: enlaces, locales: locales };
+                            });
+
+                            referencias.enlaces.forEach(function (href) {
+                                if (!href || href.indexOf('#') === 0 || /^(mailto:|tel:|javascript:)/i.test(href) || esUrlExterna(href)) return;
+                                var resuelta = resolverRelativa(ENTRY_FILE, href);
+                                if (resuelta && !archivosPaquete[resuelta]) {
+                                    agregar(errEnlaces, 'error', 'Enlace roto: href="' + href + '" no existe en el paquete (' + resuelta + ')');
+                                }
+                            });
+                            referencias.locales.forEach(function (ref) {
+                                if (!ref.valor || esUrlExterna(ref.valor) || /^data:/i.test(ref.valor)) return;
+                                var resuelta = resolverRelativa(ENTRY_FILE, ref.valor);
+                                if (resuelta && !archivosPaquete[resuelta]) {
+                                    agregar(errReferenciasLocales, 'error', ref.tipo + ' referencia "' + ref.valor + '" y no está en el paquete (' + resuelta + ')');
+                                }
+                            });
+
+                            // ---- CSS: selectores huérfanos y propiedades inválidas ----
+                            var css = await page.evaluate(function () {
+                                var huerfanos = [];
+                                var invalidas = [];
+                                var hojas = Array.prototype.slice.call(document.styleSheets);
+                                for (var h = 0; h < hojas.length; h++) {
+                                    var reglas;
+                                    try { reglas = hojas[h].cssRules; } catch (e) { continue; } // hoja externa sin CORS — no evaluable
+                                    if (!reglas) continue;
+                                    for (var i = 0; i < reglas.length; i++) {
+                                        var regla = reglas[i];
+                                        if (!regla.selectorText) continue;
+                                        var selectores = regla.selectorText.split(',');
+                                        for (var s = 0; s < selectores.length; s++) {
+                                            var selector = selectores[s].trim();
+                                            if (!selector) continue;
+                                            try {
+                                                if (!document.querySelector(selector)) huerfanos.push(selector);
+                                            } catch (e) { /* selector no soportado por querySelector (p. ej. pseudo-elementos) — se ignora */ }
+                                        }
+                                        if (regla.style && window.CSS && CSS.supports) {
+                                            for (var p = 0; p < regla.style.length; p++) {
+                                                var prop = regla.style[p];
+                                                var valor = regla.style.getPropertyValue(prop);
+                                                if (prop && valor && !CSS.supports(prop, valor)) {
+                                                    invalidas.push(prop + ': ' + valor + ' (selector ' + regla.selectorText + ')');
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                var vistos = {};
+                                var huerfanosUnicos = [];
+                                for (var u = 0; u < huerfanos.length; u++) {
+                                    if (!vistos[huerfanos[u]]) { vistos[huerfanos[u]] = true; huerfanosUnicos.push(huerfanos[u]); }
+                                }
+                                return { huerfanos: huerfanosUnicos.slice(0, 100), invalidas: invalidas.slice(0, 100) };
+                            });
+                            css.huerfanos.forEach(function (sel) { agregar(errCssHuerfanos, 'aviso', 'Selector sin coincidencias en el documento: ' + sel); });
+                            css.invalidas.forEach(function (item) { agregar(errCssInvalidas, 'aviso', item); });
+                        }
+
+                        await browser.close();
+
+                        // ---- JS: errores de sintaxis (node --check) y variables globales sin usar (heurístico) ----
+                        var execSync = require('child_process').execSync;
+                        var scriptsAEvaluar = [];
+                        try {
+                            var htmlEntrada = fs.readFileSync(path.join(PACKAGE_DIR, ENTRY_FILE), 'utf8');
+                            var re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi;
+                            var m;
+                            var indice = 0;
+                            while ((m = re.exec(htmlEntrada)) !== null) {
+                                indice++;
+                                var cuerpo = m[1];
+                                if (cuerpo.trim()) scriptsAEvaluar.push({ nombre: 'inline#' + indice + ' de ' + ENTRY_FILE, contenido: cuerpo });
+                            }
+                        } catch (e) { /* no se pudo leer el HTML de entrada para extraer scripts inline */ }
+
+                        if (PROJECT_TYPE === 'carpetas') {
+                            Object.keys(archivosPaquete).forEach(function (r) {
+                                if (r.toLowerCase().endsWith('.js')) {
+                                    try {
+                                        scriptsAEvaluar.push({ nombre: r, contenido: fs.readFileSync(path.join(PACKAGE_DIR, r), 'utf8') });
+                                    } catch (e) { /* archivo listado pero no legible — se ignora */ }
+                                }
+                            });
+                        }
+
+                        var tmpDir = fs.mkdtempSync('/tmp/verificar-js-');
+                        scriptsAEvaluar.forEach(function (script) {
+                            var tmpFile = path.join(tmpDir, 'chequeo.js');
+                            fs.writeFileSync(tmpFile, script.contenido);
+                            try {
+                                execSync('node --check ' + JSON.stringify(tmpFile), { stdio: 'pipe' });
+                            } catch (e) {
+                                var salida = (e.stderr ? e.stderr.toString() : String(e.message || e)).split('\n')[0];
+                                agregar(errSintaxis, 'error', 'Error de sintaxis en ' + script.nombre + ': ' + salida);
+                            }
+
+                            // Heurístico, sin análisis semántico profundo (declarado explícitamente en el encargo):
+                            // declaraciones var/let/const de primer nivel que solo aparecen una vez en el script.
+                            var declaraciones = script.contenido.match(/^[ \t]*(?:var|let|const)\s+([A-Za-z_$][\w$]*)/gm) || [];
+                            declaraciones.forEach(function (decl) {
+                                var nombre = decl.replace(/^[ \t]*(?:var|let|const)\s+/, '');
+                                var re2 = new RegExp('\\b' + nombre.replace(/[.*+?^{}()|[\]\\$]/g, '\\$&') + '\\b', 'g');
+                                var usos = (script.contenido.match(re2) || []).length;
+                                if (usos <= 1) {
+                                    agregar(avisosGlobales, 'aviso', 'Variable "' + nombre + '" declarada en ' + script.nombre + ' y no parece usarse después (heurístico, sin análisis de scopes)');
+                                }
+                            });
+                        });
+
+                        // ---- Ensamblar informe ----
+                        var secciones = [
+                            { titulo: 'Errores de consola', entradas: errConsola },
+                            { titulo: 'Errores de JavaScript en ejecución', entradas: errJs },
+                            { titulo: 'Recursos que no cargaron (imágenes, scripts, estilos, fuentes)', entradas: errRecursos },
+                            { titulo: 'Peticiones de red fallidas (fetch/XHR)', entradas: errRed },
+                            { titulo: 'CORS', entradas: errCors },
+                            { titulo: 'Enlaces internos rotos', entradas: errEnlaces },
+                            { titulo: 'Referencias a archivos locales no encontradas en el paquete', entradas: errReferenciasLocales },
+                            { titulo: 'CSS: selectores sin coincidencias (huérfanos)', entradas: errCssHuerfanos },
+                            { titulo: 'CSS: propiedades con valor no soportado', entradas: errCssInvalidas },
+                            { titulo: 'JavaScript: errores de sintaxis', entradas: errSintaxis },
+                            { titulo: 'JavaScript: variables globales posiblemente sin usar', entradas: avisosGlobales },
+                            { titulo: 'Métricas', entradas: [
+                                { severidad: 'info', mensaje: 'Tamaño total transferido: ' + Math.round(totalBytes / 1024) + ' KB' },
+                                { severidad: 'info', mensaje: 'Número de recursos cargados: ' + totalRecursos },
+                                { severidad: 'info', mensaje: 'Tiempo de carga hasta el evento load: ' + tiempoCarga + ' ms' }
+                            ] }
+                        ];
+
+                        var errores = 0, avisos = 0, info = 0;
+                        secciones.forEach(function (s) {
+                            s.entradas.forEach(function (e) {
+                                if (e.severidad === 'error') errores++;
+                                else if (e.severidad === 'aviso') avisos++;
+                                else info++;
+                            });
+                        });
+
+                        var informe = { ok: errores === 0, resumen: { errores: errores, avisos: avisos, info: info }, secciones: secciones };
+                        fs.writeFileSync('resultado.json', JSON.stringify(informe, null, 2));
+                        console.log('Verificación completa: ' + errores + ' errores, ' + avisos + ' avisos, ' + info + ' info.');
+                    })().catch(function (e) {
+                        console.error('Fallo de infraestructura durante la verificación:', e);
+                        process.exit(1);
+                    });
+          VERIFICARJS
+
+      - name: Verificar en Chromium real
+        run: node verificar.js
+
+      - name: Publicar resultado.json en el repo
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f resultado.json ]; then
+            gh api --method PUT "repos/{owner}/{repo}/contents/$PACKAGE_DIR/resultado.json" \
+              -f message="Resultado de verificacion en la nube: $PROJECT_NAME" \
+              -f content="$(base64 -w0 resultado.json)" \
+              -f branch="${{ github.ref_name }}"
+          else
+            echo "No se genero resultado.json (fallo de infraestructura); el run queda como failure."
+            exit 1
+          fi
