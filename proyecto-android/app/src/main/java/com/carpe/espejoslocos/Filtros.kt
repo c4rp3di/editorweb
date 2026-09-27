@@ -11,163 +11,229 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
 
-/**
- * Catálogo de filtros de distorsión.
- *
- * Cada filtro implementa el mapeo inverso: para cada píxel de destino,
- * devuelve de qué píxel de origen tomarlo. Con eso OpenCV hace el resto
- * con Imgproc.remap(). Añadir un filtro nuevo son ~15 líneas.
- */
 object Filtros {
+
+    data class Parametro(
+        val id: String,
+        val etiqueta: String,
+        val min: Float,
+        val max: Float,
+        val porDefecto: Float,
+        val esEntero: Boolean = false
+    )
+
+    data class Contexto(
+        val x: Float, val y: Float,
+        val cx: Float, val cy: Float,
+        val ancho: Int, val alto: Int,
+        val t: Float,
+        val intensidad: Float,
+        val params: Map<String, Float>
+    ) {
+        fun p(id: String, alt: Float = 0f) = params[id] ?: alt
+    }
 
     data class Filtro(
         val id: String,
         val nombre: String,
         val icono: String,
         val animado: Boolean = false,
-        val distorsionar: (x: Float, y: Float, cx: Float, cy: Float, ancho: Int, alto: Int, t: Float) -> Pair<Float, Float>,
-        val postProcesar: ((Mat) -> Unit)? = null
+        val parametros: List<Parametro> = emptyList(),
+        val distorsionar: (Contexto) -> Pair<Float, Float>,
+        val postProcesar: ((Mat, Map<String, Float>) -> Unit)? = null
     )
+
+    // Estado por filtro: cada filtro recuerda sus valores entre cambios.
+    private val valores: MutableMap<String, MutableMap<String, Float>> = mutableMapOf()
+
+    fun getParam(filtro: Filtro, paramId: String): Float {
+        val mapa = valores.getOrPut(filtro.id) { mutableMapOf() }
+        return mapa.getOrPut(paramId) {
+            filtro.parametros.find { it.id == paramId }?.porDefecto ?: 0f
+        }
+    }
+
+    fun setParam(filtro: Filtro, paramId: String, valor: Float) {
+        val mapa = valores.getOrPut(filtro.id) { mutableMapOf() }
+        val def = filtro.parametros.find { it.id == paramId }
+        mapa[paramId] = if (def != null) valor.coerceIn(def.min, def.max) else valor
+    }
+
+    fun mapParams(filtro: Filtro): Map<String, Float> {
+        val mapa = valores.getOrPut(filtro.id) { mutableMapOf() }
+        return filtro.parametros.associate { it.id to mapa.getOrPut(it.id) { it.porDefecto } }
+    }
+
+    // ---------- Filtros ----------
 
     private val original = Filtro(
         id = "original", nombre = "Original", icono = "🔍",
-        distorsionar = { x, y, _, _, _, _, _ -> Pair(x, y) }
+        distorsionar = { c -> Pair(c.x, c.y) }
     )
 
     private val barril = Filtro(
         id = "barril", nombre = "Barril", icono = "🪞",
-        distorsionar = { x, y, cx, cy, _, _, _ ->
-            val radio = min(cx, cy)
-            val dx = (x - cx) / radio
-            val dy = (y - cy) / radio
+        parametros = listOf(Parametro("curvatura", "Curvatura", 0.1f, 1.5f, 0.55f)),
+        distorsionar = { c ->
+            val radio = min(c.cx, c.cy)
+            val dx = (c.x - c.cx) / radio
+            val dy = (c.y - c.cy) / radio
             val r2 = dx * dx + dy * dy
-            val factor = 1f + (-0.55f) * r2
-            Pair(cx + dx * factor * radio, cy + dy * factor * radio)
+            val factor = 1f + (-c.p("curvatura", 0.55f)) * r2
+            Pair(c.cx + dx * factor * radio, c.cy + dy * factor * radio)
         }
     )
 
     private val cojin = Filtro(
         id = "cojin", nombre = "Cojín", icono = "🎯",
-        distorsionar = { x, y, cx, cy, _, _, _ ->
-            val radio = min(cx, cy)
-            val dx = (x - cx) / radio
-            val dy = (y - cy) / radio
+        parametros = listOf(Parametro("curvatura", "Curvatura", 0.1f, 1.5f, 0.55f)),
+        distorsionar = { c ->
+            val radio = min(c.cx, c.cy)
+            val dx = (c.x - c.cx) / radio
+            val dy = (c.y - c.cy) / radio
             val r2 = dx * dx + dy * dy
-            val factor = 1f + 0.55f * r2
-            Pair(cx + dx * factor * radio, cy + dy * factor * radio)
+            val factor = 1f + c.p("curvatura", 0.55f) * r2
+            Pair(c.cx + dx * factor * radio, c.cy + dy * factor * radio)
         }
     )
 
     private val remolino = Filtro(
         id = "remolino", nombre = "Remolino", icono = "🌀", animado = true,
-        distorsionar = { x, y, cx, cy, _, _, t ->
-            val radio = min(cx, cy)
-            val dx = (x - cx) / radio
-            val dy = (y - cy) / radio
+        parametros = listOf(
+            Parametro("fuerza", "Fuerza", 0.5f, 6f, 2.8f),
+            Parametro("velocidad", "Velocidad", -3f, 3f, 0.8f)
+        ),
+        distorsionar = { c ->
+            val radio = min(c.cx, c.cy)
+            val dx = (c.x - c.cx) / radio
+            val dy = (c.y - c.cy) / radio
             val r = sqrt(dx * dx + dy * dy)
             val aBase = atan2(dy, dx)
-            val fuerza = 2.8f * (1f - min(r, 1f))
-            val aRot = aBase - fuerza + t * 0.8f
-            Pair(cx + cos(aRot) * r * radio, cy + sin(aRot) * r * radio)
+            val fuerza = c.p("fuerza", 2.8f) * (1f - min(r, 1f))
+            val aRot = aBase - fuerza + c.t * c.p("velocidad", 0.8f)
+            Pair(c.cx + cos(aRot) * r * radio, c.cy + sin(aRot) * r * radio)
         }
     )
 
     private val onda = Filtro(
         id = "onda", nombre = "Onda", icono = "🌊", animado = true,
-        distorsionar = { x, y, _, _, ancho, alto, t ->
-            val amp = ancho * 0.03f
-            val longOnda = alto * 0.18f
-            val fase = t * 3.5f
-            val desp = amp * sin(y / longOnda * 2f * Math.PI.toFloat() + fase)
-            Pair(x + desp, y)
+        parametros = listOf(
+            Parametro("amplitud", "Amplitud", 0f, 0.1f, 0.03f),
+            Parametro("longitud", "Longitud", 0.05f, 0.5f, 0.18f),
+            Parametro("velocidad", "Velocidad", -8f, 8f, 3.5f)
+        ),
+        distorsionar = { c ->
+            val amp = c.ancho * c.p("amplitud", 0.03f)
+            val longOnda = c.alto * c.p("longitud", 0.18f)
+            val fase = c.t * c.p("velocidad", 3.5f)
+            val desp = amp * sin(c.y / longOnda * 2f * Math.PI.toFloat() + fase)
+            Pair(c.x + desp, c.y)
         }
     )
 
     private val lupa = Filtro(
         id = "lupa", nombre = "Lupa", icono = "🔮",
-        distorsionar = { x, y, cx, cy, _, _, _ ->
-            val radio = min(cx, cy)
-            val dx = (x - cx) / radio
-            val dy = (y - cy) / radio
+        parametros = listOf(
+            Parametro("radio", "Radio", 0.2f, 1.0f, 0.7f),
+            Parametro("zoom", "Zoom", 0.2f, 1.0f, 0.5f)
+        ),
+        distorsionar = { c ->
+            val radio = min(c.cx, c.cy)
+            val dx = (c.x - c.cx) / radio
+            val dy = (c.y - c.cy) / radio
             val r = sqrt(dx * dx + dy * dy)
-            val R = 0.7f
-            if (r >= R) Pair(x, y) else {
+            val R = c.p("radio", 0.7f)
+            if (r >= R) Pair(c.x, c.y) else {
                 val t = r / R
-                val factor = 0.5f + 0.5f * t
-                Pair(cx + dx * factor * radio, cy + dy * factor * radio)
+                val zoom = c.p("zoom", 0.5f)
+                val factor = zoom + (1f - zoom) * t
+                Pair(c.cx + dx * factor * radio, c.cy + dy * factor * radio)
             }
         }
     )
 
     private val alfiler = Filtro(
         id = "alfiler", nombre = "Alfiler", icono = "📌",
-        distorsionar = { x, y, cx, cy, _, _, _ ->
-            val radio = min(cx, cy)
-            val dx = (x - cx) / radio
-            val dy = (y - cy) / radio
+        parametros = listOf(
+            Parametro("radio", "Radio", 0.2f, 1.0f, 0.7f),
+            Parametro("zoom", "Zoom", 0.5f, 2.5f, 1.8f)
+        ),
+        distorsionar = { c ->
+            val radio = min(c.cx, c.cy)
+            val dx = (c.x - c.cx) / radio
+            val dy = (c.y - c.cy) / radio
             val r = sqrt(dx * dx + dy * dy)
-            val R = 0.7f
-            if (r >= R) Pair(x, y) else {
+            val R = c.p("radio", 0.7f)
+            if (r >= R) Pair(c.x, c.y) else {
                 val t = r / R
-                val factor = 1f + 0.8f * (1f - t)
-                Pair(cx + dx * factor * radio, cy + dy * factor * radio)
+                val zoom = c.p("zoom", 1.8f)
+                val factor = 1f + (zoom - 1f) * (1f - t)
+                Pair(c.cx + dx * factor * radio, c.cy + dy * factor * radio)
             }
         }
     )
 
     private val espejoFeria = Filtro(
         id = "espejo-feria", nombre = "Espejo de feria", icono = "🎪",
-        distorsionar = { x, y, cx, cy, _, alto, _ ->
-            val radio = min(cx, cy)
-            val dx = (x - cx) / radio
-            val dy = (y - cy) / radio
+        parametros = listOf(Parametro("curvatura", "Curvatura", 0.1f, 1.0f, 0.55f)),
+        distorsionar = { c ->
+            val radio = min(c.cx, c.cy)
+            val dx = (c.x - c.cx) / radio
+            val dy = (c.y - c.cy) / radio
             val r2 = dx * dx + dy * dy
-            val mezcla = (y / alto) * 2f - 1f
-            val factor = 1f + mezcla * 0.55f * r2
-            Pair(cx + dx * factor * radio, cy + dy * factor * radio)
+            val mezcla = (c.y / c.alto) * 2f - 1f
+            val factor = 1f + mezcla * c.p("curvatura", 0.55f) * r2
+            Pair(c.cx + dx * factor * radio, c.cy + dy * factor * radio)
         }
     )
 
     private val caleidoscopio = Filtro(
         id = "caleidoscopio", nombre = "Caleidoscopio", icono = "🔁",
-        distorsionar = { x, y, cx, cy, _, _, _ ->
-            val radio = min(cx, cy)
-            val dx = (x - cx) / radio
-            val dy = (y - cy) / radio
+        parametros = listOf(Parametro("sectores", "Sectores", 3f, 12f, 6f, esEntero = true)),
+        distorsionar = { c ->
+            val radio = min(c.cx, c.cy)
+            val dx = (c.x - c.cx) / radio
+            val dy = (c.y - c.cy) / radio
             val r = sqrt(dx * dx + dy * dy)
             val angulo = atan2(dy, dx)
-            val sector = (2f * Math.PI.toFloat()) / 6f
+            val sector = (2f * Math.PI.toFloat()) / c.p("sectores", 6f).coerceAtLeast(3f)
             var a = angulo % sector
             if (a < 0) a += sector
             if (a > sector / 2f) a = sector - a
-            Pair(cx + cos(a) * r * radio, cy + sin(a) * r * radio)
+            Pair(c.cx + cos(a) * r * radio, c.cy + sin(a) * r * radio)
         }
     )
 
     private val glitch = Filtro(
         id = "glitch", nombre = "Glitch", icono = "🧬", animado = true,
-        distorsionar = { x, y, _, _, ancho, alto, t ->
-            val frame = t.toInt()
-            val rnd = Random(y.toInt() / (alto / 20 + 1) + frame * 31)
-            val desp = if (rnd.nextFloat() < 0.15f) {
-                rnd.nextFloat() * ancho * 0.15f - ancho * 0.075f
+        parametros = listOf(
+            Parametro("densidad", "Densidad", 0f, 0.5f, 0.15f),
+            Parametro("magnitud", "Magnitud", 0f, 0.3f, 0.15f)
+        ),
+        distorsionar = { c ->
+            val frame = c.t.toInt()
+            val rnd = Random(c.y.toInt() / (c.alto / 20 + 1) + frame * 31)
+            val desp = if (rnd.nextFloat() < c.p("densidad", 0.15f)) {
+                (rnd.nextFloat() * 2f - 1f) * c.ancho * c.p("magnitud", 0.15f)
             } else 0f
-            Pair(x + desp, y)
+            Pair(c.x + desp, c.y)
         }
     )
 
     private val cromatica = Filtro(
         id = "cromatica", nombre = "Cromática", icono = "🌈",
-        distorsionar = { x, y, _, _, _, _, _ -> Pair(x, y) },
-        postProcesar = { mat ->
+        parametros = listOf(Parametro("desplazamiento", "Desplazamiento", 0f, 8f, 2.5f)),
+        distorsionar = { c -> Pair(c.x, c.y) },
+        postProcesar = { mat, params ->
+            val desp = params["desplazamiento"] ?: 2.5f
             val canales = ArrayList<Mat>(4)
             Core.split(mat, canales)
             val mR = Mat()
             val mB = Mat()
             val tR = Mat(2, 3, CvType.CV_64FC1)
-            tR.put(0, 0, 1.0, 0.0, 2.5, 0.0, 1.0, 0.0)
+            tR.put(0, 0, 1.0, 0.0, desp.toDouble(), 0.0, 1.0, 0.0)
             val tB = Mat(2, 3, CvType.CV_64FC1)
-            tB.put(0, 0, 1.0, 0.0, -2.5, 0.0, 1.0, 0.0)
+            tB.put(0, 0, 1.0, 0.0, -desp.toDouble(), 0.0, 1.0, 0.0)
             Imgproc.warpAffine(canales[0], mR, tR, mat.size())
             Imgproc.warpAffine(canales[2], mB, tB, mat.size())
             canales[0].release()
@@ -186,12 +252,12 @@ object Filtros {
         espejoFeria, caleidoscopio, glitch, cromatica
     )
 
-    /**
-     * Construye los mapas de remapeo para un frame de (ancho × alto).
-     * La intensidad interpola linealmente entre la posición original y la
-     * distorsionada: 0f = sin efecto, 1f = efecto completo del filtro.
-     */
-    fun crearMapas(filtro: Filtro, ancho: Int, alto: Int, intensidad: Float, tiempo: Float): Pair<Mat, Mat> {
+    fun crearMapas(
+        filtro: Filtro,
+        ancho: Int, alto: Int,
+        intensidad: Float, tiempo: Float,
+        params: Map<String, Float>
+    ): Pair<Mat, Mat> {
         val mapX = Mat(alto, ancho, CvType.CV_32FC1)
         val mapY = Mat(alto, ancho, CvType.CV_32FC1)
         val datosX = FloatArray(ancho * alto)
@@ -201,7 +267,11 @@ object Filtros {
         var idx = 0
         for (y in 0 until alto) {
             for (x in 0 until ancho) {
-                val (dx, dy) = filtro.distorsionar(x.toFloat(), y.toFloat(), cx, cy, ancho, alto, tiempo)
+                val ctx = Contexto(
+                    x.toFloat(), y.toFloat(), cx, cy,
+                    ancho, alto, tiempo, intensidad, params
+                )
+                val (dx, dy) = filtro.distorsionar(ctx)
                 datosX[idx] = x + (dx - x) * intensidad
                 datosY[idx] = y + (dy - y) * intensidad
                 idx++
