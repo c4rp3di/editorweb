@@ -27,15 +27,17 @@ object AppLogic {
         LogEspejos.instalarCapturaDeCrashes()
         LogEspejos.i("onIniciar() llamado")
 
+        ConfigCamara.init(activity) // ← NUEVO
+        LogEspejos.i("Configuración: ${ConfigCamara.resolucion.etiqueta} · " +
+            "fps=${ConfigCamara.fps ?: "auto"} · " +
+            "interp=${ConfigCamara.etiquetaInterpolacion()} · " +
+            "espejar=${ConfigCamara.espejarFrontal} · " +
+            "mostrarFps=${ConfigCamara.mostrarFps}")
+
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val preview = activity.findViewById<View>(R.id.vistaPreviaCamara)
-        if (preview != null) {
-            preview.visibility = View.GONE
-            LogEspejos.i("PreviewView del generador ocultado (id=${R.id.vistaPreviaCamara})")
-        } else {
-            LogEspejos.w("No se encontró R.id.vistaPreviaCamara — el layout generado no es el esperado")
-        }
+        preview?.visibility = View.GONE
 
         handler = Handler(Looper.getMainLooper())
         var intentos = 0
@@ -56,7 +58,7 @@ object AppLogic {
                 if (intentos++ < 60) {
                     handler?.postDelayed(this, 500)
                 } else {
-                    LogEspejos.e("Timeout esperando el permiso de cámara (30 s)")
+                    LogEspejos.e("Timeout esperando el permiso de cámara")
                     Toast.makeText(activity, "Sin permiso de cámara", Toast.LENGTH_LONG).show()
                 }
             }
@@ -67,7 +69,7 @@ object AppLogic {
     private fun montarMotor(activity: MainActivity) {
         if (inicializado) return
         inicializado = true
-        LogEspejos.i("montarMotor() — creando ImageView y overlay")
+        LogEspejos.i("montarMotor()")
 
         val raiz = activity.findViewById<ViewGroup>(android.R.id.content)
 
@@ -95,7 +97,8 @@ object AppLogic {
                     if (MotorCamara.usandoFrontal) "Frontal" else "Trasera",
                     Toast.LENGTH_SHORT
                 ).show()
-            }
+            },
+            onReiniciarCamara = { MotorCamara.reiniciar(activity, iv) } // ← NUEVO
         )
         raiz.addView(ui)
 
@@ -108,7 +111,7 @@ object AppLogic {
             return
         }
         val drawable = iv.drawable as? BitmapDrawable ?: run {
-            LogEspejos.w("Captura ignorada: sin frame todavía")
+            LogEspejos.w("Captura ignorada: sin frame")
             Toast.makeText(activity, "Sin frame todavía", Toast.LENGTH_SHORT).show()
             return
         }
@@ -126,7 +129,6 @@ object AppLogic {
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI, valores
         ) ?: run {
             LogEspejos.e("ContentResolver.insert devolvió null")
-            Toast.makeText(activity, "No se pudo crear el archivo", Toast.LENGTH_SHORT).show()
             return
         }
         try {
@@ -137,7 +139,6 @@ object AppLogic {
             Toast.makeText(activity, "Guardado en Pictures/EspejosLocos", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             LogEspejos.e("Error guardando captura", e)
-            Toast.makeText(activity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 }
