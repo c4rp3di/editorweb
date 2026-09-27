@@ -1,12 +1,15 @@
 package com.carpe.espejoslocos
 
 import android.graphics.Bitmap
+import android.hardware.camera2.CaptureRequest
+import android.util.Range
 import android.util.Size
 import android.widget.ImageView
+import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.core.lifecycle.ProcessCameraProvider
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.core.content.ContextCompat
@@ -24,6 +27,8 @@ object MotorCamara {
     var usandoFrontal: Boolean = false
     var tiempoInicio: Long = System.currentTimeMillis()
 
+    @Volatile var fpsActual: Float = 0f
+
     private var executor: ExecutorService? = null
     private var imageAnalysis: ImageAnalysis? = null
 
@@ -38,20 +43,36 @@ object MotorCamara {
                 imageAnalysis?.clearAnalyzer()
                 executor?.shutdown()
 
+                val res = ConfigCamara.resolucion
+                LogEspejos.i("Resolución objetivo: ${res.ancho}x${res.alto} (${res.etiqueta})")
+
                 val selectorResolucion = ResolutionSelector.Builder()
                     .setResolutionStrategy(
                         ResolutionStrategy(
-                            Size(640, 480),
+                            Size(res.ancho, res.alto),
                             ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER
                         )
                     )
                     .build()
 
-                val analisis = ImageAnalysis.Builder()
+                val builder = ImageAnalysis.Builder()
                     .setResolutionSelector(selectorResolucion)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                    .build()
+
+                ConfigCamara.fps?.let { fpsObjetivo ->
+                    try {
+                        Camera2Interop.Extender(builder).setCaptureRequestOption(
+                            CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+                            Range(fpsObjetivo, fpsObjetivo)
+                        )
+                        LogEspejos.i("FPS objetivo: $fpsObjetivo")
+                    } catch (e: Exception) {
+                        LogEspejos.w("FPS $fpsObjetivo no soportado, se usa auto: ${e.message}")
+                    }
+                }
+
+                val analisis = builder.build()
 
                 val exec = Executors.newSingleThreadExecutor()
                 executor = exec
@@ -67,6 +88,12 @@ object MotorCamara {
                 LogEspejos.e("Error crítico en iniciar()", e)
             }
         }, ContextCompat.getMainExecutor(activity))
+    }
+
+    /** Rebindea sin alternar cámara. La usa el panel de ajustes al cambiar resolución o FPS. */
+    fun reiniciar(activity: MainActivity, imageView: ImageView) {
+        LogEspejos.i("MotorCamara.reiniciar() — cambio de configuración")
+        iniciar(activity, imageView)
     }
 
     fun alternarCamara(activity: MainActivity, imageView: ImageView) {
@@ -96,6 +123,9 @@ private class ProcesadorFrame(
     private var erroresConsecutivos = 0
     private var ultimoError = ""
 
+    private var framesContados = 0
+    private var ultimoConteo = System.currentTimeMillis()
+
     override fun analyze(imageProxy: ImageProxy) {
         try {
             val rotacion = imageProxy.imageInfo.rotationDegrees
@@ -115,8 +145,6 @@ private class ProcesadorFrame(
 
             rotarMat(matSrc, matRotada, rotacion)
 
-            // La clave ahora incluye los params: si cambia cualquier slider,
-            // los mapas se recalculan.
             val claveParams = params.entries.joinToString(",") { "${it.key}=${it.value}" }
             val clave = "${filtro.id}|${matRotada.cols()}x${matRotada.rows()}|$intensidad|$claveParams"
             val recalcular = filtro.animado || clave != claveCache
@@ -135,9 +163,13 @@ private class ProcesadorFrame(
                 mapasCache!!
             }
 
-            Imgproc.remap(matRotada, matDst, parMapas.first, parMapas.second, Imgproc.INTER_LINEAR)
+            Imgproc.remap(
+                matRotada, matDst,
+                parMapas.first, parMapas.second,
+                ConfigCamara.interpolacion
+            )
 
-            if (MotorCamara.usandoFrontal) {
+            if (MotorCamara.usandoFrontal && ConfigCamara.espejarFrontal) {
                 Core.flip(matDst, matDst, 1)
             }
 
@@ -149,6 +181,16 @@ private class ProcesadorFrame(
             if (filtro.animado) {
                 parMapas.first.release()
                 parMapas.second.release()
+            }
+
+            // Contador de FPS
+            framesContados++
+            val ahora = System.currentTimeMillis()
+            val delta = ahora - ultimoConteo
+            if (delta >= 500) {
+                MotorCamara.fpsActual = framesContados * 1000f / delta
+                framesContados = 0
+                ultimoConteo = ahora
             }
 
             erroresConsecutivos = 0
