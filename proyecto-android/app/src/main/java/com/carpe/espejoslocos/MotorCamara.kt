@@ -1,8 +1,10 @@
 package com.carpe.espejoslocos
 
 import android.graphics.Bitmap
+import android.util.Log
 import android.util.Size
 import android.widget.ImageView
+import android.widget.Toast
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -15,14 +17,9 @@ import org.opencv.imgproc.Imgproc
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-/**
- * Pipeline: cámara → ImageAnalysis (RGBA) → Mat → filtro → Bitmap → ImageView.
- *
- * Usamos ImageAnalysis en vez de Preview porque necesitamos cada frame como
- * píxeles para deformarlo con OpenCV. El PreviewView que genera el editor
- * queda oculto y nuestro ImageView ocupa la pantalla completa.
- */
 object MotorCamara {
+
+    private const val TAG = "EspejosLocos"
 
     var filtroActual: Filtros.Filtro = Filtros.lista[0]
     var intensidad: Float = 0.85f
@@ -36,7 +33,8 @@ object MotorCamara {
         val futuro = ProcessCameraProvider.getInstance(activity)
         futuro.addListener({
             val provider = futuro.get()
-            provider.unbindAll() // tomamos el control: que el código generado no nos pise
+            imageAnalysis?.clearAnalyzer()
+            executor?.shutdown()
 
             val analisis = ImageAnalysis.Builder()
                 .setTargetResolution(Size(640, 480))
@@ -54,9 +52,19 @@ object MotorCamara {
                            else CameraSelector.DEFAULT_BACK_CAMERA
 
             try {
+                // Rebindeamos SOLO con ImageAnalysis. CameraX reemplaza los
+                // use cases del mismo selector automáticamente — no hace falta
+                // unbindAll() y así no entramos en carrera con el generador.
                 provider.bindToLifecycle(activity, selector, analisis)
+                Log.e(TAG, "CameraX vinculado (frontal=$usandoFrontal)")
             } catch (e: Exception) {
-                provider.bindToLifecycle(activity, CameraSelector.DEFAULT_BACK_CAMERA, analisis)
+                Log.e(TAG, "Error bindeando: ${e.message}", e)
+                try {
+                    provider.unbindAll()
+                    provider.bindToLifecycle(activity, selector, analisis)
+                } catch (e2: Exception) {
+                    Log.e(TAG, "Error rebindeando: ${e2.message}", e2)
+                }
             }
         }, ContextCompat.getMainExecutor(activity))
     }
@@ -83,9 +91,16 @@ private class ProcesadorFrame(
     private val matDst = Mat()
     private var mapasCache: Pair<Mat, Mat>? = null
     private var claveCache: String = ""
+    private var primerFrame = true
+    private var primerError = true
 
     override fun analyze(imageProxy: ImageProxy) {
         try {
+            if (primerFrame) {
+                primerFrame = false
+                Log.e("EspejosLocos", "Primer frame: ${imageProxy.width}x${imageProxy.height}")
+            }
+
             val filtro = MotorCamara.filtroActual
             val intensidad = MotorCamara.intensidad
             val tiempo = (System.currentTimeMillis() - MotorCamara.tiempoInicio) / 1000f
@@ -111,7 +126,6 @@ private class ProcesadorFrame(
 
             Imgproc.remap(matSrc, matDst, parMapas.first, parMapas.second, Imgproc.INTER_LINEAR)
 
-            // Espejamos la cámara frontal para que se vea como un espejo real
             if (MotorCamara.usandoFrontal) {
                 Core.flip(matDst, matDst, 1)
             }
@@ -130,6 +144,13 @@ private class ProcesadorFrame(
                 imageView.setImageBitmap(salida)
             }
         } catch (e: Exception) {
+            if (primerError) {
+                primerError = false
+                Log.e("EspejosLocos", "Error procesando frame", e)
+                activity.runOnUiThread {
+                    Toast.makeText(activity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
             e.printStackTrace()
         } finally {
             imageProxy.close()
