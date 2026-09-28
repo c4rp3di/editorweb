@@ -222,6 +222,13 @@ jobs:
                             var css = await page.evaluate(function () {
                                 var huerfanos = [];
                                 var invalidas = [];
+                                // 4.1: estos selectores solo aplican bajo interacción (:hover) o cuando
+                                // JS añade la clase en tiempo de ejecución (.visible, .active…); marcarlos
+                                // como huérfanos porque no coinciden en el HTML estático es ruido, no un
+                                // hallazgo real. "Solas" = el selector completo es justo esa clase, no un
+                                // compuesto como ".btn.visible" (ese si se sigue evaluando).
+                                var PSEUDOS_ESTADO = [':hover', ':active', ':focus', ':visited', ':disabled', ':enabled', ':checked', ':focus-within'];
+                                var CLASES_ESTADO_SOLAS = ['.visible', '.active', '.colapsada', '.open', '.hidden'];
                                 var hojas = Array.prototype.slice.call(document.styleSheets);
                                 for (var h = 0; h < hojas.length; h++) {
                                     var reglas;
@@ -234,6 +241,8 @@ jobs:
                                         for (var s = 0; s < selectores.length; s++) {
                                             var selector = selectores[s].trim();
                                             if (!selector) continue;
+                                            var esPseudoEstado = PSEUDOS_ESTADO.some(function (pe) { return selector.indexOf(pe) !== -1; });
+                                            if (esPseudoEstado || CLASES_ESTADO_SOLAS.indexOf(selector) !== -1) continue;
                                             try {
                                                 if (!document.querySelector(selector)) huerfanos.push(selector);
                                             } catch (e) { /* selector no soportado por querySelector (p. ej. pseudo-elementos) — se ignora */ }
@@ -340,7 +349,11 @@ jobs:
                             });
                         });
 
-                        var informe = { ok: errores === 0, resumen: { errores: errores, avisos: avisos, info: info }, secciones: secciones };
+                        var runId = process.env.GITHUB_RUN_ID || null;
+                        var runUrl = (runId && process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY)
+                            ? (process.env.GITHUB_SERVER_URL + '/' + process.env.GITHUB_REPOSITORY + '/actions/runs/' + runId)
+                            : null;
+                        var informe = { ok: errores === 0, resumen: { errores: errores, avisos: avisos, info: info }, secciones: secciones, run_id: runId, run_url: runUrl };
                         fs.writeFileSync('resultado.json', JSON.stringify(informe, null, 2));
                         console.log('Verificación completa: ' + errores + ' errores, ' + avisos + ' avisos, ' + info + ' info.');
                     })().catch(function (e) {
