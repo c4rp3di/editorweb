@@ -1,0 +1,177 @@
+{
+  "ok": false,
+  "modo": "avanzado",
+  "resumen": {
+    "errores": 19,
+    "avisos": 0,
+    "info": 8
+  },
+  "secciones": [
+    {
+      "titulo": "Consola: errores",
+      "entradas": [
+        {
+          "severidad": "error",
+          "mensaje": "Failed to load resource: the server responded with a status of 404 (File not found)"
+        },
+        {
+          "severidad": "error",
+          "mensaje": "Failed to load resource: the server responded with a status of 404 (File not found)"
+        },
+        {
+          "severidad": "error",
+          "mensaje": "Failed to load resource: the server responded with a status of 404 (File not found)"
+        },
+        {
+          "severidad": "error",
+          "mensaje": "Failed to load resource: the server responded with a status of 404 (File not found)"
+        },
+        {
+          "severidad": "error",
+          "mensaje": "Failed to load resource: the server responded with a status of 404 (File not found)"
+        }
+      ]
+    },
+    {
+      "titulo": "Consola: avisos",
+      "entradas": []
+    },
+    {
+      "titulo": "JavaScript: excepciones de ejecución",
+      "entradas": [
+        {
+          "severidad": "error",
+          "mensaje": "DIAGNOSTICO_INTENCIONAL: promesa rechazada"
+        },
+        {
+          "severidad": "error",
+          "mensaje": "DIAGNOSTICO_INTENCIONAL: excepción JavaScript"
+        }
+      ]
+    },
+    {
+      "titulo": "JavaScript: promesas rechazadas sin controlar",
+      "entradas": [
+        {
+          "severidad": "error",
+          "mensaje": "Unhandled rejection: DIAGNOSTICO_INTENCIONAL: promesa rechazada"
+        }
+      ]
+    },
+    {
+      "titulo": "Red: peticiones fallidas",
+      "entradas": []
+    },
+    {
+      "titulo": "Red: respuestas HTTP 4xx/5xx",
+      "entradas": [
+        {
+          "severidad": "error",
+          "mensaje": "HTTP 404 script: http://localhost:8080/js/archivo-que-no-existe.js"
+        },
+        {
+          "severidad": "error",
+          "mensaje": "HTTP 404 stylesheet: http://localhost:8080/css/estilos-que-no-existen.css"
+        },
+        {
+          "severidad": "error",
+          "mensaje": "HTTP 404 image: http://localhost:8080/img/imagen-que-no-existe.png"
+        },
+        {
+          "severidad": "error",
+          "mensaje": "HTTP 404 fetch: http://localhost:8080/api/recurso-que-no-existe.json"
+        },
+        {
+          "severidad": "error",
+          "mensaje": "HTTP 404 image: http://localhost:8080/img/segunda-imagen-que-no-existe.webp"
+        }
+      ]
+    },
+    {
+      "titulo": "CORS",
+      "entradas": []
+    },
+    {
+      "titulo": "Recursos que no cargaron",
+      "entradas": [
+        {
+          "severidad": "error",
+          "mensaje": "script no cargó: http://localhost:8080/js/archivo-que-no-existe.js (net::ERR_ABORTED)"
+        },
+        {
+          "severidad": "error",
+          "mensaje": "stylesheet no cargó: http://localhost:8080/css/estilos-que-no-existen.css (net::ERR_ABORTED)"
+        }
+      ]
+    },
+    {
+      "titulo": "Enlaces internos rotos",
+      "entradas": [
+        {
+          "severidad": "error",
+          "mensaje": "Enlace roto: href=\"pagina-que-no-existe.html\" no existe en el paquete (pagina-que-no-existe.html)"
+        }
+      ]
+    },
+    {
+      "titulo": "Referencias locales no encontradas",
+      "entradas": [
+        {
+          "severidad": "error",
+          "mensaje": "img referencia \"img/imagen-que-no-existe.png\" y no está en el paquete (img/imagen-que-no-existe.png)"
+        },
+        {
+          "severidad": "error",
+          "mensaje": "script referencia \"js/archivo-que-no-existe.js\" y no está en el paquete (js/archivo-que-no-existe.js)"
+        },
+        {
+          "severidad": "error",
+          "mensaje": "link referencia \"css/estilos-que-no-existen.css\" y no está en el paquete (css/estilos-que-no-existen.css)"
+        }
+      ]
+    },
+    {
+      "titulo": "Observaciones de ejecución",
+      "entradas": []
+    },
+    {
+      "titulo": "Métricas de ejecución",
+      "entradas": [
+        {
+          "severidad": "info",
+          "mensaje": "Estado final del documento: complete"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Título: Proyecto de diagnóstico — fallos intencionados"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Elementos DOM: 20"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Botones: 0 · enlaces: 1 · formularios: 0"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Recursos observados por Playwright: 6"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Recursos Performance: 5"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Bytes transferidos: 3 KB"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Tiempo total de observación: 2765 ms"
+        }
+      ]
+    }
+  ],
+  "run_id": "36768185937",
+  "run_url": "https://github.com/c4rp3di/editorweb/actions/runs/36768185937"
+}
