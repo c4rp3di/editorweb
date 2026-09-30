@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Proyecto de diagnóstico — fallos intencionados</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.5; }
+    .ok { padding: 1rem; border: 1px solid #aaa; border-radius: 8px; }
+    .nota { margin-top: 1rem; font-size: .9rem; opacity: .8; }
+  </style>
+  <script>
+    // FALLO 1: excepción JS durante la ejecución.
+    setTimeout(() => {
+      throw new Error("DIAGNOSTICO_INTENCIONAL: excepción JavaScript");
+    }, 800);
+
+    // FALLO 2: promesa rechazada sin controlar.
+    Promise.reject(new Error("DIAGNOSTICO_INTENCIONAL: promesa rechazada"));
+  </script>
+  <script src="js/archivo-que-no-existe.js"></script>
+</head>
+<body>
+  <main>
+    <h1>Proyecto de diagnóstico</h1>
+    <div class="ok">
+      <strong>Este proyecto contiene fallos intencionados.</strong>
+      <p>El verificador avanzado debería detectarlos sin que haya que pulsar botones.</p>
+    </div>
+
+    <p><a href="pagina-que-no-existe.html">Enlace interno roto intencionado</a></p>
+    <img src="img/imagen-que-no-existe.png" alt="Recurso inexistente intencionado">
+    <link rel="stylesheet" href="css/estilos-que-no-existen.css">
+
+    <p class="nota">
+      El HTML principal sí debe cargar correctamente; los fallos están diseñados
+      para comprobar diferentes detectores del verificador.
+    </p>
+  </main>
+
+  <script>
+    // FALLO 7: petición fetch a un recurso inexistente.
+    fetch("api/recurso-que-no-existe.json");
+
+    // FALLO 8: segundo recurso inexistente para reforzar la prueba de red.
+    const img = new Image();
+    img.src = "img/segunda-imagen-que-no-existe.webp";
+  </script>
+</body>
+</html>
