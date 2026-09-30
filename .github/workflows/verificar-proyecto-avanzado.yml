@@ -30,11 +30,11 @@ jobs:
     permissions:
       contents: write
     env:
-      PROJECT_NAME: \${{ github.event.inputs.project_name }}
-      PROJECT_SLUG: \${{ github.event.inputs.project_slug }}
-      RUN_FOLDER: \${{ github.event.inputs.run_folder }}
-      PROJECT_TYPE: \${{ github.event.inputs.project_type }}
-      ENTRY_FILE: \${{ github.event.inputs.entry_file }}
+      PROJECT_NAME: ${{ github.event.inputs.project_name }}
+      PROJECT_SLUG: ${{ github.event.inputs.project_slug }}
+      RUN_FOLDER: ${{ github.event.inputs.run_folder }}
+      PROJECT_TYPE: ${{ github.event.inputs.project_type }}
+      ENTRY_FILE: ${{ github.event.inputs.entry_file }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -228,13 +228,13 @@ jobs:
       - name: Publicar resultado.json en el repo
         if: always()
         env:
-          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -f resultado.json ]; then
             gh api --method PUT "repos/{owner}/{repo}/contents/$PACKAGE_DIR/resultado.json" \
               -f message="Resultado de verificacion avanzada: $PROJECT_NAME" \
               -f content="$(base64 -w0 resultado.json)" \
-              -f branch="\${{ github.ref_name }}"
+              -f branch="${{ github.ref_name }}"
           else
             echo "No se genero resultado.json (fallo de infraestructura); el run queda como failure."
             exit 1
