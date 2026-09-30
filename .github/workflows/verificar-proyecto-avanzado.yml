@@ -1,0 +1,241 @@
+name: Verificar proyecto en la nube (avanzado)
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: 'Nombre del proyecto en el editor'
+        required: true
+        type: string
+      project_slug:
+        description: 'Nombre del proyecto normalizado (slug)'
+        required: true
+        type: string
+      run_folder:
+        description: 'Subcarpeta de esta ejecucion'
+        required: true
+        type: string
+      project_type:
+        description: 'Tipo de proyecto web'
+        required: true
+        type: string
+      entry_file:
+        description: 'Ruta del HTML de entrada'
+        required: true
+        type: string
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      PROJECT_NAME: \${{ github.event.inputs.project_name }}
+      PROJECT_SLUG: \${{ github.event.inputs.project_slug }}
+      RUN_FOLDER: \${{ github.event.inputs.run_folder }}
+      PROJECT_TYPE: \${{ github.event.inputs.project_type }}
+      ENTRY_FILE: \${{ github.event.inputs.entry_file }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright y Chromium
+        run: |
+          npm init -y > /dev/null
+          npm install playwright@1.47.0 > /dev/null 2>&1
+          npx playwright install --with-deps chromium
+      - name: Calcular carpeta del paquete subido
+        run: echo "PACKAGE_DIR=verificaciones-avanzadas/$PROJECT_SLUG/$RUN_FOLDER" >> "$GITHUB_ENV"
+      - name: Comprobar que el paquete subido existe
+        run: |
+          if [ ! -d "$PACKAGE_DIR" ]; then echo "No se encontro $PACKAGE_DIR"; exit 1; fi
+          if [ ! -f "$PACKAGE_DIR/$ENTRY_FILE" ]; then echo "No se encontro $PACKAGE_DIR/$ENTRY_FILE"; exit 1; fi
+      - name: Levantar servidor estatico
+        run: |
+          cd "$PACKAGE_DIR"
+          nohup python3 -m http.server 8080 > /tmp/servidor-estatico.log 2>&1 &
+          disown
+          sleep 1
+      - name: Escribir script de verificacion avanzada
+        run: |
+          cat > verificar-avanzado.js <<'          VERIFICARJS'
+                    var chromium = require('playwright').chromium;
+                    var fs = require('fs');
+                    var path = require('path');
+                    var PACKAGE_DIR = process.env.PACKAGE_DIR;
+                    var ENTRY_FILE = process.env.ENTRY_FILE;
+                    var URL_ENTRADA = 'http://localhost:8080/' + ENTRY_FILE;
+
+                    function agregar(lista, severidad, mensaje, datos) {
+                        var e = { severidad: severidad, mensaje: String(mensaje) };
+                        if (datos && typeof datos === 'object') {
+                            Object.keys(datos).forEach(function (k) { e[k] = datos[k]; });
+                        }
+                        lista.push(e);
+                    }
+                    function listarArchivos(dir, base) {
+                        base = base || dir;
+                        var resultado = [];
+                        fs.readdirSync(dir).forEach(function (nombre) {
+                            var completo = path.join(dir, nombre);
+                            if (fs.statSync(completo).isDirectory()) resultado = resultado.concat(listarArchivos(completo, base));
+                            else resultado.push(path.relative(base, completo).split(path.sep).join('/'));
+                        });
+                        return resultado;
+                    }
+                    function esExterna(url) { return /^[a-z][a-z0-9+.-]*:/i.test(url) && !/^file:/i.test(url); }
+                    function resolver(baseFile, ref) {
+                        var limpia = String(ref || '').split('#')[0].split('?')[0];
+                        if (!limpia || esExterna(limpia) || /^data:/i.test(limpia)) return null;
+                        var dir = path.posix.dirname(baseFile);
+                        var r = path.posix.normalize(path.posix.join(dir === '.' ? '' : dir, limpia));
+                        if (r.indexOf('..') === 0) return null;
+                        return r.replace(/^\//, '');
+                    }
+
+                    (async function () {
+                        var archivos = {};
+                        listarArchivos(PACKAGE_DIR).forEach(function (r) { archivos[r] = true; });
+                        var consolaErrores = [], consolaAvisos = [], jsErrores = [], promesas = [];
+                        var recursosFallidos = [], redFallida = [], httpErrores = [], cors = [];
+                        var enlacesRotos = [];
+                        var referenciasRotas = [];
+                        var observaciones = [];
+                        var tiempoInicio = Date.now(), totalBytes = 0, totalRecursos = 0;
+                        var primeraRespuesta = null;
+                        var browser = await chromium.launch();
+                        var context = await browser.newContext();
+                        await context.addInitScript(function () {
+                            window.__verificacionAvanzada = { promesas: [] };
+                            window.addEventListener('unhandledrejection', function (e) {
+                                try { window.__verificacionAvanzada.promesas.push(String(e.reason && e.reason.message ? e.reason.message : e.reason)); } catch (_) {}
+                            });
+                        });
+                        var page = await context.newPage();
+                        page.on('console', function (msg) {
+                            var texto = msg.text();
+                            if (msg.type() === 'error') {
+                                if (/cors|cross-origin|access-control-allow-origin/i.test(texto)) agregar(cors, 'error', texto);
+                                else agregar(consolaErrores, 'error', texto);
+                            } else if (msg.type() === 'warning' || msg.type() === 'warn') agregar(consolaAvisos, 'aviso', texto);
+                        });
+                        page.on('pageerror', function (err) { agregar(jsErrores, 'error', err && err.message ? err.message : err); });
+                        page.on('requestfailed', function (req) {
+                            var f = req.failure();
+                            var motivo = f && f.errorText ? f.errorText : 'desconocido';
+                            var msg = req.resourceType() + ' no cargó: ' + req.url() + ' (' + motivo + ')';
+                            if (/cors|cross-origin/i.test(motivo)) agregar(cors, 'error', msg);
+                            else if (req.resourceType() === 'fetch' || req.resourceType() === 'xhr') agregar(redFallida, 'error', msg);
+                            else agregar(recursosFallidos, 'error', msg);
+                        });
+                        page.on('response', async function (res) {
+                            totalRecursos++;
+                            if (!primeraRespuesta) primeraRespuesta = Date.now();
+                            if (res.status() >= 400) {
+                                var msg = 'HTTP ' + res.status() + ' ' + res.request().resourceType() + ': ' + res.url();
+                                if (/cors|cross-origin/i.test(res.statusText() || '')) agregar(cors, 'error', msg);
+                                else agregar(httpErrores, 'error', msg);
+                            }
+                            try { var buf = await res.body(); totalBytes += buf.length; } catch (_) {}
+                        });
+
+                        var cargaError = null;
+                        try { await page.goto(URL_ENTRADA, { waitUntil: 'load', timeout: 30000 }); }
+                        catch (e) { cargaError = e && e.message ? e.message : String(e); agregar(jsErrores, 'error', 'No se pudo completar la carga: ' + cargaError); }
+
+                        // Ventana breve posterior al load: detecta errores que solo aparecen
+                        // cuando la aplicación termina de inicializarse, sin inventar clicks ni
+                        // ejecutar acciones potencialmente destructivas sobre el proyecto.
+                        await page.waitForTimeout(2500);
+                        var runtime = await page.evaluate(function () {
+                            var av = window.__verificacionAvanzada || { promesas: [] };
+                            var nav = performance.getEntriesByType('navigation')[0] || null;
+                            var recursos = performance.getEntriesByType('resource') || [];
+                            var botones = document.querySelectorAll('button').length;
+                            var enlaces = document.querySelectorAll('a[href]').length;
+                            var formularios = document.querySelectorAll('form').length;
+                            var texto = document.body ? (document.body.innerText || '').trim() : '';
+                            return {
+                                readyState: document.readyState,
+                                title: document.title,
+                                url: location.href,
+                                bodyVacio: !document.body || !texto,
+                                elementos: document.querySelectorAll('*').length,
+                                botones: botones,
+                                enlaces: enlaces,
+                                formularios: formularios,
+                                promesasNoControladas: av.promesas.slice(0, 100),
+                                domContentLoaded: nav ? nav.domContentLoadedEventEnd : null,
+                                loadEvent: nav ? nav.loadEventEnd : null,
+                                recursosPerformance: recursos.length
+                            };
+                        });
+                        runtime.promesasNoControladas.forEach(function (m) { agregar(promesas, 'error', 'Unhandled rejection: ' + m); });
+                        if (runtime.bodyVacio) agregar(observaciones, 'aviso', 'El documento terminó la carga pero el body no contiene texto visible; puede ser correcto en aplicaciones gráficas o canvas.');
+
+                        var refs = await page.evaluate(function () {
+                            var enlaces = Array.prototype.map.call(document.querySelectorAll('a[href]'), function (a) { return a.getAttribute('href'); });
+                            var locales = [];
+                            [['img','src'],['script','src'],['link','href'],['iframe','src'],['source','src']].forEach(function (par) {
+                                Array.prototype.forEach.call(document.querySelectorAll(par[0] + '[' + par[1] + ']'), function (el) { locales.push({tipo:par[0], valor:el.getAttribute(par[1])}); });
+                            });
+                            return { enlaces: enlaces, locales: locales };
+                        });
+                        refs.enlaces.forEach(function (href) {
+                            if (!href || href.indexOf('#') === 0 || /^(mailto:|tel:|javascript:)/i.test(href) || esExterna(href)) return;
+                            var r = resolver(ENTRY_FILE, href);
+                            if (r && !archivos[r]) agregar(enlacesRotos, 'error', 'Enlace roto: href="' + href + '" no existe en el paquete (' + r + ')');
+                        });
+                        refs.locales.forEach(function (ref) {
+                            var r = resolver(ENTRY_FILE, ref.valor);
+                            if (r && !archivos[r]) agregar(referenciasRotas, 'error', ref.tipo + ' referencia "' + ref.valor + '" y no está en el paquete (' + r + ')');
+                        });
+
+                        var secciones = [
+                            { titulo: 'Consola: errores', entradas: consolaErrores },
+                            { titulo: 'Consola: avisos', entradas: consolaAvisos },
+                            { titulo: 'JavaScript: excepciones de ejecución', entradas: jsErrores },
+                            { titulo: 'JavaScript: promesas rechazadas sin controlar', entradas: promesas },
+                            { titulo: 'Red: peticiones fallidas', entradas: redFallida },
+                            { titulo: 'Red: respuestas HTTP 4xx/5xx', entradas: httpErrores },
+                            { titulo: 'CORS', entradas: cors },
+                            { titulo: 'Recursos que no cargaron', entradas: recursosFallidos },
+                            { titulo: 'Enlaces internos rotos', entradas: enlacesRotos },
+                            { titulo: 'Referencias locales no encontradas', entradas: referenciasRotas },
+                            { titulo: 'Observaciones de ejecución', entradas: observaciones },
+                            { titulo: 'Métricas de ejecución', entradas: [
+                                { severidad:'info', mensaje:'Estado final del documento: ' + runtime.readyState },
+                                { severidad:'info', mensaje:'Título: ' + (runtime.title || '(sin título)') },
+                                { severidad:'info', mensaje:'Elementos DOM: ' + runtime.elementos },
+                                { severidad:'info', mensaje:'Botones: ' + runtime.botones + ' · enlaces: ' + runtime.enlaces + ' · formularios: ' + runtime.formularios },
+                                { severidad:'info', mensaje:'Recursos observados por Playwright: ' + totalRecursos },
+                                { severidad:'info', mensaje:'Recursos Performance: ' + runtime.recursosPerformance },
+                                { severidad:'info', mensaje:'Bytes transferidos: ' + Math.round(totalBytes / 1024) + ' KB' },
+                                { severidad:'info', mensaje:'Tiempo total de observación: ' + (Date.now() - tiempoInicio) + ' ms' }
+                            ] }
+                        ];
+                        var errores = 0, avisos = 0, info = 0;
+                        secciones.forEach(function (s) { s.entradas.forEach(function (e) { if (e.severidad === 'error') errores++; else if (e.severidad === 'aviso') avisos++; else info++; }); });
+                        var runId = process.env.GITHUB_RUN_ID || null;
+                        var runUrl = (runId && process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY) ? (process.env.GITHUB_SERVER_URL + '/' + process.env.GITHUB_REPOSITORY + '/actions/runs/' + runId) : null;
+                        var informe = { ok: errores === 0, modo: 'avanzado', resumen: { errores: errores, avisos: avisos, info: info }, secciones: secciones, run_id: runId, run_url: runUrl };
+                        fs.writeFileSync('resultado.json', JSON.stringify(informe, null, 2));
+                        await browser.close();
+                    })().catch(function (e) { console.error('Fallo de infraestructura durante la verificación avanzada:', e); process.exit(1); });
+                    VERIFICARJS
+          node verificar-avanzado.js
+      - name: Publicar resultado.json en el repo
+        if: always()
+        env:
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f resultado.json ]; then
+            gh api --method PUT "repos/{owner}/{repo}/contents/$PACKAGE_DIR/resultado.json" \
+              -f message="Resultado de verificacion avanzada: $PROJECT_NAME" \
+              -f content="$(base64 -w0 resultado.json)" \
+              -f branch="\${{ github.ref_name }}"
+          else
+            echo "No se genero resultado.json (fallo de infraestructura); el run queda como failure."
+            exit 1
+          fi
