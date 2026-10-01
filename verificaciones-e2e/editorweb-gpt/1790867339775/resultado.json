@@ -1,0 +1,900 @@
+{
+  "modo": "nube",
+  "run_id": "36881976812",
+  "run_url": "https://github.com/c4rp3di/editorweb/actions/runs/36881976812",
+  "url": "http://127.0.0.1:8080/index.html",
+  "titulo": "EditorWeb 8.2.0 · Creador Web",
+  "acciones": [
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "⚙️",
+      "href": "",
+      "cambio": true,
+      "key": "button|ajustesBtn|||⚙️#1",
+      "ronda": 0
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📁 Proyectos",
+      "href": "",
+      "cambio": true,
+      "key": "button||||📁 Proyectos#1",
+      "ronda": 0
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📝 Editor",
+      "href": "",
+      "cambio": true,
+      "key": "button||||📝 Editor#1",
+      "ronda": 0
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "👁️ Vista previa",
+      "href": "",
+      "cambio": true,
+      "key": "button||||👁️ Vista previa#1",
+      "ronda": 0
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": ">_ Consola",
+      "href": "",
+      "cambio": true,
+      "key": "button||||>_ Consola#1",
+      "ronda": 0
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔍 Estructura",
+      "href": "",
+      "cambio": true,
+      "key": "button||||🔍 Estructura#1",
+      "ronda": 0
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🎨 Estilos",
+      "href": "",
+      "cambio": true,
+      "key": "button||||🎨 Estilos#1",
+      "ronda": 0
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🎨 Estilos",
+      "href": "",
+      "cambio": false,
+      "key": "button||||🎨 Estilos#2",
+      "ronda": 0
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": ">_ Consola",
+      "href": "",
+      "cambio": true,
+      "key": "button||||>_ Consola#2",
+      "ronda": 0
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "⚙️",
+      "href": "",
+      "cambio": true,
+      "key": "button|ajustesBtn|||⚙️#1",
+      "ronda": 1
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📁 Proyectos",
+      "href": "",
+      "cambio": true,
+      "key": "button||||📁 Proyectos#1",
+      "ronda": 1
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📝 Editor",
+      "href": "",
+      "cambio": true,
+      "key": "button||||📝 Editor#1",
+      "ronda": 1
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "👁️ Vista previa",
+      "href": "",
+      "cambio": true,
+      "key": "button||||👁️ Vista previa#1",
+      "ronda": 1
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": ">_ Consola",
+      "href": "",
+      "cambio": true,
+      "key": "button||||>_ Consola#1",
+      "ronda": 1
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔍 Estructura",
+      "href": "",
+      "cambio": true,
+      "key": "button||||🔍 Estructura#1",
+      "ronda": 1
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🎨 Estilos",
+      "href": "",
+      "cambio": true,
+      "key": "button||||🎨 Estilos#1",
+      "ronda": 1
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🎨 Estilos",
+      "href": "",
+      "cambio": false,
+      "key": "button||||🎨 Estilos#2",
+      "ronda": 1
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": ">_ Consola",
+      "href": "",
+      "cambio": true,
+      "key": "button||||>_ Consola#2",
+      "ronda": 1
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "⚙️",
+      "href": "",
+      "cambio": true,
+      "key": "button|ajustesBtn|||⚙️#1",
+      "ronda": 2
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📁 Proyectos",
+      "href": "",
+      "cambio": true,
+      "key": "button||||📁 Proyectos#1",
+      "ronda": 2
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📝 Editor",
+      "href": "",
+      "cambio": true,
+      "key": "button||||📝 Editor#1",
+      "ronda": 2
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "👁️ Vista previa",
+      "href": "",
+      "cambio": true,
+      "key": "button||||👁️ Vista previa#1",
+      "ronda": 2
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": ">_ Consola",
+      "href": "",
+      "cambio": true,
+      "key": "button||||>_ Consola#1",
+      "ronda": 2
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔍 Estructura",
+      "href": "",
+      "cambio": true,
+      "key": "button||||🔍 Estructura#1",
+      "ronda": 2
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🎨 Estilos",
+      "href": "",
+      "cambio": true,
+      "key": "button||||🎨 Estilos#1",
+      "ronda": 2
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🎨 Estilos",
+      "href": "",
+      "cambio": false,
+      "key": "button||||🎨 Estilos#2",
+      "ronda": 2
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": ">_ Consola",
+      "href": "",
+      "cambio": true,
+      "key": "button||||>_ Consola#2",
+      "ronda": 2
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "⚙️",
+      "href": "",
+      "cambio": true,
+      "key": "button|ajustesBtn|||⚙️#1",
+      "ronda": 3
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📁 Proyectos",
+      "href": "",
+      "cambio": true,
+      "key": "button||||📁 Proyectos#1",
+      "ronda": 3
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📝 Editor",
+      "href": "",
+      "cambio": true,
+      "key": "button||||📝 Editor#1",
+      "ronda": 3
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "👁️ Vista previa",
+      "href": "",
+      "cambio": true,
+      "key": "button||||👁️ Vista previa#1",
+      "ronda": 3
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": ">_ Consola",
+      "href": "",
+      "cambio": true,
+      "key": "button||||>_ Consola#1",
+      "ronda": 3
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔍 Estructura",
+      "href": "",
+      "cambio": true,
+      "key": "button||||🔍 Estructura#1",
+      "ronda": 3
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🎨 Estilos",
+      "href": "",
+      "cambio": true,
+      "key": "button||||🎨 Estilos#1",
+      "ronda": 3
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🎨 Estilos",
+      "href": "",
+      "cambio": false,
+      "key": "button||||🎨 Estilos#2",
+      "ronda": 3
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": ">_ Consola",
+      "href": "",
+      "cambio": true,
+      "key": "button||||>_ Consola#2",
+      "ronda": 3
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "⚙️",
+      "href": "",
+      "cambio": true,
+      "key": "button|ajustesBtn|||⚙️#1",
+      "ronda": 4
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📁 Proyectos",
+      "href": "",
+      "cambio": true,
+      "key": "button||||📁 Proyectos#1",
+      "ronda": 4
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📝 Editor",
+      "href": "",
+      "cambio": true,
+      "key": "button||||📝 Editor#1",
+      "ronda": 4
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "👁️ Vista previa",
+      "href": "",
+      "cambio": true,
+      "key": "button||||👁️ Vista previa#1",
+      "ronda": 4
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": ">_ Consola",
+      "href": "",
+      "cambio": true,
+      "key": "button||||>_ Consola#1",
+      "ronda": 4
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔍 Estructura",
+      "href": "",
+      "cambio": true,
+      "key": "button||||🔍 Estructura#1",
+      "ronda": 4
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🎨 Estilos",
+      "href": "",
+      "cambio": true,
+      "key": "button||||🎨 Estilos#1",
+      "ronda": 4
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🎨 Estilos",
+      "href": "",
+      "cambio": false,
+      "key": "button||||🎨 Estilos#2",
+      "ronda": 4
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": ">_ Consola",
+      "href": "",
+      "cambio": true,
+      "key": "button||||>_ Consola#2",
+      "ronda": 4
+    }
+  ],
+  "estados": [
+    {
+      "indice": 1,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web\nproyectos\n⚙️\n📁 Proyectos\n📝 Editor\n👁️ Vista previa\n>_ Consola\n🔍 Estructura\n🎨 Estilos\n📂 Abrir\n+ Nuevo\n⬇️ Exportar\n⬆️ Importar\nNombre\nFecha\nManual\n↑\nNo hay proyectos. Crea uno nuevo.\n⤢\n✕\n🧪 Prueba\n💾 Guardado\nCambios solo visibles en la preview\n🎨 Estilos\n</> HTML\n⚙️ Acciones\n>_ Consola\nToca una propiedad de arriba para editarla.\n🎨 Abrir editor de estilos completo\n⤢\n✕\n🧪 Prueba\n💾 Guardado\nCambios visibles en Aproximación y en la pestaña XML, no se guardan\n🧩 Atributos\n</> XML\nToca un atributo de arriba para editarlo.\n—\n×\n✅ Listo|777",
+      "url": "http://127.0.0.1:8080/index.html",
+      "titulo": "EditorWeb 8.2.0 · Creador Web"
+    },
+    {
+      "indice": 2,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web\nproyectos\n⚙️\n⚙️ Ajustes\n×\n🐙 Publicar (GitHub Pages)\nCuenta, repositorio y token para publicar HTML\n›\n🌐 Publicar (Netlify)\nCuenta y token — el sitio se crea solo\n›\n💾 Almacenamiento\nEspacio ocupado, cuota y limpieza de datos\n›\n🔒 Mostrar archivos raíz de Android\nsettings.gradle, build.gradle y gradle.properties en el panel de archivos\n🖥️ Consola · confirmación\nCuándo pide confirmar antes de ejecutar un comando\nSiempre\nSolo destructivos\nNunca\n🔀 Proxy\nCORS para llamadas externas desde el editor y la vista previa\n›\n🤖 Asistentes IA\nProveedores, claves y orden de fallback para el chat de B12\n›\n📁 Proyectos\n📝 Editor\n👁️ Vista previa\n>_ Consola\n🔍 Estructura\n🎨 Estilos\n📂 Abrir\n+|777",
+      "url": "http://127.0.0.1:8080/index.html",
+      "titulo": "EditorWeb 8.2.0 · Creador Web",
+      "accion": "⚙️"
+    },
+    {
+      "indice": 3,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web\nproyectos\n⚙️\n📁 Proyectos\n📝 Editor\n👁️ Vista previa\n>_ Consola\n🔍 Estructura\n🎨 Estilos\n1\n↶ Desh\n↷ Reh\n⬇ Descargar\n⬆ Exportar\n📋 Pegar\nIr\n✕\n⏪\n⏩\nUno\nTodo\n💾 Guardar\n🗑 Limpiar\n0 caracteres\nLínea 0 / 0\nProyecto: ninguno\n⤢\n✕\n🧪 Prueba\n💾 Guardado\nCambios solo visibles en la preview\n🎨 Estilos\n</> HTML\n⚙️ Acciones\n>_ Consola\nToca una propiedad de arriba para editarla.\n🎨 Abrir editor de estilos completo\n⤢\n✕\n🧪 Prueba\n💾 Guardado\nCambios visibles en Aproximación y en la pestaña XML, no se guardan\n🧩 Atributos\n</> XML\nToca un atributo de arriba para editarlo.\n—\n×\n✅ Listo|777",
+      "url": "http://127.0.0.1:8080/index.html",
+      "titulo": "EditorWeb 8.2.0 · Creador Web",
+      "accion": "📝 Editor"
+    },
+    {
+      "indice": 4,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web\nproyectos\n⚙️\n📁 Proyectos\n📝 Editor\n👁️ Vista previa\n>_ Consola\n🔍 Estructura\n🎨 Estilos\n👁️ Vista previa\n⏳ Sin actualizar\n🔄 Actualizar\n🔎\n🗗 Abrir\nProyecto: ninguno\n⏳ Sin actualizar\n🖥️ Consola · 0 errores · 0 avisos\nTodos\nInfo\nAvisos\nErrores\n⧉\n🧹\nLa consola aparecerá aquí al ejecutar la vista previa.\n>\n▶\n↑\n↓\n⇥\n↵\n?\n⤢\n✕\n🧪 Prueba\n💾 Guardado\nCambios solo visibles en la preview\n🎨 Estilos\n</> HTML\n⚙️ Acciones\n>_ Consola\nToca una propiedad de arriba para editarla.\n🎨 Abrir editor de estilos completo\n⤢\n✕\n🧪 Prueba\n💾 Guardado\nCambios visibles en Aproximación y en la pestaña XML, no se guardan\n🧩 Atributos\n</> XML\nToca un atributo de arriba para editarlo.\n—\n×\n✅ Listo|777",
+      "url": "http://127.0.0.1:8080/index.html",
+      "titulo": "EditorWeb 8.2.0 · Creador Web",
+      "accion": "👁️ Vista previa"
+    },
+    {
+      "indice": 5,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web\nproyectos\n⚙️\n📁 Proyectos\n📝 Editor\n👁️ Vista previa\n>_ Consola\n🔍 Estructura\n🎨 Estilos\n>_ Consola\n?\n📁 Proyecto\n🤖 IA\nSin proyecto activo — comandos disponibles: ayuda, listar proyectos\n📋 Copiar todo\n🧹 Limpiar\nEscribe \"ayuda\" para ver los comandos disponibles.\n>\n▶\n⤢\n✕\n🧪 Prueba\n💾 Guardado\nCambios solo visibles en la preview\n🎨 Estilos\n</> HTML\n⚙️ Acciones\n>_ Consola\nToca una propiedad de arriba para editarla.\n🎨 Abrir editor de estilos completo\n⤢\n✕\n🧪 Prueba\n💾 Guardado\nCambios visibles en Aproximación y en la pestaña XML, no se guardan\n🧩 Atributos\n</> XML\nToca un atributo de arriba para editarlo.\n—\n×\n✅ Listo|777",
+      "url": "http://127.0.0.1:8080/index.html",
+      "titulo": "EditorWeb 8.2.0 · Creador Web",
+      "accion": ">_ Consola"
+    },
+    {
+      "indice": 6,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web\nproyectos\n⚙️\n📁 Proyectos\n📝 Editor\n👁️ Vista previa\n>_ Consola\n🔍 Estructura\n🎨 Estilos\n🔍 Estructura del HTML\n🔗 Publicadas\n🔐 SHA-256\n🔍 Analizar\n🙈 Ocultar\n🧩 Refactorizar\n🚀 Publicar\n📦 APK\n🌐 Todos\n⚡ Declaradas\n🔧 Métodos\n🚀 Flecha\n📦 Asignadas\n🔗 Callbacks\n📋 Nombre\n📍 Línea\n➖ Colapsar\n➕ Expandir\nProyecto: ninguno\nEl editor está vacío.\n📊 0 elementos\n🩺 Diagnóstico\n🧩 Duplicados\n📦 Dependencias\n📊 Métricas\n🔬 Verificar nube\nE2E\n📜 Verificaciones\n⤢\n✕\n🧪 Prueba\n💾 Guardado\nCambios solo visibles en la preview\n🎨 Estilos\n</> HTML\n⚙️ Acciones\n>_ Consola\nToca una propiedad de arriba para editarla.\n🎨 Abrir editor de estilos completo\n⤢\n✕\n🧪 Prueba\n💾 Guardado\nCambios visibles e|777",
+      "url": "http://127.0.0.1:8080/index.html",
+      "titulo": "EditorWeb 8.2.0 · Creador Web",
+      "accion": "🔍 Estructura"
+    },
+    {
+      "indice": 7,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web\nproyectos\n⚙️\n📁 Proyectos\n📝 Editor\n👁️ Vista previa\n>_ Consola\n🔍 Estructura\n🎨 Estilos\n📋 0 selectores\n📦 0 propiedades\n🎨 0 colores\n📏 0 tamaños\n🔄 0 @media\n📦 0 variables\n🧹 Limpiar\n↕️ Paneles\nEstructura:\n📦 Todos\n📁 Anidados\n📄 Raíz\n🍃 Hojas\nEstado:\n🟢 Todos\n✅ Usados\n❌ No usados\n⚠️ Errores\nℹ️ Advertencias\nTipo selector:\n🔹 Todos\n🔹 Clase\n🔸 ID\n🔶 Etiqueta\n🔷 Pseudo\n🔹 Clase+ID\nOrigen:\n🌐 Todos\n📝 Inline\n📄 Bloque\n🔹 Selectores 0\n▾\nNo hay selectores que coincidan con los filtros.\n🧩 Propiedades ningún selector\n▾\nSelecciona un selector para ver sus reglas.\n⚠️ 0 problemas encontrados\n▾\n📄 CSS extraído de: ninguno\n📦 Total: 0 selectores · 0 propiedades\n✨ Formatear\n📦 Minificar|777",
+      "url": "http://127.0.0.1:8080/index.html",
+      "titulo": "EditorWeb 8.2.0 · Creador Web",
+      "accion": "🎨 Estilos"
+    },
+    {
+      "indice": 8,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web\nproyectos\n⚙️\n⚙️ Ajustes\n×\n🐙 Publicar (GitHub Pages)\nCuenta, repositorio y token para publicar HTML\n›\n🌐 Publicar (Netlify)\nCuenta y token — el sitio se crea solo\n›\n💾 Almacenamiento\nEspacio ocupado, cuota y limpieza de datos\n›\n🔒 Mostrar archivos raíz de Android\nsettings.gradle, build.gradle y gradle.properties en el panel de archivos\n🖥️ Consola · confirmación\nCuándo pide confirmar antes de ejecutar un comando\nSiempre\nSolo destructivos\nNunca\n🔀 Proxy\nCORS para llamadas externas desde el editor y la vista previa\n›\n🤖 Asistentes IA\nProveedores, claves y orden de fallback para el chat de B12\n›\n📁 Proyectos\n📝 Editor\n👁️ Vista previa\n>_ Consola\n🔍 Estructura\n🎨 Estilos\n>_ Consola|777",
+      "url": "http://127.0.0.1:8080/index.html",
+      "titulo": "EditorWeb 8.2.0 · Creador Web",
+      "accion": "⚙️"
+    }
+  ],
+  "errores": [],
+  "avisos": [
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⤢",
+      "key": "button|inspectorSheetExpand|||⤢#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "✕",
+      "key": "button|inspectorSheetClose|||✕#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧪 Prueba",
+      "key": "button|inspectorModoPrueba|||🧪 Prueba#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "💾 Guardado",
+      "key": "button|inspectorModoGuardado|||💾 Guardado#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "</> HTML",
+      "key": "button||||</> HTML#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⚙️ Acciones",
+      "key": "button||||⚙️ Acciones#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🎨 Abrir editor de estilos completo",
+      "key": "button|previewInspectorStyles|||🎨 Abrir editor de estilos completo#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⤢",
+      "key": "button|inspectorSheetAndroidExpand|||⤢#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "✕",
+      "key": "button|inspectorSheetAndroidClose|||✕#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧪 Prueba",
+      "key": "button|inspectorModoPruebaAndroid|||🧪 Prueba#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "💾 Guardado",
+      "key": "button|inspectorModoGuardadoAndroid|||💾 Guardado#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧩 Atributos",
+      "key": "button||||🧩 Atributos#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "</> XML",
+      "key": "button||||</> XML#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "×",
+      "key": "button|inspectorEstructuraCerrar|||×#1",
+      "ronda": 0
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⤢",
+      "key": "button|inspectorSheetExpand|||⤢#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "✕",
+      "key": "button|inspectorSheetClose|||✕#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧪 Prueba",
+      "key": "button|inspectorModoPrueba|||🧪 Prueba#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "💾 Guardado",
+      "key": "button|inspectorModoGuardado|||💾 Guardado#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "</> HTML",
+      "key": "button||||</> HTML#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⚙️ Acciones",
+      "key": "button||||⚙️ Acciones#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🎨 Abrir editor de estilos completo",
+      "key": "button|previewInspectorStyles|||🎨 Abrir editor de estilos completo#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⤢",
+      "key": "button|inspectorSheetAndroidExpand|||⤢#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "✕",
+      "key": "button|inspectorSheetAndroidClose|||✕#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧪 Prueba",
+      "key": "button|inspectorModoPruebaAndroid|||🧪 Prueba#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "💾 Guardado",
+      "key": "button|inspectorModoGuardadoAndroid|||💾 Guardado#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧩 Atributos",
+      "key": "button||||🧩 Atributos#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "</> XML",
+      "key": "button||||</> XML#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "×",
+      "key": "button|inspectorEstructuraCerrar|||×#1",
+      "ronda": 1
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⤢",
+      "key": "button|inspectorSheetExpand|||⤢#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "✕",
+      "key": "button|inspectorSheetClose|||✕#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧪 Prueba",
+      "key": "button|inspectorModoPrueba|||🧪 Prueba#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "💾 Guardado",
+      "key": "button|inspectorModoGuardado|||💾 Guardado#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "</> HTML",
+      "key": "button||||</> HTML#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⚙️ Acciones",
+      "key": "button||||⚙️ Acciones#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🎨 Abrir editor de estilos completo",
+      "key": "button|previewInspectorStyles|||🎨 Abrir editor de estilos completo#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⤢",
+      "key": "button|inspectorSheetAndroidExpand|||⤢#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "✕",
+      "key": "button|inspectorSheetAndroidClose|||✕#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧪 Prueba",
+      "key": "button|inspectorModoPruebaAndroid|||🧪 Prueba#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "💾 Guardado",
+      "key": "button|inspectorModoGuardadoAndroid|||💾 Guardado#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧩 Atributos",
+      "key": "button||||🧩 Atributos#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "</> XML",
+      "key": "button||||</> XML#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "×",
+      "key": "button|inspectorEstructuraCerrar|||×#1",
+      "ronda": 2
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⤢",
+      "key": "button|inspectorSheetExpand|||⤢#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "✕",
+      "key": "button|inspectorSheetClose|||✕#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧪 Prueba",
+      "key": "button|inspectorModoPrueba|||🧪 Prueba#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "💾 Guardado",
+      "key": "button|inspectorModoGuardado|||💾 Guardado#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "</> HTML",
+      "key": "button||||</> HTML#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⚙️ Acciones",
+      "key": "button||||⚙️ Acciones#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🎨 Abrir editor de estilos completo",
+      "key": "button|previewInspectorStyles|||🎨 Abrir editor de estilos completo#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⤢",
+      "key": "button|inspectorSheetAndroidExpand|||⤢#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "✕",
+      "key": "button|inspectorSheetAndroidClose|||✕#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧪 Prueba",
+      "key": "button|inspectorModoPruebaAndroid|||🧪 Prueba#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "💾 Guardado",
+      "key": "button|inspectorModoGuardadoAndroid|||💾 Guardado#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧩 Atributos",
+      "key": "button||||🧩 Atributos#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "</> XML",
+      "key": "button||||</> XML#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "×",
+      "key": "button|inspectorEstructuraCerrar|||×#1",
+      "ronda": 3
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⤢",
+      "key": "button|inspectorSheetExpand|||⤢#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "✕",
+      "key": "button|inspectorSheetClose|||✕#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧪 Prueba",
+      "key": "button|inspectorModoPrueba|||🧪 Prueba#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "💾 Guardado",
+      "key": "button|inspectorModoGuardado|||💾 Guardado#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "</> HTML",
+      "key": "button||||</> HTML#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⚙️ Acciones",
+      "key": "button||||⚙️ Acciones#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🎨 Abrir editor de estilos completo",
+      "key": "button|previewInspectorStyles|||🎨 Abrir editor de estilos completo#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "⤢",
+      "key": "button|inspectorSheetAndroidExpand|||⤢#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "✕",
+      "key": "button|inspectorSheetAndroidClose|||✕#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧪 Prueba",
+      "key": "button|inspectorModoPruebaAndroid|||🧪 Prueba#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "💾 Guardado",
+      "key": "button|inspectorModoGuardadoAndroid|||💾 Guardado#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "🧩 Atributos",
+      "key": "button||||🧩 Atributos#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "</> XML",
+      "key": "button||||</> XML#1",
+      "ronda": 4
+    },
+    {
+      "mensaje": "Acción omitida: el elemento dejó de ser visible o accionable antes del click.",
+      "accion": "×",
+      "key": "button|inspectorEstructuraCerrar|||×#1",
+      "ronda": 4
+    }
+  ],
+  "resumen": {
+    "estados": 8,
+    "acciones": 45,
+    "errores": 0,
+    "avisos": 70
+  }
+}
