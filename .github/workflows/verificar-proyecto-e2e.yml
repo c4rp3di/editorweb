@@ -101,6 +101,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -f resultado.json ]; then
-            gh api --method PUT "repos/{owner}/{repo}/contents/$PACKAGE_DIR/resultado.json" -f message="Resultado E2E: $PROJECT_NAME" -f content="$(base64 -w0 resultado.json)" -f branch="${{ github.ref_name }}"
-          else exit 1; fi
+          if [ ! -f resultado.json ]; then
+            echo "No se genero resultado.json (fallo de infraestructura); el run queda como failure."
+            exit 1
+          fi
+          node <<'PUBLISH_E2E_RESULT'
+          const fs = require('fs');
+          const token = process.env.GH_TOKEN;
+          const repo = process.env.GITHUB_REPOSITORY;
+          const apiBase = process.env.GITHUB_API_URL || 'https://api.github.com';
+          const branch = process.env.GITHUB_REF_NAME;
+          const packageDir = process.env.PACKAGE_DIR;
+          if (!token || !repo || !branch || !packageDir) throw new Error('Faltan variables para publicar resultado.json');
+          const path = packageDir.replace(/^\/+|\/+$/g, '') + '/resultado.json';
+          const endpoint = apiBase.replace(/\/$/, '') + '/repos/' + repo + '/contents/' + path.split('/').map(encodeURIComponent).join('/');
+          const headers = { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+          const existing = await fetch(endpoint + '?ref=' + encodeURIComponent(branch), { headers });
+          let sha = null;
+          if (existing.ok) {
+            const actual = await existing.json();
+            sha = actual.sha || null;
+          } else if (existing.status !== 404) {
+            throw new Error('No se pudo comprobar resultado.json antes de publicar: HTTP ' + existing.status + ' ' + await existing.text());
+          }
+          const body = {
+            message: 'Resultado E2E: ' + (process.env.PROJECT_NAME || 'proyecto'),
+            content: fs.readFileSync('resultado.json').toString('base64'),
+            branch
+          };
+          if (sha) body.sha = sha;
+          const response = await fetch(endpoint, {
+            method: 'PUT',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          if (!response.ok) throw new Error('No se pudo publicar resultado.json: HTTP ' + response.status + ' ' + await response.text());
+          const published = await response.json();
+          console.log('Resultado E2E publicado:', published.content?.path || path);
+          PUBLISH_E2E_RESULT
