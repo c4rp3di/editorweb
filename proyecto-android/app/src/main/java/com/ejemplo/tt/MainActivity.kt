@@ -9,7 +9,7 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
-import android.os.Bundleimport android.os.PersistableBundle
+import android.os.Bundle\nimport android.os.PersistableBundle
 import android.os.IBinder
 import android.view.Gravity
 import android.view.View
