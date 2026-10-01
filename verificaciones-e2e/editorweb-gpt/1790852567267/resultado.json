@@ -1,0 +1,24 @@
+{
+  "modo": "nube",
+  "run_id": "36852898544",
+  "run_url": "https://github.com/c4rp3di/editorweb/actions/runs/36852898544",
+  "url": "http://127.0.0.1:8080/index.html",
+  "titulo": "EditorWeb 8.2.0 · Creador Web",
+  "acciones": [],
+  "estados": [
+    {
+      "indice": 1,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web\nproyectos\n⚙️\n📁 Proyectos\n📝 Editor\n👁️ Vista previa\n>_ Consola\n🔍 Estructura\n🎨 Estilos\n📂 Abrir\n+ Nuevo\n⬇️ Exportar\n⬆️ Importar\nNombre\nFecha\nManual\n↑\nNo hay proyectos. Crea uno nuevo.\n⤢\n✕\n🧪 Prueba\n💾 Guardado\nCambios solo visibles en la preview\n🎨 Estilos\n</> HTML\n⚙️ Acciones\n>_ Consola\nToca una propiedad de arriba para editarla.\n🎨 Abrir editor de estilos completo\n⤢\n✕\n🧪 Prueba\n💾 Guardado\nCambios visibles en Aproximación y en la pestaña XML, no se guardan\n🧩 Atributos\n</> XML\nToca un atributo de arriba para editarlo.\n—\n×\n✅ Listo|777",
+      "url": "http://127.0.0.1:8080/index.html",
+      "titulo": "EditorWeb 8.2.0 · Creador Web"
+    }
+  ],
+  "errores": [],
+  "avisos": [],
+  "resumen": {
+    "estados": 1,
+    "acciones": 0,
+    "errores": 0,
+    "avisos": 0
+  }
+}
