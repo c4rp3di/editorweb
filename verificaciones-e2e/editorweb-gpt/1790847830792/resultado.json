@@ -1,0 +1,237 @@
+{
+  "modo": "nube",
+  "url": "http://127.0.0.1:8080/index.html",
+  "titulo": "EditorWeb 8.2.0 · Creador Web",
+  "acciones": [
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "⚙️",
+      "cambio": true
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "×",
+      "cambio": true
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📁 Proyectos",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📝 Editor",
+      "cambio": true
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "👁️ Vista previa",
+      "cambio": true
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": ">_ Consola",
+      "cambio": true
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔍 Estructura",
+      "cambio": true
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🎨 Estilos",
+      "cambio": true
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🧹 Limpiar",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "↕️ Paneles",
+      "cambio": true
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📦 Todos",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📁 Anidados",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📄 Raíz",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🍃 Hojas",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🟢 Todos",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "✅ Usados",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "❌ No usados",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "⚠️ Errores",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "ℹ️ Advertencias",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔹 Todos",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔹 Clase",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔸 ID",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔶 Etiqueta",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔷 Pseudo",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔹 Clase+ID",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🌐 Todos",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📝 Inline",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "📄 Bloque",
+      "cambio": false
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🔹 Selectores 0 ▾",
+      "cambio": true
+    },
+    {
+      "tipo": "click",
+      "elemento": "button",
+      "texto": "🧩 Propiedades ningún selector ▾",
+      "cambio": true
+    }
+  ],
+  "estados": [
+    {
+      "indice": 1,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web proyectos ⚙️ 📁 Proyectos 📝 Editor 👁️ Vista previa 📱 Vista >_ Consola 🔍 Estructura 🎨 Estilos 📂 Abrir + Nuevo ⬇️ Exportar ⬆️ Importar Nombre Fecha Manual ↑ No hay proyectos. Crea uno nuevo. ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios solo visibles en la preview 🎨 Estilos </> HTML ⚙️ Acciones >_ Consola Toca una propiedad de arriba para editarla. 🎨 Abrir editor de estilos completo ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios visibles en Aproximación y en la pestaña XML, no se guardan 🧩 Atributos </> XML Toca un atributo de arriba para editarlo. — × ✅ Listo|756"
+    },
+    {
+      "indice": 2,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web proyectos ⚙️ ⚙️ Ajustes × 🐙 Publicar (GitHub Pages) Cuenta, repositorio y token para publicar HTML › 🌐 Publicar (Netlify) Cuenta y token — el sitio se crea solo › 💾 Almacenamiento Espacio ocupado, cuota y limpieza de datos › 🔒 Mostrar archivos raíz de Android settings.gradle, build.gradle y gradle.properties en el panel de archivos 🖥️ Consola · confirmación Cuándo pide confirmar antes de ejecutar un comando Siempre Solo destructivos Nunca 🔀 Proxy CORS para llamadas externas desde el editor y la vista previa › 🤖 Asistentes IA Proveedores, claves y orden de fallback para el chat de B12 › 📁 Proyectos 📝 Editor 👁️ Vista previa >_ Consola 🔍 Estructura 🎨 Estilos 📂 Abrir +|777"
+    },
+    {
+      "indice": 3,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web proyectos ⚙️ 📁 Proyectos 📝 Editor 👁️ Vista previa >_ Consola 🔍 Estructura 🎨 Estilos 📂 Abrir + Nuevo ⬇️ Exportar ⬆️ Importar Nombre Fecha Manual ↑ No hay proyectos. Crea uno nuevo. ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios solo visibles en la preview 🎨 Estilos </> HTML ⚙️ Acciones >_ Consola Toca una propiedad de arriba para editarla. 🎨 Abrir editor de estilos completo ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios visibles en Aproximación y en la pestaña XML, no se guardan 🧩 Atributos </> XML Toca un atributo de arriba para editarlo. — × ✅ Listo|777"
+    },
+    {
+      "indice": 4,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web proyectos ⚙️ 📁 Proyectos 📝 Editor 👁️ Vista previa >_ Consola 🔍 Estructura 🎨 Estilos 1 ↶ Desh ↷ Reh ⬇ Descargar ⬆ Exportar 📋 Pegar Ir ✕ ⏪ ⏩ Uno Todo 💾 Guardar 🗑 Limpiar 0 caracteres Línea 0 / 0 Proyecto: ninguno ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios solo visibles en la preview 🎨 Estilos </> HTML ⚙️ Acciones >_ Consola Toca una propiedad de arriba para editarla. 🎨 Abrir editor de estilos completo ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios visibles en Aproximación y en la pestaña XML, no se guardan 🧩 Atributos </> XML Toca un atributo de arriba para editarlo. — × ✅ Listo|777"
+    },
+    {
+      "indice": 5,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web proyectos ⚙️ 📁 Proyectos 📝 Editor 👁️ Vista previa >_ Consola 🔍 Estructura 🎨 Estilos 👁️ Vista previa ⏳ Sin actualizar 🔄 Actualizar 🔎 🗗 Abrir Proyecto: ninguno ⏳ Sin actualizar 🖥️ Consola · 0 errores · 0 avisos Todos Info Avisos Errores ⧉ 🧹 La consola aparecerá aquí al ejecutar la vista previa. > ▶ ↑ ↓ ⇥ ↵ ? ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios solo visibles en la preview 🎨 Estilos </> HTML ⚙️ Acciones >_ Consola Toca una propiedad de arriba para editarla. 🎨 Abrir editor de estilos completo ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios visibles en Aproximación y en la pestaña XML, no se guardan 🧩 Atributos </> XML Toca un atributo de arriba para editarlo. — × ✅ Listo|777"
+    },
+    {
+      "indice": 6,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web proyectos ⚙️ 📁 Proyectos 📝 Editor 👁️ Vista previa >_ Consola 🔍 Estructura 🎨 Estilos >_ Consola ? 📁 Proyecto 🤖 IA Sin proyecto activo — comandos disponibles: ayuda, listar proyectos 📋 Copiar todo 🧹 Limpiar Escribe \"ayuda\" para ver los comandos disponibles. > ▶ ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios solo visibles en la preview 🎨 Estilos </> HTML ⚙️ Acciones >_ Consola Toca una propiedad de arriba para editarla. 🎨 Abrir editor de estilos completo ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios visibles en Aproximación y en la pestaña XML, no se guardan 🧩 Atributos </> XML Toca un atributo de arriba para editarlo. — × ✅ Listo|777"
+    },
+    {
+      "indice": 7,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web proyectos ⚙️ 📁 Proyectos 📝 Editor 👁️ Vista previa >_ Consola 🔍 Estructura 🎨 Estilos 🔍 Estructura del HTML 🔗 Publicadas 🔐 SHA-256 🔍 Analizar 🙈 Ocultar 🧩 Refactorizar 🚀 Publicar 📦 APK 🌐 Todos ⚡ Declaradas 🔧 Métodos 🚀 Flecha 📦 Asignadas 🔗 Callbacks 📋 Nombre 📍 Línea ➖ Colapsar ➕ Expandir Proyecto: ninguno El editor está vacío. 📊 0 elementos 🩺 Diagnóstico 🧩 Duplicados 📦 Dependencias 📊 Métricas 🔬 Verificar nube E2E 📜 Verificaciones ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios solo visibles en la preview 🎨 Estilos </> HTML ⚙️ Acciones >_ Consola Toca una propiedad de arriba para editarla. 🎨 Abrir editor de estilos completo ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios visibles e|777"
+    },
+    {
+      "indice": 8,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web proyectos ⚙️ 📁 Proyectos 📝 Editor 👁️ Vista previa >_ Consola 🔍 Estructura 🎨 Estilos 📋 0 selectores 📦 0 propiedades 🎨 0 colores 📏 0 tamaños 🔄 0 @media 📦 0 variables 🧹 Limpiar ↕️ Paneles Estructura: 📦 Todos 📁 Anidados 📄 Raíz 🍃 Hojas Estado: 🟢 Todos ✅ Usados ❌ No usados ⚠️ Errores ℹ️ Advertencias Tipo selector: 🔹 Todos 🔹 Clase 🔸 ID 🔶 Etiqueta 🔷 Pseudo 🔹 Clase+ID Origen: 🌐 Todos 📝 Inline 📄 Bloque 🔹 Selectores 0 ▾ No hay selectores que coincidan con los filtros. 🧩 Propiedades ningún selector ▾ Selecciona un selector para ver sus reglas. ⚠️ 0 problemas encontrados ▾ 📄 CSS extraído de: ninguno 📦 Total: 0 selectores · 0 propiedades ✨ Formatear 📦 Minificar|777"
+    },
+    {
+      "indice": 9,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web proyectos ⚙️ 📁 Proyectos 📝 Editor 👁️ Vista previa >_ Consola 🔍 Estructura 🎨 Estilos 📋 0 selectores 📦 0 propiedades 🎨 0 colores 📏 0 tamaños 🔄 0 @media 📦 0 variables 🧹 Limpiar ↕️ Paneles Estructura: 📦 Todos 📁 Anidados 📄 Raíz 🍃 Hojas Estado: 🟢 Todos ✅ Usados ❌ No usados ⚠️ Errores ℹ️ Advertencias Tipo selector: 🔹 Todos 🔹 Clase 🔸 ID 🔶 Etiqueta 🔷 Pseudo 🔹 Clase+ID Origen: 🌐 Todos 📝 Inline 📄 Bloque 🔹 Selectores 0 ▾ 🧩 Propiedades ningún selector ▾ ⚠️ 0 problemas encontrados ▾ 📄 CSS extraído de: ninguno 📦 Total: 0 selectores · 0 propiedades ✨ Formatear 📦 Minificar 📎 Agrupar 🔓 Desagrupar 📦 Variables ⤢ ✕ 🧪 Prueba 💾 Guardado Cambios solo visibles en la |777"
+    },
+    {
+      "indice": 10,
+      "firma": "http://127.0.0.1:8080/index.html|EditorWeb 8.2.0 · Creador Web|⚡ Creador Web proyectos ⚙️ 📁 Proyectos 📝 Editor 👁️ Vista previa >_ Consola 🔍 Estructura 🎨 Estilos 📋 0 selectores 📦 0 propiedades 🎨 0 colores 📏 0 tamaños 🔄 0 @media 📦 0 variables 🧹 Limpiar ↕️ Paneles Estructura: 📦 Todos 📁 Anidados 📄 Raíz 🍃 Hojas Estado: 🟢 Todos ✅ Usados ❌ No usados ⚠️ Errores ℹ️ Advertencias Tipo selector: 🔹 Todos 🔹 Clase 🔸 ID 🔶 Etiqueta 🔷 Pseudo 🔹 Clase+ID Origen: 🌐 Todos 📝 Inline 📄 Bloque 🔹 Selectores 0 ▾ No hay selectores que coincidan con los filtros. 🧩 Propiedades ningún selector ▾ ⚠️ 0 problemas encontrados ▾ 📄 CSS extraído de: ninguno 📦 Total: 0 selectores · 0 propiedades ✨ Formatear 📦 Minificar 📎 Agrupar 🔓 Desagrupar 📦 Variables ⤢ ✕ \ud83e|777"
+    }
+  ],
+  "errores": [],
+  "avisos": [],
+  "resumen": {
+    "estados": 10,
+    "acciones": 30,
+    "errores": 0,
+    "avisos": 0
+  }
+}
