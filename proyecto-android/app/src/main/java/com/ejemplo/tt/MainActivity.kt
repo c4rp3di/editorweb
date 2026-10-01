@@ -60,8 +60,8 @@ class MainActivity : Activity() {
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate()
+    override fun onCreate(savedInstanceState: Bundle?, persistentState: PersistableBundle?) {
+        super.onCreate(savedInstanceState, persistentState)
 
         contenedorPrincipal = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
