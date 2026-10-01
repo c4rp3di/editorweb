@@ -35,6 +35,7 @@ jobs:
       RUN_FOLDER: ${{ github.event.inputs.run_folder }}
       PROJECT_TYPE: ${{ github.event.inputs.project_type }}
       ENTRY_FILE: ${{ github.event.inputs.entry_file }}
+      TARGETS_JSON: ${{ github.event.inputs.targets_json }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -230,12 +231,46 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -f resultado.json ]; then
-            gh api --method PUT "repos/{owner}/{repo}/contents/$PACKAGE_DIR/resultado.json" \
-              -f message="Resultado de verificacion avanzada: $PROJECT_NAME" \
-              -f content="$(base64 -w0 resultado.json)" \
-              -f branch="${{ github.ref_name }}"
-          else
+          if [ ! -f resultado.json ]; then
             echo "No se genero resultado.json (fallo de infraestructura); el run queda como failure."
             exit 1
           fi
+          node --input-type=commonjs <<'PUBLISH_ADVANCED_RESULT'
+          (async () => {
+          const fs = require('fs');
+          const token = process.env.GH_TOKEN;
+          const repo = process.env.GITHUB_REPOSITORY;
+          const apiBase = process.env.GITHUB_API_URL || 'https://api.github.com';
+          const branch = process.env.GITHUB_REF_NAME;
+          const packageDir = process.env.PACKAGE_DIR;
+          if (!token || !repo || !branch || !packageDir) throw new Error('Faltan variables para publicar resultado.json');
+          const path = packageDir.replace(/^\/+|\/+$/g, '') + '/resultado.json';
+          const endpoint = apiBase.replace(/\/$/, '') + '/repos/' + repo + '/contents/' + path.split('/').map(encodeURIComponent).join('/');
+          const headers = { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+          const existing = await fetch(endpoint + '?ref=' + encodeURIComponent(branch), { headers });
+          let sha = null;
+          if (existing.ok) {
+            const actual = await existing.json();
+            sha = actual.sha || null;
+          } else if (existing.status !== 404) {
+            throw new Error('No se pudo comprobar resultado.json antes de publicar: HTTP ' + existing.status + ' ' + await existing.text());
+          }
+          const body = {
+            message: 'Resultado de verificacion avanzada: ' + (process.env.PROJECT_NAME || 'proyecto'),
+            content: fs.readFileSync('resultado.json').toString('base64'),
+            branch
+          };
+          if (sha) body.sha = sha;
+          const response = await fetch(endpoint, {
+            method: 'PUT',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          if (!response.ok) throw new Error('No se pudo publicar resultado.json: HTTP ' + response.status + ' ' + await response.text());
+          const published = await response.json();
+          console.log('Resultado avanzado publicado:', published.content?.path || path);
+          })().catch(error => {
+            console.error('No se pudo publicar el resultado avanzado:', error);
+            process.exitCode = 1;
+          });
+          PUBLISH_ADVANCED_RESULT
