@@ -14,6 +14,9 @@ import android.hardware.SensorManager
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class ServicioPasos : Service(), SensorEventListener {
 
@@ -29,16 +32,22 @@ class ServicioPasos : Service(), SensorEventListener {
 
     private val binder = LocalBinder()
 
+    private fun obtenerFechaHoy(): String {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        return sdf.format(Date())
+    }
+
     override fun onCreate() {
         super.onCreate()
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         sensorPasos = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
 
         val prefs = getSharedPreferences("pasos_prefs", Context.MODE_PRIVATE)
-        contadorPasos = prefs.getInt("pasos_totales", 0)
+        val hoy = obtenerFechaHoy()
+        contadorPasos = prefs.getInt("pasos_$hoy", 0)
 
         crearCanalNotificacion()
-        startForeground(1, crearNotificacion("Servicio activo - $contadorPasos pasos"))
+        startForeground(1, crearNotificacion("Servicio activo - $contadorPasos pasos hoy"))
 
         sensorPasos?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
@@ -80,7 +89,8 @@ class ServicioPasos : Service(), SensorEventListener {
 
     private fun guardarPasos() {
         val prefs = getSharedPreferences("pasos_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putInt("pasos_totales", contadorPasos).apply()
+        val hoy = obtenerFechaHoy()
+        prefs.edit().putInt("pasos_$hoy", contadorPasos).apply()
     }
 
     private fun crearCanalNotificacion() {
@@ -120,7 +130,7 @@ class ServicioPasos : Service(), SensorEventListener {
 
     private fun actualizarNotificacion() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(1, crearNotificacion("Pasos acumulados: $contadorPasos"))
+        manager.notify(1, crearNotificacion("Pasos hoy: $contadorPasos"))
     }
 
     override fun onDestroy() {
