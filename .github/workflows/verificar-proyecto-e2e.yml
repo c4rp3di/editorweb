@@ -105,7 +105,7 @@ jobs:
             echo "No se genero resultado.json (fallo de infraestructura); el run queda como failure."
             exit 1
           fi
-          node <<'PUBLISH_E2E_RESULT'
+          node --input-type=commonjs <<'PUBLISH_E2E_RESULT'
           const fs = require('fs');
           const token = process.env.GH_TOKEN;
           const repo = process.env.GITHUB_REPOSITORY;
