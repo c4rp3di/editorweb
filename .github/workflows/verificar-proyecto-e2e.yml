@@ -96,6 +96,8 @@ jobs:
           node e2e.js
       - name: Publicar resultado
         if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ -f resultado.json ]; then
             gh api --method PUT "repos/{owner}/{repo}/contents/$PACKAGE_DIR/resultado.json" -f message="Resultado E2E: $PROJECT_NAME" -f content="$(base64 -w0 resultado.json)" -f branch="${{ github.ref_name }}"
