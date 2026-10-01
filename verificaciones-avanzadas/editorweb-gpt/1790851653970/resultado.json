@@ -1,0 +1,94 @@
+{
+  "ok": true,
+  "modo": "avanzado",
+  "resumen": {
+    "errores": 0,
+    "avisos": 0,
+    "info": 8
+  },
+  "secciones": [
+    {
+      "titulo": "Consola: errores",
+      "entradas": []
+    },
+    {
+      "titulo": "Consola: avisos",
+      "entradas": []
+    },
+    {
+      "titulo": "JavaScript: excepciones de ejecución",
+      "entradas": []
+    },
+    {
+      "titulo": "JavaScript: promesas rechazadas sin controlar",
+      "entradas": []
+    },
+    {
+      "titulo": "Red: peticiones fallidas",
+      "entradas": []
+    },
+    {
+      "titulo": "Red: respuestas HTTP 4xx/5xx",
+      "entradas": []
+    },
+    {
+      "titulo": "CORS",
+      "entradas": []
+    },
+    {
+      "titulo": "Recursos que no cargaron",
+      "entradas": []
+    },
+    {
+      "titulo": "Enlaces internos rotos",
+      "entradas": []
+    },
+    {
+      "titulo": "Referencias locales no encontradas",
+      "entradas": []
+    },
+    {
+      "titulo": "Observaciones de ejecución",
+      "entradas": []
+    },
+    {
+      "titulo": "Métricas de ejecución",
+      "entradas": [
+        {
+          "severidad": "info",
+          "mensaje": "Estado final del documento: complete"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Título: EditorWeb 8.2.0 · Creador Web"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Elementos DOM: 777"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Botones: 236 · enlaces: 8 · formularios: 0"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Recursos observados por Playwright: 1"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Recursos Performance: 0"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Bytes transferidos: 1870 KB"
+        },
+        {
+          "severidad": "info",
+          "mensaje": "Tiempo total de observación: 2906 ms"
+        }
+      ]
+    }
+  ],
+  "run_id": "36851334858",
+  "run_url": "https://github.com/c4rp3di/editorweb/actions/runs/36851334858"
+}
