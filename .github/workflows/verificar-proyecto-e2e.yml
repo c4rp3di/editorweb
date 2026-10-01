@@ -1,0 +1,102 @@
+name: Diagnóstico E2E del proyecto
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: 'Nombre del proyecto'
+        required: true
+        type: string
+      project_slug:
+        description: 'Slug del proyecto'
+        required: true
+        type: string
+      run_folder:
+        description: 'Carpeta de ejecución'
+        required: true
+        type: string
+      project_type:
+        description: 'Tipo de proyecto'
+        required: true
+        type: string
+      entry_file:
+        description: 'HTML de entrada'
+        required: true
+        type: string
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      PROJECT_NAME: ${{ github.event.inputs.project_name }}
+      PROJECT_SLUG: ${{ github.event.inputs.project_slug }}
+      RUN_FOLDER: ${{ github.event.inputs.run_folder }}
+      ENTRY_FILE: ${{ github.event.inputs.entry_file }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar Playwright y Chromium
+        run: |
+          npm init -y > /dev/null
+          npm install playwright@1.47.0 > /dev/null 2>&1
+          npx playwright install --with-deps chromium
+      - name: Preparar servidor
+        run: |
+          export PACKAGE_DIR="verificaciones-e2e/$PROJECT_SLUG/$RUN_FOLDER"
+          echo "PACKAGE_DIR=$PACKAGE_DIR" >> "$GITHUB_ENV"
+          test -f "$PACKAGE_DIR/$ENTRY_FILE"
+          cd "$PACKAGE_DIR"
+          nohup python3 -m http.server 8080 > /tmp/e2e-server.log 2>&1 &
+          sleep 1
+      - name: Explorar con Playwright
+        run: |
+          cat > e2e.js <<'E2EJS'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          const url = 'http://127.0.0.1:8080/' + process.env.ENTRY_FILE;
+          (async()=>{
+            const browser=await chromium.launch();
+            const page=await browser.newPage();
+            const errores=[], avisos=[], acciones=[], estados=[], vistos=new Set();
+            page.on('pageerror',e=>errores.push({tipo:'pageerror',mensaje:String(e.message||e)}));
+            page.on('console',m=>{if(m.type()==='error')errores.push({tipo:'console',mensaje:m.text()}); if(m.type()==='warning')avisos.push({mensaje:m.text()});});
+            page.on('requestfailed',r=>errores.push({tipo:'requestfailed',mensaje:r.url()+' '+(r.failure()?.errorText||'')}));
+            await page.goto(url,{waitUntil:'load',timeout:30000}).catch(e=>errores.push({tipo:'load',mensaje:String(e.message||e)}));
+            const firma=async()=>page.evaluate(()=>[location.href,document.title,(document.body?.innerText||'').replace(/\s+/g,' ').trim().slice(0,700),document.querySelectorAll('*').length].join('|'));
+            estados.push({indice:1,firma:await firma()}); vistos.add(estados[0].firma);
+            for(let ronda=0;ronda<3 && acciones.length<30;ronda++){
+              const n=await page.locator('button,[role="button"],summary,a[href]').count();
+              let hizo=0;
+              for(let i=0;i<n && acciones.length<30;i++){
+                const el=page.locator('button,[role="button"],summary,a[href]').nth(i);
+                if(!(await el.isVisible().catch(()=>false)))continue;
+                const txt=((await el.innerText().catch(()=>''))||'').replace(/\s+/g,' ').trim().slice(0,100);
+                if(/\b(eliminar|borrar|delete|destroy|comprar|pagar|logout|cerrar sesión|salir)\b/i.test(txt))continue;
+                const tag=await el.evaluate(e=>e.tagName.toLowerCase()).catch(()=>'?');
+                if(tag==='a') { const h=await el.getAttribute('href'); if(h && !h.startsWith('#') && h!=='') continue; }
+                const antes=await firma();
+                await el.click({timeout:1200}).catch(e=>{errores.push({tipo:'click',mensaje:String(e.message||e),elemento:txt});});
+                await page.waitForTimeout(120);
+                const despues=await firma();
+                acciones.push({tipo:'click',elemento:tag,texto:txt,cambio:antes!==despues});
+                if(!vistos.has(despues)){vistos.add(despues);estados.push({indice:estados.length+1,firma:despues});}
+                hizo++;
+              }
+              if(!hizo)break;
+            }
+            const r={modo:'nube',url,titulo:await page.title(),acciones,estados,errores,avisos,resumen:{estados:estados.length,acciones:acciones.length,errores:errores.length,avisos:avisos.length}};
+            fs.writeFileSync('resultado.json',JSON.stringify(r,null,2));
+            await browser.close();
+          })().catch(e=>{fs.writeFileSync('resultado.json',JSON.stringify({modo:'nube',errores:[{tipo:'infraestructura',mensaje:String(e.message||e)}],resumen:{estados:0,acciones:0,errores:1,avisos:0}},null,2));process.exit(1)});
+          E2EJS
+          node e2e.js
+      - name: Publicar resultado
+        if: always()
+        run: |
+          if [ -f resultado.json ]; then
+            gh api --method PUT "repos/{owner}/{repo}/contents/$PACKAGE_DIR/resultado.json" -f message="Resultado E2E: $PROJECT_NAME" -f content="$(base64 -w0 resultado.json)" -f branch="${{ github.ref_name }}"
+          else exit 1; fi
