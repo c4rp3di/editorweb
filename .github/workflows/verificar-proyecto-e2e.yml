@@ -23,6 +23,11 @@ on:
         description: 'HTML de entrada'
         required: true
         type: string
+      targets_json:
+        description: 'Elementos interactivos seleccionados en el editor'
+        required: false
+        default: '[]'
+        type: string
 
 jobs:
   e2e:
@@ -62,29 +67,26 @@ jobs:
             const browser=await chromium.launch();
             const page=await browser.newPage();
             const errores=[], avisos=[], acciones=[], estados=[], vistos=new Set();
-            page.on('pageerror',e=>errores.push({tipo:'pageerror',mensaje:String(e.message||e)}));
-            page.on('console',m=>{if(m.type()==='error')errores.push({tipo:'console',mensaje:m.text()}); if(m.type()==='warning')avisos.push({mensaje:m.text()});});
-            page.on('requestfailed',r=>errores.push({tipo:'requestfailed',mensaje:r.url()+' '+(r.failure()?.errorText||'')}));
-            await page.goto(url,{waitUntil:'load',timeout:30000}).catch(e=>errores.push({tipo:'load',mensaje:String(e.message||e)}));
-            const firma=async()=>page.evaluate(()=>[location.href,document.title,(document.body?.innerText||'').replace(/\s+/g,' ').trim().slice(0,700),document.querySelectorAll('*').length].join('|'));
-            estados.push({indice:1,firma:await firma()}); vistos.add(estados[0].firma);
-            for(let ronda=0;ronda<3 && acciones.length<30;ronda++){
-              const n=await page.locator('button,[role="button"],summary,a[href]').count();
+            let ultimaAccion=null, ultimaAccionMs=0;
+            const safe=(t)=>!(/\\b(eliminar|borrar|delete|destroy|comprar|pagar|logout|cerrar sesión|salir)\\b/i.test(t||''));
+            let seleccion=[]; try{seleccion=JSON.parse(process.env.TARGETS_JSON||'[]');if(!Array.isArray(seleccion))seleccion=[];}catch(_){seleccion=[];avisos.push({mensaje:'La selección E2E no era JSON válido; se explorará de forma heurística.'});}
+            const agregarError=(tipo,mensaje,extra={})=>errores.push({tipo,mensaje:String(mensaje||tipo||'Error'),url:page.url(),accion:ultimaAccion?.texto||null,estado:estados.length||1,...extra});
+            page.on('pageerror',e=>agregarError('pageerror',e.message||e,{stack:e.stack||''}));
+            page.on('console',m=>{if(m.type()==='error')agregarError('console',m.text()); if(m.type()==='warning')avisos.push({mensaje:m.text(),url:page.url(),accion:ultimaAccion?.texto||null});});
+            page.on('requestfailed',r=>agregarError('requestfailed',r.url()+' '+(r.failure()?.errorText||''),{recurso:r.url()}));
+            await page.goto(url,{waitUntil:'load',timeout:30000}).catch(e=>agregarError('load',e.message||e,{stack:e.stack||''}));
+            const firma=async()=>page.evaluate(()=>[location.href,document.title,(document.body?.innerText||'').replace(/\\s+/g,' ').trim().slice(0,700),document.querySelectorAll('*').length].join('|'));
+            estados.push({indice:1,firma:await firma(),url:page.url(),titulo:await page.title()}); vistos.add(estados[0].firma);
+            const candidatosIniciales=page.locator('button,[role="button"],summary,a[href]');
+            const nInicial=await candidatosIniciales.count();
+            const elementos=[]; for(let i=0;i<nInicial;i++){const el=candidatosIniciales.nth(i);if(!(await el.isVisible().catch(()=>false)))continue;const tag=await el.evaluate(e=>e.tagName.toLowerCase()).catch(()=>'?');const txt=((await el.innerText().catch(()=>''))||'').replace(/\\s+/g,' ').trim().slice(0,120);const h=await el.getAttribute('href').catch(()=>null);if(!safe(txt))continue;if(tag==='a'&&h&&!h.startsWith('#')&&h!=='')continue;elementos.push(await el.evaluate(e=>({tag,texto:((e.innerText||e.getAttribute('aria-label')||e.title||e.name||'')||'').replace(/\\s+/g,' ').trim().slice(0,120),id:e.id||'',name:e.getAttribute('name')||'',href:e.getAttribute('href')||''})).catch(()=>({tag,texto:txt,id:'',name:'',href:h||''})));}
+            const seleccionado=new Set(seleccion); const usarSeleccion=seleccionado.size>0;
+            for(let ronda=0;ronda<5 && acciones.length<100;ronda++){
+              const loc=page.locator('button,[role="button"],summary,a[href]'); const n=await loc.count(); const visibles=[];
+              for(let i=0;i<n;i++){const el=loc.nth(i);if(!(await el.isVisible().catch(()=>false)))continue;const txt=((await el.innerText().catch(()=>''))||'').replace(/\\s+/g,' ').trim().slice(0,120);if(!safe(txt))continue;const tag=await el.evaluate(e=>e.tagName.toLowerCase()).catch(()=>'?');const h=await el.getAttribute('href').catch(()=>null);if(tag==='a'&&h&&!h.startsWith('#')&&h!=='')continue;visibles.push(el);}
+              const claves=await page.evaluate(()=>{const els=[...document.querySelectorAll('button,[role="button"],summary,a[href],input:not([type=hidden]):not([type=file]),select,textarea')];const m=new Map(),out=[];for(const e of els){const b=[e.tagName.toLowerCase(),e.id||'',e.getAttribute('name')||'',e.getAttribute('href')||'',((e.innerText||e.getAttribute('aria-label')||e.title||e.name||'')||'').replace(/\\s+/g,' ').trim().slice(0,120)].join('|');const n=(m.get(b)||0)+1;m.set(b,n);out.push(b+'#'+n);}return out;}).catch(()=>[]);
               let hizo=0;
-              for(let i=0;i<n && acciones.length<30;i++){
-                const el=page.locator('button,[role="button"],summary,a[href]').nth(i);
-                if(!(await el.isVisible().catch(()=>false)))continue;
-                const txt=((await el.innerText().catch(()=>''))||'').replace(/\s+/g,' ').trim().slice(0,100);
-                if(/\b(eliminar|borrar|delete|destroy|comprar|pagar|logout|cerrar sesión|salir)\b/i.test(txt))continue;
-                const tag=await el.evaluate(e=>e.tagName.toLowerCase()).catch(()=>'?');
-                if(tag==='a') { const h=await el.getAttribute('href'); if(h && !h.startsWith('#') && h!=='') continue; }
-                const antes=await firma();
-                await el.click({timeout:1200}).catch(e=>{errores.push({tipo:'click',mensaje:String(e.message||e),elemento:txt});});
-                await page.waitForTimeout(120);
-                const despues=await firma();
-                acciones.push({tipo:'click',elemento:tag,texto:txt,cambio:antes!==despues});
-                if(!vistos.has(despues)){vistos.add(despues);estados.push({indice:estados.length+1,firma:despues});}
-                hizo++;
+              for(const el of visibles){if(acciones.length>=100)break;const txt=((await el.innerText().catch(()=>''))||'').replace(/\\s+/g,' ').trim().slice(0,120);const tag=await el.evaluate(e=>e.tagName.toLowerCase()).catch(()=>'?');const idx=await el.evaluate(e=>[...document.querySelectorAll('button,[role="button"],summary,a[href]')].indexOf(e)).catch(()=>-1);const key=idx>=0?claves[idx]:'';if(usarSeleccion&&!seleccionado.has(key))continue;if(acciones.some(a=>a.key===key&&a.ronda===ronda))continue;const antes=await firma();ultimaAccion={tipo:'click',texto:txt,key};ultimaAccionMs=Date.now();try{await el.scrollIntoViewIfNeeded({timeout:700}).catch(()=>{});await el.click({timeout:1200});await page.waitForTimeout(120);const despues=await firma();acciones.push({tipo:'click',elemento:tag,texto:txt,href:await el.getAttribute('href').catch(()=>''),cambio:antes!==despues,key,ronda});if(!vistos.has(despues)){vistos.add(despues);estados.push({indice:estados.length+1,firma:despues,url:page.url(),titulo:await page.title(),accion:txt});}hizo++;}catch(err){agregarError('click',err.message||err,{stack:err.stack||'',elemento:txt,key});}
               }
               if(!hizo)break;
             }
