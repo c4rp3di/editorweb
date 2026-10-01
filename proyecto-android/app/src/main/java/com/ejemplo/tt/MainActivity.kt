@@ -62,7 +62,7 @@ class MainActivity : Activity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState, persistentState)
+        super.onCreate(savedInstanceState)
 
         contenedorPrincipal = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -81,7 +81,7 @@ class MainActivity : Activity() {
             )
         }
 
-        vistaContador = crearVistaContador()tvPasos = TextView(this)tvKm = TextView(this)tvKcal = TextView(this)tvMinutos = TextView(this)contenedorHistorial = LinearLayout(this)btnTabContador = Button(this)btnTabEstadisticas = Button(this)
+        vistaContador = crearVistaContador()\ntvPasos = TextView(this)\ntvKm = TextView(this)\ntvKcal = TextView(this)\ntvMinutos = TextView(this)\ncontenedorHistorial = LinearLayout(this)\nbtnTabContador = Button(this)\nbtnTabEstadisticas = Button(this)
         vistaEstadisticas = crearVistaEstadisticas()
 
         contenidoFrame.addView(vistaContador)
