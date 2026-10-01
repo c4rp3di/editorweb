@@ -106,6 +106,7 @@ jobs:
             exit 1
           fi
           node --input-type=commonjs <<'PUBLISH_E2E_RESULT'
+          (async () => {
           const fs = require('fs');
           const token = process.env.GH_TOKEN;
           const repo = process.env.GITHUB_REPOSITORY;
@@ -138,4 +139,8 @@ jobs:
           if (!response.ok) throw new Error('No se pudo publicar resultado.json: HTTP ' + response.status + ' ' + await response.text());
           const published = await response.json();
           console.log('Resultado E2E publicado:', published.content?.path || path);
+          })().catch(error => {
+            console.error('No se pudo publicar el resultado E2E:', error);
+            process.exitCode = 1;
+          });
           PUBLISH_E2E_RESULT
