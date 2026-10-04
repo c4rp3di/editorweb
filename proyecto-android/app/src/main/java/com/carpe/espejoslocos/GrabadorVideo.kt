@@ -1,14 +1,10 @@
 package com.carpe.espejoslocos
 
 import android.content.ContentValues
-import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
-import android.media.MediaCodec
-import android.media.MediaCodecInfo
-import android.media.MediaFormat
-import android.media.MediaMuxer
+import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -26,21 +22,17 @@ import java.util.concurrent.TimeUnit
  * Flujo:
  * CameraX -> ImageAnalysis -> OpenCV -> Bitmap -> GrabadorVideo -> MP4
  *
- * Por tanto, el MP4 contiene el efecto aplicado y no la imagen original
- * de la cámara.
- *
- * La entrada del encoder es una Surface; cada Bitmap se pinta sobre ella.
- * No se utiliza CameraX VideoCapture.
- *
- * El vídeo se graba sin audio. Esto es intencionado: añadir el micrófono
- * requeriría multiplexar una segunda pista de audio manteniendo sincronía
- * con los frames procesados.
+ * El vídeo que entra en MediaRecorder es una Surface alimentada con el
+ * Bitmap procesado, por lo que no se graba la imagen original de la cámara.
+ * Opcionalmente MediaRecorder añade el micrófono como pista AAC en el mismo
+ * MP4, manteniendo las pistas de vídeo y audio sincronizadas.
  */
 class GrabadorVideo(
     private val activity: MainActivity,
     private val ancho: Int,
     private val alto: Int,
     private val fps: Int,
+    private val conAudio: Boolean,
     private val onFinalizado: (ok: Boolean, mensaje: String) -> Unit
 ) {
 
@@ -53,11 +45,8 @@ class GrabadorVideo(
     private var iniciado = false
 
     private var hilo: Thread? = null
-    private var codec: MediaCodec? = null
+    private var recorder: MediaRecorder? = null
     private var surface: Surface? = null
-    private var muxer: MediaMuxer? = null
-    private var trackIndex = -1
-    private var muxerIniciado = false
     private var archivoTemporal: File? = null
 
     fun start() {
@@ -68,50 +57,6 @@ class GrabadorVideo(
                 .toInt()
                 .coerceIn(2_000_000, 16_000_000)
 
-        val format =
-            MediaFormat.createVideoFormat(
-                MIME_TYPE,
-                ancho,
-                alto
-            ).apply {
-
-                setInteger(
-                    MediaFormat.KEY_COLOR_FORMAT,
-                    MediaCodecInfo.CodecCapabilities
-                        .COLOR_FormatSurface
-                )
-
-                setInteger(
-                    MediaFormat.KEY_BIT_RATE,
-                    bitrate
-                )
-
-                setInteger(
-                    MediaFormat.KEY_FRAME_RATE,
-                    fps
-                )
-
-                setInteger(
-                    MediaFormat.KEY_I_FRAME_INTERVAL,
-                    1
-                )
-            }
-
-        val c =
-            MediaCodec.createEncoderByType(
-                MIME_TYPE
-            )
-
-        c.configure(
-            format,
-            null,
-            null,
-            MediaCodec.CONFIGURE_FLAG_ENCODE
-        )
-
-        codec = c
-        surface = c.createInputSurface()
-
         val dir =
             File(
                 activity.cacheDir,
@@ -119,44 +64,80 @@ class GrabadorVideo(
             )
 
         if (!dir.exists() && !dir.mkdirs()) {
-            surface?.release()
-            c.release()
-            codec = null
-            surface = null
             throw IllegalStateException(
                 "No se pudo crear el directorio temporal"
             )
         }
 
-        archivoTemporal =
-            File(
-                dir,
-                "video_${System.currentTimeMillis()}.mp4"
-            )
+        val temporal = File(
+            dir,
+            "video_${System.currentTimeMillis()}.mp4"
+        )
 
-        muxer =
-            MediaMuxer(
-                archivoTemporal!!.absolutePath,
-                MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
-            )
+        val r = MediaRecorder()
 
-        c.start()
-        iniciado = true
-
-        hilo =
-            Thread(
-                { codificar() },
-                "EspejosLocos-VideoEncoder"
-            ).also {
-                it.start()
+        try {
+            // MediaRecorder exige que las fuentes se configuren antes del formato.
+            if (conAudio) {
+                r.setAudioSource(MediaRecorder.AudioSource.MIC)
             }
+            r.setVideoSource(MediaRecorder.VideoSource.SURFACE)
+            r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            r.setOutputFile(temporal.absolutePath)
+
+            r.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+            r.setVideoSize(ancho, alto)
+            r.setVideoFrameRate(fps)
+            r.setVideoEncodingBitRate(bitrate)
+
+            if (conAudio) {
+                r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                r.setAudioEncodingBitRate(128_000)
+                r.setAudioSamplingRate(44_100)
+                r.setAudioChannels(1)
+            }
+
+            r.prepare()
+
+            val s = r.surface
+                ?: throw IllegalStateException(
+                    "MediaRecorder no proporcionó una Surface"
+                )
+
+            recorder = r
+            surface = s
+            archivoTemporal = temporal
+
+            r.start()
+            iniciado = true
+            detener = false
+
+            hilo = Thread(
+                { codificar() },
+                "EspejosLocos-VideoRecorder"
+            ).also { it.start() }
+
+            LogEspejos.i(
+                "MediaRecorder iniciado: ${ancho}x${alto}@${fps} audio=$conAudio"
+            )
+        } catch (e: Exception) {
+            try {
+                r.reset()
+            } catch (_: Exception) {
+            }
+            try {
+                r.release()
+            } catch (_: Exception) {
+            }
+            temporal.delete()
+            throw e
+        }
     }
 
     /**
      * Recibe el Bitmap procesado.
-     *
-     * Se hace una copia porque ProcesadorFrame puede reciclar/reemplazar
-     * el Bitmap inmediatamente después de actualizar el ImageView.
+     * Se copia porque ProcesadorFrame puede reutilizar/reemplazar el Bitmap
+     * inmediatamente después de actualizar el ImageView.
      */
     fun offerFrame(bitmap: Bitmap) {
         if (!iniciado || detener) return
@@ -172,7 +153,6 @@ class GrabadorVideo(
             }
 
         if (!cola.offer(copia)) {
-            // Mantener baja latencia: descartamos el frame más antiguo.
             val viejo = cola.poll()
             viejo?.recycle()
 
@@ -203,30 +183,25 @@ class GrabadorVideo(
     }
 
     private fun codificar() {
-
         var error: Exception? = null
 
         try {
-            val c =
-                codec
-                    ?: throw IllegalStateException(
-                        "Codec no inicializado"
-                    )
-
-            val s =
-                surface
-                    ?: throw IllegalStateException(
-                        "Surface no inicializada"
-                    )
-
-            val paint =
-                Paint(
-                    Paint.ANTI_ALIAS_FLAG or
-                        Paint.FILTER_BITMAP_FLAG
+            val r = recorder
+                ?: throw IllegalStateException(
+                    "MediaRecorder no inicializado"
                 )
 
-            while (!detener || cola.isNotEmpty()) {
+            val s = surface
+                ?: throw IllegalStateException(
+                    "Surface no inicializada"
+                )
 
+            val paint = Paint(
+                Paint.ANTI_ALIAS_FLAG or
+                    Paint.FILTER_BITMAP_FLAG
+            )
+
+            while (!detener || cola.isNotEmpty()) {
                 val bitmap =
                     cola.poll(
                         100,
@@ -234,14 +209,9 @@ class GrabadorVideo(
                     ) ?: continue
 
                 try {
-                    val canvas =
-                        s.lockCanvas(null)
-
+                    val canvas = s.lockCanvas(null)
                     try {
-                        canvas.drawColor(
-                            android.graphics.Color.BLACK
-                        )
-
+                        canvas.drawColor(Color.BLACK)
                         canvas.drawBitmap(
                             bitmap,
                             null,
@@ -254,65 +224,47 @@ class GrabadorVideo(
                             paint
                         )
                     } finally {
-                        s.unlockCanvasAndPost(
-                            canvas
-                        )
+                        s.unlockCanvasAndPost(canvas)
                     }
-
-                    drainEncoder(
-                        c,
-                        endOfStream = false
-                    )
-
                 } finally {
                     bitmap.recycle()
                 }
             }
 
-            c.signalEndOfInputStream()
-
-            drainEncoder(
-                c,
-                endOfStream = true
-            )
+            // MediaRecorder genera el MP4 final al detenerse.
+            try {
+                r.stop()
+            } catch (e: RuntimeException) {
+                throw IllegalStateException(
+                    "MediaRecorder no recibió suficientes frames de vídeo",
+                    e
+                )
+            }
 
         } catch (e: Exception) {
             error = e
             LogEspejos.e(
-                "Error codificando vídeo procesado",
+                "Error grabando vídeo procesado",
                 e
             )
         } finally {
+            val temporal = archivoTemporal
+            archivoTemporal = null
 
             try {
-                muxer?.stop()
+                recorder?.reset()
             } catch (_: Exception) {
             }
-
             try {
-                muxer?.release()
+                recorder?.release()
             } catch (_: Exception) {
             }
-
-            muxer = null
-
-            try {
-                codec?.stop()
-            } catch (_: Exception) {
-            }
-
-            try {
-                codec?.release()
-            } catch (_: Exception) {
-            }
-
-            codec = null
+            recorder = null
 
             try {
                 surface?.release()
             } catch (_: Exception) {
             }
-
             surface = null
 
             while (true) {
@@ -322,36 +274,30 @@ class GrabadorVideo(
 
             iniciado = false
 
-            val temporal = archivoTemporal
-            archivoTemporal = null
-
             if (error == null && temporal != null && temporal.exists()) {
                 try {
-                    val uri =
-                        guardarEnGaleria(temporal)
-
+                    val uri = guardarEnGaleria(temporal)
                     temporal.delete()
 
+                    val mensaje = if (conAudio) {
+                        "Vídeo con audio guardado en Movies/EspejosLocos"
+                    } else {
+                        "Vídeo guardado en Movies/EspejosLocos"
+                    }
+
                     activity.runOnUiThread {
-                        onFinalizado(
-                            true,
-                            "Vídeo guardado en Movies/EspejosLocos"
-                        )
+                        onFinalizado(true, mensaje)
                     }
 
                     LogEspejos.i(
-                        "Vídeo procesado guardado: $uri"
+                        "Vídeo procesado guardado: $uri audio=$conAudio"
                     )
-
                 } catch (e: Exception) {
-
                     temporal.delete()
-
                     LogEspejos.e(
                         "No se pudo copiar el vídeo a la galería",
                         e
                     )
-
                     activity.runOnUiThread {
                         onFinalizado(
                             false,
@@ -359,11 +305,8 @@ class GrabadorVideo(
                         )
                     }
                 }
-
             } else {
-
                 temporal?.delete()
-
                 activity.runOnUiThread {
                     onFinalizado(
                         false,
@@ -374,134 +317,29 @@ class GrabadorVideo(
         }
     }
 
-    private fun drainEncoder(
-        c: MediaCodec,
-        endOfStream: Boolean
-    ) {
-
-        val info =
-            MediaCodec.BufferInfo()
-
-        while (true) {
-
-            val index =
-                c.dequeueOutputBuffer(
-                    info,
-                    if (endOfStream) 10_000L else 0L
-                )
-
-            when {
-
-                index ==
-                    MediaCodec.INFO_TRY_AGAIN_LATER -> {
-
-                    if (!endOfStream) {
-                        return
-                    }
-                }
-
-                index ==
-                    MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-
-                    if (muxerIniciado) {
-                        throw IllegalStateException(
-                            "El formato del encoder cambió dos veces"
-                        )
-                    }
-
-                    val formato =
-                        c.outputFormat
-
-                    trackIndex =
-                        muxer!!.addTrack(
-                            formato
-                        )
-
-                    muxer!!.start()
-                    muxerIniciado = true
-                }
-
-                index >= 0 -> {
-
-                    val buffer =
-                        c.getOutputBuffer(index)
-                            ?: throw IllegalStateException(
-                                "OutputBuffer nulo"
-                            )
-
-                    if (
-                        info.flags and
-                            MediaCodec.BUFFER_FLAG_CODEC_CONFIG
-                        != 0
-                    ) {
-                        info.size = 0
-                    }
-
-                    if (
-                        info.size > 0 &&
-                        muxerIniciado
-                    ) {
-
-                        buffer.position(
-                            info.offset
-                        )
-
-                        buffer.limit(
-                            info.offset + info.size
-                        )
-
-                        muxer!!.writeSampleData(
-                            trackIndex,
-                            buffer,
-                            info
-                        )
-                    }
-
-                    c.releaseOutputBuffer(
-                        index,
-                        false
-                    )
-
-                    if (
-                        info.flags and
-                            MediaCodec.BUFFER_FLAG_END_OF_STREAM
-                        != 0
-                    ) {
-                        return
-                    }
-                }
-            }
-        }
-    }
-
-    private fun guardarEnGaleria(
-        temporal: File
-    ): Uri {
-
+    private fun guardarEnGaleria(temporal: File): Uri {
         val nombre =
             "EspejosLocos_${System.currentTimeMillis()}.mp4"
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-
-            val values =
-                ContentValues().apply {
-                    put(
-                        MediaStore.Video.Media.DISPLAY_NAME,
-                        nombre
-                    )
-                    put(
-                        MediaStore.Video.Media.MIME_TYPE,
-                        "video/mp4"
-                    )
-                    put(
-                        MediaStore.Video.Media.RELATIVE_PATH,
-                        "Movies/EspejosLocos"
-                    )
-                    put(
-                        MediaStore.Video.Media.IS_PENDING,
-                        1
-                    )
-                }
+            val values = ContentValues().apply {
+                put(
+                    MediaStore.Video.Media.DISPLAY_NAME,
+                    nombre
+                )
+                put(
+                    MediaStore.Video.Media.MIME_TYPE,
+                    "video/mp4"
+                )
+                put(
+                    MediaStore.Video.Media.RELATIVE_PATH,
+                    "Movies/EspejosLocos"
+                )
+                put(
+                    MediaStore.Video.Media.IS_PENDING,
+                    1
+                )
+            }
 
             val uri =
                 activity.contentResolver.insert(
@@ -512,15 +350,10 @@ class GrabadorVideo(
                 )
 
             try {
-
                 activity.contentResolver
                     .openOutputStream(uri)
                     ?.use { salida ->
-
-                        FileInputStream(
-                            temporal
-                        ).use { entrada ->
-
+                        FileInputStream(temporal).use { entrada ->
                             entrada.copyTo(
                                 salida,
                                 64 * 1024
@@ -544,80 +377,51 @@ class GrabadorVideo(
                 )
 
                 return uri
-
             } catch (e: Exception) {
-
                 activity.contentResolver.delete(
                     uri,
                     null,
                     null
                 )
-
                 throw e
             }
+        }
 
-        } else {
+        @Suppress("DEPRECATION")
+        val movies =
+            Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_MOVIES
+            )
 
-            @Suppress("DEPRECATION")
-            val movies =
-                Environment
-                    .getExternalStoragePublicDirectory(
-                        Environment.DIRECTORY_MOVIES
-                    )
+        val carpeta = File(
+            movies,
+            "EspejosLocos"
+        )
 
-            val carpeta =
-                File(
-                    movies,
-                    "EspejosLocos"
-                )
-
-            if (!carpeta.exists() &&
-                !carpeta.mkdirs()
-            ) {
-                throw IllegalStateException(
-                    "No se pudo crear Movies/EspejosLocos"
-                )
-            }
-
-            val destino =
-                File(
-                    carpeta,
-                    nombre
-                )
-
-            FileInputStream(
-                temporal
-            ).use { entrada ->
-
-                FileOutputStream(
-                    destino
-                ).use { salida ->
-
-                    entrada.copyTo(
-                        salida,
-                        64 * 1024
-                    )
-                }
-            }
-
-            android.media.MediaScannerConnection
-                .scanFile(
-                    activity,
-                    arrayOf(
-                        destino.absolutePath
-                    ),
-                    arrayOf("video/mp4"),
-                    null
-                )
-
-            return Uri.fromFile(
-                destino
+        if (!carpeta.exists() && !carpeta.mkdirs()) {
+            throw IllegalStateException(
+                "No se pudo crear Movies/EspejosLocos"
             )
         }
-    }
 
-    companion object {
-        private const val MIME_TYPE =
-            "video/avc"
+        val destino = File(carpeta, nombre)
+
+        FileInputStream(temporal).use { entrada ->
+            FileOutputStream(destino).use { salida ->
+                entrada.copyTo(
+                    salida,
+                    64 * 1024
+                )
+            }
+        }
+
+        android.media.MediaScannerConnection.scanFile(
+            activity,
+            arrayOf(destino.absolutePath),
+            arrayOf("video/mp4"),
+            null
+        )
+
+        return Uri.fromFile(destino)
     }
 }
