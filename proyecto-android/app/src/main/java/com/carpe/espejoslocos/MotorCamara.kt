@@ -158,8 +158,8 @@ object MotorCamara {
 
     private var executor: ExecutorService? = null
     private var imageAnalysis: ImageAnalysis? = null
-    @Volatile private var ultimoAnchoFrame: Int = 0
-    @Volatile private var ultimoAltoFrame: Int = 0
+    @Volatile var ultimoAnchoFrame: Int = 0
+    @Volatile var ultimoAltoFrame: Int = 0
 
     fun iniciar(activity: MainActivity, imageView: ImageView) {
         LogEspejos.i("MotorCamara.iniciar()")
