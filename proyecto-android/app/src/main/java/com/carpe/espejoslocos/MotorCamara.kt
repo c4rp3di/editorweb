@@ -280,8 +280,8 @@ private class ProcesadorFrame(
             rotarMat(matSrc, matRotada, rotacion)
 
             val claveParams = params.entries.joinToString(",") { "${it.key}=${it.value}" }
-            ultimoAnchoFrame = matRotada.cols()
-            ultimoAltoFrame = matRotada.rows()
+            MotorCamara.ultimoAnchoFrame = matRotada.cols()
+            MotorCamara.ultimoAltoFrame = matRotada.rows()
             val clave = "${filtro.id}|${matRotada.cols()}x${matRotada.rows()}|$intensidad|$claveParams|touch=${MotorCamara.toqueActivo}:${MotorCamara.toqueX}:${MotorCamara.toqueY}"
             val recalcular = filtro.animado || clave != claveCache
 
