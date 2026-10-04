@@ -375,7 +375,7 @@ object OverlayUI {
                     "Detén la grabación antes de cambiar la cámara",
                     Toast.LENGTH_SHORT
                 ).show()
-                return
+                return@mostrarAjustesCamara
             }
 
             val contenedor = LinearLayout(activity).apply {
