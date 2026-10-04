@@ -21,11 +21,18 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.carpe.espejoslocos.AppLogic
 import org.opencv.android.OpenCVLoader
-import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
     private var imagenPendienteGaleria: Pair<Bitmap, String>? = null
+    private var resultadoPermisoAudio: ((Boolean) -> Unit)? = null
+
+    private val lanzadorPermisoAudio =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { concedido ->
+            val callback = resultadoPermisoAudio
+            resultadoPermisoAudio = null
+            callback?.invoke(concedido)
+        }
 
     private val lanzadorPermisoCameraX =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { concedido ->
@@ -85,6 +92,20 @@ class MainActivity : AppCompatActivity() {
                 Manifest.permission.CAMERA
             )
         }
+    }
+
+    fun solicitarPermisoAudio(callback: (Boolean) -> Unit) {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            callback(true)
+            return
+        }
+
+        resultadoPermisoAudio = callback
+        lanzadorPermisoAudio.launch(Manifest.permission.RECORD_AUDIO)
     }
 
     override fun onDestroy() {
