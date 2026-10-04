@@ -24,18 +24,13 @@ object AppLogic {
     private var handler: Handler? = null
 
     fun onIniciar(activity: MainActivity) {
-
         LogEspejos.instalarCapturaDeCrashes()
-
-        LogEspejos.i(
-            "onIniciar() llamado"
-        )
+        LogEspejos.i("onIniciar() llamado")
 
         ConfigCamara.init(activity)
 
         LogEspejos.i(
-            "Configuración: " +
-                "${ConfigCamara.resolucion.etiqueta} · " +
+            "Configuración: ${ConfigCamara.resolucion.etiqueta} · " +
                 "fps=${ConfigCamara.fps ?: "auto"} · " +
                 "interp=${ConfigCamara.etiquetaInterpolacion()} · " +
                 "espejar=${ConfigCamara.espejarFrontal} · " +
@@ -46,91 +41,65 @@ object AppLogic {
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         )
 
-        val preview =
-            activity.findViewById<View>(
-                R.id.vistaPreviaCamara
-            )
+        activity.findViewById<View>(
+            R.id.vistaPreviaCamara
+        )?.visibility = View.GONE
 
-        preview?.visibility =
-            View.GONE
-
-        handler =
-            Handler(
-                Looper.getMainLooper()
-            )
+        handler = Handler(Looper.getMainLooper())
 
         var intentos = 0
 
-        val runnable =
-            object : Runnable {
+        val runnable = object : Runnable {
+            override fun run() {
 
-                override fun run() {
+                val concedido =
+                    ContextCompat.checkSelfPermission(
+                        activity,
+                        Manifest.permission.CAMERA
+                    ) == PackageManager.PERMISSION_GRANTED
 
-                    val concedido =
-                        ContextCompat.checkSelfPermission(
-                            activity,
-                            Manifest.permission.CAMERA
-                        ) == PackageManager.PERMISSION_GRANTED
+                if (concedido) {
+                    LogEspejos.i(
+                        "Permiso de cámara concedido " +
+                            "(tras $intentos intento/s)"
+                    )
 
-                    if (concedido) {
-
-                        LogEspejos.i(
-                            "Permiso de cámara concedido " +
-                                "(tras ${intentos} intento/s)"
-                        )
-
-                        if (!inicializado) {
-
-                            handler?.postDelayed({
-
-                                if (!inicializado) {
-                                    montarMotor(activity)
-                                }
-
-                            }, 900)
-                        }
-
-                        return
+                    if (!inicializado) {
+                        handler?.postDelayed({
+                            if (!inicializado) {
+                                montarMotor(activity)
+                            }
+                        }, 900)
                     }
+                    return
+                }
 
-                    if (intentos++ < 60) {
-
-                        handler?.postDelayed(
-                            this,
-                            500
-                        )
-
-                    } else {
-
-                        LogEspejos.e(
-                            "Timeout esperando el permiso de cámara"
-                        )
-
-                        Toast.makeText(
-                            activity,
-                            "Sin permiso de cámara",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
+                if (intentos++ < 60) {
+                    handler?.postDelayed(
+                        this,
+                        500
+                    )
+                } else {
+                    LogEspejos.e(
+                        "Timeout esperando el permiso de cámara"
+                    )
+                    Toast.makeText(
+                        activity,
+                        "Sin permiso de cámara",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
+        }
 
         handler?.post(runnable)
     }
 
-    private fun montarMotor(
-        activity: MainActivity
-    ) {
-
-        if (inicializado) {
-            return
-        }
+    private fun montarMotor(activity: MainActivity) {
+        if (inicializado) return
 
         inicializado = true
-
-        LogEspejos.i(
-            "montarMotor()"
-        )
+        LogEspejos.i("montarMotor()")
 
         val raiz =
             activity.findViewById<ViewGroup>(
@@ -139,99 +108,78 @@ object AppLogic {
 
         val iv =
             ImageView(activity).apply {
-
                 layoutParams =
                     FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT
                     )
-
                 scaleType =
                     ImageView.ScaleType.CENTER_CROP
             }
 
         imageView = iv
-
         raiz.addView(iv)
 
         val ui =
             OverlayUI.crear(
-
                 activity = activity,
-
                 onCambiarFiltro = { filtro ->
-
                     LogEspejos.i(
                         "Filtro → ${filtro.nombre}"
                     )
-
                     Toast.makeText(
                         activity,
                         "${filtro.icono}  ${filtro.nombre}",
                         Toast.LENGTH_SHORT
                     ).show()
                 },
-
                 onCapturar = {
                     capturar(activity)
                 },
-
                 onCambiarCamara = {
-
-                    if (
-                        MotorCamara.estaGrabando()
-                    ) {
-
+                    if (MotorCamara.estaGrabando) {
                         Toast.makeText(
                             activity,
                             "Detén la grabación antes de cambiar de cámara",
                             Toast.LENGTH_SHORT
                         ).show()
-
                     } else {
-
                         MotorCamara.alternarCamara(
                             activity,
                             iv
                         )
-
                         Toast.makeText(
                             activity,
-                            if (
-                                MotorCamara.usandoFrontal
-                            ) {
+                            if (MotorCamara.usandoFrontal)
                                 "Frontal"
-                            } else {
-                                "Trasera"
-                            },
+                            else
+                                "Trasera",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
                 },
-
                 onReiniciarCamara = {
-
-                    if (
-                        MotorCamara.estaGrabando()
-                    ) {
-
+                    if (MotorCamara.estaGrabando) {
                         Toast.makeText(
                             activity,
                             "Detén la grabación antes de cambiar la configuración",
                             Toast.LENGTH_SHORT
                         ).show()
-
                     } else {
-
                         MotorCamara.reiniciar(
                             activity,
                             iv
                         )
                     }
                 },
-
                 onAlternarGrabacion = {
-                    activity.alternarGrabacionVideo()
+                    if (MotorCamara.estaGrabando) {
+                        MotorCamara.detenerGrabacion()
+                    } else {
+                        MotorCamara.iniciarGrabacion(
+                            activity
+                        )
+                    }
                 }
             )
 
@@ -243,62 +191,45 @@ object AppLogic {
         )
     }
 
-    private fun capturar(
-        activity: MainActivity
-    ) {
-
+    private fun capturar(activity: MainActivity) {
         val iv =
             imageView ?: run {
-
                 LogEspejos.w(
                     "Captura ignorada: sin ImageView"
                 )
-
                 return
             }
 
         val drawable =
-            iv.drawable as? BitmapDrawable
-                ?: run {
-
-                    LogEspejos.w(
-                        "Captura ignorada: sin frame"
-                    )
-
-                    Toast.makeText(
-                        activity,
-                        "Sin frame todavía",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
-                    return
-                }
+            iv.drawable as? BitmapDrawable ?: run {
+                LogEspejos.w(
+                    "Captura ignorada: sin frame"
+                )
+                Toast.makeText(
+                    activity,
+                    "Sin frame todavía",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return
+            }
 
         val bitmap =
-            drawable.bitmap
-                ?: return
+            drawable.bitmap ?: return
 
         val nombre =
             "espejo_${System.currentTimeMillis()}.jpg"
 
         val valores =
             ContentValues().apply {
-
                 put(
                     MediaStore.Images.Media.DISPLAY_NAME,
                     nombre
                 )
-
                 put(
                     MediaStore.Images.Media.MIME_TYPE,
                     "image/jpeg"
                 )
-
-                if (
-                    Build.VERSION.SDK_INT >=
-                    Build.VERSION_CODES.Q
-                ) {
-
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     put(
                         MediaStore.Images.Media.RELATIVE_PATH,
                         "Pictures/EspejosLocos"
@@ -311,20 +242,16 @@ object AppLogic {
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 valores
             ) ?: run {
-
                 LogEspejos.e(
                     "ContentResolver.insert devolvió null"
                 )
-
                 return
             }
 
         try {
-
             activity.contentResolver
                 .openOutputStream(uri)
                 ?.use { salida ->
-
                     bitmap.compress(
                         Bitmap.CompressFormat.JPEG,
                         95,
@@ -343,7 +270,6 @@ object AppLogic {
             ).show()
 
         } catch (e: Exception) {
-
             LogEspejos.e(
                 "Error guardando captura",
                 e
