@@ -375,8 +375,7 @@ object OverlayUI {
                     "Detén la grabación antes de cambiar la cámara",
                     Toast.LENGTH_SHORT
                 ).show()
-                return@mostrarAjustesCamara
-            }
+            } else {
 
             val contenedor = LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
@@ -481,6 +480,7 @@ object OverlayUI {
                 .setView(scroll)
                 .setPositiveButton("Cerrar", null)
                 .show()
+            }
         }
 
         fun pintar() {
