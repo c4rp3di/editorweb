@@ -37,6 +37,9 @@ object ConfigCamara {
     var mostrarFps: Boolean = false
         set(value) { field = value; guardar() }
 
+    var grabarConAudio: Boolean = false
+        set(value) { field = value; guardar() }
+
     fun init(context: Context) {
         if (prefs != null) return
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -52,6 +55,7 @@ object ConfigCamara {
         interpolacion = p.getInt("interpolacion", Imgproc.INTER_LINEAR)
         espejarFrontal = p.getBoolean("espejarFrontal", true)
         mostrarFps = p.getBoolean("mostrarFps", false)
+        grabarConAudio = p.getBoolean("grabarConAudio", false)
     }
 
     private fun guardar() {
@@ -63,6 +67,7 @@ object ConfigCamara {
             .putInt("interpolacion", interpolacion)
             .putBoolean("espejarFrontal", espejarFrontal)
             .putBoolean("mostrarFps", mostrarFps)
+            .putBoolean("grabarConAudio", grabarConAudio)
             .apply()
     }
 
