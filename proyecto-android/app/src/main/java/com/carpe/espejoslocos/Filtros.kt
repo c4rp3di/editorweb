@@ -28,7 +28,10 @@ object Filtros {
         val ancho: Int, val alto: Int,
         val t: Float,
         val intensidad: Float,
-        val params: Map<String, Float>
+        val params: Map<String, Float>,
+        val toqueActivo: Boolean = false,
+        val toqueX: Float = 0f,
+        val toqueY: Float = 0f
     ) {
         fun p(id: String, alt: Float = 0f) = params[id] ?: alt
     }
@@ -62,6 +65,37 @@ object Filtros {
     fun mapParams(filtro: Filtro): Map<String, Float> {
         val mapa = valores.getOrPut(filtro.id) { mutableMapOf() }
         return filtro.parametros.associate { it.id to mapa.getOrPut(it.id) { it.porDefecto } }
+    }
+
+    private fun deformacionTactil(c: Contexto, tipo: Int): Pair<Float, Float> {
+        if (!c.toqueActivo) return Pair(c.x, c.y)
+
+        val radioBase = min(c.ancho, c.alto).toFloat()
+        val radio = (c.p("radio", 0.35f) * radioBase).coerceAtLeast(1f)
+        val dx = c.x - c.toqueX
+        val dy = c.y - c.toqueY
+        val distancia = sqrt(dx * dx + dy * dy)
+        if (distancia >= radio) return Pair(c.x, c.y)
+
+        val t = (distancia / radio).coerceIn(0f, 1f)
+        val influencia = (1f - t) * (1f - t)
+        val fuerza = c.p("fuerza", 1f) * c.intensidad
+
+        return when (tipo) {
+            0 -> { // Inflar: acerca la fuente al punto tocado.
+                val factor = (1f - 0.55f * fuerza * influencia).coerceAtLeast(0.18f)
+                Pair(c.toqueX + dx * factor, c.toqueY + dy * factor)
+            }
+            1 -> { // Hundir: aleja la fuente del punto tocado.
+                val factor = 1f + 0.70f * fuerza * influencia
+                Pair(c.toqueX + dx * factor, c.toqueY + dy * factor)
+            }
+            else -> { // Remolino: rota alrededor del punto tocado.
+                val angulo = atan2(dy, dx) + c.p("fuerza", 1f) * 2.4f * influencia
+                val r = distancia
+                Pair(c.toqueX + cos(angulo) * r, c.toqueY + sin(angulo) * r)
+            }
+        }
     }
 
     // ---------- Filtros ----------
@@ -220,6 +254,33 @@ object Filtros {
         }
     )
 
+    private val inflarTactil = Filtro(
+        id = "inflar-tactil", nombre = "Inflar táctil", icono = "🫧",
+        parametros = listOf(
+            Parametro("radio", "Radio", 0.08f, 0.80f, 0.32f),
+            Parametro("fuerza", "Fuerza", 0.10f, 2.00f, 1.00f)
+        ),
+        distorsionar = { c -> deformacionTactil(c, 0) }
+    )
+
+    private val hundirTactil = Filtro(
+        id = "hundir-tactil", nombre = "Hundir táctil", icono = "🕳️",
+        parametros = listOf(
+            Parametro("radio", "Radio", 0.08f, 0.80f, 0.32f),
+            Parametro("fuerza", "Fuerza", 0.10f, 2.00f, 1.00f)
+        ),
+        distorsionar = { c -> deformacionTactil(c, 1) }
+    )
+
+    private val remolinoTactil = Filtro(
+        id = "remolino-tactil", nombre = "Remolino táctil", icono = "🌀",
+        parametros = listOf(
+            Parametro("radio", "Radio", 0.08f, 0.80f, 0.32f),
+            Parametro("fuerza", "Fuerza", -2.00f, 2.00f, 1.00f)
+        ),
+        distorsionar = { c -> deformacionTactil(c, 2) }
+    )
+
     private val cromatica = Filtro(
         id = "cromatica", nombre = "Cromática", icono = "🌈",
         parametros = listOf(Parametro("desplazamiento", "Desplazamiento", 0f, 8f, 2.5f)),
@@ -249,7 +310,8 @@ object Filtros {
 
     val lista: List<Filtro> = listOf(
         original, barril, cojin, remolino, onda, lupa, alfiler,
-        espejoFeria, caleidoscopio, glitch, cromatica
+        espejoFeria, caleidoscopio, glitch, cromatica,
+        inflarTactil, hundirTactil, remolinoTactil
     )
 
     fun crearMapas(
@@ -269,7 +331,10 @@ object Filtros {
             for (x in 0 until ancho) {
                 val ctx = Contexto(
                     x.toFloat(), y.toFloat(), cx, cy,
-                    ancho, alto, tiempo, intensidad, params
+                    ancho, alto, tiempo, intensidad, params,
+                    MotorCamara.toqueActivo,
+                    MotorCamara.toqueX * ancho,
+                    MotorCamara.toqueY * alto
                 )
                 val (dx, dy) = filtro.distorsionar(ctx)
                 datosX[idx] = x + (dx - x) * intensidad
