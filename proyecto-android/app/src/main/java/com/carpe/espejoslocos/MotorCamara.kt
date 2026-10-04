@@ -9,7 +9,7 @@ import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import androidx.camera.core.lifecycle.ProcessCameraProvider
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.core.content.ContextCompat
