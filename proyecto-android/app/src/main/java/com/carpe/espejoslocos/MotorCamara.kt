@@ -9,6 +9,7 @@ import android.util.Size
 import android.widget.ImageView
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.Camera
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -30,6 +31,17 @@ object MotorCamara {
     var tiempoInicio: Long = System.currentTimeMillis()
 
     @Volatile var fpsActual: Float = 0f
+
+    @Volatile var toqueActivo: Boolean = false
+        private set
+    @Volatile var toqueX: Float = 0.5f
+        private set
+    @Volatile var toqueY: Float = 0.5f
+        private set
+
+    private var camara: Camera? = null
+    @Volatile var zoomActual: Float = 1f
+        private set
 
     /** Indica si se está grabando el vídeo procesado por OpenCV. */
     @Volatile var estaGrabando: Boolean = false
@@ -107,8 +119,47 @@ object MotorCamara {
         }
     }
 
+    fun ajustarZoom(factor: Float) {
+        val actual = zoomActual
+        val nuevo = (actual * factor).coerceIn(1f, 8f)
+        zoomActual = nuevo
+        camara?.cameraControl?.setZoomRatio(nuevo)
+    }
+
+    fun establecerPuntoTactil(xVista: Float, yVista: Float, anchoVista: Int, altoVista: Int) {
+        if (anchoVista <= 0 || altoVista <= 0) return
+        toqueActivo = true
+
+        val anchoImagen = ultimoAnchoFrame
+        val altoImagen = ultimoAltoFrame
+        if (anchoImagen <= 0 || altoImagen <= 0) {
+            toqueX = (xVista / anchoVista).coerceIn(0f, 1f)
+            toqueY = (yVista / altoVista).coerceIn(0f, 1f)
+            return
+        }
+
+        // El ImageView usa CENTER_CROP: convertimos la posición del dedo
+        // a coordenadas reales del frame procesado.
+        val escala = maxOf(
+            anchoVista.toFloat() / anchoImagen,
+            altoVista.toFloat() / altoImagen
+        )
+        val mostradoAncho = anchoImagen * escala
+        val mostradoAlto = altoImagen * escala
+        val margenX = (anchoVista - mostradoAncho) / 2f
+        val margenY = (altoVista - mostradoAlto) / 2f
+        toqueX = ((xVista - margenX) / mostradoAncho).coerceIn(0f, 1f)
+        toqueY = ((yVista - margenY) / mostradoAlto).coerceIn(0f, 1f)
+    }
+
+    fun limpiarPuntoTactil() {
+        toqueActivo = false
+    }
+
     private var executor: ExecutorService? = null
     private var imageAnalysis: ImageAnalysis? = null
+    @Volatile private var ultimoAnchoFrame: Int = 0
+    @Volatile private var ultimoAltoFrame: Int = 0
 
     fun iniciar(activity: MainActivity, imageView: ImageView) {
         LogEspejos.i("MotorCamara.iniciar()")
@@ -160,7 +211,8 @@ object MotorCamara {
 
                 val selector = if (usandoFrontal) CameraSelector.DEFAULT_FRONT_CAMERA
                                else CameraSelector.DEFAULT_BACK_CAMERA
-                provider.bindToLifecycle(activity, selector, analisis)
+                camara = provider.bindToLifecycle(activity, selector, analisis)
+                camara?.cameraControl?.setZoomRatio(zoomActual)
                 LogEspejos.i("bindToLifecycle OK (${if (usandoFrontal) "FRONTAL" else "TRASERA"})")
             } catch (e: Exception) {
                 LogEspejos.e("Error crítico en iniciar()", e)
@@ -185,6 +237,7 @@ object MotorCamara {
         estaGrabando = false
         imageAnalysis?.clearAnalyzer()
         executor?.shutdown()
+        camara = null
         executor = null
         imageAnalysis = null
     }
@@ -227,7 +280,9 @@ private class ProcesadorFrame(
             rotarMat(matSrc, matRotada, rotacion)
 
             val claveParams = params.entries.joinToString(",") { "${it.key}=${it.value}" }
-            val clave = "${filtro.id}|${matRotada.cols()}x${matRotada.rows()}|$intensidad|$claveParams"
+            ultimoAnchoFrame = matRotada.cols()
+            ultimoAltoFrame = matRotada.rows()
+            val clave = "${filtro.id}|${matRotada.cols()}x${matRotada.rows()}|$intensidad|$claveParams|touch=${MotorCamara.toqueActivo}:${MotorCamara.toqueX}:${MotorCamara.toqueY}"
             val recalcular = filtro.animado || clave != claveCache
 
             val parMapas: Pair<Mat, Mat> = if (recalcular) {
