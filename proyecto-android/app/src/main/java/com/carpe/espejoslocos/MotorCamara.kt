@@ -1,5 +1,7 @@
 package com.carpe.espejoslocos
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.hardware.camera2.CaptureRequest
 import android.util.Range
@@ -35,8 +37,22 @@ object MotorCamara {
 
     private var grabadorVideo: GrabadorVideo? = null
 
-    fun iniciarGrabacion(activity: MainActivity) {
+    fun iniciarGrabacion(activity: MainActivity, conAudio: Boolean = ConfigCamara.grabarConAudio) {
         if (estaGrabando) return
+
+        if (conAudio && ContextCompat.checkSelfPermission(
+                activity,
+                Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ConfigCamara.grabarConAudio = false
+            android.widget.Toast.makeText(
+                activity,
+                "No hay permiso de micrófono; se grabará sin audio",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            return
+        }
 
         val ancho = ConfigCamara.resolucion.ancho
         val alto = ConfigCamara.resolucion.alto
@@ -48,6 +64,7 @@ object MotorCamara {
                 ancho = ancho,
                 alto = alto,
                 fps = fps,
+                conAudio = conAudio,
                 onFinalizado = { ok, mensaje ->
                     activity.runOnUiThread {
                         estaGrabando = false
@@ -66,7 +83,7 @@ object MotorCamara {
             grabadorVideo = grabador
             grabador.start()
             estaGrabando = true
-            LogEspejos.i("Grabación de vídeo procesado iniciada ${ancho}x${alto}@${fps}")
+            LogEspejos.i("Grabación de vídeo procesado iniciada ${ancho}x${alto}@${fps} audio=$conAudio")
 
         } catch (e: Exception) {
             grabadorVideo = null
