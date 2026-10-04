@@ -10,6 +10,7 @@ import android.graphics.Typeface
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
@@ -63,6 +64,10 @@ object OverlayUI {
             }
         }
         root.addView(nombreFiltro)
+
+        // Declarada antes del menú porque es una función local asignable.
+        // Así evitamos la referencia hacia adelante que provocaba el error de compilación.
+        var mostrarAjustesCamara: () -> Unit = {}
 
         // ---- Menú principal (cámara/audio) arriba a la derecha ----
         val botonMenu = Button(activity).apply {
@@ -297,6 +302,16 @@ object OverlayUI {
             // ===== Sección 1: filtro activo =====
             contParams.addView(tituloSeccion("FILTRO · ${filtro.nombre.uppercase()}"))
 
+            if (filtro.id == "inflar-tactil" || filtro.id == "hundir-tactil" || filtro.id == "remolino-tactil") {
+                val ayuda = TextView(activity).apply {
+                    text = "Toca y arrastra sobre la imagen para colocar la deformación. Pellizca con dos dedos para hacer zoom."
+                    setTextColor(Color.parseColor("#C8C4E8"))
+                    textSize = 12f
+                    setPadding(0, 4, 0, 12)
+                }
+                contParams.addView(ayuda)
+            }
+
             if (filtro.parametros.isEmpty()) {
                 val vacio = TextView(activity).apply {
                     text = "Este filtro no tiene parámetros extra."
@@ -353,7 +368,7 @@ object OverlayUI {
 
         }
 
-        fun mostrarAjustesCamara() {
+        mostrarAjustesCamara = {
             if (MotorCamara.estaGrabando) {
                 Toast.makeText(
                     activity,
@@ -517,6 +532,50 @@ object OverlayUI {
             pintar()
             onCambiarFiltro(filtros[idx])
         })
+
+        // ---- Gestos sobre la imagen: zoom y deformación táctil ----
+        val escalaDetector = ScaleGestureDetector(activity, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                MotorCamara.ajustarZoom(detector.scaleFactor)
+                return true
+            }
+
+            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                MotorCamara.limpiarPuntoTactil()
+                return true
+            }
+        })
+
+        root.setOnTouchListener { vista, event ->
+            escalaDetector.onTouchEvent(event)
+            val esTactil = MotorCamara.filtroActual.id == "inflar-tactil" ||
+                MotorCamara.filtroActual.id == "hundir-tactil" ||
+                MotorCamara.filtroActual.id == "remolino-tactil"
+
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    if (esTactil) {
+                        MotorCamara.establecerPuntoTactil(event.x, event.y, vista.width, vista.height)
+                    }
+                    true
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    if (esTactil && event.pointerCount == 1 && !escalaDetector.isInProgress) {
+                        MotorCamara.establecerPuntoTactil(event.x, event.y, vista.width, vista.height)
+                    }
+                    true
+                }
+                android.view.MotionEvent.ACTION_POINTER_DOWN -> {
+                    MotorCamara.limpiarPuntoTactil()
+                    true
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                    MotorCamara.limpiarPuntoTactil()
+                    true
+                }
+                else -> true
+            }
+        }
 
         root.addView(barra)
         return root
