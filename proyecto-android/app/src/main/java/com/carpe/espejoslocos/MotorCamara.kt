@@ -84,7 +84,7 @@ object MotorCamara {
         grabadorVideo?.stop()
     }
 
-    private fun enviarFrameAlGrabador(bitmap: Bitmap) {
+    fun enviarFrameAlGrabador(bitmap: Bitmap) {
         if (estaGrabando) {
             grabadorVideo?.offerFrame(bitmap)
         }
