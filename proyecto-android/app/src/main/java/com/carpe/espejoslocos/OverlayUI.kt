@@ -1,6 +1,7 @@
 package com.carpe.espejoslocos
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -8,12 +9,12 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Handler
 import android.os.Looper
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
@@ -37,7 +38,8 @@ object OverlayUI {
         onCapturar: () -> Unit,
         onCambiarCamara: () -> Unit,
         onReiniciarCamara: () -> Unit,
-        onAlternarGrabacion: () -> Unit
+        onAlternarGrabacion: () -> Unit,
+        onCambiarAudio: (Boolean) -> Unit
     ): View {
         val root = FrameLayout(activity).apply {
             layoutParams = FrameLayout.LayoutParams(
@@ -61,6 +63,49 @@ object OverlayUI {
             }
         }
         root.addView(nombreFiltro)
+
+        // ---- Menú principal (cámara/audio) arriba a la derecha ----
+        val botonMenu = Button(activity).apply {
+            text = "⋮"
+            textSize = 26f
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.argb(150, 0, 0, 0))
+            contentDescription = "Más opciones"
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.END
+                topMargin = 18
+                marginEnd = 12
+            }
+            setOnClickListener {
+                val popup = PopupMenu(activity, this)
+                popup.menu.add("📷 Ajustes de cámara").apply {
+                    isEnabled = !MotorCamara.estaGrabando
+                }
+                popup.menu.add("🎙 Grabar con audio").apply {
+                    isCheckable = true
+                    isChecked = ConfigCamara.grabarConAudio
+                    isEnabled = !MotorCamara.estaGrabando
+                }
+                popup.setOnMenuItemClickListener { item ->
+                    when {
+                        item.title.toString().startsWith("📷") -> {
+                            mostrarAjustesCamara()
+                            true
+                        }
+                        item.title.toString().startsWith("🎙") -> {
+                            onCambiarAudio(!ConfigCamara.grabarConAudio)
+                            true
+                        }
+                        else -> false
+                    }
+                }
+                popup.show()
+            }
+        }
+        root.addView(botonMenu)
 
         // ---- Contador de FPS (arriba a la derecha, oculto por defecto) ----
         val contadorFps = TextView(activity).apply {
@@ -306,59 +351,121 @@ object OverlayUI {
 
             contParams.addView(separador())
 
-            // ===== Sección 2: cámara =====
-            contParams.addView(tituloSeccion("CÁMARA"))
+        }
 
-            filaOpciones(
+        fun mostrarAjustesCamara() {
+            if (MotorCamara.estaGrabando) {
+                Toast.makeText(
+                    activity,
+                    "Detén la grabación antes de cambiar la cámara",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return
+            }
+
+            val contenedor = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(24, 8, 24, 8)
+            }
+
+            fun textoValor(valor: String): TextView = TextView(activity).apply {
+                text = valor
+                setTextColor(Color.parseColor("#9ADCFF"))
+                textSize = 12f
+                typeface = Typeface.MONOSPACE
+                setPadding(0, 4, 0, 12)
+            }
+
+            fun filaTitulo(texto: String): TextView = TextView(activity).apply {
+                text = texto
+                setTextColor(Color.WHITE)
+                textSize = 13f
+                setPadding(0, 12, 0, 4)
+            }
+
+            fun elegir(
+                etiqueta: String,
+                opciones: Array<String>,
+                seleccionado: Int,
+                onSeleccion: (Int) -> Unit
+            ) {
+                val fila = LinearLayout(activity).apply {
+                    orientation = LinearLayout.VERTICAL
+                }
+                fila.addView(filaTitulo(etiqueta))
+                fila.addView(textoValor(opciones[seleccionado]))
+                val boton = Button(activity).apply {
+                    text = "Cambiar"
+                    setOnClickListener {
+                        AlertDialog.Builder(activity)
+                            .setTitle(etiqueta)
+                            .setSingleChoiceItems(opciones, seleccionado) { dialog, which ->
+                                onSeleccion(which)
+                                dialog.dismiss()
+                            }
+                            .show()
+                    }
+                }
+                fila.addView(boton)
+                contenedor.addView(fila)
+            }
+
+            elegir(
                 "Resolución",
-                ConfigCamara.resoluciones.map { it.etiqueta },
+                ConfigCamara.resoluciones.map { it.etiqueta }.toTypedArray(),
                 ConfigCamara.resoluciones.indexOf(ConfigCamara.resolucion)
             ) { i ->
                 ConfigCamara.resolucion = ConfigCamara.resoluciones[i]
                 Toast.makeText(activity, "Reiniciando cámara…", Toast.LENGTH_SHORT).show()
                 onReiniciarCamara()
-                pintarPanelParams()
             }
 
-            filaOpciones(
+            elegir(
                 "FPS",
-                listOf("Auto", "30", "60"),
+                arrayOf("Auto", "30", "60"),
                 when (ConfigCamara.fps) { null -> 0; 30 -> 1; 60 -> 2; else -> 0 }
             ) { i ->
                 ConfigCamara.fps = when (i) { 1 -> 30; 2 -> 60; else -> null }
                 onReiniciarCamara()
-                pintarPanelParams()
             }
 
-            filaOpciones(
+            elegir(
                 "Interpolación",
-                listOf("Lineal", "Cúbica"),
+                arrayOf("Lineal", "Cúbica"),
                 if (ConfigCamara.interpolacion == org.opencv.imgproc.Imgproc.INTER_CUBIC) 1 else 0
             ) { i ->
                 ConfigCamara.interpolacion =
                     if (i == 1) org.opencv.imgproc.Imgproc.INTER_CUBIC
                     else org.opencv.imgproc.Imgproc.INTER_LINEAR
-                pintarPanelParams()
             }
 
-            filaSiNo("Espejar cámara frontal", ConfigCamara.espejarFrontal) {
-                ConfigCamara.espejarFrontal = it
-                pintarPanelParams()
+            elegir(
+                "Espejar cámara frontal",
+                arrayOf("Sí", "No"),
+                if (ConfigCamara.espejarFrontal) 0 else 1
+            ) { i ->
+                ConfigCamara.espejarFrontal = i == 0
             }
 
-            filaSiNo("Mostrar FPS en pantalla", ConfigCamara.mostrarFps) {
-                ConfigCamara.mostrarFps = it
-                contadorFps.visibility = if (it) View.VISIBLE else View.GONE
-                pintarPanelParams()
+            elegir(
+                "Mostrar FPS en pantalla",
+                arrayOf("No", "Sí"),
+                if (ConfigCamara.mostrarFps) 1 else 0
+            ) { i ->
+                ConfigCamara.mostrarFps = i == 1
+                contadorFps.visibility = if (ConfigCamara.mostrarFps) View.VISIBLE else View.GONE
             }
 
-            val nota = TextView(activity).apply {
-                text = "Los ajustes se guardan automáticamente."
-                setTextColor(Color.parseColor("#7A7796"))
-                textSize = 11f
-                setPadding(0, 20, 0, 4)
+            val scroll = MaxHeightScrollView(activity).apply {
+                maxHeight = (activity.resources.displayMetrics.heightPixels * 0.65f).toInt()
+                addView(contenedor)
             }
-            contParams.addView(nota)
+
+            AlertDialog.Builder(activity)
+                .setTitle("📷 Ajustes de cámara")
+                .setView(scroll)
+                .setPositiveButton("Cerrar", null)
+                .show()
         }
 
         fun pintar() {
@@ -403,10 +510,6 @@ object OverlayUI {
 
         barra.addView(botonGrabacion)
         barra.addView(boton("📸", 24f) { onCapturar() })
-        barra.addView(boton("🐞", 24f) {
-            panelLog.visibility = if (panelLog.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-            if (panelLog.visibility == View.VISIBLE) panelLog.bringToFront()
-        })
         barra.addView(boton("🔄", 24f) { onCambiarCamara() })
         barra.addView(boton("▶", 24f) {
             idx = (idx + 1) % filtros.size
