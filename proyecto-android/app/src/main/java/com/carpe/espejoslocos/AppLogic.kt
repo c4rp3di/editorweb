@@ -177,8 +177,38 @@ object AppLogic {
                         MotorCamara.detenerGrabacion()
                     } else {
                         MotorCamara.iniciarGrabacion(
-                            activity
+                            activity,
+                            ConfigCamara.grabarConAudio
                         )
+                    }
+                },
+                onCambiarAudio = { activar ->
+                    if (MotorCamara.estaGrabando) {
+                        Toast.makeText(
+                            activity,
+                            "Detén la grabación antes de cambiar el audio",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else if (!activar) {
+                        ConfigCamara.grabarConAudio = false
+                    } else {
+                        activity.solicitarPermisoAudio { concedido ->
+                            if (concedido) {
+                                ConfigCamara.grabarConAudio = true
+                                Toast.makeText(
+                                    activity,
+                                    "El próximo vídeo incluirá el micrófono",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                ConfigCamara.grabarConAudio = false
+                                Toast.makeText(
+                                    activity,
+                                    "Sin permiso de micrófono: se grabará sin audio",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
                     }
                 }
             )
