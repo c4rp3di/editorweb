@@ -38,10 +38,15 @@ object ChunkRunner {
      */
     @Volatile var backend: Backend = Backend.CPU
 
+    /** kc_prep/kc_final (pesos pequeños) en GPU aunque el resto vaya en CPU: en CPU kc_prep pasó de 6,7 GB al compilar. */
+    @Volatile var smallGraphsOnGpu: Boolean = true
+    private val SMALL = setOf("kc_prep.tflite", "kc_final.tflite")
+    private fun useGpu(name: String) = backend == Backend.GPU || (smallGraphsOnGpu && name in SMALL)
+
     private val cpuThreads: Int get() = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
 
     private fun compile(environment: Environment, name: String, directory: File): CompiledModel {
-        val options = if (backend == Backend.GPU) {
+        val options = if (useGpu(name)) {
             CompiledModel.Options(Accelerator.GPU).apply {
                 gpuOptions = CompiledModel.GpuOptions(
                     precision = CompiledModel.GpuOptions.Precision.FP32
@@ -53,7 +58,8 @@ object ChunkRunner {
             }
         }
         val t0 = System.nanoTime()
-        val label = if (backend == Backend.GPU) "GPU" else "CPU×$cpuThreads"
+        DebugLog.log("GPU", "$name tamaño archivo: ${File(directory, name).length() / 1_000_000} MB")
+        val label = if (useGpu(name)) "GPU" else "CPU×$cpuThreads"
         DebugLog.log("GPU", "compilando $name [$label] · ${DebugLog.mem()}")
         System.gc()
         val model = watched("compilando $name") {
