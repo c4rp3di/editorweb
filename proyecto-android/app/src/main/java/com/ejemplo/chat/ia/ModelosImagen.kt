@@ -46,7 +46,7 @@ class ModelosImagen(private val context: Context) {
                 nombre = "FLUX.2 [klein] 4B",
                 descripcion = "Texto→imagen local con LiteRT GPU. 4 pasos a 256×256. El paquete se descarga de una sola fuente coherente e incluye los datos host necesarios para el runtime.",
                 repo = "ZawShiShawn/gestura-flux2-klein-4b-litert-tflite",
-                tamanoGb = 7.0f,
+                tamanoGb = 8.7f,
                 archivos = fluxCore,
                 manifiestoRemoto = true
             )
@@ -132,6 +132,7 @@ class ModelosImagen(private val context: Context) {
                 if (item.optString("type") != "file") continue
                 val path = item.optString("path")
                 val keep = path.startsWith("host/") ||
+                    path.startsWith("weights/") ||
                     path.startsWith("tokenizer/") ||
                     path in m.archivos ||
                     m.archivos.any { core ->
