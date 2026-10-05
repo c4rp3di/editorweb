@@ -6,6 +6,7 @@ import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.sin
 import kotlin.math.sqrt
+import kotlin.math.roundToInt
 
 /**
  * Deterministic host-side preparation for the FLUX.2 klein 4B T2I graph chain.
@@ -68,36 +69,21 @@ class Flux2HostPrep(private val root: File) {
         )
     }
 
-    /** Load final 3072-d projected timestep embeddings from the coherent host package. */
-    fun readTimestepEmbeddings(): Array<FloatArray>? {
-        val file = Flux2Files.findTimeEmbedding(root) ?: return null
-        val all = if (file.name.contains("bf16", ignoreCase = true)) {
-            Flux2Binary.readBFloat16(file)
-        } else {
-            Flux2Binary.readFloat32(file)
-        }
-        require(all.size >= 4 * 3072) { "temb host inválido: ${file.name} (${all.size} elementos)" }
-        return Array(4) { all.copyOfRange(it * 3072, (it + 1) * 3072) }
+    /** The Gestura host asset is a BF16 lookup table of 3072-wide embeddings.
+     * The runtime contract uses the scheduler timestep in the usual 0..1000
+     * timestep domain; the table is indexed by the integer timestep.
+     */
+    fun readTimestepEmbedding(timestep: Float): FloatArray {
+        val file = File(root, "host/time_guidance_embed_bf16.bin")
+        require(file.isFile) { "Falta ${file.path}" }
+        val bytesPerRow = 3072L * 2L
+        val rows = file.length() / bytesPerRow
+        require(rows > 1000) { "Tabla time/guidance demasiado corta: $rows filas" }
+        val row = timestep.coerceIn(0f, 1000f).roundToInt()
+        val all = Flux2Binary.readBFloat16Range(file, row * 3072, 3072)
+        require(all.size == 3072) { "Embedding temporal inválido" }
+        return all
     }
-
-    /** Load the learned VAE per-channel affine from the host package. */
-    fun readVaeBn(): Pair<FloatArray, FloatArray>? {
-        val meanFile = Flux2Files.findBn(root, "mean") ?: return null
-        val scaleFile = Flux2Files.findBn(root, "std") ?: Flux2Files.findBn(root, "var") ?: return null
-        val mean = readHostVector(meanFile)
-        var scale = readHostVector(scaleFile)
-        if (scaleFile.name.contains("var", ignoreCase = true)) {
-            scale = FloatArray(scale.size) { kotlin.math.sqrt(scale[it] + 1.0e-4f) }
-        }
-        require(mean.size == IMAGE_PACKED_CHANNELS && scale.size == IMAGE_PACKED_CHANNELS) {
-            "Estadísticas BN de VAE inválidas: mean=${mean.size}, scale=${scale.size}"
-        }
-        return mean to scale
-    }
-
-    private fun readHostVector(file: File): FloatArray =
-        if (file.name.contains("bf16", ignoreCase = true)) Flux2Binary.readBFloat16(file)
-        else Flux2Binary.readFloat32(file)
 
     fun buildPromptEmbedsFromTaps(taps: List<FloatArray>): FloatArray {
         require(taps.size == 3) { "Se esperan 3 taps del encoder Qwen" }
