@@ -21,6 +21,25 @@ fi
 command -v git >/dev/null 2>&1 || fail "git no está disponible en el runner."
 command -v cmake >/dev/null 2>&1 || fail "cmake no está disponible en el runner."
 
+# stable-diffusion.cpp con Vulkan necesita herramientas de compilación de shaders
+# y los headers de SPIR-V en el runner Linux. Se instalan aquí, no se copian al repo.
+# El proyecto oficial usa libvulkan-dev + glslc + spirv-headers; añadimos
+# glslang-tools porque las versiones actuales de ggml-vulkan también pueden
+# resolver glslangValidator durante la configuración.
+if command -v apt-get >/dev/null 2>&1; then
+    log "Instalando dependencias Vulkan/SPIR-V del runner"
+    sudo apt-get update
+    sudo apt-get install -y --no-install-recommends \
+        build-essential \
+        libvulkan-dev \
+        glslc \
+        glslang-tools \
+        spirv-headers
+fi
+
+command -v glslc >/dev/null 2>&1 || fail "No se encontró glslc después de instalar las dependencias Vulkan."
+command -v glslangValidator >/dev/null 2>&1 || fail "No se encontró glslangValidator después de instalar glslang-tools."
+
 SDKMANAGER="$(command -v sdkmanager || true)"
 if [[ -z "$SDKMANAGER" ]]; then
     for candidate in \
@@ -55,14 +74,12 @@ mkdir -p "$TOOLCHAIN_DIR" "$BUILD_DIR" "$JNI_DIR"
 
 clone_repo() {
     local url="$1" dest="$2" ref="$3"
-    local marker="$dest/.chatpro-ref"
-    if [[ ! -f "$dest/CMakeLists.txt" || ! -f "$marker" || "$(cat "$marker" 2>/dev/null || true)" != "$ref" ]]; then
+    if [[ ! -f "$dest/CMakeLists.txt" ]]; then
         rm -rf "$dest"
         log "Descargando $url @ $ref"
         git clone --depth 1 --recurse-submodules --shallow-submodules --branch "$ref" "$url" "$dest"
-        printf '%s\n' "$ref" > "$marker"
     else
-        log "Reutilizando $dest @ $ref"
+        log "Reutilizando $dest"
     fi
 }
 
@@ -74,12 +91,8 @@ build_one() {
     shift 4
     mkdir -p "$build"
     log "Configurando $name"
-    local generator_args=()
-    if command -v ninja >/dev/null 2>&1; then
-        generator_args=(-G Ninja)
-    fi
     cmake -S "$cmake_list" -B "$build" \
-        "${generator_args[@]}" \
+        -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
         -DANDROID_ABI=arm64-v8a \
