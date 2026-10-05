@@ -392,8 +392,8 @@ class ChatActivity : AppCompatActivity() {
                             fluxGenerator?.close()
                             fluxGenerator = null
                             btnModelo.text = "Texto"
-                            btnModeloImagen.text = "▣"
-                            btnModeloImagen.contentDescription = "Modelo de imagen activo: ${m.nombre}"
+                            btnModeloImagen.text = "Imagen"
+                            btnModeloImagen.contentDescription = "Modelo de imagen activo: ${m.nombre}. Pulsa para cambiar o usar otro modelo"
                             btnImagen.visibility = View.GONE
                             tvEstado.text = "Imagen local · ${m.nombre} · lista"
                             actualizarBotonEnvio()
@@ -408,8 +408,11 @@ class ChatActivity : AppCompatActivity() {
                                         tvEstado.text = "Imagen · $p% · $archivo"
                                     }
                                     progreso.visibility = View.GONE
-                                    tvEstado.text = "Descarga completa. Pulsa ▣ para elegir «Usar»."
-                                    Toast.makeText(this@ChatActivity, "${m.nombre} descargado; aún no está seleccionado", Toast.LENGTH_LONG).show()
+                                    tvEstado.text = "Descarga completa. Elige «Usar» para activarlo."
+                                    Toast.makeText(this@ChatActivity, "${m.nombre} descargado. Ahora puedes pulsar «Usar».", Toast.LENGTH_LONG).show()
+                                    // La descarga termina aquí, pero NO activa el modelo.
+                                    // Abrimos el selector para que el usuario tenga el botón «Usar» visible.
+                                    elegirModeloImagen()
                                 } catch (e: Exception) {
                                     progreso.visibility = View.GONE
                                     tvEstado.text = "Error de descarga de imagen"
@@ -430,7 +433,7 @@ class ChatActivity : AppCompatActivity() {
         fluxGenerator?.close()
         fluxGenerator = null
         btnModelo.text = m.nombre
-        btnModeloImagen.text = "▣"
+        btnModeloImagen.text = "Imagen"
         btnModeloImagen.visibility = View.VISIBLE
         btnImagen.visibility = if (m.vision) View.VISIBLE else View.GONE
         btnEnviar.isEnabled = false
