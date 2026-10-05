@@ -208,7 +208,7 @@ class ChatActivity : AppCompatActivity() {
             val id = file.nameWithoutExtension
             val (title, count) = try {
                 val arr = JSONArray(file.readText())
-                val t = if (arr.length() > 0) arr.getJSONObject(0).getString("t").replace(Regex("\s+"), " ").take(34)
+                val t = if (arr.length() > 0) arr.getJSONObject(0).getString("t").replace(Regex("\\s+"), " ").take(34)
                         else "Nueva conversación"
                 t to arr.length()
             } catch (_: Exception) { "Nueva conversación" to 0 }
@@ -555,6 +555,49 @@ class ChatActivity : AppCompatActivity() {
             }
         }
         dialogo.show()
+    }
+
+    private fun confirmarDescarga(e: Entrada) {
+        when (e) {
+            is Entrada.Imagen -> {
+                Toast.makeText(
+                    this,
+                    "Este modelo de imagen todavía no está disponible para descargar: el backend está pendiente de verificación.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            is Entrada.Texto -> {
+                AlertDialog.Builder(this)
+                    .setTitle("Descargar ${e.m.nombre}")
+                    .setMessage("Se descargará manualmente el modelo (${e.m.tamanoMb} MB) y quedará guardado solo en el dispositivo. ¿Continuar?")
+                    .setNegativeButton("Cancelar", null)
+                    .setPositiveButton("Descargar") { _, _ ->
+                        lifecycleScope.launch {
+                            try {
+                                progreso.visibility = View.VISIBLE
+                                progreso.isIndeterminate = false
+                                progreso.progress = 0
+                                tvEstado.text = "Descargando ${e.m.nombre}…"
+                                motor.descargarModelo(e.m) { p ->
+                                    progreso.progress = p
+                                }
+                                progreso.visibility = View.GONE
+                                tvEstado.text = "Descarga verificada localmente · ${e.m.nombre}"
+                                Toast.makeText(this@ChatActivity, "Descarga completada", Toast.LENGTH_SHORT).show()
+                                elegirModelo(e.m.id)
+                            } catch (ce: CancellationException) {
+                                progreso.visibility = View.GONE
+                                throw ce
+                            } catch (ex: Exception) {
+                                progreso.visibility = View.GONE
+                                tvEstado.text = "Error al descargar el modelo"
+                                Toast.makeText(this@ChatActivity, ex.message ?: "No se pudo descargar el modelo", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    .show()
+            }
+        }
     }
 
     private fun usar(e: Entrada) {
