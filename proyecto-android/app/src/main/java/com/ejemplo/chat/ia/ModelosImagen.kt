@@ -4,11 +4,11 @@ import android.content.Context
 import java.io.File
 
 /**
- * Catálogo de modelos de imagen.
+ * Catálogo local de modelos de imagen.
  *
- * Esta capa NO ejecuta inferencia y NO descarga modelos automáticamente.
- * El backend de imagen se conectará cuando haya pasado la prueba nativa
- * correspondiente en el dispositivo objetivo.
+ * El motor nativo (stable-diffusion.cpp + Vulkan) se compila en GitHub Actions.
+ * Los pesos de los modelos NO forman parte del APK y nunca se descargan de
+ * forma automática desde esta clase.
  */
 class ModelosImagen(private val context: Context) {
     data class ModeloImagen(
@@ -26,10 +26,11 @@ class ModelosImagen(private val context: Context) {
         val MODELOS = listOf(
             ModeloImagen(
                 id = "sd-mobile",
-                nombre = "Motor de imagen móvil",
-                descripcion = "Backend local basado en stable-diffusion.cpp. Se incorporará después de verificar una configuración compatible con el Xiaomi 13T Pro.",
+                nombre = "Stable Diffusion móvil",
+                descripcion = "Motor local basado en stable-diffusion.cpp con backend Vulkan. Los pesos se incorporarán como modelos descargables y verificables en una fase posterior.",
                 backend = "stable-diffusion.cpp + Vulkan",
-                estado = Estado.PLANIFICADO
+                estado = Estado.PLANIFICADO,
+                tamanoAprox = "Depende del modelo descargado"
             )
         )
     }
@@ -38,12 +39,17 @@ class ModelosImagen(private val context: Context) {
 
     fun carpeta(m: ModeloImagen): File = File(root, m.id).apply { mkdirs() }
 
-    /** Compatibilidad con futuras implementaciones; no descarga nada. */
-    fun descargado(m: ModeloImagen): Boolean = false
+    /**
+     * Esta versión solo comprueba la presencia de un archivo marcador creado
+     * por la futura capa de descarga/verificación. No descarga nada.
+     */
+    fun descargado(m: ModeloImagen): Boolean = carpeta(m).listFiles()?.any {
+        it.isFile && (it.extension.equals("safetensors", true) || it.extension.equals("gguf", true) || it.extension.equals("ckpt", true))
+    } == true
 
-    fun progreso(m: ModeloImagen): Int = 0
+    fun progreso(m: ModeloImagen): Int = if (descargado(m)) 100 else 0
 
-    fun faltantes(m: ModeloImagen): List<String> = emptyList()
+    fun faltantes(m: ModeloImagen): List<String> = if (descargado(m)) emptyList() else listOf("Pesos del modelo")
 
     fun espacioLibreBytes(): Long = root.usableSpace
 
