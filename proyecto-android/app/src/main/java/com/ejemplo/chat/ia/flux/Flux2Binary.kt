@@ -29,4 +29,19 @@ object Flux2Binary {
             else -> readFloat32(f)
         }
     }
+    fun readBFloat16Range(file: File, elementOffset: Int, count: Int): FloatArray {
+        require(elementOffset >= 0 && count >= 0)
+        val out = FloatArray(count)
+        java.io.RandomAccessFile(file, "r").use { raf ->
+            raf.seek(elementOffset.toLong() * 2L)
+            val b = ByteArray(2)
+            for (i in 0 until count) {
+                raf.readFully(b)
+                val bits = (b[0].toInt() and 0xff) or ((b[1].toInt() and 0xff) shl 8)
+                out[i] = Float.fromBits(bits shl 16)
+            }
+        }
+        return out
+    }
+
 }
