@@ -21,6 +21,7 @@ import androidx.lifecycle.lifecycleScope
 import com.ejemplo.chat.R
 import com.ejemplo.chat.ia.MotorIA
 import com.ejemplo.chat.ia.ModelosImagen
+import com.ejemplo.chat.ia.flux.Flux2KleinGenerator
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +52,8 @@ class ChatActivity : AppCompatActivity() {
     private var imagenRuta: String? = null
     private var generando = false
     private var modeloActual: MotorIA.Modelo? = null
+    private var modeloImagenActual: ModelosImagen.ModeloImagen? = null
+    private var fluxGenerator: Flux2KleinGenerator? = null
     private var sesionId = "actual"
     private var tituloSesion = "Nueva conversación"
 
@@ -88,6 +91,12 @@ class ChatActivity : AppCompatActivity() {
         tvAdjunto.setOnClickListener { quitarImagen() }
         etMensaje.setOnEditorActionListener { _, actionId, _ -> if (actionId != 0) enviar() else false }
         btnEnviar.isEnabled = false
+
+        // Restoring a previous image-model selection is local state only: it never downloads anything.
+        val imageId = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
+            .getString("modelo_imagen", null)
+        modeloImagenActual = ModelosImagen.MODELOS.firstOrNull { it.id == imageId && imagenes.descargado(it) }
+        actualizarBotonEnvio()
 
         cargarSesionActual()
         render(null)
@@ -152,7 +161,7 @@ class ChatActivity : AppCompatActivity() {
 
             val b = MaterialButton(this).apply {
                 text = if (id == sesionId) "●  $title" else "   $title"
-                textAllCaps = false
+                setAllCaps(false)
                 gravity = Gravity.START or Gravity.CENTER_VERTICAL
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
@@ -216,23 +225,39 @@ class ChatActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = if (rol == "u") Gravity.END else Gravity.START
         }
-        val bubble = TextView(this).apply {
-            text = markdownBasico(texto)
-            textSize = 15.5f
-            setTextColor(if (rol == "u") Color.WHITE else resolveTextColor())
-            setPadding(16, 12, 16, 12)
-            setBackgroundResource(if (rol == "u") R.drawable.bg_user else R.drawable.bg_model)
-            maxWidth = (resources.displayMetrics.widthPixels * 0.86f).toInt()
-            textIsSelectable = true
-            setTypeface(Typeface.DEFAULT, Typeface.NORMAL)
+        if (rol == "m" && texto.startsWith("[[IMAGE]]")) {
+            val path = texto.removePrefix("[[IMAGE]]")
+            val image = ImageView(this).apply {
+                setImageURI(Uri.fromFile(File(path)))
+                adjustViewBounds = true
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                maxWidth = (resources.displayMetrics.widthPixels * 0.86f).toInt()
+                setPadding(4, 4, 4, 4)
+                contentDescription = "Imagen generada localmente"
+                setOnClickListener {
+                    Toast.makeText(this@ChatActivity, "Imagen: $path", Toast.LENGTH_SHORT).show()
+                }
+            }
+            fila.addView(image)
+        } else {
+            val bubble = TextView(this).apply {
+                text = markdownBasico(texto)
+                textSize = 15.5f
+                setTextColor(if (rol == "u") Color.WHITE else resolveTextColor())
+                setPadding(16, 12, 16, 12)
+                setBackgroundResource(if (rol == "u") R.drawable.bg_user else R.drawable.bg_model)
+                maxWidth = (resources.displayMetrics.widthPixels * 0.86f).toInt()
+                setTextIsSelectable(true)
+                setTypeface(Typeface.DEFAULT, Typeface.NORMAL)
+            }
+            fila.addView(bubble)
         }
-        fila.addView(bubble)
 
         if (rol == "m" && !streaming) {
             val actions = LinearLayout(this).apply { gravity = Gravity.START }
             val copy = MaterialButton(this).apply {
                 text = "Copiar"
-                textAllCaps = false
+                setAllCaps(false)
                 minHeight = 34
                 setOnClickListener { copiar(texto) }
             }
@@ -240,7 +265,7 @@ class ChatActivity : AppCompatActivity() {
             if (index == mensajes.lastIndex) {
                 val regen = MaterialButton(this).apply {
                         text = "Regenerar"
-                    textAllCaps = false
+                    setAllCaps(false)
                     minHeight = 34
                     setOnClickListener { regenerarUltima() }
                 }
@@ -335,10 +360,12 @@ class ChatActivity : AppCompatActivity() {
     }
 
     private fun elegirModeloImagen() {
+        if (generando) return
         val items = ModelosImagen.MODELOS.map { m ->
             val listo = imagenes.descargado(m)
-            "${m.nombre} · ${m.resolucion}\n" +
-                if (listo) "✓ disponible" else "~${m.tamanoGb} GB · descarga manual"
+            val activo = modeloImagenActual?.id == m.id
+            "${if (activo) "● " else ""}${m.nombre} · ${m.resolucion}\n" +
+                if (listo) "✓ listo para usar" else "~${m.tamanoGb} GB · descarga manual"
         }.toTypedArray()
 
         AlertDialog.Builder(this)
@@ -346,28 +373,46 @@ class ChatActivity : AppCompatActivity() {
             .setItems(items) { _, which ->
                 val m = ModelosImagen.MODELOS[which]
                 val listo = imagenes.descargado(m)
-                val estado = if (listo) "✓ descargado" else "${m.tamanoGb} GB · descarga manual"
+                val detalle = if (listo) {
+                    "✓ Paquete descargado y validado.\n\nPulsa «Usar» para activar texto→imagen."
+                } else {
+                    "≈ ${m.tamanoGb} GB. La descarga es manual y puede reanudarse."
+                }
                 AlertDialog.Builder(this)
                     .setTitle(m.nombre)
-                    .setMessage("${m.descripcion}\n\n$estado\n\nLa app nunca descarga modelos automáticamente.")
+                    .setMessage("${m.descripcion}\n\n$detalle\n\nLa app nunca descarga modelos automáticamente.")
                     .setNegativeButton("Cerrar", null)
                     .setPositiveButton(if (listo) "Usar" else "Descargar") { _, _ ->
                         if (listo) {
-                            Toast.makeText(this, "${m.nombre} seleccionado para imagen", Toast.LENGTH_SHORT).show()
+                            modeloImagenActual = m
+                            getSharedPreferences("chat_local", Context.MODE_PRIVATE)
+                                .edit().putString("modelo_imagen", m.id).apply()
+                            modeloActual = null
+                            motor.liberar()
+                            fluxGenerator?.close()
+                            fluxGenerator = null
+                            btnModelo.text = "Texto"
+                            btnModeloImagen.text = "▣"
+                            btnModeloImagen.contentDescription = "Modelo de imagen activo: ${m.nombre}"
+                            btnImagen.visibility = View.GONE
+                            tvEstado.text = "Imagen local · ${m.nombre} · lista"
+                            actualizarBotonEnvio()
                         } else {
                             lifecycleScope.launch {
                                 try {
                                     progreso.visibility = View.VISIBLE
                                     progreso.isIndeterminate = false
+                                    tvEstado.text = "Imagen · preparando descarga…"
                                     imagenes.descargar(m) { p, archivo ->
                                         progreso.progress = p
                                         tvEstado.text = "Imagen · $p% · $archivo"
                                     }
                                     progreso.visibility = View.GONE
-                                    tvEstado.text = "Modelo de imagen descargado"
-                                    Toast.makeText(this@ChatActivity, "${m.nombre} descargado", Toast.LENGTH_LONG).show()
+                                    tvEstado.text = "Descarga completa. Pulsa ▣ para elegir «Usar»."
+                                    Toast.makeText(this@ChatActivity, "${m.nombre} descargado; aún no está seleccionado", Toast.LENGTH_LONG).show()
                                 } catch (e: Exception) {
                                     progreso.visibility = View.GONE
+                                    tvEstado.text = "Error de descarga de imagen"
                                     Toast.makeText(this@ChatActivity, e.message ?: "Error de descarga", Toast.LENGTH_LONG).show()
                                 }
                             }
@@ -380,7 +425,12 @@ class ChatActivity : AppCompatActivity() {
 
     private fun preparar(m: MotorIA.Modelo) {
         modeloActual = m
+        modeloImagenActual = null
+        getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo_imagen").apply()
+        fluxGenerator?.close()
+        fluxGenerator = null
         btnModelo.text = m.nombre
+        btnModeloImagen.text = "▣"
         btnModeloImagen.visibility = View.VISIBLE
         btnImagen.visibility = if (m.vision) View.VISIBLE else View.GONE
         btnEnviar.isEnabled = false
@@ -398,7 +448,7 @@ class ChatActivity : AppCompatActivity() {
                 motor.inicializar(m, mensajes.toList())
                 progreso.visibility = View.GONE
                 tvEstado.text = "Listo · privado y sin conexión"
-                btnEnviar.isEnabled = true
+                actualizarBotonEnvio()
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 progreso.visibility = View.GONE
@@ -451,7 +501,26 @@ class ChatActivity : AppCompatActivity() {
     private fun enviar(): Boolean {
         val texto = etMensaje.text.toString().trim()
         val ruta = imagenRuta
-        if ((texto.isEmpty() && ruta == null) || generando || modeloActual == null) return false
+        if ((texto.isEmpty() && ruta == null) || generando) return false
+
+        if (modeloImagenActual != null) {
+            if (ruta != null) {
+                Toast.makeText(this, "Este modo genera texto→imagen. Quita el adjunto para continuar.", Toast.LENGTH_LONG).show()
+                return false
+            }
+            if (!imagenes.descargado(modeloImagenActual!!)) {
+                Toast.makeText(this, "El modelo de imagen ya no está disponible. Descárgalo manualmente desde ▣.", Toast.LENGTH_LONG).show()
+                return false
+            }
+            val prompt = if (texto.isEmpty()) "Una imagen fotográfica detallada" else texto
+            etMensaje.setText("")
+            mensajes.add("u" to prompt)
+            render(null)
+            generarImagenDesde(prompt)
+            return true
+        }
+
+        if (modeloActual == null) return false
         val prompt = if (texto.isEmpty()) "Describe esta imagen." else texto
         etMensaje.setText("")
         quitarImagen()
@@ -459,6 +528,51 @@ class ChatActivity : AppCompatActivity() {
         render(null)
         generarDesde(prompt, ruta, guardar = true)
         return true
+    }
+
+    private fun actualizarBotonEnvio() {
+        btnEnviar.isEnabled = when {
+            generando -> false
+            modeloImagenActual != null -> imagenes.descargado(modeloImagenActual!!)
+            else -> modeloActual != null
+        }
+    }
+
+    private fun generarImagenDesde(prompt: String) {
+        generando = true
+        actualizarBotonEnvio()
+        tvEstado.text = "Generando imagen local…"
+        lifecycleScope.launch {
+            try {
+                val bitmap = withContext(Dispatchers.Default) {
+                    val generator = fluxGenerator ?: Flux2KleinGenerator(this@ChatActivity).also { fluxGenerator = it }
+                    generator.generate(prompt) { estado ->
+                        runOnUiThread { tvEstado.text = "Imagen · $estado" }
+                    }
+                }
+                val file = File(filesDir, "generadas").apply { mkdirs() }
+                    .let { File(it, "flux_${System.currentTimeMillis()}.png") }
+                withContext(Dispatchers.IO) {
+                    java.io.FileOutputStream(file).use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                }
+                mensajes.add("m" to "[[IMAGE]]${file.absolutePath}")
+                guardarSesion()
+                render(null)
+                tvEstado.text = "Imagen generada · ${modeloImagenActual?.nombre ?: "FLUX"}"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val reason = e.message ?: e.javaClass.simpleName
+                mensajes.add("m" to "No se pudo generar la imagen: $reason")
+                guardarSesion()
+                render(null)
+                tvEstado.text = "No se pudo generar la imagen"
+                Toast.makeText(this@ChatActivity, reason, Toast.LENGTH_LONG).show()
+            } finally {
+                generando = false
+                actualizarBotonEnvio()
+            }
+        }
     }
 
     private fun generarDesde(prompt: String, ruta: String?, guardar: Boolean) {
@@ -484,6 +598,7 @@ class ChatActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        fluxGenerator?.close()
         motor.liberar()
         super.onDestroy()
     }
