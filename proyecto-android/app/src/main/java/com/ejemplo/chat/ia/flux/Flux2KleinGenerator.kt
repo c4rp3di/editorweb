@@ -24,7 +24,6 @@ import kotlin.math.sqrt
 class Flux2KleinGenerator(context: Context) : AutoCloseable {
     private val root = File(context.filesDir, "modelos-imagen/${Flux2Files.MODEL_ID}")
     private val environment = Environment.create()
-    private val host = Flux2HostPrep(root)
     private val prefs = context.getSharedPreferences("chat_local", Context.MODE_PRIVATE)
 
     // Estado para cancelar y cerrar de forma segura aunque haya una generación en curso.
@@ -89,6 +88,8 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         fun finished() { done++ }
 
         stage("Preparando prompt (tokenizer y embeddings)")
+        val seqLen = detectTextLength()
+        val host = Flux2HostPrep(root, seqLen)
         val prep = host.prepare(prompt)
         DebugLog.log("FLUX", "prompt listo · ${DebugLog.mem()}")
         var hidden = prep.tokenEmbeddings
@@ -186,6 +187,19 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         onProgress("Imagen lista", 1f)
         DebugLog.log("FLUX", "✔ imagen generada en ${(System.nanoTime() - t0) / 1_000_000_000} s")
         return pixelsToBitmap(pixels)
+    }
+
+    /** Longitud de texto con la que se exportó ke_enc0 (entrada 0 = [1, L, 2560]); cacheada por tamaño de archivo. */
+    private fun detectTextLength(): Int {
+        val key = "flux_text_len_" + File(root, "ke_enc0.tflite").length()
+        val cached = prefs.getInt(key, 0)
+        if (cached > 0) return cached
+        val n = ChunkRunner.inputFloatCount(environment, "ke_enc0.tflite", root, 0)
+        val len = n / Flux2HostPrep.TEXT_HIDDEN
+        require(len > 0 && n % Flux2HostPrep.TEXT_HIDDEN == 0) { "ke_enc0 espera $n floats; no es [1,L,2560]" }
+        DebugLog.log("FLUX", "longitud de texto del modelo: $len tokens")
+        prefs.edit().putInt(key, len).apply()
+        return len
     }
 
     private fun toVaeLatent(packed: FloatArray, bn: Flux2VaeStats.Stats?): FloatArray {
