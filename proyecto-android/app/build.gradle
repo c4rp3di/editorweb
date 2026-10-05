@@ -21,17 +21,28 @@ android {
 
     namespace 'com.ejemplo.chat'
     compileSdk 34
+    ndkVersion '29.0.13113456'
 
     defaultConfig {
         applicationId "com.ejemplo.chat"
-        minSdk 24
+        minSdk 28
         targetSdk 34
         versionCode 1
         versionName "v1.0"
+
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
     }
 
     buildFeatures {
         viewBinding true
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['native/jniLibs']
+        }
     }
 
     compileOptions {
@@ -57,3 +68,22 @@ dependencies {
     implementation 'com.google.ai.edge.litertlm:litertlm-android:0.16.1'
     // [DEPENDENCIAS:FUNCIONALIDADES]
 }
+
+tasks.register('prepareNativeEngines') {
+    group = 'chatpro'
+    description = 'Descarga y compila llama.cpp + stable-diffusion.cpp durante el build de Android.'
+    doLast {
+        if ((System.getenv('CHATPRO_SKIP_NATIVE') ?: '0') == '1') {
+            logger.lifecycle('Chat Pro: CHATPRO_SKIP_NATIVE=1; se omite la preparación nativa.')
+            return
+        }
+        exec {
+            commandLine 'bash', file('native/prepare_native_engines.sh').absolutePath
+        }
+    }
+}
+
+tasks.named('preBuild') {
+    dependsOn(tasks.named('prepareNativeEngines'))
+}
+
