@@ -79,7 +79,9 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         val total = 3 + 4 * 8 + 1
         var done = 0
         ChunkRunner.backend = if (prefs.getBoolean("flux_gpu", false)) ChunkRunner.Backend.GPU else ChunkRunner.Backend.CPU
-        ChunkRunner.smallGraphsOnGpu = prefs.getBoolean("flux_gpu_small", false)
+        ChunkRunner.smallGraphsOnGpu = prefs.getBoolean("flux_gpu_small", true)
+        if (ChunkRunner.backend == ChunkRunner.Backend.CPU && !ChunkRunner.smallGraphsOnGpu)
+            DebugLog.log("FLUX", "⚠ kc_prep/kc_final en CPU: ~6,7 GB de RAM al compilar; el sistema puede cerrar la app (mejor kc en GPU)")
         DebugLog.log("FLUX", "motor: ${ChunkRunner.backend} · kc_prep/kc_final en GPU: ${ChunkRunner.smallGraphsOnGpu}")
         val t0 = System.nanoTime()
         fun stage(text: String) {
