@@ -2,6 +2,7 @@ package com.ejemplo.chat.ia
 
 import android.content.Context
 import com.ejemplo.chat.ia.flux.Flux2Files
+import com.ejemplo.chat.ia.flux.Flux2VaeStats
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.currentCoroutineContext
@@ -87,6 +88,8 @@ class ModelosImagen(private val context: Context) {
 
     fun espacioLibreBytes(): Long = root.usableSpace
 
+    fun estadisticasVae(m: ModeloImagen): Boolean = Flux2VaeStats.isPresent(carpeta(m))
+
     suspend fun descargar(m: ModeloImagen, onProgreso: (Int, String) -> Unit) {
         withContext(Dispatchers.IO) {
             val files = if (m.manifiestoRemoto) resolveRemoteManifest(m) else m.archivos
@@ -94,24 +97,37 @@ class ModelosImagen(private val context: Context) {
                 val f = archivo(m, rel)
                 !f.isFile || f.length() < minimumBytes(rel)
             }
-            if (pending.isEmpty()) {
+            val faltanStats = m.manifiestoRemoto && !Flux2VaeStats.isPresent(carpeta(m))
+            if (pending.isEmpty() && !faltanStats) {
                 withContext(Dispatchers.Main) { onProgreso(100, "Completado") }
                 return@withContext
             }
 
-            val approximateBytes = (m.tamanoGb * 1_000_000_000L).toLong()
-            if (root.usableSpace < approximateBytes + 256L * 1024 * 1024) {
-                error("Espacio insuficiente. Deja al menos ${(m.tamanoGb + 0.3f)} GB libres.")
-            }
-
-            pending.forEachIndexed { index, rel ->
-                ensureActive()
-                downloadOne(m, rel) { local ->
-                    val global = ((index * 100L + local) / pending.size).toInt().coerceIn(0, 100)
-                    withContext(Dispatchers.Main) { onProgreso(global, rel) }
+            if (pending.isNotEmpty()) {
+                val approximateBytes = (m.tamanoGb * 1_000_000_000L).toLong()
+                if (root.usableSpace < approximateBytes + 256L * 1024 * 1024) {
+                    error("Espacio insuficiente. Deja al menos ${(m.tamanoGb + 0.3f)} GB libres.")
+                }
+                pending.forEachIndexed { index, rel ->
+                    ensureActive()
+                    downloadOne(m, rel) { local ->
+                        val global = ((index * 100L + local) / pending.size).toInt().coerceIn(0, 100)
+                        withContext(Dispatchers.Main) { onProgreso(global, rel) }
+                    }
                 }
             }
             if (m.manifiestoRemoto) writeManifest(m, files)
+
+            if (faltanStats) {
+                withContext(Dispatchers.Main) { onProgreso(99, "estadísticas del VAE") }
+                try {
+                    Flux2VaeStats.download(carpeta(m))
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // No bloquea: al pulsar «Usar» la app ofrece reintentarlo.
+                }
+            }
             withContext(Dispatchers.Main) { onProgreso(100, "Completado") }
         }
     }
