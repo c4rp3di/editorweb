@@ -97,6 +97,21 @@ class ChatActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnSidebar).setOnClickListener { drawer.openDrawer(GravityCompat.START) }
         findViewById<MaterialButton>(R.id.btnCerrarSidebar).setOnClickListener { drawer.closeDrawer(GravityCompat.START) }
         findViewById<MaterialButton>(R.id.btnNuevaSidebar).setOnClickListener { nueva() }
+        val btnMotor = findViewById<MaterialButton>(R.id.btnMotorImagen)
+        btnMotor.text = textoMotor()
+        btnMotor.setOnClickListener {
+            if (generando) return@setOnClickListener
+            val gpu = !usarGpu()
+            getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putBoolean("flux_gpu", gpu).apply()
+            btnMotor.text = textoMotor()
+            DebugLog.log("UI", "Motor de imagen: ${if (gpu) "GPU" else "CPU"}")
+            Toast.makeText(
+                this,
+                if (gpu) "GPU: más rápida, pero en algunos móviles (Xiaomi) el sistema cierra la app por memoria de GPU."
+                else "CPU: más lenta pero estable.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
         findViewById<MaterialButton>(R.id.btnDepuracion).setOnClickListener {
             drawer.closeDrawer(GravityCompat.START)
             mostrarDepuracion()
@@ -256,6 +271,12 @@ class ChatActivity : AppCompatActivity() {
     }
 
     private fun resolveTextColor(): Int = if ((resources.configuration.uiMode and 0x30) == 0x20) Color.WHITE else Color.rgb(24,24,27)
+
+    private fun usarGpu() =
+        getSharedPreferences("chat_local", Context.MODE_PRIVATE).getBoolean("flux_gpu", false)
+
+    private fun textoMotor() =
+        if (usarGpu()) "⚙  Motor de imagen: GPU (rápido, puede cerrarse)" else "⚙  Motor de imagen: CPU (estable)"
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
