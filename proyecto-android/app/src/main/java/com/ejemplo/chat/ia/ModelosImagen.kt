@@ -29,7 +29,7 @@ class ModelosImagen(private val context: Context) {
                 nombre = "Stable Diffusion móvil",
                 descripcion = "Motor local basado en stable-diffusion.cpp con backend Vulkan. Los pesos se incorporarán como modelos descargables y verificables en una fase posterior.",
                 backend = "stable-diffusion.cpp + Vulkan",
-                estado = Estado.PLANIFICADO,
+                estado = Estado.LISTO,
                 tamanoAprox = "Depende del modelo descargado"
             )
         )
