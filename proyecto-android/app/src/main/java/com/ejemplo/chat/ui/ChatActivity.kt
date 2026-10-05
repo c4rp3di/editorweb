@@ -22,6 +22,7 @@ import com.ejemplo.chat.R
 import com.ejemplo.chat.ia.MotorIA
 import com.ejemplo.chat.ia.ModelosImagen
 import com.ejemplo.chat.ia.flux.Flux2KleinGenerator
+import com.ejemplo.chat.ia.flux.Flux2VaeStats
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -402,8 +403,36 @@ class ChatActivity : AppCompatActivity() {
                 getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("modelo", e.m.id).apply()
                 preparar(e.m)
             }
-            is Entrada.Imagen -> activarModeloImagen(e.m)
+            is Entrada.Imagen ->
+                if (imagenes.estadisticasVae(e.m)) activarModeloImagen(e.m) else ofrecerEstadisticasVae(e.m)
         }
+    }
+
+    /** Descarga mínima (~KB) que solo se hace con confirmación explícita. */
+    private fun ofrecerEstadisticasVae(m: ModelosImagen.ModeloImagen) {
+        AlertDialog.Builder(this)
+            .setTitle("Falta un dato del VAE")
+            .setMessage("Para que los colores salgan bien hace falta una descarga muy pequeña (unos KB) con las estadísticas del VAE. Solo se descarga si la confirmas.")
+            .setNegativeButton("Cancelar", null)
+            .setNeutralButton("Usar sin él") { _, _ -> activarModeloImagen(m) }
+            .setPositiveButton("Descargar y usar") { _, _ ->
+                lifecycleScope.launch {
+                    try {
+                        tvEstado.text = "Descargando estadísticas del VAE…"
+                        withContext(Dispatchers.IO) { Flux2VaeStats.download(imagenes.carpeta(m)) }
+                        activarModeloImagen(m)
+                    } catch (ex: CancellationException) {
+                        throw ex
+                    } catch (ex: Exception) {
+                        tvEstado.text = "No se pudieron descargar las estadísticas del VAE"
+                        Toast.makeText(
+                            this@ChatActivity,
+                            "${ex.message ?: ex.javaClass.simpleName}. Puedes usar el modelo sin ellas (colores aproximados).",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }.show()
     }
 
     private fun confirmarDescarga(e: Entrada) {
@@ -594,7 +623,9 @@ class ChatActivity : AppCompatActivity() {
                 mensajes.add("m" to "[[IMAGE]]${file.absolutePath}")
                 guardarSesion()
                 render(null)
-                tvEstado.text = "Imagen generada · ${modeloImagenActual?.nombre ?: "FLUX"}"
+                val aviso = fluxGenerator?.lastWarning
+                tvEstado.text = "Imagen generada · ${modeloImagenActual?.nombre ?: "FLUX"}" +
+                    (if (aviso != null) " · $aviso" else "")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
