@@ -1,12 +1,14 @@
 # Chat Pro — plan de inferencia nativa
 
 ## 1. Texto
+Estado actual: capa de modelo GGUF + verificación SHA-256 + contrato JNI preparados; llama.cpp nativo todavía no se marca como disponible.
+
 Objetivo: sustituir progresivamente el motor LiteRT por una ruta basada en llama.cpp.
 
 Modelo objetivo de la primera prueba: `DeepSeek-R1-Distill-Qwen-1.5B Q4_K_M` en GGUF.
 
 Secuencia obligatoria antes de integrarlo en la UI:
-1. Compilar `llama.cpp` para `arm64-v8a`.
+1. Incorporar el árbol real de `llama.cpp` y compilarlo para `arm64-v8a`.
 2. Ejecutar prueba CPU con el GGUF.
 3. Ejecutar prueba Vulkan y comprobar que se detecta el Immortalis-G715.
 4. Medir tokens/s, memoria y estabilidad.
