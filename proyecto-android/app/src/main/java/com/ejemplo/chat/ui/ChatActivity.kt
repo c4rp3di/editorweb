@@ -22,8 +22,7 @@ import com.ejemplo.chat.R
 import com.ejemplo.chat.ia.DebugLog
 import com.ejemplo.chat.ia.MotorIA
 import com.ejemplo.chat.ia.ModelosImagen
-import com.ejemplo.chat.ia.flux.Flux2KleinGenerator
-import com.ejemplo.chat.ia.flux.Flux2VaeStats
+import android.content.Intent
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +34,9 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 
 class ChatActivity : AppCompatActivity() {
@@ -57,7 +59,6 @@ class ChatActivity : AppCompatActivity() {
     private var generando = false
     private var modeloActual: MotorIA.Modelo? = null
     private var modeloImagenActual: ModelosImagen.ModeloImagen? = null
-    private var fluxGenerator: Flux2KleinGenerator? = null
     private var sesionId = "actual"
 
     // Caja de progreso que se muestra bajo el prompt mientras se genera una imagen.
@@ -98,20 +99,12 @@ class ChatActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnCerrarSidebar).setOnClickListener { drawer.closeDrawer(GravityCompat.START) }
         findViewById<MaterialButton>(R.id.btnNuevaSidebar).setOnClickListener { nueva() }
         val btnMotor = findViewById<MaterialButton>(R.id.btnMotorImagen)
-        btnMotor.text = textoMotor()
+        btnMotor.text = "🧪  Motor de imagen: pendiente de verificación"
         btnMotor.setOnClickListener {
-            if (generando) return@setOnClickListener
-            val prefs = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
-            // Cicla entre los 3 modos: CPU puro -> CPU + kc en GPU (recomendado) -> GPU -> CPU puro.
-            val (gpu, gpuKc, msg) = when {
-                usarGpu() -> Triple(false, false, "CPU puro: en este móvil kc_prep consume ~6,7 GB al compilar y el sistema cierra la app. Modo no recomendado.")
-                usarGpuKc() -> Triple(true, true, "GPU: más rápida, pero en algunos móviles (Xiaomi) el sistema cierra la app por memoria de GPU (>1,5 GB).")
-                else -> Triple(false, true, "CPU + kc en GPU: recomendado para este móvil. Solo ~185 MB de GPU.")
-            }
-            prefs.edit().putBoolean("flux_gpu", gpu).putBoolean("flux_gpu_small", gpuKc).apply()
-            btnMotor.text = textoMotor()
-            DebugLog.log("UI", "Motor de imagen: GPU=$gpu · kc en GPU=$gpuKc")
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "El backend FLUX experimental se ha retirado. La nueva base será stable-diffusion.cpp + Vulkan, pendiente de validación en este dispositivo.", Toast.LENGTH_LONG).show()
+        }
+        findViewById<MaterialButton>(R.id.btnArchivos).setOnClickListener {
+            startActivity(Intent(this, CreatedFilesActivity::class.java))
         }
         findViewById<MaterialButton>(R.id.btnDepuracion).setOnClickListener {
             drawer.closeDrawer(GravityCompat.START)
@@ -187,7 +180,7 @@ class ChatActivity : AppCompatActivity() {
                 mensajes.add(o.getString("r") to o.getString("t"))
             }
         } catch (_: Exception) {}
-        tituloSesion = mensajes.firstOrNull { it.first == "u" }?.second
+        tituloSesion = tituloGuardado(id) ?: mensajes.firstOrNull { it.first == "u" }?.second
             ?.replace(Regex("\\s+"), " ")?.take(34) ?: "Nueva conversación"
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("sesion", id).apply()
     }
@@ -201,23 +194,31 @@ class ChatActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
+    /** Título personalizado guardado en el archivo paralelo <id>.title (null si no existe). */
+    private fun tituloGuardado(id: String): String? =
+        File(carpetaChats(), "$id.title").takeIf { it.exists() }
+            ?.readText()?.trim()?.takeIf { it.isNotEmpty() }
+
     private fun renderSidebar() {
         listaConversaciones.removeAllViews()
         val files = carpetaChats().listFiles()?.filter { it.extension == "json" }?.sortedByDescending { it.lastModified() } ?: emptyList()
+        val fmt = SimpleDateFormat("d MMM · HH:mm", Locale.getDefault())
+        val colorTexto = resolveTextColor()
         files.forEach { file ->
             val id = file.nameWithoutExtension
-            val title = try {
+            val (title, count) = try {
                 val arr = JSONArray(file.readText())
-                if (arr.length() > 0) arr.getJSONObject(0).getString("t").replace(Regex("\\s+"), " ").take(34)
-                else "Nueva conversación"
-            } catch (_: Exception) { "Nueva conversación" }
+                val t = if (arr.length() > 0) arr.getJSONObject(0).getString("t").replace(Regex("\s+"), " ").take(34)
+                        else "Nueva conversación"
+                t to arr.length()
+            } catch (_: Exception) { "Nueva conversación" to 0 }
+            val nombre = tituloGuardado(id) ?: title
 
-            val b = MaterialButton(this).apply {
-            text = if (id == sesionId) "\u25cf $title" else "  $title"
-                setAllCaps(false)
-                gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
+            val fila = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setBackgroundResource(R.drawable.bg_model)
+                setPadding(dp(12), dp(6), dp(4), dp(6))
                 setOnClickListener {
                     if (generando) return@setOnClickListener
                     cargarSesion(id)
@@ -225,8 +226,37 @@ class ChatActivity : AppCompatActivity() {
                     drawer.closeDrawer(GravityCompat.START)
                     if (modeloActual != null) motor.nuevaConversacion(historialTexto())
                 }
+                setOnLongClickListener {
+                    if (generando) return@setOnLongClickListener true
+                    renombrarChat(id, nombre)
+                    true
+                }
             }
-            listaConversaciones.addView(b, LinearLayout.LayoutParams(-1, 48).apply { setMargins(0, 2, 0, 2) })
+            val textos = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            textos.addView(TextView(this).apply {
+                text = (if (id == sesionId) "\u25CF  " else "") + nombre
+                textSize = 14f
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                setTextColor(colorTexto)
+                setTypeface(typeface, if (id == sesionId) Typeface.BOLD else Typeface.NORMAL)
+            }, LinearLayout.LayoutParams(-1, -2))
+            textos.addView(TextView(this).apply {
+                text = "$count mensajes · ${fmt.format(Date(file.lastModified()))}"
+                textSize = 11f
+                setTextColor(Color.GRAY)
+                maxLines = 1
+            }, LinearLayout.LayoutParams(-1, -2))
+            fila.addView(textos, LinearLayout.LayoutParams(0, -2, 1f))
+            fila.addView(TextView(this).apply {
+                text = "✕"
+                textSize = 16f
+                setTextColor(Color.GRAY)
+                gravity = Gravity.CENTER
+                setPadding(dp(10), dp(10), dp(10), dp(10))
+                setOnClickListener { confirmarBorrarChat(id, nombre) }
+            }, LinearLayout.LayoutParams(dp(44), dp(44)))
+            listaConversaciones.addView(fila, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 2, 0, 2) })
         }
         if (files.isEmpty()) {
             val empty = TextView(this).apply {
@@ -237,6 +267,56 @@ class ChatActivity : AppCompatActivity() {
             }
             listaConversaciones.addView(empty)
         }
+    }
+
+    /** Pulsación larga sobre un chat del historial: permite ponerle un nombre personalizado. */
+    private fun renombrarChat(id: String, nombreActual: String) {
+        val input = EditText(this).apply {
+            setText(nombreActual)
+            setSelectAllOnFocus(true)
+            setSingleLine()
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Renombrar conversación")
+            .setView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(20), dp(6), dp(20), 0)
+                addView(input, LinearLayout.LayoutParams(-1, -2))
+            })
+            .setPositiveButton("Guardar") { _, _ ->
+                val nuevo = input.text.toString().trim()
+                val f = File(carpetaChats(), "$id.title")
+                if (nuevo.isEmpty()) f.delete() else f.writeText(nuevo.take(60))
+                if (id == sesionId) tituloSesion = nuevo.ifEmpty { "Nueva conversación" }
+                DebugLog.log("UI", "Conversación renombrada: $id -> ${nuevo.take(40)}")
+                renderSidebar()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    /** La ✕ de cada fila: pide confirmación y, si borra la sesión activa, abre una nueva vacía. */
+    private fun confirmarBorrarChat(id: String, nombre: String) {
+        AlertDialog.Builder(this)
+            .setTitle("Borrar conversación")
+            .setMessage("¿Borrar «$nombre»? Esta acción no se puede deshacer.")
+            .setPositiveButton("Borrar") { _, _ ->
+                archivoSesion(id).delete()
+                File(carpetaChats(), "$id.title").delete()
+                DebugLog.log("UI", "Conversación borrada: $id")
+                if (id == sesionId) {
+                    mensajes.clear()
+                    sesionId = UUID.randomUUID().toString()
+                    tituloSesion = "Nueva conversación"
+                    getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("sesion", sesionId).apply()
+                    motor.nuevaConversacion()
+                    render(null)
+                    tvEstado.text = "Nueva conversación"
+                }
+                renderSidebar()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     private fun render(parcial: String?) {
@@ -266,85 +346,17 @@ class ChatActivity : AppCompatActivity() {
             contenedor.addView(empty)
         }
         mensajes.forEachIndexed { index, pair -> agregarBurbuja(pair.first, pair.second, false, index) }
-        if (imagenEnCurso) agregarCajaProgreso()
         if (parcial != null) agregarBurbuja("m", parcial, true, mensajes.size)
         scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
     }
 
     private fun resolveTextColor(): Int = if ((resources.configuration.uiMode and 0x30) == 0x20) Color.WHITE else Color.rgb(24,24,27)
 
-    private fun usarGpu() =
-        getSharedPreferences("chat_local", Context.MODE_PRIVATE).getBoolean("flux_gpu", false)
-
-    /** kc_prep/kc_final se compilan en GPU aunque el resto vaya en CPU.
-     *  En CPU puro XNNPACK infla kc_prep a ~6,7 GB y el sistema cierra la app (LOW_MEMORY). */
-    private fun usarGpuKc() =
-        getSharedPreferences("chat_local", Context.MODE_PRIVATE).getBoolean("flux_gpu_small", true)
-
-    private fun textoMotor() = when {
-        usarGpu() -> "⚙  Motor de imagen: GPU (rápido, puede cerrarse)"
-        usarGpuKc() -> "⚙  Motor: CPU + kc en GPU (recomendado)"
-        else -> "⚙  Motor de imagen: CPU puro (lento, riesgo de cierre)"
-    }
-
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private fun textoCaja(): String {
         val s = (System.currentTimeMillis() - inicioImagen) / 1000
         return "$ultimoEstado\n⏱ ${s / 60}:${(s % 60).toString().padStart(2, '0')}"
-    }
-
-    /** Caja bajo el prompt: título, etapa actual, barra de progreso, tiempo y botón Cancelar. */
-    private fun agregarCajaProgreso() {
-        val color = resolveTextColor()
-        val caja = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundResource(R.drawable.bg_model)
-            setPadding(dp(16), dp(14), dp(16), dp(10))
-            layoutParams = LinearLayout.LayoutParams((resources.displayMetrics.widthPixels * 0.86f).toInt(), -2)
-                .apply { setMargins(dp(6), dp(6), dp(6), dp(2)) }
-        }
-        val titulo = TextView(this).apply {
-            text = "🖼  Generando imagen…"
-            textSize = 15.5f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(color)
-        }
-        val estado = TextView(this).apply {
-            text = textoCaja()
-            textSize = 13f
-            setTextColor(color)
-            setPadding(0, dp(6), 0, dp(8))
-        }
-        val barra = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            isIndeterminate = false
-            max = 1000
-            progress = (ultimaFrac * 1000).toInt()
-        }
-        val cancelar = MaterialButton(this).apply {
-            text = "Cancelar"
-            setAllCaps(false)
-            minHeight = dp(34)
-            setOnClickListener {
-                fluxGenerator?.cancel()
-                estado.text = "Cancelando… (termina el bloque en curso)"
-            }
-        }
-        caja.addView(titulo)
-        caja.addView(estado)
-        caja.addView(barra, LinearLayout.LayoutParams(-1, dp(8)))
-        caja.addView(cancelar)
-        cajaTexto = estado
-        cajaBarra = barra
-        contenedor.addView(caja)
-    }
-
-    private fun actualizarProgresoImagen(texto: String, frac: Float) {
-        ultimoEstado = texto
-        ultimaFrac = frac
-        cajaTexto?.text = textoCaja()
-        cajaBarra?.progress = (frac * 1000).toInt()
-        tvEstado.text = "Imagen · $texto · ${(frac * 100).toInt()}%"
     }
 
     private fun mostrarDepuracion() {
@@ -475,14 +487,6 @@ class ChatActivity : AppCompatActivity() {
         val ultimoUsuario = mensajes.indexOfLast { it.first == "u" }
         if (ultimoUsuario < 0) return
         val ultima = mensajes.last()
-        if (ultima.first == "m" && ultima.second.startsWith("[[IMAGE]]")) {
-            if (modeloImagenActual == null) return
-            val prompt = mensajes[ultimoUsuario].second
-            while (mensajes.size > ultimoUsuario + 1) mensajes.removeAt(mensajes.lastIndex)
-            render(null)
-            generarImagenDesde(prompt)
-            return
-        }
         if (modeloActual == null) return
         while (mensajes.size > ultimoUsuario + 1) mensajes.removeAt(mensajes.lastIndex)
         val prompt = mensajes[ultimoUsuario].second.removePrefix("📷 ").trim()
@@ -518,14 +522,7 @@ class ChatActivity : AppCompatActivity() {
             }
             "${e.m.nombre}${if (e.m.vision) " · visión" else ""} · texto\n$estado"
         }
-        is Entrada.Imagen -> {
-            val estado = when {
-                estaActiva(e) -> "✓ activo"
-                estaDescargada(e) -> "✓ descargado"
-                else -> "~${e.m.tamanoGb} GB · descarga manual"
-            }
-            "${e.m.nombre} · imagen ${e.m.resolucion}\n$estado"
-        }
+        is Entrada.Imagen -> "${e.m.nombre} · imagen\n🧪 backend pendiente de verificación · ${e.m.backend}"
     }
 
     /** Un solo selector para todos los modelos. El botón principal cambia entre «Usar» y «Descargar». */
@@ -566,91 +563,17 @@ class ChatActivity : AppCompatActivity() {
                 getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("modelo", e.m.id).apply()
                 preparar(e.m)
             }
-            is Entrada.Imagen ->
-                if (imagenes.estadisticasVae(e.m)) activarModeloImagen(e.m) else ofrecerEstadisticasVae(e.m)
+            is Entrada.Imagen -> Toast.makeText(this, "Este backend de imagen está pendiente de verificación y todavía no se puede usar.", Toast.LENGTH_LONG).show()
         }
-    }
-
-    /** Descarga mínima (~KB) que solo se hace con confirmación explícita. */
-    private fun ofrecerEstadisticasVae(m: ModelosImagen.ModeloImagen) {
-        AlertDialog.Builder(this)
-            .setTitle("Falta un dato del VAE")
-            .setMessage("Para que los colores salgan bien hace falta una descarga muy pequeña (unos KB) con las estadísticas del VAE. Solo se descarga si la confirmas.")
-            .setNegativeButton("Cancelar", null)
-            .setNeutralButton("Usar sin él") { _, _ -> activarModeloImagen(m) }
-            .setPositiveButton("Descargar y usar") { _, _ ->
-                lifecycleScope.launch {
-                    try {
-                        tvEstado.text = "Descargando estadísticas del VAE…"
-                        withContext(Dispatchers.IO) { Flux2VaeStats.download(imagenes.carpeta(m)) }
-                        activarModeloImagen(m)
-                    } catch (ex: CancellationException) {
-                        throw ex
-                    } catch (ex: Exception) {
-                        tvEstado.text = "No se pudieron descargar las estadísticas del VAE"
-                        Toast.makeText(
-                            this@ChatActivity,
-                            "${ex.message ?: ex.javaClass.simpleName}. Puedes usar el modelo sin ellas (colores aproximados).",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
-            }.show()
-    }
-
-    private fun confirmarDescarga(e: Entrada) {
-        val (nombre, tamano, libre) = when (e) {
-            is Entrada.Texto -> Triple(e.m.nombre, "${e.m.tamanoMb} MB", "${motor.espacioLibreMb()} MB")
-            is Entrada.Imagen -> Triple(e.m.nombre, "${e.m.tamanoGb} GB", "${imagenes.espacioLibreBytes() / (1024 * 1024)} MB")
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Descargar modelo")
-            .setMessage("$nombre ocupa aproximadamente $tamano.\n\nEspacio libre: $libre.\n\nLa descarga solo empieza si tú la confirmas y puede reanudarse.")
-            .setNegativeButton("Cancelar", null)
-            .setPositiveButton("Descargar") { _, _ ->
-                lifecycleScope.launch {
-                    try {
-                        progreso.visibility = View.VISIBLE
-                        progreso.isIndeterminate = false
-                        tvEstado.text = "Descargando $nombre…"
-                        when (e) {
-                            is Entrada.Texto -> motor.descargarModelo(e.m) { p ->
-                                progreso.progress = p
-                                tvEstado.text = "Descargando $nombre · $p%"
-                            }
-                            is Entrada.Imagen -> imagenes.descargar(e.m) { p, archivo ->
-                                progreso.progress = p
-                                tvEstado.text = "Descargando $nombre · $p% · $archivo"
-                            }
-                        }
-                        progreso.visibility = View.GONE
-                        tvEstado.text = "$nombre descargado. Pulsa «Usar» para activarlo."
-                        Toast.makeText(this@ChatActivity, "$nombre descargado", Toast.LENGTH_SHORT).show()
-                        // Reabrimos el selector con este modelo ya marcado y el botón en «Usar».
-                        elegirModelo(e.id)
-                    } catch (ex: CancellationException) {
-                        throw ex
-                    } catch (ex: Exception) {
-                        progreso.visibility = View.GONE
-                        tvEstado.text = "Error de descarga"
-                        Toast.makeText(this@ChatActivity, ex.message ?: "No se pudo descargar", Toast.LENGTH_LONG).show()
-                    }
-                }
-            }.show()
     }
 
     private fun activarModeloImagen(m: ModelosImagen.ModeloImagen) {
         modeloImagenActual = m
-        getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("modelo_imagen", m.id).apply()
         modeloActual = null
-        motor.liberar()
-        fluxGenerator?.close()
-        fluxGenerator = null
+        getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("modelo_imagen", m.id).apply()
         btnModelo.text = m.nombre
         btnImagen.visibility = View.GONE
-        progreso.visibility = View.GONE
-        tvEstado.text = "Imagen local · ${m.nombre} · lista"
-        DebugLog.log("UI", "Modelo de imagen activado: ${m.nombre}")
+        tvEstado.text = "Imagen · backend pendiente de verificación"
         actualizarBotonEnvio()
     }
 
@@ -658,8 +581,6 @@ class ChatActivity : AppCompatActivity() {
         modeloActual = m
         modeloImagenActual = null
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo_imagen").apply()
-        fluxGenerator?.close()
-        fluxGenerator = null
         btnModelo.text = m.nombre
         btnImagen.visibility = if (m.vision) View.VISIBLE else View.GONE
         btnEnviar.isEnabled = false
@@ -733,20 +654,8 @@ class ChatActivity : AppCompatActivity() {
         if ((texto.isEmpty() && ruta == null) || generando) return false
 
         if (modeloImagenActual != null) {
-            if (ruta != null) {
-                Toast.makeText(this, "Este modo genera texto→imagen. Quita el adjunto para continuar.", Toast.LENGTH_LONG).show()
-                return false
-            }
-            if (!imagenes.descargado(modeloImagenActual!!)) {
-                Toast.makeText(this, "El modelo de imagen ya no está disponible. Descárgalo desde el selector de modelos.", Toast.LENGTH_LONG).show()
-                return false
-            }
-            val prompt = if (texto.isEmpty()) "Una imagen fotográfica detallada" else texto
-            etMensaje.setText("")
-            mensajes.add("u" to prompt)
-            render(null)
-            generarImagenDesde(prompt)
-            return true
+            Toast.makeText(this, "La generación de imagen estará disponible cuando terminemos la validación de stable-diffusion.cpp + Vulkan.", Toast.LENGTH_LONG).show()
+            return false
         }
 
         if (modeloActual == null) return false
@@ -764,66 +673,6 @@ class ChatActivity : AppCompatActivity() {
             generando -> false
             modeloImagenActual != null -> imagenes.descargado(modeloImagenActual!!)
             else -> modeloActual != null
-        }
-    }
-
-    private fun generarImagenDesde(prompt: String) {
-        generando = true
-        imagenEnCurso = true
-        inicioImagen = System.currentTimeMillis()
-        ultimoEstado = "Preparando…"
-        ultimaFrac = 0f
-        actualizarBotonEnvio()
-        tvEstado.text = "Generando imagen local…"
-        render(null)
-        DebugLog.markStart(prompt)
-        DebugLog.log("UI", "Generar imagen: \"${prompt.take(80)}\" · ${DebugLog.mem()}")
-        ticker = lifecycleScope.launch {
-            while (imagenEnCurso) {
-                cajaTexto?.text = textoCaja()
-                delay(1000)
-            }
-        }
-        lifecycleScope.launch {
-            try {
-                val bitmap = withContext(Dispatchers.Default) {
-                    val generator = fluxGenerator ?: Flux2KleinGenerator(this@ChatActivity).also { fluxGenerator = it }
-                    generator.generate(prompt) { estado, frac ->
-                        runOnUiThread { actualizarProgresoImagen(estado, frac) }
-                    }
-                }
-                val file = File(filesDir, "generadas").apply { mkdirs() }
-                    .let { File(it, "flux_${System.currentTimeMillis()}.png") }
-                withContext(Dispatchers.IO) {
-                    java.io.FileOutputStream(file).use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
-                }
-                mensajes.add("m" to "[[IMAGE]]${file.absolutePath}")
-                guardarSesion()
-                val aviso = fluxGenerator?.lastWarning
-                tvEstado.text = "Imagen generada · ${modeloImagenActual?.nombre ?: "FLUX"}" +
-                    (if (aviso != null) " · $aviso" else "")
-            } catch (e: CancellationException) {
-                // Si la corrutina sigue activa, la cancelación la pidió el usuario con el botón.
-                if (!isActive) throw e
-                DebugLog.log("UI", "Generación cancelada por el usuario")
-                mensajes.add("m" to "Generación cancelada.")
-                guardarSesion()
-                tvEstado.text = "Generación cancelada"
-            } catch (e: Throwable) {
-                val reason = e.message ?: e.javaClass.simpleName
-                DebugLog.log("ERROR", "${e.javaClass.simpleName}: ${e.stackTraceToString().take(1500)}")
-                mensajes.add("m" to "No se pudo generar la imagen: $reason")
-                guardarSesion()
-                tvEstado.text = "No se pudo generar la imagen"
-                Toast.makeText(this@ChatActivity, reason, Toast.LENGTH_LONG).show()
-            } finally {
-                imagenEnCurso = false
-                ticker?.cancel()
-                DebugLog.markEnd()
-                generando = false
-                actualizarBotonEnvio()
-                if (isActive) render(null)
-            }
         }
     }
 
@@ -850,9 +699,6 @@ class ChatActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        // close() cancela y difiere el cierre del entorno nativo si hay una generación en curso.
-        fluxGenerator?.close()
-        fluxGenerator = null
         motor.liberar()
         super.onDestroy()
     }
