@@ -22,6 +22,9 @@ import com.ejemplo.chat.R
 import com.ejemplo.chat.ia.DebugLog
 import com.ejemplo.chat.ia.MotorIA
 import com.ejemplo.chat.ia.ModelosImagen
+import com.ejemplo.chat.ia.llama.LlamaCppModel
+import com.ejemplo.chat.ia.llama.LlamaCppModelManager
+import com.ejemplo.chat.ia.llama.LlamaCppNative
 import android.content.Intent
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CancellationException
@@ -53,11 +56,13 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var btnModelo: MaterialButton
     private lateinit var contenedor: LinearLayout
     private lateinit var imagenes: ModelosImagen
+    private lateinit var llamaManager: LlamaCppModelManager
 
     private val mensajes = mutableListOf<Pair<String, String>>()
     private var imagenRuta: String? = null
     private var generando = false
     private var modeloActual: MotorIA.Modelo? = null
+    private var modeloLlamaActual: LlamaCppModel? = null
     private var modeloImagenActual: ModelosImagen.ModeloImagen? = null
     private var sesionId = "actual"
 
@@ -81,6 +86,7 @@ class ChatActivity : AppCompatActivity() {
         DebugLog.init(this)
         motor = MotorIA(this)
         imagenes = ModelosImagen(this)
+        llamaManager = LlamaCppModelManager(this)
 
         drawer = findViewById(R.id.drawer)
         listaConversaciones = findViewById(R.id.listaConversaciones)
@@ -136,10 +142,11 @@ class ChatActivity : AppCompatActivity() {
 
         val prefs = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
         val guardado = MotorIA.MODELOS.firstOrNull { it.id == prefs.getString("modelo", null) }
+        val guardadoLlama = prefs.getString("modelo_llama", null)
         val imagenGuardada = modeloImagenActual
         if (imagenGuardada != null) {
             activarModeloImagen(imagenGuardada)
-        } else if (guardado != null && motor.modeloDescargado(guardado)) preparar(guardado) else {
+        } else if (guardadoLlama == LlamaCppModel.DEEPSEEK_R1_DISTILL_QWEN_1_5B_Q4_K_M.id && llamaManager.modeloListo(LlamaCppModel.DEEPSEEK_R1_DISTILL_QWEN_1_5B_Q4_K_M)) prepararLlama(LlamaCppModel.DEEPSEEK_R1_DISTILL_QWEN_1_5B_Q4_K_M) else if (guardado != null && motor.modeloDescargado(guardado)) preparar(guardado) else {
             tvEstado.text = "Elige un modelo para descargar y usarlo"
             elegirModelo()
         }
@@ -497,19 +504,22 @@ class ChatActivity : AppCompatActivity() {
     private sealed class Entrada {
         abstract val id: String
         data class Texto(val m: MotorIA.Modelo) : Entrada() { override val id get() = m.id }
+        data class Llama(val m: LlamaCppModel) : Entrada() { override val id get() = m.id }
         data class Imagen(val m: ModelosImagen.ModeloImagen) : Entrada() { override val id get() = m.id }
     }
 
     private fun entradas(): List<Entrada> =
-        MotorIA.MODELOS.map { Entrada.Texto(it) } + ModelosImagen.MODELOS.map { Entrada.Imagen(it) }
+        MotorIA.MODELOS.map { Entrada.Texto(it) } + listOf(Entrada.Llama(LlamaCppModel.DEEPSEEK_R1_DISTILL_QWEN_1_5B_Q4_K_M)) + ModelosImagen.MODELOS.map { Entrada.Imagen(it) }
 
     private fun estaDescargada(e: Entrada) = when (e) {
         is Entrada.Texto -> motor.modeloDescargado(e.m)
+        is Entrada.Llama -> llamaManager.modeloListo(e.m)
         is Entrada.Imagen -> imagenes.descargado(e.m)
     }
 
     private fun estaActiva(e: Entrada) = when (e) {
         is Entrada.Texto -> modeloActual?.id == e.m.id
+        is Entrada.Llama -> modeloLlamaActual?.id == e.m.id
         is Entrada.Imagen -> modeloImagenActual?.id == e.m.id
     }
 
@@ -521,6 +531,14 @@ class ChatActivity : AppCompatActivity() {
                 else -> "${e.m.tamanoMb} MB · descarga manual"
             }
             "${e.m.nombre}${if (e.m.vision) " · visión" else ""} · texto\n$estado"
+        }
+        is Entrada.Llama -> {
+            val estado = when {
+                estaActiva(e) -> "✓ seleccionado"
+                estaDescargada(e) -> "✓ GGUF verificado"
+                else -> "${e.m.tamanoAproximadoMb} MB · descarga manual"
+            }
+            "${e.m.nombre} · texto\n$estado"
         }
         is Entrada.Imagen -> "${e.m.nombre} · imagen\n🧪 backend pendiente de verificación · ${e.m.backend}"
     }
@@ -559,6 +577,37 @@ class ChatActivity : AppCompatActivity() {
 
     private fun confirmarDescarga(e: Entrada) {
         when (e) {
+            is Entrada.Llama -> {
+                AlertDialog.Builder(this)
+                    .setTitle("Descargar ${e.m.nombre}")
+                    .setMessage("Se descargará manualmente el GGUF (${e.m.tamanoAproximadoMb} MB). Solo se activará después de comprobar la cabecera GGUF y el SHA-256. ¿Continuar?")
+                    .setNegativeButton("Cancelar", null)
+                    .setPositiveButton("Descargar") { _, _ ->
+                        lifecycleScope.launch {
+                            try {
+                                progreso.visibility = View.VISIBLE
+                                progreso.isIndeterminate = false
+                                progreso.progress = 0
+                                tvEstado.text = "Descargando ${e.m.nombre}…"
+                                llamaManager.descargarModelo(e.m) { p ->
+                                    if (p.porcentaje >= 0) progreso.progress = p.porcentaje
+                                }
+                                progreso.visibility = View.GONE
+                                tvEstado.text = "GGUF verificado · ${e.m.nombre}"
+                                Toast.makeText(this@ChatActivity, "GGUF descargado y verificado", Toast.LENGTH_SHORT).show()
+                                elegirModelo(e.m.id)
+                            } catch (ce: CancellationException) {
+                                progreso.visibility = View.GONE
+                                throw ce
+                            } catch (ex: Exception) {
+                                progreso.visibility = View.GONE
+                                tvEstado.text = "Error verificando el GGUF"
+                                Toast.makeText(this@ChatActivity, ex.message ?: "No se pudo descargar/verificar el GGUF", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    .show()
+            }
             is Entrada.Imagen -> {
                 Toast.makeText(
                     this,
@@ -603,8 +652,12 @@ class ChatActivity : AppCompatActivity() {
     private fun usar(e: Entrada) {
         when (e) {
             is Entrada.Texto -> {
-                getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("modelo", e.m.id).apply()
+                getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo_llama").putString("modelo", e.m.id).apply()
                 preparar(e.m)
+            }
+            is Entrada.Llama -> {
+                getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo").putString("modelo_llama", e.m.id).apply()
+                prepararLlama(e.m)
             }
             is Entrada.Imagen -> Toast.makeText(this, "Este backend de imagen está pendiente de verificación y todavía no se puede usar.", Toast.LENGTH_LONG).show()
         }
@@ -613,11 +666,41 @@ class ChatActivity : AppCompatActivity() {
     private fun activarModeloImagen(m: ModelosImagen.ModeloImagen) {
         modeloImagenActual = m
         modeloActual = null
+        modeloLlamaActual = null
+        getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo_llama").apply()
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("modelo_imagen", m.id).apply()
         btnModelo.text = m.nombre
         btnImagen.visibility = View.GONE
         tvEstado.text = "Imagen · backend pendiente de verificación"
         actualizarBotonEnvio()
+    }
+
+    private fun prepararLlama(m: LlamaCppModel) {
+        modeloLlamaActual = m
+        modeloActual = null
+        modeloImagenActual = null
+        btnModelo.text = m.nombre
+        btnImagen.visibility = View.GONE
+        btnEnviar.isEnabled = false
+        if (!llamaManager.modeloListo(m)) {
+            tvEstado.text = "GGUF no descargado"
+            Toast.makeText(this, "Descarga primero este modelo desde el selector", Toast.LENGTH_LONG).show()
+            return
+        }
+        lifecycleScope.launch {
+            val verificacion = llamaManager.verificarModelo(m)
+            if (!verificacion.valido) {
+                tvEstado.text = "GGUF no válido"
+                Toast.makeText(this@ChatActivity, verificacion.mensaje, Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            if (!LlamaCppNative.estaDisponible()) {
+                tvEstado.text = "GGUF verificado · runtime llama.cpp pendiente"
+                Toast.makeText(this@ChatActivity, "El GGUF está listo. Falta incorporar la biblioteca nativa llama.cpp al APK antes de generar texto.", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            tvEstado.text = "Runtime llama.cpp disponible · carga pendiente"
+        }
     }
 
     private fun preparar(m: MotorIA.Modelo) {
