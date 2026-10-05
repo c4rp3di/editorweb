@@ -84,7 +84,7 @@ class CreatedFilesActivity : AppCompatActivity() {
         }, "Compartir archivo"))
     }
 
-    private fun uriFor(item: CreatedFile): Uri = FileProvider.getUriForFile(this, "${BuildConfig.APPLICATION_ID}.fileprovider", File(item.path))
+    private fun uriFor(item: CreatedFile): Uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", File(item.path))
     private fun label(kind: CreatedFile.Kind) = when (kind) { CreatedFile.Kind.IMAGE -> "🖼 Imagen"; CreatedFile.Kind.VIDEO -> "🎬 Vídeo"; CreatedFile.Kind.OTHER -> "📄 Archivo" }
     private fun formatSize(bytes: Long): String = when { bytes >= 1024L * 1024 * 1024 -> "%.2f GB".format(bytes / 1024.0 / 1024 / 1024); bytes >= 1024L * 1024 -> "%.1f MB".format(bytes / 1024.0 / 1024); bytes >= 1024 -> "%.1f KB".format(bytes / 1024.0); else -> "$bytes B" }
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
