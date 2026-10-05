@@ -26,6 +26,10 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
     private val host = Flux2HostPrep(root)
 
     // Estado para cancelar y cerrar de forma segura aunque haya una generación en curso.
+    /** Aviso de la última generación (p. ej. faltan las estadísticas BN del VAE). */
+    @Volatile var lastWarning: String? = null
+        private set
+
     private val lock = Any()
     @Volatile private var cancelled = false
     private var running = false
@@ -145,7 +149,9 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         }
 
         checkCancelled()
-        val latent = toVaeLatent(latents)
+        val bn = Flux2VaeStats.load(root)
+        lastWarning = if (bn == null) "sin estadísticas BN del VAE: colores aproximados" else null
+        val latent = toVaeLatent(latents, bn)
         val pixels = ChunkRunner.gpu(
             environment,
             "kv_vae.tflite",
@@ -156,27 +162,30 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         return pixelsToBitmap(pixels)
     }
 
-    private fun toVaeLatent(packed: FloatArray): FloatArray {
+    private fun toVaeLatent(packed: FloatArray, bn: Flux2VaeStats.Stats?): FloatArray {
         require(packed.size == Flux2HostPrep.IMAGE_TOKENS * Flux2HostPrep.IMAGE_PACKED_CHANNELS)
 
-        // Gestura contract: unpack width-128 tokens to [32,32,32] VAE layout.
+        // 1) Unpack: tokens [256,128] -> planos [128,16,16], con la desnormalización BatchNorm
+        //    por canal empaquetado: x * std + mean (antes del unpatchify, como en diffusers).
         val planes = FloatArray(Flux2HostPrep.IMAGE_PACKED_CHANNELS * 16 * 16)
         for (token in 0 until 256) {
             val h = token / 16
             val w = token % 16
             for (pc in 0 until 128) {
-                planes[pc * 256 + h * 16 + w] = packed[token * 128 + pc]
+                val v = packed[token * 128 + pc]
+                planes[pc * 256 + h * 16 + w] = if (bn != null) v * bn.std[pc] + bn.mean[pc] else v
             }
         }
 
-        // 2) Unpatchify 2×2: 128 packed channels -> 32 latent channels at 32×32.
+        // 2) Unpatchify 2×2: 128 canales empaquetados -> 32 canales a 32×32.
+        //    Orden de diffusers (_patchify_latents): pc = c*4 + (dh*2 + dw).
         val out = FloatArray(32 * 32 * 32)
         for (h in 0 until 16) {
             for (w in 0 until 16) {
                 val spatial = h * 16 + w
                 for (pc in 0 until 128) {
-                    val c = pc and 31
-                    val patch = pc ushr 5
+                    val c = if (PACKED_CHANNEL_C_MAJOR) pc ushr 2 else pc and 31
+                    val patch = if (PACKED_CHANNEL_C_MAJOR) pc and 3 else pc ushr 5
                     val dh = patch ushr 1
                     val dw = patch and 1
                     val dst = c * 1024 + (h * 2 + dh) * 32 + (w * 2 + dw)
@@ -230,5 +239,11 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
          * Si el móvil se queda sin memoria al generar, ponlo en false.
          */
         const val REUSE_KC_GRAPHS = true
+
+        /**
+         * true: canal empaquetado = c*4 + parche (orden de diffusers). false: parche*32 + c
+         * (orden que tenía el código original). Si la imagen sale como mosaico de ruido, prueba el otro.
+         */
+        const val PACKED_CHANNEL_C_MAJOR = true
     }
 }
