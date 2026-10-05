@@ -25,6 +25,7 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
     private val root = File(context.filesDir, "modelos-imagen/${Flux2Files.MODEL_ID}")
     private val environment = Environment.create()
     private val host = Flux2HostPrep(root)
+    private val prefs = context.getSharedPreferences("chat_local", Context.MODE_PRIVATE)
 
     // Estado para cancelar y cerrar de forma segura aunque haya una generación en curso.
     /** Aviso de la última generación (p. ej. faltan las estadísticas BN del VAE). */
@@ -77,6 +78,8 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         // Unidades de progreso: 3 codificadores + 4 pasos × 8 grafos + VAE.
         val total = 3 + 4 * 8 + 1
         var done = 0
+        ChunkRunner.backend = if (prefs.getBoolean("flux_gpu", false)) ChunkRunner.Backend.GPU else ChunkRunner.Backend.CPU
+        DebugLog.log("FLUX", "motor: ${ChunkRunner.backend}")
         val t0 = System.nanoTime()
         fun stage(text: String) {
             checkCancelled()
