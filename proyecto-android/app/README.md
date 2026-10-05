@@ -28,3 +28,9 @@ La parte FLUX pura de Kotlin compila con stubs del SDK para comprobar sintaxis. 
 
 ## Estructura
 `app/src/main/...` es la estructura Gradle estándar.
+
+## Modos de motor de imagen (v14)
+El botón «⚙ Motor de imagen» cicla entre tres modos:
+- **CPU puro**: todo en XNNPACK. `kc_prep` llega a ~6,7 GB al compilar y en Xiaomi/HyperOS el sistema cierra la app (LOW_MEMORY). Solo para diagnóstico.
+- **CPU + kc en GPU (recomendado, por defecto)**: `ke_enc*` y `kc_double/kc_single` en CPU; `kc_prep`/`kc_final` (~185 MB) en GPU. Compatible con el límite de ~1,5 GB de GpuMemory de HyperOS.
+- **GPU**: todo en GPU. `ke_enc0` pisa ~3,5 GB de GpuMemory y HyperOS cierra la app por encima de ~1,5 GB.
