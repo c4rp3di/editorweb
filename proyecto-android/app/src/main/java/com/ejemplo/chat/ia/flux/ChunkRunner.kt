@@ -39,7 +39,7 @@ object ChunkRunner {
     @Volatile var backend: Backend = Backend.CPU
 
     /** kc_prep/kc_final (pesos pequeños) en GPU aunque el resto vaya en CPU: en CPU kc_prep pasó de 6,7 GB al compilar. */
-    @Volatile var smallGraphsOnGpu: Boolean = true
+    @Volatile var smallGraphsOnGpu: Boolean = false
     private val SMALL = setOf("kc_prep.tflite", "kc_final.tflite")
     private fun useGpu(name: String) = backend == Backend.GPU || (smallGraphsOnGpu && name in SMALL)
 
