@@ -150,7 +150,7 @@ class ChatActivity : AppCompatActivity() {
 
             val b = MaterialButton(this).apply {
                 text = if (id == sesionId) "●  $title" else "   $title"
-                textAllCaps = false
+                setAllCaps(false)
                 gravity = Gravity.START or Gravity.CENTER_VERTICAL
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
@@ -221,7 +221,7 @@ class ChatActivity : AppCompatActivity() {
             setPadding(16, 12, 16, 12)
             setBackgroundResource(if (rol == "u") R.drawable.bg_user else R.drawable.bg_model)
             maxWidth = (resources.displayMetrics.widthPixels * 0.86f).toInt()
-            textIsSelectable = true
+            setTextIsSelectable(true)
             setTypeface(Typeface.DEFAULT, Typeface.NORMAL)
         }
         fila.addView(bubble)
@@ -230,7 +230,7 @@ class ChatActivity : AppCompatActivity() {
             val actions = LinearLayout(this).apply { gravity = Gravity.START }
             val copy = MaterialButton(this).apply {
                 text = "Copiar"
-                textAllCaps = false
+                setAllCaps(false)
                 minHeight = 34
                 setOnClickListener { copiar(texto) }
             }
@@ -238,7 +238,7 @@ class ChatActivity : AppCompatActivity() {
             if (index == mensajes.lastIndex) {
                 val regen = MaterialButton(this).apply {
                         text = "Regenerar"
-                    textAllCaps = false
+                    setAllCaps(false)
                     minHeight = 34
                     setOnClickListener { regenerarUltima() }
                 }
@@ -336,32 +336,13 @@ class ChatActivity : AppCompatActivity() {
         val items = ModelosImagen.MODELOS.map { m ->
             val listo = imagenes.descargado(m)
             "${m.nombre} · ${m.resolucion}\n" +
-                if (listo) "✓ disponible" else if (m.requiereImportacion) "Importación manual · ~${m.tamanoGb} GB" else "~${m.tamanoGb} GB · descarga manual"
+                if (listo) "✓ disponible" else "~${m.tamanoGb} GB · descarga manual"
         }.toTypedArray()
 
         AlertDialog.Builder(this)
             .setTitle("Modelos de imagen")
             .setItems(items) { _, which ->
                 val m = ModelosImagen.MODELOS[which]
-                if (m.requiereImportacion) {
-                    AlertDialog.Builder(this)
-                        .setTitle(m.nombre)
-                        .setMessage(
-                            "${m.descripcion}\n\n" +
-                            "Tamaño aproximado: ${m.tamanoGb} GB\n" +
-                            "Referencia: ~2 min por imagen en un Galaxy S25+ con NPU; depende del teléfono.\n\n" +
-                            "Los pesos/binarios no están incluidos en el repositorio Android oficial. " +
-                            "Por eso este modelo se trata como importación manual y nunca se descarga solo.\n\n" +
-                            "Fuente oficial: ${m.fuente}"
-                        )
-                        .setNegativeButton("Cerrar", null)
-                        .setPositiveButton("Importar desde dispositivo") { _, _ ->
-                            Toast.makeText(this, "Copia/importa el bundle de Bonsai Image cuando lo tengas en el dispositivo.", Toast.LENGTH_LONG).show()
-                        }
-                        .show()
-                    return@setItems
-                }
-
                 val listo = imagenes.descargado(m)
                 val estado = if (listo) "✓ descargado" else "${m.tamanoGb} GB · descarga manual"
                 AlertDialog.Builder(this)
