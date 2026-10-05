@@ -25,6 +25,7 @@ import com.ejemplo.chat.ia.ModelosImagen
 import com.ejemplo.chat.ia.llama.LlamaCppModel
 import com.ejemplo.chat.ia.llama.LlamaCppModelManager
 import com.ejemplo.chat.ia.llama.LlamaCppNative
+import com.ejemplo.chat.ia.llama.NativeLlamaCppTextEngine
 import android.content.Intent
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CancellationException
@@ -57,6 +58,7 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var contenedor: LinearLayout
     private lateinit var imagenes: ModelosImagen
     private lateinit var llamaManager: LlamaCppModelManager
+    private val llamaEngine = NativeLlamaCppTextEngine()
 
     private val mensajes = mutableListOf<Pair<String, String>>()
     private var imagenRuta: String? = null
@@ -494,7 +496,7 @@ class ChatActivity : AppCompatActivity() {
         val ultimoUsuario = mensajes.indexOfLast { it.first == "u" }
         if (ultimoUsuario < 0) return
         val ultima = mensajes.last()
-        if (modeloActual == null) return
+        if (modeloActual == null && modeloLlamaActual == null) return
         while (mensajes.size > ultimoUsuario + 1) mensajes.removeAt(mensajes.lastIndex)
         val prompt = mensajes[ultimoUsuario].second.removePrefix("📷 ").trim()
         generarDesde(prompt, null, guardar = true)
@@ -695,15 +697,29 @@ class ChatActivity : AppCompatActivity() {
                 return@launch
             }
             if (!LlamaCppNative.estaDisponible()) {
-                tvEstado.text = "GGUF verificado · runtime llama.cpp pendiente"
-                Toast.makeText(this@ChatActivity, "El GGUF está listo. Falta incorporar la biblioteca nativa llama.cpp al APK antes de generar texto.", Toast.LENGTH_LONG).show()
+                tvEstado.text = "GGUF verificado · runtime nativo no disponible"
+                Toast.makeText(this@ChatActivity, "La biblioteca nativa llama.cpp no se pudo cargar.", Toast.LENGTH_LONG).show()
                 return@launch
             }
-            tvEstado.text = "Runtime llama.cpp disponible · carga pendiente"
+            try {
+                motor.liberar()
+                progreso.visibility = View.VISIBLE
+                progreso.isIndeterminate = true
+                tvEstado.text = "Cargando ${m.nombre} · llama.cpp…"
+                llamaEngine.cargar(llamaManager.archivoDe(m), contexto = 4096, hilos = 4)
+                progreso.visibility = View.GONE
+                tvEstado.text = "Listo · ${m.nombre} · llama.cpp CPU"
+                actualizarBotonEnvio()
+            } catch (e: Exception) {
+                progreso.visibility = View.GONE
+                tvEstado.text = "No se pudo cargar ${m.nombre}"
+                Toast.makeText(this@ChatActivity, e.message ?: "Error al cargar llama.cpp", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
     private fun preparar(m: MotorIA.Modelo) {
+        llamaEngine.liberar()
         modeloActual = m
         modeloImagenActual = null
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo_imagen").apply()
@@ -784,7 +800,7 @@ class ChatActivity : AppCompatActivity() {
             return false
         }
 
-        if (modeloActual == null) return false
+        if (modeloActual == null && modeloLlamaActual == null) return false
         val prompt = if (texto.isEmpty()) "Describe esta imagen." else texto
         etMensaje.setText("")
         quitarImagen()
@@ -798,33 +814,41 @@ class ChatActivity : AppCompatActivity() {
         btnEnviar.isEnabled = when {
             generando -> false
             modeloImagenActual != null -> imagenes.descargado(modeloImagenActual!!)
-            else -> modeloActual != null
+            else -> modeloActual != null || modeloLlamaActual != null
         }
     }
 
     private fun generarDesde(prompt: String, ruta: String?, guardar: Boolean) {
         generando = true
         btnEnviar.isEnabled = false
-        tvEstado.text = "Generando · ${modeloActual?.nombre ?: ""}"
+        tvEstado.text = "Generando · ${modeloLlamaActual?.nombre ?: modeloActual?.nombre ?: ""}"
         lifecycleScope.launch {
             val respuesta = StringBuilder()
             try {
-                motor.generar(prompt, ruta).collect { trozo ->
-                    respuesta.append(trozo)
-                    render(respuesta.toString())
+                if (modeloLlamaActual != null) {
+                    llamaEngine.generar(prompt, maxTokens = 256).collect { trozo ->
+                        respuesta.append(trozo)
+                        render(respuesta.toString())
+                    }
+                } else {
+                    motor.generar(prompt, ruta).collect { trozo ->
+                        respuesta.append(trozo)
+                        render(respuesta.toString())
+                    }
                 }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { respuesta.append("Error: ${e.message ?: e.javaClass.simpleName}") }
             mensajes.add("m" to respuesta.toString())
             if (guardar) guardarSesion()
             render(null)
-            tvEstado.text = "Listo · ${modeloActual?.nombre ?: ""}"
+            tvEstado.text = "Listo · ${modeloLlamaActual?.nombre ?: modeloActual?.nombre ?: ""}"
             generando = false
             btnEnviar.isEnabled = true
         }
     }
 
     override fun onDestroy() {
+        llamaEngine.liberar()
         motor.liberar()
         super.onDestroy()
     }
