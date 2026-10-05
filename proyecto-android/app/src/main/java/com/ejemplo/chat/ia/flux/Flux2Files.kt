@@ -28,21 +28,8 @@ object Flux2Files {
         !f.isFile || f.length() < minimumBytes(rel)
     }
 
-    fun minimumBytes(rel: String): Long = when {
-        rel.startsWith("ke_enc") -> 850L * 1024 * 1024
-        rel == "kc_prep.tflite" || rel == "kce_prep.tflite" || rel == "kce2_prep.tflite" -> 150L * 1024 * 1024
-        rel.contains("double0") -> 650L * 1024 * 1024
-        rel.contains("double1") -> 430L * 1024 * 1024
-        rel.contains("single") -> 540L * 1024 * 1024
-        rel.endsWith("final.tflite") -> 15L * 1024 * 1024
-        rel.endsWith("kv_vae.tflite") -> 40L * 1024 * 1024
-        rel.endsWith("kv_vae_enc.tflite") -> 30L * 1024 * 1024
-        rel == "tokenizer/qwen_embed_fp16.bin" -> 700L * 1024 * 1024
-        rel == "tokenizer/qwen_merges.txt" -> 1L * 1024 * 1024
-        rel == "tokenizer/qwen_vocab.txt" -> 1L * 1024 * 1024
-        rel == "tokenizer/qwen_special.txt" -> 100L
-        rel == "tokenizer/tokenizer_fixture.txt" -> 500L
-        rel == "host/time_guidance_embed_bf16.bin" -> 20L * 1024 * 1024
-        else -> 1L
-    }
+    // Downloads use .part and are renamed only after EOF. Avoid guessed
+    // per-file floors; the repository reports ~381 MB total for all kc_* graphs.
+    fun minimumBytes(rel: String): Long = 1L
+
 }
