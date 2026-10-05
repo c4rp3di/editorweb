@@ -17,27 +17,19 @@ import kotlin.math.sqrt
  * Qwen encoder (3 chunks) -> prompt tap interleave -> kc_prep ->
  * kc_double0..1 -> four kc_single chunks -> kc_final -> VAE.
  *
- * The runtime refuses to synthesize missing learned host artifacts. In particular,
- * timestep embeddings and VAE BatchNorm running statistics are model data, not safe
- * values to guess or replace with zeros/ones.
+ * The host timestep/guidance table is downloaded as part of the same Gestura
+ * model revision; no learned runtime values are synthesized or guessed.
  */
 class Flux2KleinGenerator(context: Context) : AutoCloseable {
     private val root = File(context.filesDir, "modelos-imagen/${Flux2Files.MODEL_ID}")
     private val environment = Environment.create()
     private val host = Flux2HostPrep(root)
 
-    fun isReady(): Boolean = Flux2Files.isComplete(root) && host.readTimestepEmbeddings() != null && host.readVaeBn() != null
+    fun isReady(): Boolean = Flux2Files.isComplete(root)
 
     fun readinessError(): String? {
         val missing = Flux2Files.missing(root)
-        if (missing.isNotEmpty()) return "Faltan archivos FLUX: ${missing.joinToString() }"
-        if (host.readTimestepEmbeddings() == null) {
-            return "Faltan los embeddings de tiempo host de FLUX (4×3072). No se deben inventar."
-        }
-        if (host.readVaeBn() == null) {
-            return "Faltan las estadísticas BatchNorm del VAE (128 canales). No se deben inventar."
-        }
-        return null
+        return if (missing.isEmpty()) null else "Faltan archivos FLUX: ${missing.joinToString()}"
     }
 
     /** Generate one 256×256 image. Must be called off the main thread. */
@@ -62,12 +54,8 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         val promptEmbeds = host.buildPromptEmbedsFromTaps(taps)
         var latents = gaussianNoise(Flux2HostPrep.IMAGE_TOKENS * Flux2HostPrep.IMAGE_PACKED_CHANNELS, seed)
 
-        val timestepEmbeddings = host.readTimestepEmbeddings()!!
-        val bn = host.readVaeBn()!!
-        require(timestepEmbeddings.size == 4) { "Se requieren 4 embeddings de tiempo" }
-
         for (step in 0 until 4) {
-            val temb = timestepEmbeddings[step]
+            val temb = host.readTimestepEmbedding(prep.sigmas[step] * 1000f)
             var prepOut = ChunkRunner.gpu(
                 environment,
                 "kc_prep.tflite",
@@ -119,7 +107,7 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
             onProgress("Difusión ${step + 1}/4")
         }
 
-        val latent = toVaeLatent(latents, bn.first, bn.second)
+        val latent = toVaeLatent(latents)
         val pixels = ChunkRunner.gpu(
             environment,
             "kv_vae.tflite",
@@ -130,17 +118,16 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         return pixelsToBitmap(pixels)
     }
 
-    private fun toVaeLatent(packed: FloatArray, mean: FloatArray, std: FloatArray): FloatArray {
+    private fun toVaeLatent(packed: FloatArray): FloatArray {
         require(packed.size == Flux2HostPrep.IMAGE_TOKENS * Flux2HostPrep.IMAGE_PACKED_CHANNELS)
-        require(mean.size == Flux2HostPrep.IMAGE_PACKED_CHANNELS && std.size == Flux2HostPrep.IMAGE_PACKED_CHANNELS)
 
-        // 1) Packed sequence [256,128] -> channel planes [128,16,16].
+        // Gestura contract: unpack width-128 tokens to [32,32,32] VAE layout.
         val planes = FloatArray(Flux2HostPrep.IMAGE_PACKED_CHANNELS * 16 * 16)
         for (token in 0 until 256) {
             val h = token / 16
             val w = token % 16
             for (pc in 0 until 128) {
-                planes[pc * 256 + h * 16 + w] = packed[token * 128 + pc] * std[pc] + mean[pc]
+                planes[pc * 256 + h * 16 + w] = packed[token * 128 + pc]
             }
         }
 
