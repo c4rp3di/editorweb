@@ -6,15 +6,33 @@ import com.google.ai.edge.litert.Accelerator
 import com.ejemplo.chat.ia.DebugLog
 import java.io.File
 
-/** GPU execution of LiteRT chunks, using FP32 to avoid NaNs in modulated blocks. */
+/** Ejecución de grafos LiteRT por trozos (CPU por defecto; GPU en FP32 para evitar NaN en bloques modulados). */
 object ChunkRunner {
+    enum class Backend { CPU, GPU }
+
+    /**
+     * CPU (XNNPACK) por defecto. En la GPU, estos grafos int8 se expanden a FP32: ke_enc0 llegó a
+     * 3,5 GB de memoria de GPU y HyperOS/Xiaomi cierra la app al pasar de ~1,5 GB (GpuMemory OOM).
+     */
+    @Volatile var backend: Backend = Backend.CPU
+
+    private val cpuThreads: Int get() = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
+
     private fun compile(environment: Environment, name: String, directory: File): CompiledModel {
-        val options = CompiledModel.Options(Accelerator.GPU)
-        options.gpuOptions = CompiledModel.GpuOptions(
-            precision = CompiledModel.GpuOptions.Precision.FP32
-        )
+        val options = if (backend == Backend.GPU) {
+            CompiledModel.Options(Accelerator.GPU).apply {
+                gpuOptions = CompiledModel.GpuOptions(
+                    precision = CompiledModel.GpuOptions.Precision.FP32
+                )
+            }
+        } else {
+            CompiledModel.Options(Accelerator.CPU).apply {
+                cpuOptions = CompiledModel.CpuOptions(numThreads = cpuThreads)
+            }
+        }
         val t0 = System.nanoTime()
-        DebugLog.log("GPU", "compilando $name · ${DebugLog.mem()}")
+        val label = if (backend == Backend.GPU) "GPU" else "CPU×$cpuThreads"
+        DebugLog.log("GPU", "compilando $name [$label] · ${DebugLog.mem()}")
         val model = CompiledModel.create(File(directory, name).absolutePath, options, environment)
         DebugLog.log("GPU", "compilado $name en ${(System.nanoTime() - t0) / 1_000_000} ms")
         return model
