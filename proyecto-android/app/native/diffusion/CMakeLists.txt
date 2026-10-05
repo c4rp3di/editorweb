@@ -11,6 +11,16 @@ if(NOT DEFINED SD_SOURCE OR NOT EXISTS "${SD_SOURCE}/CMakeLists.txt")
     message(FATAL_ERROR "SD_SOURCE no apunta a un árbol stable-diffusion.cpp válido")
 endif()
 
+if(NOT DEFINED VULKAN_HPP_INCLUDE_DIR OR NOT EXISTS "${VULKAN_HPP_INCLUDE_DIR}/vulkan/vulkan.hpp")
+    message(FATAL_ERROR "VULKAN_HPP_INCLUDE_DIR no contiene vulkan/vulkan.hpp: ${VULKAN_HPP_INCLUDE_DIR}")
+endif()
+
+# Vulkan-Hpp es header-only. Lo añadimos al directorio antes de incorporar
+# stable-diffusion.cpp para que el include sea heredado por ggml-vulkan y sus
+# subdirectorios, no solo por nuestro JNI.
+include_directories(BEFORE SYSTEM "${VULKAN_HPP_INCLUDE_DIR}")
+message(STATUS "Chat Pro: Vulkan-Hpp include: ${VULKAN_HPP_INCLUDE_DIR}")
+
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(SD_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(SD_BUILD_SHARED_GGML_LIB OFF CACHE BOOL "" FORCE)
