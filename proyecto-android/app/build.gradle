@@ -27,7 +27,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode 1
-        versionName "v3.0"
+        versionName "v1.0"
     }
 
     buildFeatures {
@@ -53,6 +53,7 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.4'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0'
+    implementation 'com.google.ai.edge.litert:litert:2.2.0'
     implementation 'com.google.ai.edge.litertlm:litertlm-android:0.16.1'
     // [DEPENDENCIAS:FUNCIONALIDADES]
 }
