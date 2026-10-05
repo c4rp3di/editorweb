@@ -24,3 +24,8 @@ No incluye:
 
 ### Blindaje de toolchains
 La preparación nativa detecta la versión Vulkan del NDK y descarga el conjunto completo de `KhronosGroup/Vulkan-Headers` con el tag exacto correspondiente. Esto evita mezclar `vulkan.hpp` de una versión nueva con `vulkan_core.h` del NDK. También se fija `stable-diffusion.cpp` a un commit concreto para que Actions no cambie de código silenciosamente.
+
+
+## Checkout reproducible
+
+Los commits cortos de GitHub (por ejemplo `3f8527a`) no se pasan a `git fetch` como si fueran refs remotos. Actions usa un partial clone (`--filter=blob:none`), verifica que el objeto commit exista y hace checkout exacto del SHA/tag solicitado; si no puede resolverlo, detiene la build sin cambiar a `master`.
