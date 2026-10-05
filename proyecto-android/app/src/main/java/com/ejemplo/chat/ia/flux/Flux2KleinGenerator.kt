@@ -25,6 +25,20 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
     private val environment = Environment.create()
     private val host = Flux2HostPrep(root)
 
+    // Estado para cancelar y cerrar de forma segura aunque haya una generación en curso.
+    private val lock = Any()
+    @Volatile private var cancelled = false
+    private var running = false
+    private var closeWhenDone = false
+    private var closed = false
+
+    /** Aborta la generación en curso en cuanto termine el grafo que se está ejecutando. */
+    fun cancel() { cancelled = true }
+
+    private fun checkCancelled() {
+        if (cancelled) throw java.util.concurrent.CancellationException("Generación cancelada")
+    }
+
     fun isReady(): Boolean = Flux2Files.isComplete(root)
 
     fun readinessError(): String? {
@@ -34,6 +48,23 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
 
     /** Generate one 256×256 image. Must be called off the main thread. */
     fun generate(prompt: String, seed: Long = System.nanoTime(), onProgress: (String) -> Unit): Bitmap {
+        synchronized(lock) {
+            check(!closed && !closeWhenDone) { "El generador ya está cerrado" }
+            check(!running) { "Ya hay una imagen generándose" }
+            running = true
+            cancelled = false
+        }
+        try {
+            return generateInternal(prompt, seed, onProgress)
+        } finally {
+            synchronized(lock) {
+                running = false
+                if (closeWhenDone && !closed) { closed = true; environment.close() }
+            }
+        }
+    }
+
+    private fun generateInternal(prompt: String, seed: Long, onProgress: (String) -> Unit): Bitmap {
         require(prompt.isNotBlank()) { "El prompt está vacío" }
         val error = readinessError()
         require(error == null) { error!! }
@@ -42,6 +73,7 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         var hidden = prep.tokenEmbeddings
         val taps = ArrayList<FloatArray>(3)
         for (i in 0 until 3) {
+            checkCancelled()
             hidden = ChunkRunner.gpu(
                 environment,
                 "ke_enc$i.tflite",
@@ -54,59 +86,65 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         val promptEmbeds = host.buildPromptEmbedsFromTaps(taps)
         var latents = gaussianNoise(Flux2HostPrep.IMAGE_TOKENS * Flux2HostPrep.IMAGE_PACKED_CHANNELS, seed)
 
-        for (step in 0 until 4) {
-            val temb = host.readTimestepEmbedding(prep.sigmas[step] * 1000f)
-            var prepOut = ChunkRunner.gpu(
-                environment,
-                "kc_prep.tflite",
-                root,
-                listOf(latents, promptEmbeds, temb)
-            )
-            var image = prepOut[0]
-            var text = prepOut[1]
-            var modImg = prepOut[2]
-            var modTxt = prepOut[3]
-            var modSingle = if (prepOut.size > 4) prepOut[4] else null
-            require(modSingle != null) { "kc_prep no devolvió mod_single" }
+        val kcCache = if (REUSE_KC_GRAPHS) ChunkRunner.Cache(environment, root) else null
+        fun runKc(name: String, inputs: List<FloatArray>): List<FloatArray> =
+            kcCache?.run(name, inputs) ?: ChunkRunner.gpu(environment, name, root, inputs)
 
-            for (i in 0 until 2) {
-                val o = ChunkRunner.gpu(
-                    environment,
-                    "kc_double$i.tflite",
-                    root,
-                    listOf(image, text, prep.ditCos, prep.ditSin, modImg, modTxt)
+        try {
+            for (step in 0 until 4) {
+                val temb = host.readTimestepEmbedding(prep.sigmas[step] * 1000f)
+                checkCancelled()
+                var prepOut = runKc(
+                    "kc_prep.tflite",
+                    listOf(latents, promptEmbeds, temb)
                 )
-                require(o.size >= 2) { "kc_double$i devolvió menos de dos tensores" }
-                image = o[0]
-                text = o[1]
-                // Modulation tensors are already prepared by kc_prep.
-            }
-
-            var joint = FloatArray(text.size + image.size)
-            text.copyInto(joint, 0)
-            image.copyInto(joint, text.size)
-            for (i in 0 until 4) {
-                joint = ChunkRunner.gpu(
-                    environment,
-                    "kc_single$i.tflite",
-                    root,
-                    listOf(joint, prep.ditCos, prep.ditSin, modSingle)
+                var image = prepOut[0]
+                var text = prepOut[1]
+                var modImg = prepOut[2]
+                var modTxt = prepOut[3]
+                var modSingle = if (prepOut.size > 4) prepOut[4] else null
+                require(modSingle != null) { "kc_prep no devolvió mod_single" }
+    
+                for (i in 0 until 2) {
+                    checkCancelled()
+                    val o = runKc(
+                        "kc_double$i.tflite",
+                        listOf(image, text, prep.ditCos, prep.ditSin, modImg, modTxt)
+                    )
+                    require(o.size >= 2) { "kc_double$i devolvió menos de dos tensores" }
+                    image = o[0]
+                    text = o[1]
+                    // Modulation tensors are already prepared by kc_prep.
+                }
+    
+                var joint = FloatArray(text.size + image.size)
+                text.copyInto(joint, 0)
+                image.copyInto(joint, text.size)
+                for (i in 0 until 4) {
+                    checkCancelled()
+                    joint = runKc(
+                        "kc_single$i.tflite",
+                        listOf(joint, prep.ditCos, prep.ditSin, modSingle)
+                    )[0]
+                }
+                checkCancelled()
+                val pred = runKc(
+                    "kc_final.tflite",
+                    listOf(joint, temb)
                 )[0]
+                require(pred.size == latents.size) {
+                    "kc_final produjo ${pred.size} valores; se esperaban ${latents.size}"
+                }
+                val stepDelta = prep.dsigma[step]
+                for (i in latents.indices) latents[i] += stepDelta * pred[i]
+                onProgress("Difusión ${step + 1}/4")
             }
-            val pred = ChunkRunner.gpu(
-                environment,
-                "kc_final.tflite",
-                root,
-                listOf(joint, temb)
-            )[0]
-            require(pred.size == latents.size) {
-                "kc_final produjo ${pred.size} valores; se esperaban ${latents.size}"
-            }
-            val stepDelta = prep.dsigma[step]
-            for (i in latents.indices) latents[i] += stepDelta * pred[i]
-            onProgress("Difusión ${step + 1}/4")
+        } finally {
+            // Libera la memoria de GPU de los kc_* antes de cargar el VAE.
+            kcCache?.close()
         }
 
+        checkCancelled()
         val latent = toVaeLatent(latents)
         val pixels = ChunkRunner.gpu(
             environment,
@@ -177,7 +215,20 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         return out
     }
 
+    /** Cierra el generador. Si hay una generación en curso, la cancela y cierra al terminar el grafo actual. */
     override fun close() {
-        environment.close()
+        synchronized(lock) {
+            cancelled = true
+            if (running) { closeWhenDone = true; return }
+            if (!closed) { closed = true; environment.close() }
+        }
+    }
+
+    companion object {
+        /**
+         * true: compila cada kc_* una vez y lo reutiliza en los 4 pasos (mucho más rápido, más memoria GPU).
+         * Si el móvil se queda sin memoria al generar, ponlo en false.
+         */
+        const val REUSE_KC_GRAPHS = true
     }
 }
