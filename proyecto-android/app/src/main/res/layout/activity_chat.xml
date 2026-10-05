@@ -226,6 +226,15 @@
         </ScrollView>
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnArchivos"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="📁  Mis archivos"
+            android:textAllCaps="false"
+            android:gravity="start|center_vertical"/>
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btnMotorImagen"
             style="@style/Widget.MaterialComponents.Button.TextButton"
             android:layout_width="match_parent"
