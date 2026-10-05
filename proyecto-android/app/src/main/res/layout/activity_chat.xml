@@ -226,6 +226,16 @@
         </ScrollView>
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnMotorImagen"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:text="⚙  Motor de imagen: CPU"
+            android:textAllCaps="false"
+            android:gravity="start|center_vertical"/>
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btnDepuracion"
             style="@style/Widget.MaterialComponents.Button.TextButton"
             android:layout_width="match_parent"
