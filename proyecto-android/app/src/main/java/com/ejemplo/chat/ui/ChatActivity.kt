@@ -101,16 +101,17 @@ class ChatActivity : AppCompatActivity() {
         btnMotor.text = textoMotor()
         btnMotor.setOnClickListener {
             if (generando) return@setOnClickListener
-            val gpu = !usarGpu()
-            getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putBoolean("flux_gpu", gpu).apply()
+            val prefs = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
+            // Cicla entre los 3 modos: CPU puro -> CPU + kc en GPU (recomendado) -> GPU -> CPU puro.
+            val (gpu, gpuKc, msg) = when {
+                usarGpu() -> Triple(false, false, "CPU puro: en este móvil kc_prep consume ~6,7 GB al compilar y el sistema cierra la app. Modo no recomendado.")
+                usarGpuKc() -> Triple(true, true, "GPU: más rápida, pero en algunos móviles (Xiaomi) el sistema cierra la app por memoria de GPU (>1,5 GB).")
+                else -> Triple(false, true, "CPU + kc en GPU: recomendado para este móvil. Solo ~185 MB de GPU.")
+            }
+            prefs.edit().putBoolean("flux_gpu", gpu).putBoolean("flux_gpu_small", gpuKc).apply()
             btnMotor.text = textoMotor()
-            DebugLog.log("UI", "Motor de imagen: ${if (gpu) "GPU" else "CPU"}")
-            Toast.makeText(
-                this,
-                if (gpu) "GPU: más rápida, pero en algunos móviles (Xiaomi) el sistema cierra la app por memoria de GPU."
-                else "CPU: más lenta pero estable.",
-                Toast.LENGTH_LONG
-            ).show()
+            DebugLog.log("UI", "Motor de imagen: GPU=$gpu · kc en GPU=$gpuKc")
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
         }
         findViewById<MaterialButton>(R.id.btnDepuracion).setOnClickListener {
             drawer.closeDrawer(GravityCompat.START)
@@ -275,8 +276,16 @@ class ChatActivity : AppCompatActivity() {
     private fun usarGpu() =
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).getBoolean("flux_gpu", false)
 
-    private fun textoMotor() =
-        if (usarGpu()) "⚙  Motor de imagen: GPU (rápido, puede cerrarse)" else "⚙  Motor de imagen: CPU (estable)"
+    /** kc_prep/kc_final se compilan en GPU aunque el resto vaya en CPU.
+     *  En CPU puro XNNPACK infla kc_prep a ~6,7 GB y el sistema cierra la app (LOW_MEMORY). */
+    private fun usarGpuKc() =
+        getSharedPreferences("chat_local", Context.MODE_PRIVATE).getBoolean("flux_gpu_small", true)
+
+    private fun textoMotor() = when {
+        usarGpu() -> "⚙  Motor de imagen: GPU (rápido, puede cerrarse)"
+        usarGpuKc() -> "⚙  Motor: CPU + kc en GPU (recomendado)"
+        else -> "⚙  Motor de imagen: CPU puro (lento, riesgo de cierre)"
+    }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
