@@ -161,17 +161,25 @@ clone_repo() {
     local url="$1" dest="$2" ref="$3"
     if [[ ! -f "$dest/CMakeLists.txt" ]]; then
         rm -rf "$dest"
-        log "Descargando $url @ $ref"
-        git clone --depth 1 "$url" "$dest"
-        # Para tags anotados o refs que git fetch deja en FETCH_HEAD,
-        # hacemos checkout explícito de FETCH_HEAD. Esto evita que Git
-        # interprete el ref como una ruta con versiones recientes del runner.
-        git -C "$dest" fetch --depth 1 origin "$ref"
-        git -C "$dest" checkout --detach FETCH_HEAD
-        git -C "$dest" submodule update --init --recursive --depth 1
+        log "Descargando historial ligero de $url para resolver exactamente @ $ref"
+        # No usamos `git fetch origin <short-sha>` porque GitHub no acepta
+        # un SHA abreviado como remote ref. Un partial clone conserva el
+        # historial de commits pero evita traer blobs innecesarios.
+        git clone --filter=blob:none --no-checkout "$url" "$dest"
     else
         log "Reutilizando $dest"
     fi
+
+    git -C "$dest" cat-file -e "$ref^{commit}" 2>/dev/null || \
+        fail "No se pudo resolver '$ref' como commit/tag en $url. No se hará fallback a master."
+
+    git -C "$dest" checkout --detach "$ref"
+    local resolved_commit
+    resolved_commit="$(git -C "$dest" rev-parse HEAD)"
+    [[ -n "$resolved_commit" ]] || fail "Git no devolvió un commit válido después del checkout de $ref"
+    log "Commit resuelto: $resolved_commit"
+    git -C "$dest" submodule sync --recursive
+    git -C "$dest" submodule update --init --recursive --depth 1
 }
 
 clone_repo "https://github.com/ggml-org/llama.cpp.git" "$TOOLCHAIN_DIR/llama.cpp" "$LLAMA_REF"
