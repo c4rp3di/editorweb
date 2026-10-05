@@ -1,5 +1,6 @@
 package com.ejemplo.chat.ia.flux
 
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.Locale
@@ -111,35 +112,87 @@ class Qwen2Tokenizer(root: File) {
         return result
     }
 
+    /**
+     * Acepta los formatos habituales de vocabulario Qwen/GPT-2:
+     *  - JSON {"token": id}, o un tokenizer.json completo (model.vocab);
+     *  - JSON array de tokens (el índice es el id);
+     *  - líneas «token<tab|espacio>id» o «id<tab|espacio>token»;
+     *  - un token por línea (el número de línea es el id).
+     * Si ninguno encaja, el error incluye el tamaño y las primeras líneas para poder diagnosticarlo.
+     */
     private fun readVocab(file: File): Map<String, Int> {
         require(file.isFile) { "Falta ${file.path}" }
-        val text = file.readText()
-        try {
-            val json = JSONObject(text)
-            val map = HashMap<String, Int>(json.length())
-            val keys = json.keys()
-            while (keys.hasNext()) {
-                val k = keys.next()
-                map[k] = json.getInt(k)
-            }
-            if (map.isNotEmpty()) return map
-        } catch (_: Exception) {
-            // Some exporters use a line-oriented txt representation.
-        }
-        val map = HashMap<String, Int>()
-        text.lineSequence().forEach { raw ->
-            val line = raw.trimEnd('\r')
-            if (line.isBlank() || line.startsWith("#")) return@forEach
-            val tab = line.lastIndexOf('\t')
-            val split = if (tab >= 0) tab else line.lastIndexOf(' ')
-            if (split <= 0) return@forEach
-            val token = line.substring(0, split)
-            val id = line.substring(split + 1).trim().toIntOrNull()
-            if (id != null) map[token] = id
-        }
-        require(map.isNotEmpty()) { "No se pudo leer qwen_vocab.txt" }
-        return map
+        val text = file.readText(Charsets.UTF_8).removePrefix("\uFEFF")
+        parseJsonVocab(text)?.let { return it }
+        parseLineVocab(text)?.let { return it }
+        error("No se pudo leer qwen_vocab.txt (${file.length()} bytes). Primeras líneas: ${preview(text)}")
     }
+
+    private fun parseJsonVocab(text: String): Map<String, Int>? {
+        val head = text.trimStart().firstOrNull() ?: return null
+        try {
+            if (head == '{') {
+                val json = JSONObject(text)
+                val vocab = json.optJSONObject("model")?.optJSONObject("vocab")
+                    ?: json.optJSONObject("vocab")
+                    ?: json
+                val map = HashMap<String, Int>(vocab.length())
+                val keys = vocab.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    val v = vocab.opt(k)
+                    if (v is Number) map[k] = v.toInt() else return null
+                }
+                return map.takeIf { it.isNotEmpty() }
+            }
+            if (head == '[') {
+                val arr = JSONArray(text)
+                val map = HashMap<String, Int>(arr.length())
+                for (i in 0 until arr.length()) {
+                    val t = arr.opt(i)
+                    if (t is String) map[t] = i else return null
+                }
+                return map.takeIf { it.isNotEmpty() }
+            }
+        } catch (_: Exception) {
+            // No era JSON válido: se prueba el formato por líneas.
+        }
+        return null
+    }
+
+    private fun parseLineVocab(text: String): Map<String, Int>? {
+        val lines = text.lines()
+        val nonBlank = lines.count { it.isNotEmpty() }
+        if (nonBlank == 0) return null
+        // Ojo: «#» es un token válido, por eso aquí no se ignoran líneas que empiecen por #.
+        val tokenFirst = HashMap<String, Int>(lines.size)
+        val idFirst = HashMap<String, Int>(lines.size)
+        for (raw in lines) {
+            val line = raw.trimEnd('\r')
+            if (line.isEmpty()) continue
+            val last = if (line.lastIndexOf('\t') >= 0) line.lastIndexOf('\t') else line.lastIndexOf(' ')
+            if (last > 0) line.substring(last + 1).trim().toIntOrNull()?.let { tokenFirst[line.substring(0, last)] = it }
+            val first = line.indexOfFirst { it == '\t' || it == ' ' }
+            if (first > 0 && first < line.length - 1) {
+                line.substring(0, first).toIntOrNull()?.let { idFirst[line.substring(first + 1)] = it }
+            }
+        }
+        if (tokenFirst.size > 1000 && tokenFirst.size >= nonBlank * 0.9) return tokenFirst
+        if (idFirst.size > 1000 && idFirst.size >= nonBlank * 0.9) return idFirst
+        if (nonBlank >= 100_000) {
+            val map = HashMap<String, Int>(lines.size)
+            lines.forEachIndexed { index, raw ->
+                val token = raw.trimEnd('\r')
+                if (token.isNotEmpty()) map[token] = index
+            }
+            return map
+        }
+        return null
+    }
+
+    private fun preview(text: String): String =
+        text.lineSequence().take(3).joinToString(" | ") { it.take(50).debugToken() }
+            .ifEmpty { "(vacío)" }
 
     private fun readSpecial(file: File): Map<String, Int> {
         require(file.isFile) { "Falta ${file.path}" }
@@ -161,7 +214,9 @@ class Qwen2Tokenizer(root: File) {
             val parts = line.split(Regex("\\s+"), limit = 2)
             if (parts.size == 2) {
                 val id = parts[1].trim().toIntOrNull()
+                val idFirst = parts[0].toIntOrNull()
                 if (id != null) map[parts[0]] = id
+                else if (idFirst != null) map[parts[1].trim()] = idFirst
             }
         }
         return map
@@ -173,7 +228,7 @@ class Qwen2Tokenizer(root: File) {
         var rank = 0
         file.readLines().forEach { raw ->
             val line = raw.trim()
-            if (line.isEmpty() || line.startsWith("#")) return@forEach
+            if (line.isEmpty() || line.startsWith("#version")) return@forEach
             val p = line.split(Regex("\\s+"))
             if (p.size == 2) {
                 map[p[0] to p[1]] = rank++
