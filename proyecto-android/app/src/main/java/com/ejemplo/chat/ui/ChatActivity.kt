@@ -43,6 +43,7 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var btnEnviar: MaterialButton
     private lateinit var btnImagen: MaterialButton
     private lateinit var btnModelo: MaterialButton
+    private lateinit var btnModeloImagen: MaterialButton
     private lateinit var contenedor: LinearLayout
     private lateinit var imagenes: ModelosImagen
 
@@ -73,6 +74,7 @@ class ChatActivity : AppCompatActivity() {
         btnEnviar = findViewById(R.id.btnEnviar)
         btnImagen = findViewById(R.id.btnImagen)
         btnModelo = findViewById(R.id.btnModelo)
+        btnModeloImagen = findViewById(R.id.btnModeloImagen)
         contenedor = findViewById(R.id.contenedorMensajes)
 
         findViewById<MaterialButton>(R.id.btnNuevo).setOnClickListener { nueva() }
@@ -82,7 +84,7 @@ class ChatActivity : AppCompatActivity() {
         btnEnviar.setOnClickListener { enviar() }
         btnImagen.setOnClickListener { selectorImagen.launch("image/*") }
         btnModelo.setOnClickListener { elegirModelo() }
-        btnModelo.setOnLongClickListener { elegirModeloImagen(); true }
+        btnModeloImagen.setOnClickListener { elegirModeloImagen() }
         tvAdjunto.setOnClickListener { quitarImagen() }
         etMensaje.setOnEditorActionListener { _, actionId, _ -> if (actionId != 0) enviar() else false }
         btnEnviar.isEnabled = false
@@ -150,7 +152,7 @@ class ChatActivity : AppCompatActivity() {
 
             val b = MaterialButton(this).apply {
                 text = if (id == sesionId) "●  $title" else "   $title"
-                setAllCaps(false)
+                textAllCaps = false
                 gravity = Gravity.START or Gravity.CENTER_VERTICAL
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
@@ -221,7 +223,7 @@ class ChatActivity : AppCompatActivity() {
             setPadding(16, 12, 16, 12)
             setBackgroundResource(if (rol == "u") R.drawable.bg_user else R.drawable.bg_model)
             maxWidth = (resources.displayMetrics.widthPixels * 0.86f).toInt()
-            setTextIsSelectable(true)
+            textIsSelectable = true
             setTypeface(Typeface.DEFAULT, Typeface.NORMAL)
         }
         fila.addView(bubble)
@@ -230,7 +232,7 @@ class ChatActivity : AppCompatActivity() {
             val actions = LinearLayout(this).apply { gravity = Gravity.START }
             val copy = MaterialButton(this).apply {
                 text = "Copiar"
-                setAllCaps(false)
+                textAllCaps = false
                 minHeight = 34
                 setOnClickListener { copiar(texto) }
             }
@@ -238,7 +240,7 @@ class ChatActivity : AppCompatActivity() {
             if (index == mensajes.lastIndex) {
                 val regen = MaterialButton(this).apply {
                         text = "Regenerar"
-                    setAllCaps(false)
+                    textAllCaps = false
                     minHeight = 34
                     setOnClickListener { regenerarUltima() }
                 }
@@ -379,6 +381,7 @@ class ChatActivity : AppCompatActivity() {
     private fun preparar(m: MotorIA.Modelo) {
         modeloActual = m
         btnModelo.text = m.nombre
+        btnModeloImagen.visibility = View.VISIBLE
         btnImagen.visibility = if (m.vision) View.VISIBLE else View.GONE
         btnEnviar.isEnabled = false
         lifecycleScope.launch {
