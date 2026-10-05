@@ -213,7 +213,7 @@ class ChatActivity : AppCompatActivity() {
             } catch (_: Exception) { "Nueva conversación" }
 
             val b = MaterialButton(this).apply {
-                text = if (id == sesionId) "\u25cf " + title else "  " + title "
+            text = if (id == sesionId) "\u25cf $title" else "  $title"
                 setAllCaps(false)
                 gravity = Gravity.START or Gravity.CENTER_VERTICAL
                 maxLines = 1
