@@ -163,8 +163,11 @@ clone_repo() {
         rm -rf "$dest"
         log "Descargando $url @ $ref"
         git clone --depth 1 "$url" "$dest"
+        # Para tags anotados o refs que git fetch deja en FETCH_HEAD,
+        # hacemos checkout explícito de FETCH_HEAD. Esto evita que Git
+        # interprete el ref como una ruta con versiones recientes del runner.
         git -C "$dest" fetch --depth 1 origin "$ref"
-        git -C "$dest" checkout --detach "$ref"
+        git -C "$dest" checkout --detach FETCH_HEAD
         git -C "$dest" submodule update --init --recursive --depth 1
     else
         log "Reutilizando $dest"
