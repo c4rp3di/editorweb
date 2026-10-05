@@ -27,7 +27,7 @@ object Flux2Files {
 
     // Downloads use .part and are renamed only after EOF. Avoid guessed
     // per-file floors; the repository reports ~381 MB total for all kc_* graphs.
-    fun minimumBytes(rel: String): Long = if (rel.endsWith(".tflite")) 1_000_000L else 1L
+    fun minimumBytes(rel: String): Long = 1L
 
     /** Tamaño exacto y magia FlatBuffer ("TFL3") de cada grafo, para detectar descargas truncadas o corruptas. */
     fun describeGraphs(root: File): List<String> = graphs.map { name ->
