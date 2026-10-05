@@ -20,3 +20,7 @@ No incluye:
 - Gradle wrappers adicionales
 - medios de ejemplo
 - binarios `.so` preconstruidos
+
+
+### Blindaje de toolchains
+La preparación nativa detecta la versión Vulkan del NDK y descarga el conjunto completo de `KhronosGroup/Vulkan-Headers` con el tag exacto correspondiente. Esto evita mezclar `vulkan.hpp` de una versión nueva con `vulkan_core.h` del NDK. También se fija `stable-diffusion.cpp` a un commit concreto para que Actions no cambie de código silenciosamente.
