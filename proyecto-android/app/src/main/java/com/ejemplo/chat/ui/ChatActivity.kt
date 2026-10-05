@@ -110,6 +110,17 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
+    /** Historial para el modelo de texto: sin respuestas de imagen ni los prompts que las originaron. */
+    private fun historialTexto(): List<Pair<String, String>> {
+        val out = mutableListOf<Pair<String, String>>()
+        for (msg in mensajes) {
+            if (msg.first == "m" && msg.second.startsWith("[[IMAGE]]")) {
+                if (out.isNotEmpty() && out.last().first == "u") out.removeAt(out.lastIndex)
+            } else out.add(msg)
+        }
+        return out
+    }
+
     private fun carpetaChats() = File(filesDir, "conversaciones").apply { mkdirs() }
     private fun archivoSesion(id: String) = File(carpetaChats(), "$id.json")
 
@@ -170,7 +181,7 @@ class ChatActivity : AppCompatActivity() {
                     cargarSesion(id)
                     render(null)
                     drawer.closeDrawer(GravityCompat.START)
-                    if (modeloActual != null) motor.nuevaConversacion(mensajes.toList())
+                    if (modeloActual != null) motor.nuevaConversacion(historialTexto())
                 }
             }
             listaConversaciones.addView(b, LinearLayout.LayoutParams(-1, 48).apply { setMargins(0, 2, 0, 2) })
@@ -254,24 +265,29 @@ class ChatActivity : AppCompatActivity() {
         }
 
         if (rol == "m" && !streaming) {
+            val esImagen = texto.startsWith("[[IMAGE]]")
             val actions = LinearLayout(this).apply { gravity = Gravity.START }
-            val copy = MaterialButton(this).apply {
-                text = "Copiar"
-                setAllCaps(false)
-                minHeight = 34
-                setOnClickListener { copiar(texto) }
+            if (!esImagen) {
+                val copy = MaterialButton(this).apply {
+                    text = "Copiar"
+                    setAllCaps(false)
+                    minHeight = 34
+                    setOnClickListener { copiar(texto) }
+                }
+                actions.addView(copy)
             }
-            actions.addView(copy)
-            if (index == mensajes.lastIndex) {
+            val puedeRegenerar = index == mensajes.lastIndex &&
+                (if (esImagen) modeloImagenActual != null else modeloActual != null)
+            if (puedeRegenerar) {
                 val regen = MaterialButton(this).apply {
-                        text = "Regenerar"
+                    text = "Regenerar"
                     setAllCaps(false)
                     minHeight = 34
                     setOnClickListener { regenerarUltima() }
                 }
                 actions.addView(regen)
             }
-            fila.addView(actions)
+            if (actions.childCount > 0) fila.addView(actions)
         }
         contenedor.addView(fila)
     }
@@ -291,9 +307,19 @@ class ChatActivity : AppCompatActivity() {
     }
 
     private fun regenerarUltima() {
-        if (generando || mensajes.size < 2 || modeloActual == null) return
+        if (generando || mensajes.size < 2) return
         val ultimoUsuario = mensajes.indexOfLast { it.first == "u" }
         if (ultimoUsuario < 0) return
+        val ultima = mensajes.last()
+        if (ultima.first == "m" && ultima.second.startsWith("[[IMAGE]]")) {
+            if (modeloImagenActual == null) return
+            val prompt = mensajes[ultimoUsuario].second
+            while (mensajes.size > ultimoUsuario + 1) mensajes.removeAt(mensajes.lastIndex)
+            render(null)
+            generarImagenDesde(prompt)
+            return
+        }
+        if (modeloActual == null) return
         while (mensajes.size > ultimoUsuario + 1) mensajes.removeAt(mensajes.lastIndex)
         val prompt = mensajes[ultimoUsuario].second.removePrefix("📷 ").trim()
         generarDesde(prompt, null, guardar = true)
@@ -455,7 +481,7 @@ class ChatActivity : AppCompatActivity() {
                 progreso.visibility = View.VISIBLE
                 progreso.isIndeterminate = true
                 tvEstado.text = "Cargando ${m.nombre}…"
-                motor.inicializar(m, mensajes.toList())
+                motor.inicializar(m, historialTexto())
                 progreso.visibility = View.GONE
                 tvEstado.text = "Listo · privado y sin conexión"
                 actualizarBotonEnvio()
@@ -608,7 +634,9 @@ class ChatActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        // close() cancela y difiere el cierre del entorno nativo si hay una generación en curso.
         fluxGenerator?.close()
+        fluxGenerator = null
         motor.liberar()
         super.onDestroy()
     }
