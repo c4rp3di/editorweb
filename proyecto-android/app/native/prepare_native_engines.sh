@@ -40,6 +40,44 @@ fi
 command -v glslc >/dev/null 2>&1 || fail "No se encontró glslc después de instalar las dependencias Vulkan."
 command -v glslangValidator >/dev/null 2>&1 || fail "No se encontró glslangValidator después de instalar glslang-tools."
 
+# ggml-vulkan usa find_package(SPIRV-Headers CONFIG REQUIRED). En algunos
+# runners Ubuntu el paquete spirv-headers aporta los headers pero no instala
+# un SPIRV-HeadersConfig.cmake utilizable por el CMake Android cruzado.
+# En ese caso generamos e instalamos el paquete CMake oficial de Khronos
+# en un prefijo local del runner. No se incorpora ninguna fuente al repo.
+SPIRV_PREFIX="$TOOLCHAIN_DIR/spirv-headers-install"
+SPIRV_HEADERS_DIR=""
+for candidate in \
+    /usr/share/cmake/SPIRV-Headers \
+    /usr/lib/*/cmake/SPIRV-Headers; do
+    if [[ -f "$candidate/SPIRV-HeadersConfig.cmake" ]]; then
+        SPIRV_HEADERS_DIR="$candidate"
+        break
+    fi
+done
+
+if [[ -z "$SPIRV_HEADERS_DIR" ]]; then
+    SPIRV_SRC="$TOOLCHAIN_DIR/SPIRV-Headers"
+    SPIRV_BUILD="$BUILD_DIR/spirv-headers-host"
+    if [[ ! -f "$SPIRV_SRC/CMakeLists.txt" ]]; then
+        log "Descargando SPIRV-Headers oficial de Khronos para generar su paquete CMake"
+        rm -rf "$SPIRV_SRC"
+        git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Headers.git "$SPIRV_SRC"
+    fi
+    rm -rf "$SPIRV_BUILD"
+    log "Instalando SPIRV-Headers en un prefijo local del runner"
+    cmake -S "$SPIRV_SRC" -B "$SPIRV_BUILD" -G Ninja \
+        -DSPIRV_HEADERS_ENABLE_TESTS=OFF \
+        -DSPIRV_HEADERS_ENABLE_INSTALL=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="$SPIRV_PREFIX"
+    cmake --build "$SPIRV_BUILD" --target install --config Release
+    SPIRV_HEADERS_DIR="$SPIRV_PREFIX/share/cmake/SPIRV-Headers"
+fi
+
+[[ -f "$SPIRV_HEADERS_DIR/SPIRV-HeadersConfig.cmake" ]] || fail "No se encontró SPIRV-HeadersConfig.cmake tras preparar SPIRV-Headers."
+log "SPIRV-Headers CMake: $SPIRV_HEADERS_DIR"
+
 SDKMANAGER="$(command -v sdkmanager || true)"
 if [[ -z "$SDKMANAGER" ]]; then
     for candidate in \
@@ -125,7 +163,8 @@ build_one "stable-diffusion.cpp" \
     -DSD_WEBM=OFF \
     -DGGML_NATIVE=OFF \
     -DGGML_OPENMP=OFF \
-    -DGGML_LLAMAFILE=OFF
+    -DGGML_LLAMAFILE=OFF \
+    -DSPIRV-Headers_DIR="$SPIRV_HEADERS_DIR"
 
 LLAMA_SO="$(find "$BUILD_DIR/llama" -type f -name 'libchatpro-llama.so' -print -quit)"
 DIFFUSION_SO="$(find "$BUILD_DIR/diffusion" -type f -name 'libchatpro-diffusion.so' -print -quit)"
