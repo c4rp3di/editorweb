@@ -78,6 +78,27 @@ fi
 [[ -f "$SPIRV_HEADERS_DIR/SPIRV-HeadersConfig.cmake" ]] || fail "No se encontró SPIRV-HeadersConfig.cmake tras preparar SPIRV-Headers."
 log "SPIRV-Headers CMake: $SPIRV_HEADERS_DIR"
 
+# stable-diffusion.cpp/ggml-vulkan usa Vulkan-Hpp además de los headers C de
+# Vulkan. Ubuntu/libvulkan-dev no garantiza que vulkan.hpp esté instalado en
+# el runner, así que lo preparamos exclusivamente durante Actions. No se
+# incorpora al repositorio ni al editor.
+VULKAN_HPP_SRC="$TOOLCHAIN_DIR/Vulkan-Hpp"
+VULKAN_HPP_FILE=""
+if [[ -d "$VULKAN_HPP_SRC" ]]; then
+    VULKAN_HPP_FILE="$(find "$VULKAN_HPP_SRC" -type f -path '*/vulkan/vulkan.hpp' -print -quit || true)"
+fi
+if [[ -z "$VULKAN_HPP_FILE" ]]; then
+    log "Descargando Vulkan-Hpp oficial de Khronos para stable-diffusion.cpp"
+    rm -rf "$VULKAN_HPP_SRC"
+    git clone --depth 1 https://github.com/KhronosGroup/Vulkan-Hpp.git "$VULKAN_HPP_SRC"
+    VULKAN_HPP_FILE="$(find "$VULKAN_HPP_SRC" -type f -path '*/vulkan/vulkan.hpp' -print -quit || true)"
+fi
+[[ -n "$VULKAN_HPP_FILE" ]] || fail "No se encontró vulkan/vulkan.hpp en Vulkan-Hpp."
+VULKAN_HPP_INCLUDE_DIR="${VULKAN_HPP_FILE%/vulkan/vulkan.hpp}"
+[[ -f "$VULKAN_HPP_INCLUDE_DIR/vulkan/vulkan.hpp" ]] || fail "Vulkan-Hpp quedó en una estructura inesperada: $VULKAN_HPP_FILE"
+VULKAN_HPP_COMMIT="$(git -C "$VULKAN_HPP_SRC" rev-parse HEAD)"
+log "Vulkan-Hpp: $VULKAN_HPP_INCLUDE_DIR (commit $VULKAN_HPP_COMMIT)"
+
 SDKMANAGER="$(command -v sdkmanager || true)"
 if [[ -z "$SDKMANAGER" ]]; then
     for candidate in \
@@ -164,7 +185,8 @@ build_one "stable-diffusion.cpp" \
     -DGGML_NATIVE=OFF \
     -DGGML_OPENMP=OFF \
     -DGGML_LLAMAFILE=OFF \
-    -DSPIRV-Headers_DIR="$SPIRV_HEADERS_DIR"
+    -DSPIRV-Headers_DIR="$SPIRV_HEADERS_DIR" \
+    -DVULKAN_HPP_INCLUDE_DIR="$VULKAN_HPP_INCLUDE_DIR"
 
 LLAMA_SO="$(find "$BUILD_DIR/llama" -type f -name 'libchatpro-llama.so' -print -quit)"
 DIFFUSION_SO="$(find "$BUILD_DIR/diffusion" -type f -name 'libchatpro-diffusion.so' -print -quit)"
@@ -183,6 +205,9 @@ android_cmake=$CMAKE_VERSION
 abi=arm64-v8a
 android_platform=28
 native_stl=c++_static
+vulkan_hpp_commit=$VULKAN_HPP_COMMIT
+vulkan_hpp_include_dir=$VULKAN_HPP_INCLUDE_DIR
+spirv_headers_cmake=$SPIRV_HEADERS_DIR
 INFO
 
 log "Motores nativos preparados:"
