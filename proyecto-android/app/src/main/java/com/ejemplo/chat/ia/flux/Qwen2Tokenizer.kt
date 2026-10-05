@@ -31,7 +31,7 @@ class Qwen2Tokenizer(root: File) {
 
     /** Qwen3 chat template used by the FLUX.2 klein text encoder path. */
     fun renderUserPrompt(prompt: String): String =
-        "<|im_start|>user\n${prompt}<|im_end|>\n<|im_start|>assistant\n"
+        "<|im_start|>user\n${prompt}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n"
 
     /** Encode text and truncate to maxLength. No EOS/BOS token is added implicitly. */
     fun encode(text: String, maxLength: Int = 512): IntArray {
@@ -71,10 +71,13 @@ class Qwen2Tokenizer(root: File) {
         return out.toIntArray()
     }
 
-    fun padId(): Int =
-        specialToId["<|endoftext|>"]
-            ?: specialToId["<|im_end|>"]
-            ?: throw IllegalStateException("qwen_special.txt no contiene un token de padding seguro")
+    fun padId(): Int {
+        val id = specialToId.entries.firstOrNull { it.key == "<|endoftext|>" }?.value
+            ?: specialToId.entries.firstOrNull { it.value == 151643 }?.value
+            ?: throw IllegalStateException("qwen_special.txt no contiene el pad token requerido (151643)")
+        check(id == 151643) { "Pad token incorrecto: $id; el contrato exige 151643" }
+        return id
+    }
 
     private fun bpe(piece: String): List<String> {
         bpeCache[piece]?.let { return it }
