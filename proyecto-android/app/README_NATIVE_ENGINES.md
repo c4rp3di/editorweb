@@ -30,3 +30,11 @@ Para compilar solamente la parte Kotlin sin descargar/compilar motores nativos s
 `CHATPRO_SKIP_NATIVE=1`
 
 Para el build de GitHub Actions no se debe activar esa variable.
+
+
+## Reproducibilidad nativa
+- `llama.cpp` queda fijado a `v0.6.0` por defecto.
+- `stable-diffusion.cpp` queda fijado al commit `3f8527a` por defecto; no se usa `master`.
+- La versión de Vulkan-Headers se obtiene del `vulkan_core.h` real del NDK y se exige el tag Khronos exacto `v<major>.<minor>.<VK_HEADER_VERSION>`.
+- Se valida que `VK_HEADER_VERSION` coincida antes de compilar; no se mezclan `vulkan.hpp` y `vulkan_core.h` de generaciones distintas.
+- Los headers de Vulkan no se guardan en el repositorio: Actions los descarga durante la build.
