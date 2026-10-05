@@ -18,6 +18,6 @@
 
 **Runtime prerequisites that must be present in the downloaded coherent package:**
 - projected 4×3072 timestep embeddings in `host/`;
-- 128-channel VAE BatchNorm mean + std/variance in `host/`.
+- 128-channel VAE BatchNorm mean + std/variance. The public package does not ship them; the app reads them from the original FLUX.2 VAE with HTTP Range requests (a few KB, user-confirmed) and stores `host/vae_bn_stats.bin`.
 
 The app rejects generation rather than fabricating either learned artifact.
