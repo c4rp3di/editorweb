@@ -38,15 +38,6 @@
                 android:orientation="horizontal">
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnModeloImagen"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:layout_width="76dp"
-                    android:layout_height="48dp"
-                    android:text="Imagen"
-                    android:textSize="18sp"
-                    android:contentDescription="Modelos de imagen"/>
-
-                <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnModelo"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:layout_width="wrap_content"
