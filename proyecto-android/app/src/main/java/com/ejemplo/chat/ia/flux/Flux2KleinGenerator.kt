@@ -2,6 +2,7 @@ package com.ejemplo.chat.ia.flux
 
 import android.content.Context
 import android.graphics.Bitmap
+import com.ejemplo.chat.ia.DebugLog
 import com.google.ai.edge.litert.Environment
 import java.io.File
 import java.util.Random
@@ -51,7 +52,7 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
     }
 
     /** Generate one 256×256 image. Must be called off the main thread. */
-    fun generate(prompt: String, seed: Long = System.nanoTime(), onProgress: (String) -> Unit): Bitmap {
+    fun generate(prompt: String, seed: Long = System.nanoTime(), onProgress: (String, Float) -> Unit): Bitmap {
         synchronized(lock) {
             check(!closed && !closeWhenDone) { "El generador ya está cerrado" }
             check(!running) { "Ya hay una imagen generándose" }
@@ -68,16 +69,29 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         }
     }
 
-    private fun generateInternal(prompt: String, seed: Long, onProgress: (String) -> Unit): Bitmap {
+    private fun generateInternal(prompt: String, seed: Long, onProgress: (String, Float) -> Unit): Bitmap {
         require(prompt.isNotBlank()) { "El prompt está vacío" }
         val error = readinessError()
         require(error == null) { error!! }
 
+        // Unidades de progreso: 3 codificadores + 4 pasos × 8 grafos + VAE.
+        val total = 3 + 4 * 8 + 1
+        var done = 0
+        val t0 = System.nanoTime()
+        fun stage(text: String) {
+            checkCancelled()
+            onProgress(text, done / total.toFloat())
+            DebugLog.log("FLUX", "▶ $text")
+        }
+        fun finished() { done++ }
+
+        stage("Preparando prompt (tokenizer y embeddings)")
         val prep = host.prepare(prompt)
+        DebugLog.log("FLUX", "prompt listo · ${DebugLog.mem()}")
         var hidden = prep.tokenEmbeddings
         val taps = ArrayList<FloatArray>(3)
         for (i in 0 until 3) {
-            checkCancelled()
+            stage("Codificador de texto ${i + 1}/3")
             hidden = ChunkRunner.gpu(
                 environment,
                 "ke_enc$i.tflite",
@@ -85,32 +99,37 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
                 listOf(hidden, prep.encMask, prep.encCos, prep.encSin)
             )[0]
             taps += hidden
-            onProgress("Codificador de texto ${i + 1}/3")
+            finished()
         }
         val promptEmbeds = host.buildPromptEmbedsFromTaps(taps)
         var latents = gaussianNoise(Flux2HostPrep.IMAGE_TOKENS * Flux2HostPrep.IMAGE_PACKED_CHANNELS, seed)
 
-        val kcCache = if (REUSE_KC_GRAPHS) ChunkRunner.Cache(environment, root) else null
+        // Solo kc_prep y kc_final (~185 MB) se reutilizan por defecto. Mantener todos los kc_*
+        // compilados a la vez ronda los 4 GB y el sistema mata la app por falta de memoria.
+        val kcCache = ChunkRunner.Cache(environment, root)
         fun runKc(name: String, inputs: List<FloatArray>): List<FloatArray> =
-            kcCache?.run(name, inputs) ?: ChunkRunner.gpu(environment, name, root, inputs)
+            if (REUSE_KC_GRAPHS || name in SMALL_KC_GRAPHS) kcCache.run(name, inputs)
+            else ChunkRunner.gpu(environment, name, root, inputs)
 
         try {
             for (step in 0 until 4) {
+                val tag = "Paso ${step + 1}/4"
                 val temb = host.readTimestepEmbedding(prep.sigmas[step] * 1000f)
-                checkCancelled()
+                stage("$tag · preparación")
                 var prepOut = runKc(
                     "kc_prep.tflite",
                     listOf(latents, promptEmbeds, temb)
                 )
+                finished()
                 var image = prepOut[0]
                 var text = prepOut[1]
                 var modImg = prepOut[2]
                 var modTxt = prepOut[3]
                 var modSingle = if (prepOut.size > 4) prepOut[4] else null
                 require(modSingle != null) { "kc_prep no devolvió mod_single" }
-    
+
                 for (i in 0 until 2) {
-                    checkCancelled()
+                    stage("$tag · bloque doble ${i + 1}/2")
                     val o = runKc(
                         "kc_double$i.tflite",
                         listOf(image, text, prep.ditCos, prep.ditSin, modImg, modTxt)
@@ -118,20 +137,21 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
                     require(o.size >= 2) { "kc_double$i devolvió menos de dos tensores" }
                     image = o[0]
                     text = o[1]
-                    // Modulation tensors are already prepared by kc_prep.
+                    finished()
                 }
-    
+
                 var joint = FloatArray(text.size + image.size)
                 text.copyInto(joint, 0)
                 image.copyInto(joint, text.size)
                 for (i in 0 until 4) {
-                    checkCancelled()
+                    stage("$tag · bloque simple ${i + 1}/4")
                     joint = runKc(
                         "kc_single$i.tflite",
                         listOf(joint, prep.ditCos, prep.ditSin, modSingle)
                     )[0]
+                    finished()
                 }
-                checkCancelled()
+                stage("$tag · salida")
                 val pred = runKc(
                     "kc_final.tflite",
                     listOf(joint, temb)
@@ -141,16 +161,17 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
                 }
                 val stepDelta = prep.dsigma[step]
                 for (i in latents.indices) latents[i] += stepDelta * pred[i]
-                onProgress("Difusión ${step + 1}/4")
+                finished()
             }
         } finally {
             // Libera la memoria de GPU de los kc_* antes de cargar el VAE.
-            kcCache?.close()
+            kcCache.close()
         }
 
-        checkCancelled()
+        stage("Decodificando imagen (VAE)")
         val bn = Flux2VaeStats.load(root)
         lastWarning = if (bn == null) "sin estadísticas BN del VAE: colores aproximados" else null
+        if (bn == null) DebugLog.log("FLUX", "⚠ faltan las estadísticas BN del VAE")
         val latent = toVaeLatent(latents, bn)
         val pixels = ChunkRunner.gpu(
             environment,
@@ -158,7 +179,9 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
             root,
             listOf(latent)
         )[0]
-        onProgress("Decodificando VAE")
+        finished()
+        onProgress("Imagen lista", 1f)
+        DebugLog.log("FLUX", "✔ imagen generada en ${(System.nanoTime() - t0) / 1_000_000_000} s")
         return pixelsToBitmap(pixels)
     }
 
@@ -235,10 +258,11 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
 
     companion object {
         /**
-         * true: compila cada kc_* una vez y lo reutiliza en los 4 pasos (mucho más rápido, más memoria GPU).
-         * Si el móvil se queda sin memoria al generar, ponlo en false.
+         * true: compila TODOS los kc_* una vez y los reutiliza en los 4 pasos (más rápido, pero ~4 GB
+         * residentes: probable causa de que el sistema cerrase la app en v4-v6). Déjalo en false.
          */
-        const val REUSE_KC_GRAPHS = true
+        const val REUSE_KC_GRAPHS = false
+        private val SMALL_KC_GRAPHS = setOf("kc_prep.tflite", "kc_final.tflite")
 
         /**
          * true: canal empaquetado = c*4 + parche (orden de diffusers). false: parche*32 + c
