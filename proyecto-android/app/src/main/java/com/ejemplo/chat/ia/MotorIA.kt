@@ -39,15 +39,31 @@ class MotorIA(private val context: Context) {
 
     companion object {
         val MODELOS = listOf(
-            Modelo("qwen3-0.6b", "Qwen3 0.6B (ligero)",
+            Modelo(
+                "qwen3-0.6b", "Qwen3 0.6B", 
                 "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/Qwen3-0.6B.litertlm",
-                "Qwen3-0.6B.litertlm", 590, false),
-            Modelo("gemma4-e2b", "Gemma 4 E2B (equilibrado)",
+                "Qwen3-0.6B.litertlm", 590, false
+            ),
+            Modelo(
+                "smollm2-360m", "SmolLM2 360M",
+                "https://huggingface.co/litert-community/SmolLM2-360M-Instruct/resolve/main/SmolLM2_360M_instruct.litertlm",
+                "SmolLM2_360M_instruct.litertlm", 374, false
+            ),
+            Modelo(
+                "qwen25-1.5b", "Qwen 2.5 1.5B",
+                "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm",
+                "Qwen2.5-1.5B-Instruct.litertlm", 1600, false
+            ),
+            Modelo(
+                "gemma4-e2b", "Gemma 4 E2B",
                 "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
-                "gemma-4-E2B-it.litertlm", 2600, true),
-            Modelo("gemma4-e4b", "Gemma 4 E4B (mejor calidad, pesado)",
+                "gemma-4-E2B-it.litertlm", 2600, true
+            ),
+            Modelo(
+                "gemma4-e4b", "Gemma 4 E4B",
                 "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm",
-                "gemma-4-E4B-it.litertlm", 3700, true)
+                "gemma-4-E4B-it.litertlm", 3700, true
+            )
         )
     }
 
