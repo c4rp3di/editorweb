@@ -220,20 +220,12 @@ class ModelosImagen(private val context: Context) {
         } catch (_: Exception) { emptyList() }
     }
 
-    private fun minimumBytes(rel: String): Long = when {
-        rel == "ke_enc0.tflite" || rel == "ke_enc1.tflite" || rel == "ke_enc2.tflite" -> 850L * 1024 * 1024
-        rel == "kc_prep.tflite" -> 150L * 1024 * 1024
-        rel == "kc_double0.tflite" -> 650L * 1024 * 1024
-        rel == "kc_double1.tflite" -> 430L * 1024 * 1024
-        rel == "kc_single0.tflite" || rel == "kc_single1.tflite" || rel == "kc_single2.tflite" || rel == "kc_single3.tflite" -> 540L * 1024 * 1024
-        rel == "kc_final.tflite" -> 15L * 1024 * 1024
-        rel == "kv_vae.tflite" -> 40L * 1024 * 1024
-        rel == "tokenizer/qwen_embed_fp16.bin" -> 700L * 1024 * 1024
-        rel == "tokenizer/qwen_merges.txt" -> 1L * 1024 * 1024
-        rel == "tokenizer/qwen_vocab.txt" -> 1L * 1024 * 1024
-        rel == "tokenizer/qwen_special.txt" -> 100L
-        rel == "tokenizer/tokenizer_fixture.txt" -> 500L
-        rel.startsWith("host/") -> 2L
-        else -> 2L
-    }
+    /**
+     * Remote downloads are written to .part and renamed only after EOF.
+     * The final file therefore already means the stream completed.
+     * Hard-coded size floors are unsafe here: the public package's kc_*
+     * graphs are far smaller than the old estimates used by this app.
+     */
+    private fun minimumBytes(rel: String): Long = 1L
+
 }
