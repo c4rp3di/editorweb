@@ -3,6 +3,7 @@ package com.ejemplo.chat.ia.flux
 import com.google.ai.edge.litert.Environment
 import com.google.ai.edge.litert.CompiledModel
 import com.google.ai.edge.litert.Accelerator
+import com.ejemplo.chat.ia.DebugLog
 import java.io.File
 
 /** GPU execution of LiteRT chunks, using FP32 to avoid NaNs in modulated blocks. */
@@ -12,7 +13,11 @@ object ChunkRunner {
         options.gpuOptions = CompiledModel.GpuOptions(
             precision = CompiledModel.GpuOptions.Precision.FP32
         )
-        return CompiledModel.create(File(directory, name).absolutePath, options, environment)
+        val t0 = System.nanoTime()
+        DebugLog.log("GPU", "compilando $name · ${DebugLog.mem()}")
+        val model = CompiledModel.create(File(directory, name).absolutePath, options, environment)
+        DebugLog.log("GPU", "compilado $name en ${(System.nanoTime() - t0) / 1_000_000} ms")
+        return model
     }
 
     private fun execute(model: CompiledModel, name: String, inputs: List<FloatArray>): List<FloatArray> {
@@ -23,8 +28,11 @@ object ChunkRunner {
                 "$name esperaba ${inputBuffers.size} entradas; se recibieron ${inputs.size}"
             }
             inputs.forEachIndexed { index, values -> inputBuffers[index].writeFloat(values) }
+            val t0 = System.nanoTime()
             model.run(inputBuffers, outputBuffers)
-            return outputBuffers.map { it.readFloat() }
+            val out = outputBuffers.map { it.readFloat() }
+            DebugLog.log("GPU", "ejecutado $name en ${(System.nanoTime() - t0) / 1_000_000} ms · ${DebugLog.mem()}")
+            return out
         } finally {
             inputBuffers.forEach { it.close() }
             outputBuffers.forEach { it.close() }
