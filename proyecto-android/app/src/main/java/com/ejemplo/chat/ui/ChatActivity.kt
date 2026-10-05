@@ -35,9 +35,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.UUID
 
 class ChatActivity : AppCompatActivity() {
@@ -190,7 +187,7 @@ class ChatActivity : AppCompatActivity() {
                 mensajes.add(o.getString("r") to o.getString("t"))
             }
         } catch (_: Exception) {}
-        tituloSesion = tituloGuardado(id) ?: mensajes.firstOrNull { it.first == "u" }?.second
+        tituloSesion = mensajes.firstOrNull { it.first == "u" }?.second
             ?.replace(Regex("\\s+"), " ")?.take(34) ?: "Nueva conversación"
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("sesion", id).apply()
     }
@@ -204,31 +201,23 @@ class ChatActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
-    /** Título personalizado guardado en el archivo paralelo <id>.title (null si no existe). */
-    private fun tituloGuardado(id: String): String? =
-        File(carpetaChats(), "$id.title").takeIf { it.exists() }
-            ?.readText()?.trim()?.takeIf { it.isNotEmpty() }
-
     private fun renderSidebar() {
         listaConversaciones.removeAllViews()
         val files = carpetaChats().listFiles()?.filter { it.extension == "json" }?.sortedByDescending { it.lastModified() } ?: emptyList()
-        val fmt = SimpleDateFormat("d MMM · HH:mm", Locale.getDefault())
-        val colorTexto = resolveTextColor()
         files.forEach { file ->
             val id = file.nameWithoutExtension
-            val (title, count) = try {
+            val title = try {
                 val arr = JSONArray(file.readText())
-                val t = if (arr.length() > 0) arr.getJSONObject(0).getString("t").replace(Regex("\s+"), " ").take(34)
-                        else "Nueva conversación"
-                t to arr.length()
-            } catch (_: Exception) { "Nueva conversación" to 0 }
-            val nombre = tituloGuardado(id) ?: title
+                if (arr.length() > 0) arr.getJSONObject(0).getString("t").replace(Regex("\\s+"), " ").take(34)
+                else "Nueva conversación"
+            } catch (_: Exception) { "Nueva conversación" }
 
-            val fila = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setBackgroundResource(R.drawable.bg_model)
-                setPadding(dp(12), dp(6), dp(4), dp(6))
+            val b = MaterialButton(this).apply {
+                text = if (id == sesionId) "\u25cf " + title else "  " + title "
+                setAllCaps(false)
+                gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
                 setOnClickListener {
                     if (generando) return@setOnClickListener
                     cargarSesion(id)
@@ -236,37 +225,8 @@ class ChatActivity : AppCompatActivity() {
                     drawer.closeDrawer(GravityCompat.START)
                     if (modeloActual != null) motor.nuevaConversacion(historialTexto())
                 }
-                setOnLongClickListener {
-                    if (generando) return@setOnLongClickListener true
-                    renombrarChat(id, nombre)
-                    true
-                }
             }
-            val textos = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            textos.addView(TextView(this).apply {
-                text = (if (id == sesionId) "\u25CF  " else "") + nombre
-                textSize = 14f
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                setTextColor(colorTexto)
-                setTypeface(typeface, if (id == sesionId) Typeface.BOLD else Typeface.NORMAL)
-            }, LinearLayout.LayoutParams(-1, -2))
-            textos.addView(TextView(this).apply {
-                text = "$count mensajes · ${fmt.format(Date(file.lastModified()))}"
-                textSize = 11f
-                setTextColor(Color.GRAY)
-                maxLines = 1
-            }, LinearLayout.LayoutParams(-1, -2))
-            fila.addView(textos, LinearLayout.LayoutParams(0, -2, 1f))
-            fila.addView(TextView(this).apply {
-                text = "✕"
-                textSize = 16f
-                setTextColor(Color.GRAY)
-                gravity = Gravity.CENTER
-                setPadding(dp(10), dp(10), dp(10), dp(10))
-                setOnClickListener { confirmarBorrarChat(id, nombre) }
-            }, LinearLayout.LayoutParams(dp(44), dp(44)))
-            listaConversaciones.addView(fila, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, 2, 0, 2) })
+            listaConversaciones.addView(b, LinearLayout.LayoutParams(-1, 48).apply { setMargins(0, 2, 0, 2) })
         }
         if (files.isEmpty()) {
             val empty = TextView(this).apply {
@@ -277,56 +237,6 @@ class ChatActivity : AppCompatActivity() {
             }
             listaConversaciones.addView(empty)
         }
-    }
-
-    /** Pulsación larga sobre un chat del historial: permite ponerle un nombre personalizado. */
-    private fun renombrarChat(id: String, nombreActual: String) {
-        val input = EditText(this).apply {
-            setText(nombreActual)
-            setSelectAllOnFocus(true)
-            setSingleLine()
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Renombrar conversación")
-            .setView(LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(20), dp(6), dp(20), 0)
-                addView(input, LinearLayout.LayoutParams(-1, -2))
-            })
-            .setPositiveButton("Guardar") { _, _ ->
-                val nuevo = input.text.toString().trim()
-                val f = File(carpetaChats(), "$id.title")
-                if (nuevo.isEmpty()) f.delete() else f.writeText(nuevo.take(60))
-                if (id == sesionId) tituloSesion = nuevo.ifEmpty { "Nueva conversación" }
-                DebugLog.log("UI", "Conversación renombrada: $id -> ${nuevo.take(40)}")
-                renderSidebar()
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
-    }
-
-    /** La ✕ de cada fila: pide confirmación y, si borra la sesión activa, abre una nueva vacía. */
-    private fun confirmarBorrarChat(id: String, nombre: String) {
-        AlertDialog.Builder(this)
-            .setTitle("Borrar conversación")
-            .setMessage("¿Borrar «$nombre»? Esta acción no se puede deshacer.")
-            .setPositiveButton("Borrar") { _, _ ->
-                archivoSesion(id).delete()
-                File(carpetaChats(), "$id.title").delete()
-                DebugLog.log("UI", "Conversación borrada: $id")
-                if (id == sesionId) {
-                    mensajes.clear()
-                    sesionId = UUID.randomUUID().toString()
-                    tituloSesion = "Nueva conversación"
-                    getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("sesion", sesionId).apply()
-                    motor.nuevaConversacion()
-                    render(null)
-                    tvEstado.text = "Nueva conversación"
-                }
-                renderSidebar()
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
     }
 
     private fun render(parcial: String?) {
