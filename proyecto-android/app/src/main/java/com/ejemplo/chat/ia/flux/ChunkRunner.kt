@@ -45,6 +45,12 @@ object ChunkRunner {
             require(inputBuffers.size == inputs.size) {
                 "$name esperaba ${inputBuffers.size} entradas; se recibieron ${inputs.size}"
             }
+            val expected = inputBuffers.map { runCatching { it.readFloat().size }.getOrDefault(-1) }
+            val bad = inputs.indices.filter { expected[it] >= 0 && expected[it] != inputs[it].size }
+            require(bad.isEmpty()) {
+                "$name: tamaños de entrada incompatibles (esperado/enviado en floats): " +
+                    inputs.indices.joinToString { "#$it ${expected[it]}/${inputs[it].size}" }
+            }
             inputs.forEachIndexed { index, values -> inputBuffers[index].writeFloat(values) }
             val t0 = System.nanoTime()
             model.run(inputBuffers, outputBuffers)
@@ -55,6 +61,15 @@ object ChunkRunner {
             inputBuffers.forEach { it.close() }
             outputBuffers.forEach { it.close() }
         }
+    }
+
+    /** Nº de floats que espera la entrada [index] del grafo (para detectar la longitud real del texto). */
+    fun inputFloatCount(environment: Environment, name: String, directory: File, index: Int): Int {
+        val model = compile(environment, name, directory)
+        try {
+            val buffers = model.createInputBuffers()
+            try { return buffers[index].readFloat().size } finally { buffers.forEach { it.close() } }
+        } finally { model.close() }
     }
 
     /** One-shot: compila, ejecuta y libera. Úsalo para grafos que se ejecutan una sola vez. */
