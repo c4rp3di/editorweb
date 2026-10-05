@@ -1,23 +1,36 @@
 package com.ejemplo.chat.ia.flux
 
-import com.google.ai.edge.litert.Accelerator
-import com.google.ai.edge.litert.CompiledModel
 import com.google.ai.edge.litert.Environment
+import com.google.ai.edge.litert.CompiledModel
+import com.google.ai.edge.litert.Accelerator
 import java.io.File
 
+/** One-shot GPU execution of a LiteRT chunk, using FP32 to avoid NaNs in modulated blocks. */
 object ChunkRunner {
-    fun gpu(env: Environment, name: String, dir: File, inputs: List<FloatArray>): List<FloatArray> {
+    fun gpu(
+        environment: Environment,
+        name: String,
+        directory: File,
+        inputs: List<FloatArray>
+    ): List<FloatArray> {
         val options = CompiledModel.Options(Accelerator.GPU)
-        options.gpuOptions = CompiledModel.GpuOptions(precision = CompiledModel.GpuOptions.Precision.FP32)
-        val model = CompiledModel.create(File(dir, name).absolutePath, options, env)
-        val ins = model.createInputBuffers()
-        val outs = model.createOutputBuffers()
+        options.gpuOptions = CompiledModel.GpuOptions(
+            precision = CompiledModel.GpuOptions.Precision.FP32
+        )
+        val model = CompiledModel.create(File(directory, name).absolutePath, options, environment)
+        val inputBuffers = model.createInputBuffers()
+        val outputBuffers = model.createOutputBuffers()
         try {
-            inputs.forEachIndexed { i, v -> ins[i].writeFloat(v) }
-            model.run(ins, outs)
-            return outs.map { it.readFloat() }
+            require(inputBuffers.size == inputs.size) {
+                "$name esperaba ${inputBuffers.size} entradas; se recibieron ${inputs.size}"
+            }
+            inputs.forEachIndexed { index, values -> inputBuffers[index].writeFloat(values) }
+            model.run(inputBuffers, outputBuffers)
+            return outputBuffers.map { it.readFloat() }
         } finally {
-            ins.forEach { it.close() }; outs.forEach { it.close() }; model.close()
+            inputBuffers.forEach { it.close() }
+            outputBuffers.forEach { it.close() }
+            model.close()
         }
     }
 }
