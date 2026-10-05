@@ -225,6 +225,14 @@
                 android:orientation="vertical"/>
         </ScrollView>
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnDepuracion"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="🐞  Depuración"
+            android:textAllCaps="false"/>
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
