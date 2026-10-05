@@ -78,7 +78,8 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         val total = 3 + 4 * 8 + 1
         var done = 0
         ChunkRunner.backend = if (prefs.getBoolean("flux_gpu", false)) ChunkRunner.Backend.GPU else ChunkRunner.Backend.CPU
-        DebugLog.log("FLUX", "motor: ${ChunkRunner.backend}")
+        ChunkRunner.smallGraphsOnGpu = prefs.getBoolean("flux_gpu_small", true)
+        DebugLog.log("FLUX", "motor: ${ChunkRunner.backend} · kc_prep/kc_final en GPU: ${ChunkRunner.smallGraphsOnGpu}")
         val t0 = System.nanoTime()
         fun stage(text: String) {
             checkCancelled()
