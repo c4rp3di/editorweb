@@ -6,7 +6,7 @@ TOOLCHAIN_DIR="$ROOT_DIR/native/.toolchains"
 BUILD_DIR="$ROOT_DIR/native/.build"
 JNI_DIR="$ROOT_DIR/native/jniLibs/arm64-v8a"
 LLAMA_REF="${LLAMA_CPP_REF:-v0.6.0}"
-SD_REF="${STABLE_DIFFUSION_CPP_REF:-master}"
+SD_REF="${STABLE_DIFFUSION_CPP_REF:-3f8527a}"
 NDK_VERSION="${ANDROID_NDK_VERSION:-29.0.13113456}"
 CMAKE_VERSION="${ANDROID_CMAKE_VERSION:-3.31.6}"
 
@@ -78,26 +78,14 @@ fi
 [[ -f "$SPIRV_HEADERS_DIR/SPIRV-HeadersConfig.cmake" ]] || fail "No se encontró SPIRV-HeadersConfig.cmake tras preparar SPIRV-Headers."
 log "SPIRV-Headers CMake: $SPIRV_HEADERS_DIR"
 
-# stable-diffusion.cpp/ggml-vulkan usa Vulkan-Hpp además de los headers C de
-# Vulkan. Ubuntu/libvulkan-dev no garantiza que vulkan.hpp esté instalado en
-# el runner, así que lo preparamos exclusivamente durante Actions. No se
-# incorpora al repositorio ni al editor.
-VULKAN_HPP_SRC="$TOOLCHAIN_DIR/Vulkan-Hpp"
-VULKAN_HPP_FILE=""
-if [[ -d "$VULKAN_HPP_SRC" ]]; then
-    VULKAN_HPP_FILE="$(find "$VULKAN_HPP_SRC" -type f -path '*/vulkan/vulkan.hpp' -print -quit || true)"
-fi
-if [[ -z "$VULKAN_HPP_FILE" ]]; then
-    log "Descargando Vulkan-Hpp oficial de Khronos para stable-diffusion.cpp"
-    rm -rf "$VULKAN_HPP_SRC"
-    git clone --depth 1 https://github.com/KhronosGroup/Vulkan-Hpp.git "$VULKAN_HPP_SRC"
-    VULKAN_HPP_FILE="$(find "$VULKAN_HPP_SRC" -type f -path '*/vulkan/vulkan.hpp' -print -quit || true)"
-fi
-[[ -n "$VULKAN_HPP_FILE" ]] || fail "No se encontró vulkan/vulkan.hpp en Vulkan-Hpp."
-VULKAN_HPP_INCLUDE_DIR="${VULKAN_HPP_FILE%/vulkan/vulkan.hpp}"
-[[ -f "$VULKAN_HPP_INCLUDE_DIR/vulkan/vulkan.hpp" ]] || fail "Vulkan-Hpp quedó en una estructura inesperada: $VULKAN_HPP_FILE"
-VULKAN_HPP_COMMIT="$(git -C "$VULKAN_HPP_SRC" rev-parse HEAD)"
-log "Vulkan-Hpp: $VULKAN_HPP_INCLUDE_DIR (commit $VULKAN_HPP_COMMIT)"
+# stable-diffusion.cpp/ggml-vulkan usa Vulkan-Hpp y debe consumir exactamente
+# la misma generación de Vulkan-Headers que sus headers C. No descargamos
+# Vulkan-Hpp "main": eso puede ser más nuevo que el vulkan_core.h del NDK y
+# produce errores del tipo "unknown type name Vk...".
+#
+# La versión del NDK se lee después de instalarlo. Entonces obtenemos el tag
+# exacto v<major>.<minor>.<VK_HEADER_VERSION> del repositorio oficial de
+# Khronos y usamos TODO su directorio include/vulkan, no solo vulkan.hpp.
 
 SDKMANAGER="$(command -v sdkmanager || true)"
 if [[ -z "$SDKMANAGER" ]]; then
@@ -120,6 +108,44 @@ ANDROID_NDK="$SDK_ROOT/ndk/$NDK_VERSION"
 [[ -d "$ANDROID_NDK" ]] || fail "No existe el NDK esperado: $ANDROID_NDK"
 export ANDROID_NDK
 
+NDK_VULKAN_CORE="$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/vulkan/vulkan_core.h"
+[[ -f "$NDK_VULKAN_CORE" ]] || fail "No se encontró vulkan_core.h en el NDK: $NDK_VULKAN_CORE"
+
+VK_HEADER_VERSION="$(awk '/^[[:space:]]*#define[[:space:]]+VK_HEADER_VERSION[[:space:]]+[0-9]+/{print $3; exit}' "$NDK_VULKAN_CORE")"
+VK_HEADER_VERSION_COMPLETE="$(awk '/^[[:space:]]*#define[[:space:]]+VK_HEADER_VERSION_COMPLETE/{print; exit}' "$NDK_VULKAN_CORE")"
+[[ -n "$VK_HEADER_VERSION" ]] || fail "No se pudo extraer VK_HEADER_VERSION de $NDK_VULKAN_CORE"
+
+VK_MAJOR="$(printf '%s\n' "$VK_HEADER_VERSION_COMPLETE" | sed -n 's/.*VK_MAKE_API_VERSION([^,]*,[[:space:]]*\([0-9][0-9]*\),[[:space:]]*\([0-9][0-9]*\),.*/\1/p')"
+VK_MINOR="$(printf '%s\n' "$VK_HEADER_VERSION_COMPLETE" | sed -n 's/.*VK_MAKE_API_VERSION([^,]*,[[:space:]]*\([0-9][0-9]*\),[[:space:]]*\([0-9][0-9]*\),.*/\2/p')"
+[[ -n "$VK_MAJOR" && -n "$VK_MINOR" ]] || fail "No se pudo extraer la versión Vulkan mayor/menor de: $VK_HEADER_VERSION_COMPLETE"
+
+VULKAN_HEADERS_VERSION="${VK_MAJOR}.${VK_MINOR}.${VK_HEADER_VERSION}"
+VULKAN_HEADERS_TAG="v${VULKAN_HEADERS_VERSION}"
+VULKAN_HEADERS_SRC="$TOOLCHAIN_DIR/Vulkan-Headers"
+VULKAN_HEADERS_INCLUDE_DIR="$VULKAN_HEADERS_SRC/include"
+
+log "NDK Vulkan headers: ${VULKAN_HEADERS_VERSION}"
+log "Buscando Vulkan-Headers oficial: ${VULKAN_HEADERS_TAG}"
+if ! git ls-remote --exit-code --refs https://github.com/KhronosGroup/Vulkan-Headers.git "refs/tags/${VULKAN_HEADERS_TAG}" >/dev/null 2>&1; then
+    fail "Khronos no tiene el tag ${VULKAN_HEADERS_TAG}; no se usará una versión aproximada porque provocaría incompatibilidades entre vulkan.hpp y vulkan_core.h."
+fi
+
+if [[ ! -f "$VULKAN_HEADERS_INCLUDE_DIR/vulkan/vulkan.hpp" ]]; then
+    rm -rf "$VULKAN_HEADERS_SRC"
+    log "Descargando Vulkan-Headers ${VULKAN_HEADERS_TAG}"
+    git clone --depth 1 --branch "$VULKAN_HEADERS_TAG" https://github.com/KhronosGroup/Vulkan-Headers.git "$VULKAN_HEADERS_SRC"
+fi
+
+[[ -f "$VULKAN_HEADERS_INCLUDE_DIR/vulkan/vulkan.hpp" ]] || fail "Vulkan-Headers no contiene vulkan/vulkan.hpp: $VULKAN_HEADERS_INCLUDE_DIR"
+[[ -f "$VULKAN_HEADERS_INCLUDE_DIR/vulkan/vulkan_core.h" ]] || fail "Vulkan-Headers no contiene vulkan/vulkan_core.h: $VULKAN_HEADERS_INCLUDE_DIR"
+
+VULKAN_FETCHED_VERSION="$(awk '/^[[:space:]]*#define[[:space:]]+VK_HEADER_VERSION[[:space:]]+[0-9]+/{print $3; exit}' "$VULKAN_HEADERS_INCLUDE_DIR/vulkan/vulkan_core.h")"
+[[ "$VULKAN_FETCHED_VERSION" == "$VK_HEADER_VERSION" ]] || fail "Mismatch Vulkan-Headers: NDK VK_HEADER_VERSION=$VK_HEADER_VERSION, descargado=$VULKAN_FETCHED_VERSION"
+
+VULKAN_HEADERS_COMMIT="$(git -C "$VULKAN_HEADERS_SRC" rev-parse HEAD)"
+log "Vulkan-Headers: $VULKAN_HEADERS_VERSION (commit $VULKAN_HEADERS_COMMIT)"
+log "Vulkan include unificado: $VULKAN_HEADERS_INCLUDE_DIR"
+
 # Put the Android CMake/Ninja/shader tool paths first when present.
 CMAKE_BIN="$SDK_ROOT/cmake/$CMAKE_VERSION/bin"
 [[ -d "$CMAKE_BIN" ]] && export PATH="$CMAKE_BIN:$PATH"
@@ -136,7 +162,10 @@ clone_repo() {
     if [[ ! -f "$dest/CMakeLists.txt" ]]; then
         rm -rf "$dest"
         log "Descargando $url @ $ref"
-        git clone --depth 1 --recurse-submodules --shallow-submodules --branch "$ref" "$url" "$dest"
+        git clone --depth 1 "$url" "$dest"
+        git -C "$dest" fetch --depth 1 origin "$ref"
+        git -C "$dest" checkout --detach "$ref"
+        git -C "$dest" submodule update --init --recursive --depth 1
     else
         log "Reutilizando $dest"
     fi
@@ -186,7 +215,7 @@ build_one "stable-diffusion.cpp" \
     -DGGML_OPENMP=OFF \
     -DGGML_LLAMAFILE=OFF \
     -DSPIRV-Headers_DIR="$SPIRV_HEADERS_DIR" \
-    -DVULKAN_HPP_INCLUDE_DIR="$VULKAN_HPP_INCLUDE_DIR"
+    -DVULKAN_HEADERS_INCLUDE_DIR="$VULKAN_HEADERS_INCLUDE_DIR"
 
 LLAMA_SO="$(find "$BUILD_DIR/llama" -type f -name 'libchatpro-llama.so' -print -quit)"
 DIFFUSION_SO="$(find "$BUILD_DIR/diffusion" -type f -name 'libchatpro-diffusion.so' -print -quit)"
@@ -205,8 +234,10 @@ android_cmake=$CMAKE_VERSION
 abi=arm64-v8a
 android_platform=28
 native_stl=c++_static
-vulkan_hpp_commit=$VULKAN_HPP_COMMIT
-vulkan_hpp_include_dir=$VULKAN_HPP_INCLUDE_DIR
+vulkan_headers_version=$VULKAN_HEADERS_VERSION
+vulkan_headers_commit=$VULKAN_HEADERS_COMMIT
+vulkan_headers_include_dir=$VULKAN_HEADERS_INCLUDE_DIR
+ndk_vulkan_header_version=$VK_HEADER_VERSION
 spirv_headers_cmake=$SPIRV_HEADERS_DIR
 INFO
 
