@@ -1,36 +1,22 @@
-# Chat Pro — integración FLUX.2 [klein] 4B
+# Chat Pro — base de arquitectura v15
 
-Proyecto Android con interfaz de chat local, modelos de texto descargables manualmente y modo de generación de imágenes local.
+Esta versión parte de v14.1 y retira la integración FLUX experimental. El objetivo es evitar que la UI dependa de un pipeline de inferencia que no llegó a validarse en el Xiaomi 13T Pro.
 
-## Política de descarga
+## Política de modelos
 - Ningún modelo se descarga al arrancar.
 - Ningún modelo se descarga al seleccionarlo.
-- Ningún modelo se descarga al pulsar «Generar».
-- La red solo se usa para una descarga explícitamente iniciada por el usuario.
-- Las descargas grandes usan `.part` + `Range` para poder reanudarse.
+- Ningún modelo se descarga al pulsar generar.
+- La descarga de modelos de texto sigue siendo explícita y reanudable.
+- El backend de imagen queda catalogado pero no se marca como utilizable hasta verificar la implementación nativa.
 
-## FLUX.2 [klein] 4B
-El flujo de texto→imagen usa los grafos T2I `ke_enc0..2`, `kc_prep`, `kc_double0..1`, `kc_single0..3`, `kc_final` y `kv_vae`, más el tokenizer Qwen y su tabla de embeddings fp16.
+## Nueva arquitectura
+- Texto: se mantiene temporalmente el motor LiteRT existente mientras se prepara el banco de prueba de llama.cpp + DeepSeek-R1-Distill-Qwen-1.5B Q4_K_M.
+- Imagen: nueva frontera prevista `stable-diffusion.cpp + Vulkan`; no se reutiliza FLUX.
+- Vídeo: preparado como módulo independiente para Wan2.1 T2V 1.3B + Vulkan.
+- Archivos: `CreatedFilesManager` almacena imágenes, vídeos y otros archivos en `filesDir/generadas/` con índice JSON y relación opcional con conversación/prompt/modelo.
 
-El proyecto prepara en el dispositivo:
-- plantilla de conversación Qwen3;
-- tokenización BPE a partir de `qwen_vocab.txt`, `qwen_merges.txt` y `qwen_special.txt`;
-- lookup memory-mapped de `qwen_embed_fp16.bin`;
-- máscara causal expandida por cabeza;
-- RoPE de Qwen y RoPE 4D de FLUX.2;
-- schedule FLUX.2 de 4 pasos y actualización Euler/flow matching;
-- ruido inicial y transformación packed-latent→VAE.
+## Mis archivos
+La barra lateral incluye `📁 Mis archivos`. Permite filtrar imágenes/vídeos/otros, abrir, compartir mediante `FileProvider` y borrar registros/archivos locales.
 
-Los valores aprendidos que no deben inventarse (embeddings de tiempo proyectados y estadísticas BatchNorm del VAE) se leen de los artefactos `host/` del mismo paquete coherente de runtime. El generador se niega a ejecutarse cuando faltan.
-
-## Estado de verificación
-La parte FLUX pura de Kotlin compila con stubs del SDK para comprobar sintaxis. El entorno de trabajo actual no contiene Gradle/Android SDK, por lo que aquí no se puede afirmar una compilación Android final ni una inferencia en el Xiaomi. La validación definitiva es: importar el proyecto en el editor Android, compilar, descargar el paquete manualmente, activar FLUX y ejecutar un prompt.
-
-## Estructura
-`app/src/main/...` es la estructura Gradle estándar.
-
-## Modos de motor de imagen (v14)
-El botón «⚙ Motor de imagen» cicla entre tres modos:
-- **CPU puro**: todo en XNNPACK. `kc_prep` llega a ~6,7 GB al compilar y en Xiaomi/HyperOS el sistema cierra la app (LOW_MEMORY). Solo para diagnóstico.
-- **CPU + kc en GPU (recomendado, por defecto)**: `ke_enc*` y `kc_double/kc_single` en CPU; `kc_prep`/`kc_final` (~185 MB) en GPU. Compatible con el límite de ~1,5 GB de GpuMemory de HyperOS.
-- **GPU**: todo en GPU. `ke_enc0` pisa ~3,5 GB de GpuMemory y HyperOS cierra la app por encima de ~1,5 GB.
+## Estado de inferencia
+Todavía no se declara funcional ninguna nueva ruta nativa hasta pasar una prueba real en ARM64/Vulkan. La documentación actual de llama.cpp mantiene soporte de Android ARM64 y compilación mediante Android NDK; su backend Vulkan se puede seleccionar como backend de ggml. stable-diffusion.cpp documenta soporte de Android y Vulkan, además de Wan2.1/Wan2.2.
