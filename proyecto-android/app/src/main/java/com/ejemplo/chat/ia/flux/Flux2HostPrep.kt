@@ -13,7 +13,7 @@ import kotlin.math.roundToInt
  * Learned host values (the projected 3072-d timestep embeddings and VAE BN stats)
  * are deliberately loaded from explicit files when present; they are never invented.
  */
-class Flux2HostPrep(private val root: File) {
+class Flux2HostPrep(private val root: File, private val textLength: Int = TEXT_LENGTH) {
     companion object {
         const val TEXT_LENGTH = 512
         const val TEXT_HIDDEN = 2560
@@ -29,8 +29,8 @@ class Flux2HostPrep(private val root: File) {
     }
 
     data class PreparedPrompt(
-        val tokenEmbeddings: FloatArray, // [1, 512, 2560]
-        val encMask: FloatArray,          // [1, 32, 512, 512]
+        val tokenEmbeddings: FloatArray, // [1, L, 2560]
+        val encMask: FloatArray,          // [1, 32, L, L]
         val encCos: FloatArray,            // [1, 512, 128]
         val encSin: FloatArray,           // [1, 512, 128]
         val ditCos: FloatArray,              // [1, 768, 128]
@@ -44,12 +44,12 @@ class Flux2HostPrep(private val root: File) {
             "FLUX incompleto: faltan ${Flux2Files.missing(root).joinToString() }"
         }
         val tokenizer = Qwen2Tokenizer(root)
-        val ids = tokenizer.encode(tokenizer.renderUserPrompt(prompt), TEXT_LENGTH)
-        val padded = IntArray(TEXT_LENGTH) { tokenizer.padId() }
-        ids.copyInto(padded, endIndex = minOf(ids.size, TEXT_LENGTH))
+        val ids = tokenizer.encode(tokenizer.renderUserPrompt(prompt), textLength)
+        val padded = IntArray(textLength) { tokenizer.padId() }
+        ids.copyInto(padded, endIndex = minOf(ids.size, textLength))
 
         val mask = buildExpandedCausalMask(ids.size)
-        val qwenRope = qwenRope(TEXT_LENGTH)
+        val qwenRope = qwenRope(textLength)
         val ditRope = ditRope()
 
         val tokenEmbeddings = Fp16EmbeddingTable(
@@ -87,9 +87,9 @@ class Flux2HostPrep(private val root: File) {
 
     fun buildPromptEmbedsFromTaps(taps: List<FloatArray>): FloatArray {
         require(taps.size == 3) { "Se esperan 3 taps del encoder Qwen" }
-        taps.forEach { require(it.size == TEXT_LENGTH * TEXT_HIDDEN) }
-        val out = FloatArray(TEXT_LENGTH * 7680)
-        for (t in 0 until TEXT_LENGTH) {
+        taps.forEach { require(it.size == textLength * TEXT_HIDDEN) }
+        val out = FloatArray(textLength * 7680)
+        for (t in 0 until textLength) {
             for (tap in 0 until 3) {
                 val src = t * TEXT_HIDDEN
                 val dst = t * 7680 + tap * TEXT_HIDDEN
@@ -102,7 +102,7 @@ class Flux2HostPrep(private val root: File) {
     /** [B,32,512,512], 0 when attending to an allowed key and -INF otherwise. */
     private fun buildExpandedCausalMask(actualTokens: Int): FloatArray {
         val heads = 32
-        val seq = TEXT_LENGTH
+        val seq = textLength
         val out = FloatArray(heads * seq * seq)
         val neg = Float.NEGATIVE_INFINITY
         var p = 0
@@ -140,7 +140,7 @@ class Flux2HostPrep(private val root: File) {
 
     /** 4-axis Flux2 rotary IDs: (T,H,W,L), axes dims [32,32,32,32]. */
     private fun ditRope(): Pair<FloatArray, FloatArray> {
-        val text = TEXT_LENGTH
+        val text = textLength
         val image = IMAGE_TOKENS
         val total = text + image
         val cosOut = FloatArray(total * DIT_HEAD_DIM)
