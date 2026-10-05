@@ -44,7 +44,6 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var btnEnviar: MaterialButton
     private lateinit var btnImagen: MaterialButton
     private lateinit var btnModelo: MaterialButton
-    private lateinit var btnModeloImagen: MaterialButton
     private lateinit var contenedor: LinearLayout
     private lateinit var imagenes: ModelosImagen
 
@@ -77,7 +76,6 @@ class ChatActivity : AppCompatActivity() {
         btnEnviar = findViewById(R.id.btnEnviar)
         btnImagen = findViewById(R.id.btnImagen)
         btnModelo = findViewById(R.id.btnModelo)
-        btnModeloImagen = findViewById(R.id.btnModeloImagen)
         contenedor = findViewById(R.id.contenedorMensajes)
 
         findViewById<MaterialButton>(R.id.btnNuevo).setOnClickListener { nueva() }
@@ -87,7 +85,6 @@ class ChatActivity : AppCompatActivity() {
         btnEnviar.setOnClickListener { enviar() }
         btnImagen.setOnClickListener { selectorImagen.launch("image/*") }
         btnModelo.setOnClickListener { elegirModelo() }
-        btnModeloImagen.setOnClickListener { elegirModeloImagen() }
         tvAdjunto.setOnClickListener { quitarImagen() }
         etMensaje.setOnEditorActionListener { _, actionId, _ -> if (actionId != 0) enviar() else false }
         btnEnviar.isEnabled = false
@@ -104,7 +101,10 @@ class ChatActivity : AppCompatActivity() {
 
         val prefs = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
         val guardado = MotorIA.MODELOS.firstOrNull { it.id == prefs.getString("modelo", null) }
-        if (guardado != null && motor.modeloDescargado(guardado)) preparar(guardado) else {
+        val imagenGuardada = modeloImagenActual
+        if (imagenGuardada != null) {
+            activarModeloImagen(imagenGuardada)
+        } else if (guardado != null && motor.modeloDescargado(guardado)) preparar(guardado) else {
             tvEstado.text = "Elige un modelo para descargar y usarlo"
             elegirModelo()
         }
@@ -299,131 +299,140 @@ class ChatActivity : AppCompatActivity() {
         generarDesde(prompt, null, guardar = true)
     }
 
-    private fun elegirModelo() {
-        if (generando) return
-        val items = MotorIA.MODELOS.map { m ->
-            val estado = when {
-                modeloActual?.id == m.id -> "✓ activo"
-                motor.modeloDescargado(m) -> "✓ descargado"
-                else -> "${m.tamanoMb} MB"
-            }
-            "${m.nombre}${if (m.vision) " · visión" else ""}\n$estado"
-        }.toTypedArray()
-        var elegido = MotorIA.MODELOS.indexOfFirst { it.id == modeloActual?.id }.coerceAtLeast(0)
-        AlertDialog.Builder(this)
-            .setTitle("Modelo de IA")
-            .setSingleChoiceItems(items, elegido) { _, which -> elegido = which }
-            .setNeutralButton("Descargar") { _, _ ->
-                val m = MotorIA.MODELOS[elegido]
-                confirmarDescarga(m)
-            }
-            .setPositiveButton("Usar") { _, _ ->
-                val m = MotorIA.MODELOS[elegido]
-                if (!motor.modeloDescargado(m)) {
-                    Toast.makeText(this, "Primero descarga el modelo", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-                getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("modelo", m.id).apply()
-                preparar(m)
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
+    /** Entrada del selector unificado: modelo de texto o de imagen. */
+    private sealed class Entrada {
+        abstract val id: String
+        data class Texto(val m: MotorIA.Modelo) : Entrada() { override val id get() = m.id }
+        data class Imagen(val m: ModelosImagen.ModeloImagen) : Entrada() { override val id get() = m.id }
     }
 
-    private fun confirmarDescarga(m: MotorIA.Modelo) {
-        val espacio = motor.espacioLibreMb()
-        val texto = "${m.nombre} ocupa aproximadamente ${m.tamanoMb} MB.\n\nEspacio libre: ${espacio} MB.\n\nLa descarga solo empieza si tú la confirmas."
+    private fun entradas(): List<Entrada> =
+        MotorIA.MODELOS.map { Entrada.Texto(it) } + ModelosImagen.MODELOS.map { Entrada.Imagen(it) }
+
+    private fun estaDescargada(e: Entrada) = when (e) {
+        is Entrada.Texto -> motor.modeloDescargado(e.m)
+        is Entrada.Imagen -> imagenes.descargado(e.m)
+    }
+
+    private fun estaActiva(e: Entrada) = when (e) {
+        is Entrada.Texto -> modeloActual?.id == e.m.id
+        is Entrada.Imagen -> modeloImagenActual?.id == e.m.id
+    }
+
+    private fun etiqueta(e: Entrada): String = when (e) {
+        is Entrada.Texto -> {
+            val estado = when {
+                estaActiva(e) -> "✓ activo"
+                estaDescargada(e) -> "✓ descargado"
+                else -> "${e.m.tamanoMb} MB · descarga manual"
+            }
+            "${e.m.nombre}${if (e.m.vision) " · visión" else ""} · texto\n$estado"
+        }
+        is Entrada.Imagen -> {
+            val estado = when {
+                estaActiva(e) -> "✓ activo"
+                estaDescargada(e) -> "✓ descargado"
+                else -> "~${e.m.tamanoGb} GB · descarga manual"
+            }
+            "${e.m.nombre} · imagen ${e.m.resolucion}\n$estado"
+        }
+    }
+
+    /** Un solo selector para todos los modelos. El botón principal cambia entre «Usar» y «Descargar». */
+    private fun elegirModelo(preseleccion: String? = null) {
+        if (generando) return
+        val lista = entradas()
+        val items = lista.map { etiqueta(it) }.toTypedArray()
+        var elegido = lista.indexOfFirst { it.id == preseleccion }
+            .takeIf { it >= 0 }
+            ?: lista.indexOfFirst { estaActiva(it) }.coerceAtLeast(0)
+
+        val dialogo = AlertDialog.Builder(this)
+            .setTitle("Modelos")
+            .setSingleChoiceItems(items, elegido) { d, which ->
+                elegido = which
+                (d as AlertDialog).getButton(AlertDialog.BUTTON_POSITIVE).text =
+                    if (estaDescargada(lista[which])) "Usar" else "Descargar"
+            }
+            .setPositiveButton("Usar", null) // se sobrescribe abajo para poder decidir
+            .setNegativeButton("Cancelar", null)
+            .create()
+
+        dialogo.setOnShowListener {
+            val positivo = dialogo.getButton(AlertDialog.BUTTON_POSITIVE)
+            positivo.text = if (estaDescargada(lista[elegido])) "Usar" else "Descargar"
+            positivo.setOnClickListener {
+                val e = lista[elegido]
+                dialogo.dismiss()
+                if (estaDescargada(e)) usar(e) else confirmarDescarga(e)
+            }
+        }
+        dialogo.show()
+    }
+
+    private fun usar(e: Entrada) {
+        when (e) {
+            is Entrada.Texto -> {
+                getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("modelo", e.m.id).apply()
+                preparar(e.m)
+            }
+            is Entrada.Imagen -> activarModeloImagen(e.m)
+        }
+    }
+
+    private fun confirmarDescarga(e: Entrada) {
+        val (nombre, tamano, libre) = when (e) {
+            is Entrada.Texto -> Triple(e.m.nombre, "${e.m.tamanoMb} MB", "${motor.espacioLibreMb()} MB")
+            is Entrada.Imagen -> Triple(e.m.nombre, "${e.m.tamanoGb} GB", "${imagenes.espacioLibreBytes() / (1024 * 1024)} MB")
+        }
         AlertDialog.Builder(this)
             .setTitle("Descargar modelo")
-            .setMessage(texto)
+            .setMessage("$nombre ocupa aproximadamente $tamano.\n\nEspacio libre: $libre.\n\nLa descarga solo empieza si tú la confirmas y puede reanudarse.")
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Descargar") { _, _ ->
                 lifecycleScope.launch {
                     try {
                         progreso.visibility = View.VISIBLE
                         progreso.isIndeterminate = false
-                        tvEstado.text = "Descargando ${m.nombre}…"
-                        motor.descargarModelo(m) { p ->
-                            progreso.progress = p
-                            tvEstado.text = "Descargando ${m.nombre} · $p%"
+                        tvEstado.text = "Descargando $nombre…"
+                        when (e) {
+                            is Entrada.Texto -> motor.descargarModelo(e.m) { p ->
+                                progreso.progress = p
+                                tvEstado.text = "Descargando $nombre · $p%"
+                            }
+                            is Entrada.Imagen -> imagenes.descargar(e.m) { p, archivo ->
+                                progreso.progress = p
+                                tvEstado.text = "Descargando $nombre · $p% · $archivo"
+                            }
                         }
                         progreso.visibility = View.GONE
-                        Toast.makeText(this@ChatActivity, "${m.nombre} descargado", Toast.LENGTH_SHORT).show()
-                        elegirModelo()
-                    } catch (e: Exception) {
+                        tvEstado.text = "$nombre descargado. Pulsa «Usar» para activarlo."
+                        Toast.makeText(this@ChatActivity, "$nombre descargado", Toast.LENGTH_SHORT).show()
+                        // Reabrimos el selector con este modelo ya marcado y el botón en «Usar».
+                        elegirModelo(e.id)
+                    } catch (ex: CancellationException) {
+                        throw ex
+                    } catch (ex: Exception) {
                         progreso.visibility = View.GONE
                         tvEstado.text = "Error de descarga"
-                        Toast.makeText(this@ChatActivity, e.message ?: "No se pudo descargar", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@ChatActivity, ex.message ?: "No se pudo descargar", Toast.LENGTH_LONG).show()
                     }
                 }
             }.show()
     }
 
-    private fun elegirModeloImagen() {
-        if (generando) return
-        val items = ModelosImagen.MODELOS.map { m ->
-            val listo = imagenes.descargado(m)
-            val activo = modeloImagenActual?.id == m.id
-            "${if (activo) "● " else ""}${m.nombre} · ${m.resolucion}\n" +
-                if (listo) "✓ listo para usar" else "~${m.tamanoGb} GB · descarga manual"
-        }.toTypedArray()
-
-        AlertDialog.Builder(this)
-            .setTitle("Modelos de imagen")
-            .setItems(items) { _, which ->
-                val m = ModelosImagen.MODELOS[which]
-                val listo = imagenes.descargado(m)
-                val detalle = if (listo) {
-                    "✓ Paquete descargado y validado.\n\nPulsa «Usar» para activar texto→imagen."
-                } else {
-                    "≈ ${m.tamanoGb} GB. La descarga es manual y puede reanudarse."
-                }
-                AlertDialog.Builder(this)
-                    .setTitle(m.nombre)
-                    .setMessage("${m.descripcion}\n\n$detalle\n\nLa app nunca descarga modelos automáticamente.")
-                    .setNegativeButton("Cerrar", null)
-                    .setPositiveButton(if (listo) "Usar" else "Descargar") { _, _ ->
-                        if (listo) {
-                            modeloImagenActual = m
-                            getSharedPreferences("chat_local", Context.MODE_PRIVATE)
-                                .edit().putString("modelo_imagen", m.id).apply()
-                            modeloActual = null
-                            motor.liberar()
-                            fluxGenerator?.close()
-                            fluxGenerator = null
-                            btnModelo.text = "Texto"
-                            btnModeloImagen.text = "Imagen"
-                            btnModeloImagen.contentDescription = "Modelo de imagen activo: ${m.nombre}. Pulsa para cambiar o usar otro modelo"
-                            btnImagen.visibility = View.GONE
-                            tvEstado.text = "Imagen local · ${m.nombre} · lista"
-                            actualizarBotonEnvio()
-                        } else {
-                            lifecycleScope.launch {
-                                try {
-                                    progreso.visibility = View.VISIBLE
-                                    progreso.isIndeterminate = false
-                                    tvEstado.text = "Imagen · preparando descarga…"
-                                    imagenes.descargar(m) { p, archivo ->
-                                        progreso.progress = p
-                                        tvEstado.text = "Imagen · $p% · $archivo"
-                                    }
-                                    progreso.visibility = View.GONE
-                                    tvEstado.text = "Descarga completa. Elige «Usar» para activarlo."
-                                    Toast.makeText(this@ChatActivity, "${m.nombre} descargado. Ahora puedes pulsar «Usar».", Toast.LENGTH_LONG).show()
-                                    // La descarga termina aquí, pero NO activa el modelo.
-                                    // Abrimos el selector para que el usuario tenga el botón «Usar» visible.
-                                    elegirModeloImagen()
-                                } catch (e: Exception) {
-                                    progreso.visibility = View.GONE
-                                    tvEstado.text = "Error de descarga de imagen"
-                                    Toast.makeText(this@ChatActivity, e.message ?: "Error de descarga", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        }
-                    }
-                    .show()
-            }
-            .show()
+    private fun activarModeloImagen(m: ModelosImagen.ModeloImagen) {
+        modeloImagenActual = m
+        getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("modelo_imagen", m.id).apply()
+        modeloActual = null
+        motor.liberar()
+        fluxGenerator?.close()
+        fluxGenerator = null
+        btnModelo.text = m.nombre
+        btnImagen.visibility = View.GONE
+        progreso.visibility = View.GONE
+        tvEstado.text = "Imagen local · ${m.nombre} · lista"
+        actualizarBotonEnvio()
     }
 
     private fun preparar(m: MotorIA.Modelo) {
@@ -433,8 +442,6 @@ class ChatActivity : AppCompatActivity() {
         fluxGenerator?.close()
         fluxGenerator = null
         btnModelo.text = m.nombre
-        btnModeloImagen.text = "Imagen"
-        btnModeloImagen.visibility = View.VISIBLE
         btnImagen.visibility = if (m.vision) View.VISIBLE else View.GONE
         btnEnviar.isEnabled = false
         lifecycleScope.launch {
@@ -512,7 +519,7 @@ class ChatActivity : AppCompatActivity() {
                 return false
             }
             if (!imagenes.descargado(modeloImagenActual!!)) {
-                Toast.makeText(this, "El modelo de imagen ya no está disponible. Descárgalo manualmente desde ▣.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "El modelo de imagen ya no está disponible. Descárgalo desde el selector de modelos.", Toast.LENGTH_LONG).show()
                 return false
             }
             val prompt = if (texto.isEmpty()) "Una imagen fotográfica detallada" else texto
