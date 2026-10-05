@@ -3,8 +3,7 @@ package com.ejemplo.chat.ia.llama
 /**
  * Contrato JNI de Chat Pro para el runtime llama.cpp.
  *
- * La biblioteca "chatpro-llama" todavía no se carga desde la UI en esta fase:
- * el archivo .so aparecerá cuando se incorpore el árbol nativo de llama.cpp.
+ * La biblioteca "chatpro-llama" se construye desde el árbol oficial de llama.cpp incluido en este proyecto.
  */
 object LlamaCppNative {
 
