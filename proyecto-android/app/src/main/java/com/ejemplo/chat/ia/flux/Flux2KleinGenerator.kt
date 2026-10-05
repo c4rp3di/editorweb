@@ -74,11 +74,12 @@ class Flux2KleinGenerator(context: Context) : AutoCloseable {
         val error = readinessError()
         require(error == null) { error!! }
 
+        Flux2Files.describeGraphs(root).forEach { DebugLog.log("FLUX", "grafo: $it") }
         // Unidades de progreso: 3 codificadores + 4 pasos × 8 grafos + VAE.
         val total = 3 + 4 * 8 + 1
         var done = 0
         ChunkRunner.backend = if (prefs.getBoolean("flux_gpu", false)) ChunkRunner.Backend.GPU else ChunkRunner.Backend.CPU
-        ChunkRunner.smallGraphsOnGpu = prefs.getBoolean("flux_gpu_small", true)
+        ChunkRunner.smallGraphsOnGpu = prefs.getBoolean("flux_gpu_small", false)
         DebugLog.log("FLUX", "motor: ${ChunkRunner.backend} · kc_prep/kc_final en GPU: ${ChunkRunner.smallGraphsOnGpu}")
         val t0 = System.nanoTime()
         fun stage(text: String) {
