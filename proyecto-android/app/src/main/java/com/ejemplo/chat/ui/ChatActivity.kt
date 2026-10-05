@@ -19,6 +19,7 @@ import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.lifecycleScope
 import com.ejemplo.chat.R
+import com.ejemplo.chat.ia.DebugLog
 import com.ejemplo.chat.ia.MotorIA
 import com.ejemplo.chat.ia.ModelosImagen
 import com.ejemplo.chat.ia.flux.Flux2KleinGenerator
@@ -26,6 +27,9 @@ import com.ejemplo.chat.ia.flux.Flux2VaeStats
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -55,6 +59,15 @@ class ChatActivity : AppCompatActivity() {
     private var modeloImagenActual: ModelosImagen.ModeloImagen? = null
     private var fluxGenerator: Flux2KleinGenerator? = null
     private var sesionId = "actual"
+
+    // Caja de progreso que se muestra bajo el prompt mientras se genera una imagen.
+    private var imagenEnCurso = false
+    private var inicioImagen = 0L
+    private var ultimoEstado = ""
+    private var ultimaFrac = 0f
+    private var cajaTexto: TextView? = null
+    private var cajaBarra: ProgressBar? = null
+    private var ticker: Job? = null
     private var tituloSesion = "Nueva conversación"
 
     private val selectorImagen = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -64,6 +77,7 @@ class ChatActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_chat)
+        DebugLog.init(this)
         motor = MotorIA(this)
         imagenes = ModelosImagen(this)
 
@@ -83,6 +97,10 @@ class ChatActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnSidebar).setOnClickListener { drawer.openDrawer(GravityCompat.START) }
         findViewById<MaterialButton>(R.id.btnCerrarSidebar).setOnClickListener { drawer.closeDrawer(GravityCompat.START) }
         findViewById<MaterialButton>(R.id.btnNuevaSidebar).setOnClickListener { nueva() }
+        findViewById<MaterialButton>(R.id.btnDepuracion).setOnClickListener {
+            drawer.closeDrawer(GravityCompat.START)
+            mostrarDepuracion()
+        }
         btnEnviar.setOnClickListener { enviar() }
         btnImagen.setOnClickListener { selectorImagen.launch("image/*") }
         btnModelo.setOnClickListener { elegirModelo() }
@@ -99,6 +117,13 @@ class ChatActivity : AppCompatActivity() {
         cargarSesionActual()
         render(null)
         renderSidebar()
+        if (DebugLog.interruptedLast) {
+            Toast.makeText(
+                this,
+                "La última generación de imagen se interrumpió (la app se cerró). Mira 🐞 Depuración en el menú.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
 
         val prefs = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
         val guardado = MotorIA.MODELOS.firstOrNull { it.id == prefs.getString("modelo", null) }
@@ -225,11 +250,119 @@ class ChatActivity : AppCompatActivity() {
             contenedor.addView(empty)
         }
         mensajes.forEachIndexed { index, pair -> agregarBurbuja(pair.first, pair.second, false, index) }
+        if (imagenEnCurso) agregarCajaProgreso()
         if (parcial != null) agregarBurbuja("m", parcial, true, mensajes.size)
         scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
     }
 
     private fun resolveTextColor(): Int = if ((resources.configuration.uiMode and 0x30) == 0x20) Color.WHITE else Color.rgb(24,24,27)
+
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    private fun textoCaja(): String {
+        val s = (System.currentTimeMillis() - inicioImagen) / 1000
+        return "$ultimoEstado\n⏱ ${s / 60}:${(s % 60).toString().padStart(2, '0')}"
+    }
+
+    /** Caja bajo el prompt: título, etapa actual, barra de progreso, tiempo y botón Cancelar. */
+    private fun agregarCajaProgreso() {
+        val color = resolveTextColor()
+        val caja = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_model)
+            setPadding(dp(16), dp(14), dp(16), dp(10))
+            layoutParams = LinearLayout.LayoutParams((resources.displayMetrics.widthPixels * 0.86f).toInt(), -2)
+                .apply { setMargins(dp(6), dp(6), dp(6), dp(2)) }
+        }
+        val titulo = TextView(this).apply {
+            text = "🖼  Generando imagen…"
+            textSize = 15.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(color)
+        }
+        val estado = TextView(this).apply {
+            text = textoCaja()
+            textSize = 13f
+            setTextColor(color)
+            setPadding(0, dp(6), 0, dp(8))
+        }
+        val barra = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            isIndeterminate = false
+            max = 1000
+            progress = (ultimaFrac * 1000).toInt()
+        }
+        val cancelar = MaterialButton(this).apply {
+            text = "Cancelar"
+            setAllCaps(false)
+            minHeight = dp(34)
+            setOnClickListener {
+                fluxGenerator?.cancel()
+                estado.text = "Cancelando… (termina el bloque en curso)"
+            }
+        }
+        caja.addView(titulo)
+        caja.addView(estado)
+        caja.addView(barra, LinearLayout.LayoutParams(-1, dp(8)))
+        caja.addView(cancelar)
+        cajaTexto = estado
+        cajaBarra = barra
+        contenedor.addView(caja)
+    }
+
+    private fun actualizarProgresoImagen(texto: String, frac: Float) {
+        ultimoEstado = texto
+        ultimaFrac = frac
+        cajaTexto?.text = textoCaja()
+        cajaBarra?.progress = (frac * 1000).toInt()
+        tvEstado.text = "Imagen · $texto · ${(frac * 100).toInt()}%"
+    }
+
+    private fun mostrarDepuracion() {
+        val tv = TextView(this).apply {
+            typeface = Typeface.MONOSPACE
+            textSize = 11f
+            setTextIsSelectable(true)
+            setTextColor(resolveTextColor())
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+        }
+        val sv = ScrollView(this).apply { addView(tv) }
+        fun refrescar() {
+            tv.text = DebugLog.resumen() + "\n\n" + DebugLog.read().ifBlank { "(sin registros)" }
+            sv.post { sv.fullScroll(View.FOCUS_DOWN) }
+        }
+        fun boton(texto: String, accion: () -> Unit) = MaterialButton(this).apply {
+            text = texto
+            setAllCaps(false)
+            textSize = 12f
+            setOnClickListener { accion() }
+        }
+        val fila = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(boton("Actualizar") { refrescar() }, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(boton("Copiar") {
+                val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("depuracion", tv.text))
+                Toast.makeText(this@ChatActivity, "Registro copiado", Toast.LENGTH_SHORT).show()
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(boton("Borrar") { DebugLog.clear(); refrescar() }, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        val raiz = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(fila)
+            addView(sv, LinearLayout.LayoutParams(-1, dp(420)))
+        }
+        refrescar()
+        AlertDialog.Builder(this)
+            .setTitle("Depuración")
+            .setView(raiz)
+            .setPositiveButton("Cerrar", null)
+            .show()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        DebugLog.log("MEM", "onTrimMemory nivel=$level · ${DebugLog.mem()}")
+    }
 
     private fun agregarBurbuja(rol: String, texto: String, streaming: Boolean = false, index: Int = -1) {
         val fila = LinearLayout(this).apply {
@@ -487,6 +620,7 @@ class ChatActivity : AppCompatActivity() {
         btnImagen.visibility = View.GONE
         progreso.visibility = View.GONE
         tvEstado.text = "Imagen local · ${m.nombre} · lista"
+        DebugLog.log("UI", "Modelo de imagen activado: ${m.nombre}")
         actualizarBotonEnvio()
     }
 
@@ -605,14 +739,27 @@ class ChatActivity : AppCompatActivity() {
 
     private fun generarImagenDesde(prompt: String) {
         generando = true
+        imagenEnCurso = true
+        inicioImagen = System.currentTimeMillis()
+        ultimoEstado = "Preparando…"
+        ultimaFrac = 0f
         actualizarBotonEnvio()
         tvEstado.text = "Generando imagen local…"
+        render(null)
+        DebugLog.markStart(prompt)
+        DebugLog.log("UI", "Generar imagen: \"${prompt.take(80)}\" · ${DebugLog.mem()}")
+        ticker = lifecycleScope.launch {
+            while (imagenEnCurso) {
+                cajaTexto?.text = textoCaja()
+                delay(1000)
+            }
+        }
         lifecycleScope.launch {
             try {
                 val bitmap = withContext(Dispatchers.Default) {
                     val generator = fluxGenerator ?: Flux2KleinGenerator(this@ChatActivity).also { fluxGenerator = it }
-                    generator.generate(prompt) { estado ->
-                        runOnUiThread { tvEstado.text = "Imagen · $estado" }
+                    generator.generate(prompt) { estado, frac ->
+                        runOnUiThread { actualizarProgresoImagen(estado, frac) }
                     }
                 }
                 val file = File(filesDir, "generadas").apply { mkdirs() }
@@ -622,22 +769,30 @@ class ChatActivity : AppCompatActivity() {
                 }
                 mensajes.add("m" to "[[IMAGE]]${file.absolutePath}")
                 guardarSesion()
-                render(null)
                 val aviso = fluxGenerator?.lastWarning
                 tvEstado.text = "Imagen generada · ${modeloImagenActual?.nombre ?: "FLUX"}" +
                     (if (aviso != null) " · $aviso" else "")
             } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+                // Si la corrutina sigue activa, la cancelación la pidió el usuario con el botón.
+                if (!isActive) throw e
+                DebugLog.log("UI", "Generación cancelada por el usuario")
+                mensajes.add("m" to "Generación cancelada.")
+                guardarSesion()
+                tvEstado.text = "Generación cancelada"
+            } catch (e: Throwable) {
                 val reason = e.message ?: e.javaClass.simpleName
+                DebugLog.log("ERROR", "${e.javaClass.simpleName}: ${e.stackTraceToString().take(1500)}")
                 mensajes.add("m" to "No se pudo generar la imagen: $reason")
                 guardarSesion()
-                render(null)
                 tvEstado.text = "No se pudo generar la imagen"
                 Toast.makeText(this@ChatActivity, reason, Toast.LENGTH_LONG).show()
             } finally {
+                imagenEnCurso = false
+                ticker?.cancel()
+                DebugLog.markEnd()
                 generando = false
                 actualizarBotonEnvio()
+                if (isActive) render(null)
             }
         }
     }
