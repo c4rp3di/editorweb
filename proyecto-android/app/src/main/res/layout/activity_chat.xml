@@ -153,6 +153,8 @@
                 android:background="@drawable/bg_input"
                 android:gravity="center_vertical"
                 android:hint="Escribe un mensaje…"
+                android:textColor="#111111"
+                android:textColorHint="#666666"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
                 android:inputType="textCapSentences|textMultiLine"
