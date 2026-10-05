@@ -8,6 +8,28 @@ import java.io.File
 
 /** Ejecución de grafos LiteRT por trozos (CPU por defecto; GPU en FP32 para evitar NaN en bloques modulados). */
 object ChunkRunner {
+    /** Muestrea memoria cada 500 ms mientras dura [block]; deja en el log el último valor antes de un cierre. */
+    private fun <T> watched(label: String, block: () -> T): T {
+        val running = java.util.concurrent.atomic.AtomicBoolean(true)
+        val t = Thread {
+            while (running.get()) {
+                try { Thread.sleep(500) } catch (_: InterruptedException) { break }
+                val st = runCatching {
+                    File("/proc/self/status").readLines()
+                        .filter { it.startsWith("VmRSS") || it.startsWith("VmSwap") }
+                        .joinToString(" ") { it.replace(Regex("\\s+"), " ") }
+                }.getOrDefault("?")
+                val avail = runCatching {
+                    File("/proc/meminfo").readLines().firstOrNull { it.startsWith("MemAvailable") }
+                        ?.replace(Regex("\\s+"), " ")
+                }.getOrNull()
+                val psi = runCatching { File("/proc/pressure/memory").readText().lineSequence().firstOrNull() }.getOrNull()
+                DebugLog.log("MEMW", "$label · $st · $avail · $psi")
+            }
+        }.apply { isDaemon = true; start() }
+        try { return block() } finally { running.set(false); t.interrupt() }
+    }
+
     enum class Backend { CPU, GPU }
 
     /**
@@ -33,7 +55,10 @@ object ChunkRunner {
         val t0 = System.nanoTime()
         val label = if (backend == Backend.GPU) "GPU" else "CPU×$cpuThreads"
         DebugLog.log("GPU", "compilando $name [$label] · ${DebugLog.mem()}")
-        val model = CompiledModel.create(File(directory, name).absolutePath, options, environment)
+        System.gc()
+        val model = watched("compilando $name") {
+            CompiledModel.create(File(directory, name).absolutePath, options, environment)
+        }
         DebugLog.log("GPU", "compilado $name en ${(System.nanoTime() - t0) / 1_000_000} ms")
         return model
     }
@@ -53,7 +78,7 @@ object ChunkRunner {
             }
             inputs.forEachIndexed { index, values -> inputBuffers[index].writeFloat(values) }
             val t0 = System.nanoTime()
-            model.run(inputBuffers, outputBuffers)
+            watched("ejecutando $name") { model.run(inputBuffers, outputBuffers) }
             val out = outputBuffers.map { it.readFloat() }
             DebugLog.log("GPU", "ejecutado $name en ${(System.nanoTime() - t0) / 1_000_000} ms · ${DebugLog.mem()}")
             return out
