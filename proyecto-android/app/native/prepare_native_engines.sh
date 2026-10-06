@@ -47,6 +47,7 @@ command -v glslangValidator >/dev/null 2>&1 || fail "No se encontró glslangVali
 # en un prefijo local del runner. No se incorpora ninguna fuente al repo.
 SPIRV_PREFIX="$TOOLCHAIN_DIR/spirv-headers-install"
 SPIRV_HEADERS_DIR=""
+SPIRV_SRC="$TOOLCHAIN_DIR/SPIRV-Headers"
 for candidate in \
     /usr/share/cmake/SPIRV-Headers \
     /usr/lib/*/cmake/SPIRV-Headers; do
@@ -74,6 +75,22 @@ if [[ -z "$SPIRV_HEADERS_DIR" ]]; then
     cmake --build "$SPIRV_BUILD" --target install --config Release
     SPIRV_HEADERS_DIR="$SPIRV_PREFIX/share/cmake/SPIRV-Headers"
 fi
+
+SPIRV_INCLUDE_DIR=""
+for candidate in \
+    "$SPIRV_PREFIX/include" \
+    /usr/include \
+    /usr/local/include; do
+    if [[ -f "$candidate/spirv/unified1/spirv.hpp" ]]; then
+        SPIRV_INCLUDE_DIR="$candidate"
+        break
+    fi
+done
+if [[ -z "$SPIRV_INCLUDE_DIR" && -f "$SPIRV_SRC/include/spirv/unified1/spirv.hpp" ]]; then
+    SPIRV_INCLUDE_DIR="$SPIRV_SRC/include"
+fi
+[[ -n "$SPIRV_INCLUDE_DIR" ]] || fail "No se encontró spirv/unified1/spirv.hpp en el runner."
+log "SPIRV include dir: $SPIRV_INCLUDE_DIR"
 
 [[ -f "$SPIRV_HEADERS_DIR/SPIRV-HeadersConfig.cmake" ]] || fail "No se encontró SPIRV-HeadersConfig.cmake tras preparar SPIRV-Headers."
 log "SPIRV-Headers CMake: $SPIRV_HEADERS_DIR"
@@ -226,7 +243,8 @@ build_one "stable-diffusion.cpp" \
     -DGGML_OPENMP=OFF \
     -DGGML_LLAMAFILE=OFF \
     -DSPIRV-Headers_DIR="$SPIRV_HEADERS_DIR" \
-    -DVULKAN_HEADERS_INCLUDE_DIR="$VULKAN_HEADERS_INCLUDE_DIR"
+    -DVULKAN_HEADERS_INCLUDE_DIR="$VULKAN_HEADERS_INCLUDE_DIR" \
+    -DSPIRV_HEADERS_INCLUDE_DIR="$SPIRV_INCLUDE_DIR"
 
 LLAMA_SO="$(find "$BUILD_DIR/llama" -type f -name 'libchatpro-llama.so' -print -quit)"
 DIFFUSION_SO="$(find "$BUILD_DIR/diffusion" -type f -name 'libchatpro-diffusion.so' -print -quit)"
@@ -250,6 +268,7 @@ vulkan_headers_commit=$VULKAN_HEADERS_COMMIT
 vulkan_headers_include_dir=$VULKAN_HEADERS_INCLUDE_DIR
 ndk_vulkan_header_version=$VK_HEADER_VERSION
 spirv_headers_cmake=$SPIRV_HEADERS_DIR
+spirv_headers_include_dir=$SPIRV_INCLUDE_DIR
 INFO
 
 log "Motores nativos preparados:"
