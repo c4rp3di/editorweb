@@ -144,12 +144,15 @@ Java_com_ejemplo_chat_ia_DiffusionNative_nativeGenerateImage(
 
     sd_image_t * images = nullptr;
     int count = 0;
+    __android_log_print(ANDROID_LOG_INFO, TAG, "IMG start model=%s size=%dx%d steps=%d", model.c_str(), width, height, steps);
     const bool ok = generate_image(ctx, &gen, &images, &count);
+    __android_log_print(ANDROID_LOG_INFO, TAG, "IMG generate returned=%d count=%d", ok ? 1 : 0, count);
     bool wrote = false;
     if (ok && images && count > 0) wrote = writeImageContainer(outPath, images[0]);
 
     if (images) free_sd_images(images, count);
     free_sd_ctx(ctx);
+    __android_log_print(ANDROID_LOG_INFO, TAG, "IMG end wrote=%d", wrote ? 1 : 0);
     return wrote ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -194,8 +197,10 @@ Java_com_ejemplo_chat_ia_DiffusionNative_nativeGenerateVideo(
     sd_audio_t * audio = nullptr;
     int frameCount = 0;
     int fpsOut = 0;
-    // La API actual de stable-diffusion.cpp devuelve además los fps reales.
+    __android_log_print(ANDROID_LOG_INFO, TAG, "VID start model=%s size=%dx%d frames=%d fps=%d steps=%d", diffusion.c_str(), width, height, frames, fps, steps);
+    // La API de stable-diffusion.cpp devuelve además los fps reales.
     const bool ok = generate_video(ctx, &gen, &outFrames, &frameCount, &audio, &fpsOut);
+    __android_log_print(ANDROID_LOG_INFO, TAG, "VID generate returned=%d framesOut=%d fpsOut=%d", ok ? 1 : 0, frameCount, fpsOut);
     const int writeFps = fpsOut > 0 ? fpsOut : fps;
     bool wrote = false;
     if (ok && outFrames && frameCount > 0) wrote = writeVideoContainer(outPath, outFrames, frameCount, writeFps);
@@ -203,5 +208,6 @@ Java_com_ejemplo_chat_ia_DiffusionNative_nativeGenerateVideo(
     if (audio) free_sd_audio(audio);
     if (outFrames) free_sd_images(outFrames, frameCount);
     free_sd_ctx(ctx);
+    __android_log_print(ANDROID_LOG_INFO, TAG, "VID end wrote=%d", wrote ? 1 : 0);
     return wrote ? JNI_TRUE : JNI_FALSE;
 }
