@@ -19,6 +19,7 @@ object DiffusionNative {
                 System.loadLibrary(LIBRARY_NAME)
                 disponible = true
                 DebugLog.log("DIFFUSION", "lib$LIBRARY_NAME.so cargada correctamente")
+                runCatching { DebugLog.log("DIFFUSION", "nativeVersion=${nativeVersion().take(500)}") }.onFailure { DebugLog.log("DIFFUSION", "⚠ nativeVersion falló: ${it.message}") }
             } catch (e: UnsatisfiedLinkError) {
                 disponible = false
                 DebugLog.log("DIFFUSION", "⚠ no se pudo cargar lib$LIBRARY_NAME.so: ${e.message}")
