@@ -1,5 +1,7 @@
 package com.ejemplo.chat.ia.llama
 
+import com.ejemplo.chat.ia.DebugLog
+
 /**
  * Contrato JNI de Chat Pro para el runtime llama.cpp.
  *
@@ -18,8 +20,10 @@ object LlamaCppNative {
             try {
                 System.loadLibrary(LIBRARY_NAME)
                 disponible = true
-            } catch (_: UnsatisfiedLinkError) {
+                DebugLog.log("LLAMA", "lib$LIBRARY_NAME.so cargada correctamente")
+            } catch (e: UnsatisfiedLinkError) {
                 disponible = false
+                DebugLog.log("LLAMA", "⚠ no se pudo cargar lib$LIBRARY_NAME.so: ${e.message}")
             } finally {
                 cargaIntentada = true
             }
@@ -43,6 +47,13 @@ object LlamaCppNative {
         return nativeGenerate(handle, prompt, maxTokens)
     }
 
+    /** Resumen del último generar() nativo (tokens, motivo de parada, tail del prompt). Solo para depuración. */
+    fun ultimoEstado(): String = try {
+        if (estaDisponible()) nativeLastStatus() else "(runtime no disponible)"
+    } catch (e: UnsatisfiedLinkError) {
+        "(estado nativo no disponible: ${e.message})"
+    }
+
     fun liberar(handle: Long) {
         if (handle != 0L && estaDisponible()) nativeRelease(handle)
     }
@@ -51,4 +62,5 @@ object LlamaCppNative {
     private external fun nativeLoadModel(rutaModelo: String, contexto: Int, hilos: Int): Long
     private external fun nativeGenerate(handle: Long, prompt: String, maxTokens: Int): String
     private external fun nativeRelease(handle: Long)
+    private external fun nativeLastStatus(): String
 }
