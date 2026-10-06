@@ -90,7 +90,16 @@ if [[ -z "$SPIRV_INCLUDE_DIR" && -f "$SPIRV_SRC/include/spirv/unified1/spirv.hpp
     SPIRV_INCLUDE_DIR="$SPIRV_SRC/include"
 fi
 [[ -n "$SPIRV_INCLUDE_DIR" ]] || fail "No se encontró spirv/unified1/spirv.hpp en el runner."
-log "SPIRV include dir: $SPIRV_INCLUDE_DIR"
+# /usr/include es un directorio implícito del host: CMake/clang descartan
+# -I/-isystem hacia él y el sysroot del NDK no lo busca. Se copia spirv/ a un
+# directorio propio dentro de .toolchains para que sí se pase al compilador.
+SPIRV_LOCAL_INCLUDE="$TOOLCHAIN_DIR/spirv-include"
+rm -rf "$SPIRV_LOCAL_INCLUDE"
+mkdir -p "$SPIRV_LOCAL_INCLUDE"
+cp -r "$SPIRV_INCLUDE_DIR/spirv" "$SPIRV_LOCAL_INCLUDE/spirv"
+[[ -f "$SPIRV_LOCAL_INCLUDE/spirv/unified1/spirv.hpp" ]] || fail "No se pudo copiar spirv/unified1/spirv.hpp a $SPIRV_LOCAL_INCLUDE"
+SPIRV_INCLUDE_DIR="$SPIRV_LOCAL_INCLUDE"
+log "SPIRV include dir (local): $SPIRV_INCLUDE_DIR"
 
 [[ -f "$SPIRV_HEADERS_DIR/SPIRV-HeadersConfig.cmake" ]] || fail "No se encontró SPIRV-HeadersConfig.cmake tras preparar SPIRV-Headers."
 log "SPIRV-Headers CMake: $SPIRV_HEADERS_DIR"
