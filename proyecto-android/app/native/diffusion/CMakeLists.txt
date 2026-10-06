@@ -27,7 +27,7 @@ endif()
 
 # El toolchain de Android no busca en /usr/include del host, asi que ggml-vulkan
 # no ve <spirv/unified1/spirv.hpp>. Se anade la ruta explicitamente.
-include_directories(SYSTEM "${SPIRV_HEADERS_INCLUDE_DIR}")
+include_directories(BEFORE SYSTEM "${SPIRV_HEADERS_INCLUDE_DIR}")
 message(STATUS "Chat Pro: SPIRV-Headers include: ${SPIRV_HEADERS_INCLUDE_DIR}")
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
