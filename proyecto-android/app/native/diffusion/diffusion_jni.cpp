@@ -347,6 +347,12 @@ static sd_ctx_t * createContext(const std::string & modelPath,
     if (ligero) params.wtype = SD_TYPE_F16;
     params.flash_attn = true;
     params.diffusion_flash_attn = true;
+    // La v15 ya evitaba las copias Java, pero los logs muestran que el pico
+    // de RSS ocurre dentro de stable-diffusion.cpp, después del último paso
+    // de muestreo, mientras decodifica el VAE. Limitamos la memoria de trabajo
+    // de Vulkan y dejamos que el VAE procese por teselas.
+    params.max_vram = "1.5";
+    params.disable_prefetch = true;
     return new_sd_ctx(&params);
 }
 
@@ -402,6 +408,14 @@ static jboolean generateImageImpl(
     gen.sample_params.guidance.txt_cfg = 7.0f;
     gen.seed = seed;
     gen.batch_count = 1;
+    // El fallo observado en v15 no está en el PNG: el RSS salta a ~4.8 GB
+    // todavía dentro de generate_image(), justo en la fase posterior al
+    // muestreo. El tiling VAE reduce ese pico sin cambiar la resolución final.
+    gen.vae_tiling_params.enabled = true;
+    gen.vae_tiling_params.temporal_tiling = false;
+    gen.vae_tiling_params.tile_size_w = 256;
+    gen.vae_tiling_params.tile_size_h = 256;
+    gen.vae_tiling_params.target_overlap = 0.5f;
 
     sd_image_t * images = nullptr;
     int count = 0;
