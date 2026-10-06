@@ -48,6 +48,14 @@ object LlamaCppNative {
     }
 
     /** Resumen del último generar() nativo (tokens, motivo de parada, tail del prompt). Solo para depuración. */
+    fun restaurarHistorial(handle: Long, historial: List<Pair<String, String>>): Boolean {
+        check(estaDisponible()) { "La biblioteca nativa llama.cpp todavía no está incluida en este APK." }
+        require(handle != 0L) { "Handle de modelo inválido." }
+        val roles = Array(historial.size) { historial[it].first }
+        val contenidos = Array(historial.size) { historial[it].second }
+        return nativeRestoreHistory(handle, roles, contenidos)
+    }
+
     fun ultimoEstado(): String = try {
         if (estaDisponible()) nativeLastStatus() else "(runtime no disponible)"
     } catch (e: UnsatisfiedLinkError) {
@@ -63,4 +71,5 @@ object LlamaCppNative {
     private external fun nativeGenerate(handle: Long, prompt: String, maxTokens: Int): String
     private external fun nativeRelease(handle: Long)
     private external fun nativeLastStatus(): String
+    private external fun nativeRestoreHistory(handle: Long, roles: Array<String>, contents: Array<String>): Boolean
 }
