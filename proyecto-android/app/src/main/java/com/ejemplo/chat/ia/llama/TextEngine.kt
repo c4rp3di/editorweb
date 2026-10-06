@@ -14,6 +14,7 @@ interface TextEngine {
 
     suspend fun cargar(modelo: File, contexto: Int = 4096, hilos: Int = 4)
     fun generar(prompt: String, maxTokens: Int = 256): Flow<String>
+    suspend fun restaurarHistorial(historial: List<Pair<String, String>>): Boolean
     fun liberar()
 }
 
@@ -73,6 +74,13 @@ class NativeLlamaCppTextEngine : TextEngine {
         DebugLog.log("LLAMA", "nativo: ${LlamaCppNative.ultimoEstado()}")
         if (texto.isBlank()) DebugLog.log("LLAMA", "⚠ el motor devolvió una salida vacía")
         emit(texto)
+    }
+
+    override suspend fun restaurarHistorial(historial: List<Pair<String, String>>): Boolean {
+        check(handle != 0L) { "Carga un modelo antes de restaurar el historial." }
+        val ok = withContext(Dispatchers.Default) { LlamaCppNative.restaurarHistorial(handle, historial) }
+        DebugLog.log("LLAMA", "historial restaurado · mensajes=${historial.size} · ok=$ok · ${LlamaCppNative.ultimoEstado()}")
+        return ok
     }
 
     override fun liberar() {
