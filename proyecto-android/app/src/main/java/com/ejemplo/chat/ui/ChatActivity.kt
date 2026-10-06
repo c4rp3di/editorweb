@@ -25,6 +25,9 @@ import com.ejemplo.chat.ia.MotorIA
 import com.ejemplo.chat.ia.DiffusionNative
 import com.ejemplo.chat.ia.ModelosImagen
 import com.ejemplo.chat.ia.ModelosVideo
+import com.ejemplo.chat.ia.DiffusionOutput
+import com.ejemplo.chat.ia.files.CreatedFile
+import com.ejemplo.chat.ia.files.CreatedFilesManager
 import com.ejemplo.chat.ia.llama.LlamaCppModel
 import com.ejemplo.chat.ia.llama.LlamaCppModelManager
 import com.ejemplo.chat.ia.llama.LlamaCppNative
@@ -63,6 +66,7 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var contenedor: LinearLayout
     private lateinit var imagenes: ModelosImagen
     private lateinit var videos: ModelosVideo
+    private lateinit var createdFiles: CreatedFilesManager
     private lateinit var llamaManager: LlamaCppModelManager
     private val llamaEngine = NativeLlamaCppTextEngine()
 
@@ -72,6 +76,7 @@ class ChatActivity : AppCompatActivity() {
     private var modeloActual: MotorIA.Modelo? = null
     private var modeloLlamaActual: LlamaCppModel? = null
     private var modeloImagenActual: ModelosImagen.ModeloImagen? = null
+    private var modeloVideoActual: ModelosVideo.ModeloVideo? = null
     private var sesionId = "actual"
 
     // Caja de progreso que se muestra bajo el prompt mientras se genera una imagen.
@@ -95,6 +100,8 @@ class ChatActivity : AppCompatActivity() {
         motor = MotorIA(this)
         imagenes = ModelosImagen(this)
         videos = ModelosVideo(this)
+        createdFiles = CreatedFilesManager(this)
+        DebugLog.log("APP", "catálogo imagen=${ModelosImagen.MODELOS.size} vídeo=${ModelosVideo.MODELOS.size}")
         llamaManager = LlamaCppModelManager(this)
 
         drawer = findViewById(R.id.drawer)
@@ -114,9 +121,10 @@ class ChatActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnCerrarSidebar).setOnClickListener { drawer.closeDrawer(GravityCompat.START) }
         findViewById<MaterialButton>(R.id.btnNuevaSidebar).setOnClickListener { nueva() }
         val btnMotor = findViewById<MaterialButton>(R.id.btnMotorImagen)
-        btnMotor.text = "🧪  Motor de imagen: pendiente de verificación"
+        btnMotor.text = "🧪  Motor local · SD 1.5 / Wan 2.1"
         btnMotor.setOnClickListener {
-            Toast.makeText(this, "El backend FLUX experimental se ha retirado. La nueva base será stable-diffusion.cpp + Vulkan, pendiente de validación en este dispositivo.", Toast.LENGTH_LONG).show()
+            DebugLog.log("DIFFUSION", "consulta motor · disponible=${DiffusionNative.estaDisponible()}")
+            Toast.makeText(this, if (DiffusionNative.estaDisponible()) "Motor local cargado · usa el selector para SD 1.5 o Wan 2.1." else "Motor local no disponible en este APK/dispositivo.", Toast.LENGTH_LONG).show()
         }
         findViewById<MaterialButton>(R.id.btnArchivos).setOnClickListener {
             startActivity(Intent(this, CreatedFilesActivity::class.java))
@@ -133,9 +141,11 @@ class ChatActivity : AppCompatActivity() {
         btnEnviar.isEnabled = false
 
         // Restoring a previous image-model selection is local state only: it never downloads anything.
-        val imageId = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
-            .getString("modelo_imagen", null)
+        val prefsIniciales = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
+        val imageId = prefsIniciales.getString("modelo_imagen", null)
+        val videoId = prefsIniciales.getString("modelo_video", null)
         modeloImagenActual = ModelosImagen.MODELOS.firstOrNull { it.id == imageId && imagenes.descargado(it) }
+        modeloVideoActual = ModelosVideo.MODELOS.firstOrNull { it.id == videoId && videos.puedeUsarse(it) }
         actualizarBotonEnvio()
 
         cargarSesionActual()
@@ -153,8 +163,11 @@ class ChatActivity : AppCompatActivity() {
         val guardado = MotorIA.MODELOS.firstOrNull { it.id == prefs.getString("modelo", null) }
         val guardadoLlama = prefs.getString("modelo_llama", null)
         val imagenGuardada = modeloImagenActual
+        val videoGuardado = modeloVideoActual
         if (imagenGuardada != null) {
             activarModeloImagen(imagenGuardada)
+        } else if (videoGuardado != null) {
+            activarModeloVideo(videoGuardado)
         } else if (guardadoLlama == LlamaCppModel.DEEPSEEK_R1_DISTILL_QWEN_1_5B_Q4_K_M.id && llamaManager.modeloListo(LlamaCppModel.DEEPSEEK_R1_DISTILL_QWEN_1_5B_Q4_K_M)) prepararLlama(LlamaCppModel.DEEPSEEK_R1_DISTILL_QWEN_1_5B_Q4_K_M) else if (guardado != null && motor.modeloDescargado(guardado)) preparar(guardado) else {
             tvEstado.text = "Elige un modelo para descargar y usarlo"
             elegirModelo()
@@ -442,6 +455,13 @@ class ChatActivity : AppCompatActivity() {
                 }
             }
             fila.addView(image)
+        } else if (rol == "m" && texto.startsWith("[[VIDEO]]")) {
+            val path = texto.removePrefix("[[VIDEO]]")
+            val video = VideoView(this).apply {
+                setVideoURI(Uri.fromFile(File(path))); setMediaController(MediaController(this@ChatActivity)); setOnPreparedListener { it.isLooping = true; it.start() }
+                layoutParams = LinearLayout.LayoutParams(-1, dp(220)); contentDescription = "Vídeo generado localmente"
+            }
+            fila.addView(video)
         } else {
             val bubble = TextView(this).apply {
                 text = markdownBasico(texto)
@@ -503,7 +523,7 @@ class ChatActivity : AppCompatActivity() {
         val ultimoUsuario = mensajes.indexOfLast { it.first == "u" }
         if (ultimoUsuario < 0) return
         val ultima = mensajes.last()
-        if (modeloActual == null && modeloLlamaActual == null) return
+        if (modeloActual == null && modeloLlamaActual == null && modeloImagenActual == null && modeloVideoActual == null) return
         while (mensajes.size > ultimoUsuario + 1) mensajes.removeAt(mensajes.lastIndex)
         val prompt = mensajes[ultimoUsuario].second.removePrefix("📷 ").trim()
         generarDesde(prompt, null, guardar = true)
@@ -532,7 +552,7 @@ class ChatActivity : AppCompatActivity() {
         is Entrada.Texto -> modeloActual?.id == e.m.id
         is Entrada.Llama -> modeloLlamaActual?.id == e.m.id
         is Entrada.Imagen -> modeloImagenActual?.id == e.m.id
-        is Entrada.Video -> false
+        is Entrada.Video -> modeloVideoActual?.id == e.m.id
     }
 
     private fun tituloDe(e: Entrada): String = when (e) {
@@ -553,8 +573,8 @@ class ChatActivity : AppCompatActivity() {
             estaDescargada(e) -> "✓ GGUF verificado"
             else -> "${e.m.tamanoAproximadoMb} MB · descarga manual"
         }
-        is Entrada.Imagen -> if (DiffusionNative.estaDisponible()) "Motor nativo cargado · faltan los pesos" else "Motor nativo no disponible"
-        is Entrada.Video -> if (DiffusionNative.estaDisponible()) "Motor nativo cargado · faltan los pesos" else "Motor nativo no disponible"
+        is Entrada.Imagen -> when { estaDescargada(e) && DiffusionNative.estaDisponible() && estaActiva(e) -> "✓ listo · Vulkan"; estaDescargada(e) -> "✓ pesos verificados"; else -> "${e.m.artefactos.sumOf { it.expectedBytes } / 1_000_000} MB · descarga manual" }
+        is Entrada.Video -> when { estaDescargada(e) && DiffusionNative.estaDisponible() && estaActiva(e) -> "✓ listo · Vulkan"; estaDescargada(e) -> "✓ 3 pesos verificados"; else -> "3 artefactos · descarga manual" }
     }
 
     private fun colorAtributo(attr: Int, defecto: Int): Int {
@@ -680,8 +700,8 @@ class ChatActivity : AppCompatActivity() {
                     }
                     .show()
             }
-            is Entrada.Imagen -> avisoMotorSinPesos("imagen")
-            is Entrada.Video -> avisoMotorSinPesos("vídeo")
+            is Entrada.Imagen -> descargarImagen(e)
+            is Entrada.Video -> descargarVideo(e)
             is Entrada.Texto -> {
                 AlertDialog.Builder(this)
                     .setTitle("Descargar ${e.m.nombre}")
@@ -716,17 +736,26 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
-    private fun avisoMotorSinPesos(tipo: String) {
-        val motorOk = DiffusionNative.estaDisponible()
-        AlertDialog.Builder(this)
-            .setTitle("Generación de $tipo")
-            .setMessage(
-                (if (motorOk) "El motor nativo (stable-diffusion.cpp + Vulkan) está cargado en este APK."
-                else "El motor nativo no se ha podido cargar en este dispositivo.") +
-                "\n\nTodavía faltan dos piezas: un catálogo de pesos con URL y SHA-256 verificados, y conectar la generación con el chat. Por eso aún no se puede descargar ni usar un modelo de $tipo desde la app."
-            )
-            .setPositiveButton("Entendido", null)
-            .show()
+    private fun descargarImagen(e: Entrada.Imagen) {
+        AlertDialog.Builder(this).setTitle("Descargar ${e.m.nombre}")
+            .setMessage("Peso: ${e.m.artefactos.sumOf { it.expectedBytes } / 1_000_000} MB. Se verificará el SHA-256 antes de activarlo. ¿Continuar?")
+            .setNegativeButton("Cancelar", null).setPositiveButton("Descargar") { _, _ -> lifecycleScope.launch {
+                try { progreso.visibility=View.VISIBLE; progreso.isIndeterminate=false; tvEstado.text="Descargando ${e.m.nombre}…"
+                    withContext(Dispatchers.IO) { imagenes.descargar(e.m) { p -> runOnUiThread { progreso.progress=p } } }
+                    progreso.visibility=View.GONE; DebugLog.log("DIFFUSION", "pesos IMAGEN verificados · ${e.m.id}"); Toast.makeText(this@ChatActivity,"Pesos de imagen verificados",Toast.LENGTH_SHORT).show(); elegirModelo(e.m.id)
+                } catch(ex:Exception){ progreso.visibility=View.GONE; DebugLog.log("DIFFUSION","⚠ imagen descarga/verificación: ${ex.message}"); Toast.makeText(this@ChatActivity,ex.message?:"No se pudo descargar",Toast.LENGTH_LONG).show() }
+            }}.show()
+    }
+
+    private fun descargarVideo(e: Entrada.Video) {
+        AlertDialog.Builder(this).setTitle("Descargar ${e.m.nombre}")
+            .setMessage("Son 3 artefactos y varios GB. Se descargan uno a uno y cada SHA-256 se verifica antes de activarlos. ¿Continuar?")
+            .setNegativeButton("Cancelar", null).setPositiveButton("Descargar") { _, _ -> lifecycleScope.launch {
+                try { progreso.visibility=View.VISIBLE; progreso.isIndeterminate=false; progreso.progress=0; tvEstado.text="Descargando ${e.m.nombre}…"
+                    withContext(Dispatchers.IO) { videos.descargar(e.m) { p -> runOnUiThread { if(p>=0) progreso.progress=p } } }
+                    progreso.visibility=View.GONE; DebugLog.log("DIFFUSION", "pesos VIDEO verificados · ${e.m.id}"); Toast.makeText(this@ChatActivity,"Pesos de vídeo verificados",Toast.LENGTH_SHORT).show(); elegirModelo(e.m.id)
+                } catch(ex:Exception){ progreso.visibility=View.GONE; DebugLog.log("DIFFUSION","⚠ vídeo descarga/verificación: ${ex.message}"); Toast.makeText(this@ChatActivity,ex.message?:"No se pudo descargar/verificar",Toast.LENGTH_LONG).show() }
+            }}.show()
     }
 
     private fun usar(e: Entrada) {
@@ -739,27 +768,41 @@ class ChatActivity : AppCompatActivity() {
                 getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo").putString("modelo_llama", e.m.id).apply()
                 prepararLlama(e.m)
             }
-            is Entrada.Imagen -> avisoMotorSinPesos("imagen")
-            is Entrada.Video -> avisoMotorSinPesos("vídeo")
+            is Entrada.Imagen -> activarModeloImagen(e.m)
+            is Entrada.Video -> activarModeloVideo(e.m)
         }
     }
 
     private fun activarModeloImagen(m: ModelosImagen.ModeloImagen) {
+        if (!imagenes.descargado(m)) { Toast.makeText(this, "Verifica primero los pesos de ${m.nombre}", Toast.LENGTH_LONG).show(); return }
+        if (!DiffusionNative.estaDisponible()) { Toast.makeText(this, "libchatpro-diffusion.so no está disponible en este APK/dispositivo", Toast.LENGTH_LONG).show(); return }
         modeloImagenActual = m
+        modeloVideoActual = null
         modeloActual = null
         modeloLlamaActual = null
+        DebugLog.log("DIFFUSION", "modelo IMAGEN activado · ${m.id} · ${imagenes.carpeta(m).absolutePath}")
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo_llama").apply()
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("modelo_imagen", m.id).apply()
         btnModelo.text = m.nombre
         btnImagen.visibility = View.GONE
-        tvEstado.text = "Imagen · backend pendiente de verificación"
+        tvEstado.text = "Imagen · ${m.nombre} · lista para generar"
         actualizarBotonEnvio()
+    }
+
+    private fun activarModeloVideo(m: ModelosVideo.ModeloVideo) {
+        if (!videos.puedeUsarse(m)) { Toast.makeText(this, "Verifica los 3 pesos de ${m.nombre}", Toast.LENGTH_LONG).show(); return }
+        if (!DiffusionNative.estaDisponible()) { Toast.makeText(this, "libchatpro-diffusion.so no está disponible en este APK/dispositivo", Toast.LENGTH_LONG).show(); return }
+        modeloVideoActual = m; modeloImagenActual = null; modeloActual = null; modeloLlamaActual = null
+        getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo_llama").remove("modelo_imagen").putString("modelo_video", m.id).apply()
+        btnModelo.text = m.nombre; btnImagen.visibility = View.GONE; tvEstado.text = "Vídeo · ${m.nombre} · listo para generar"; actualizarBotonEnvio()
+        DebugLog.log("DIFFUSION", "modelo VIDEO activado · ${m.id} · ${videos.carpeta(m).absolutePath}")
     }
 
     private fun prepararLlama(m: LlamaCppModel) {
         modeloLlamaActual = m
         modeloActual = null
         modeloImagenActual = null
+        modeloVideoActual = null
         btnModelo.text = m.nombre
         btnImagen.visibility = View.GONE
         btnEnviar.isEnabled = false
@@ -804,6 +847,7 @@ class ChatActivity : AppCompatActivity() {
         llamaEngine.liberar()
         modeloActual = m
         modeloImagenActual = null
+        modeloVideoActual = null
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo_imagen").apply()
         btnModelo.text = m.nombre
         btnImagen.visibility = if (m.vision) View.VISIBLE else View.GONE
@@ -877,12 +921,7 @@ class ChatActivity : AppCompatActivity() {
         val ruta = imagenRuta
         if ((texto.isEmpty() && ruta == null) || generando) return false
 
-        if (modeloImagenActual != null) {
-            Toast.makeText(this, "La generación de imagen estará disponible cuando terminemos la validación de stable-diffusion.cpp + Vulkan.", Toast.LENGTH_LONG).show()
-            return false
-        }
-
-        if (modeloActual == null && modeloLlamaActual == null) return false
+        if (modeloImagenActual == null && modeloVideoActual == null && modeloActual == null && modeloLlamaActual == null) return false
         val prompt = if (texto.isEmpty()) "Describe esta imagen." else texto
         etMensaje.setText("")
         quitarImagen()
@@ -895,55 +934,47 @@ class ChatActivity : AppCompatActivity() {
     private fun actualizarBotonEnvio() {
         btnEnviar.isEnabled = when {
             generando -> false
-            modeloImagenActual != null -> imagenes.descargado(modeloImagenActual!!)
+            modeloImagenActual != null -> imagenes.descargado(modeloImagenActual!!) && DiffusionNative.estaDisponible()
+            modeloVideoActual != null -> videos.puedeUsarse(modeloVideoActual!!) && DiffusionNative.estaDisponible()
             else -> modeloActual != null || modeloLlamaActual != null
         }
     }
 
     private fun generarDesde(prompt: String, ruta: String?, guardar: Boolean) {
-        generando = true
-        btnEnviar.isEnabled = false
-        val nombreModelo = modeloLlamaActual?.nombre ?: modeloActual?.nombre ?: ""
-        val backend = if (modeloLlamaActual != null) "llama.cpp" else "LiteRT"
-        tvEstado.text = "Generando · $nombreModelo"
-        DebugLog.log("GEN", "inicio · $backend · $nombreModelo · mensajes=${mensajes.size} · imagen=${ruta != null} · «${prompt.take(80).replace("\n", "\\n")}»")
-        DebugLog.markStart("$backend · $prompt")
+        generando = true; btnEnviar.isEnabled = false
+        val nombreModelo = modeloVideoActual?.nombre ?: modeloImagenActual?.nombre ?: modeloLlamaActual?.nombre ?: modeloActual?.nombre ?: ""
+        val backend = when { modeloVideoActual != null -> "stable-diffusion.cpp/Vulkan vídeo"; modeloImagenActual != null -> "stable-diffusion.cpp/Vulkan imagen"; modeloLlamaActual != null -> "llama.cpp"; else -> "LiteRT" }
+        tvEstado.text = "Generando · $nombreModelo"; DebugLog.log("GEN", "inicio · $backend · $nombreModelo · prompt=${prompt.length} · ${DebugLog.mem()}"); DebugLog.markStart("$backend · $prompt")
         val inicio = System.currentTimeMillis()
         lifecycleScope.launch {
-            val respuesta = StringBuilder()
             try {
-                if (modeloLlamaActual != null) {
-                    llamaEngine.generar(prompt, maxTokens = 256).collect { trozo ->
-                        respuesta.append(trozo)
-                        render(respuesta.toString())
-                    }
-                } else {
-                    motor.generar(prompt, ruta).collect { trozo ->
-                        respuesta.append(trozo)
-                        render(respuesta.toString())
-                    }
+                when {
+                    modeloImagenActual != null -> generarImagenLocal(prompt, nombreModelo)
+                    modeloVideoActual != null -> generarVideoLocal(prompt, nombreModelo)
+                    modeloLlamaActual != null -> { val respuesta=StringBuilder(); llamaEngine.generar(prompt,256).collect{trozo->respuesta.append(trozo);render(respuesta.toString())}; mensajes.add("m" to respuesta.toString()) }
+                    else -> { val respuesta=StringBuilder(); motor.generar(prompt,ruta).collect{trozo->respuesta.append(trozo);render(respuesta.toString())}; mensajes.add("m" to respuesta.toString()) }
                 }
-            } catch (e: CancellationException) {
-                DebugLog.log("GEN", "cancelada")
-                DebugLog.markEnd()
-                throw e
-            } catch (e: Exception) {
-                DebugLog.log("GEN", "⚠ excepción: ${e.javaClass.name}: ${e.message}\n" + e.stackTrace.take(6).joinToString("\n") { "    at $it" })
-                respuesta.append("Error: ${e.message ?: e.javaClass.simpleName}")
-            }
-            val texto = respuesta.toString()
-            val visible = texto.replace(Regex("<think>[\\s\\S]*?(</think>|$)"), "").trim()
-            DebugLog.log("GEN", "fin · ${texto.length} car en ${System.currentTimeMillis() - inicio} ms · ${DebugLog.mem()}")
-            if (texto.isBlank()) DebugLog.log("GEN", "⚠ respuesta completamente vacía")
-            else if (visible.isEmpty()) DebugLog.log("GEN", "⚠ solo hay bloque <think> sin texto de respuesta visible")
-            DebugLog.markEnd()
-            mensajes.add("m" to texto)
-            if (guardar) guardarSesion()
-            render(null)
-            tvEstado.text = "Listo · $nombreModelo"
-            generando = false
-            btnEnviar.isEnabled = true
+                if (guardar) guardarSesion(); render(null)
+                DebugLog.log("GEN", "fin · $backend · ${System.currentTimeMillis()-inicio} ms · ${DebugLog.mem()}")
+            } catch(e:CancellationException){ DebugLog.log("GEN","cancelada · $backend"); throw e
+            } catch(e:Exception){ DebugLog.log("GEN","⚠ excepción $backend: ${e.javaClass.name}: ${e.message}"); mensajes.add("m" to "Error: ${e.message ?: e.javaClass.simpleName}"); render(null)
+            } finally { DebugLog.markEnd(); generando=false; actualizarBotonEnvio(); tvEstado.text="Listo · $nombreModelo" }
         }
+    }
+
+    private suspend fun generarImagenLocal(prompt:String, nombreModelo:String) {
+        val m=modeloImagenActual ?: error("No hay modelo de imagen")
+        val vr=withContext(Dispatchers.IO){imagenes.verificacion(m)}; DebugLog.log("DIFFUSION","imagen verificación antes de generar: ${vr.ok} · ${vr.message}"); if(!vr.ok) error(vr.message)
+        val raw=File(cacheDir,"cpimg-${System.currentTimeMillis()}.cpimg"); val png=File(createdFiles.directory(CreatedFile.Kind.IMAGE),"imagen-${System.currentTimeMillis()}.png")
+        withContext(Dispatchers.IO){ DiffusionNative.generarImagen(m.artefactos.first().let{File(imagenes.carpeta(m),it.fileName).absolutePath},prompt=prompt,outputPath=raw.absolutePath,width=512,height=512,steps=4) || error("stable-diffusion.cpp no generó imagen") ; DiffusionOutput.imageToPng(raw,png) }
+        val item=createdFiles.register(png,"image/png",CreatedFile.Kind.IMAGE,sesionId,prompt,nombreModelo,512,512); raw.delete(); mensajes.add("m" to "[[IMAGE]]${item.path}"); DebugLog.log("FILES","imagen registrada · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
+    }
+
+    private suspend fun generarVideoLocal(prompt:String, nombreModelo:String) {
+        val m=modeloVideoActual ?: error("No hay modelo de vídeo"); val vr=withContext(Dispatchers.IO){videos.verificacion(m)}; DebugLog.log("DIFFUSION","vídeo verificación antes de generar: ${vr.ok} · ${vr.message}"); if(!vr.ok) error(vr.message)
+        val dir=videos.carpeta(m); val diff=File(dir,m.artefactos.first{it.role=="diffusion"}.fileName); val t5=File(dir,m.artefactos.first{it.role=="t5xxl"}.fileName); val vae=File(dir,m.artefactos.first{it.role=="vae"}.fileName); val raw=File(cacheDir,"cpvid-${System.currentTimeMillis()}.cpvid"); val mp4=File(createdFiles.directory(CreatedFile.Kind.VIDEO),"video-${System.currentTimeMillis()}.mp4")
+        withContext(Dispatchers.IO){ DebugLog.log("DIFFUSION","video generateVideo inicio · 416x240 · 17 frames · 8fps · 8 steps"); DiffusionNative.generarVideo(diff.absolutePath,vae.absolutePath,t5.absolutePath,prompt=prompt,outputPath=raw.absolutePath,width=416,height=240,frames=17,fps=8,steps=8) || error("stable-diffusion.cpp no generó vídeo"); DiffusionOutput.videoToMp4(raw,mp4) }
+        val item=createdFiles.register(mp4,"video/mp4",CreatedFile.Kind.VIDEO,sesionId,prompt,nombreModelo,416,240,17*1000L/8,17); raw.delete(); mensajes.add("m" to "[[VIDEO]]${item.path}"); DebugLog.log("FILES","vídeo registrado · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
     }
 
     override fun onDestroy() {
