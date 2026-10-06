@@ -3,55 +3,30 @@ package com.ejemplo.chat.ia
 import android.content.Context
 import java.io.File
 
-/**
- * Catálogo local de modelos de imagen.
- *
- * El motor nativo (stable-diffusion.cpp + Vulkan) se compila en GitHub Actions.
- * Los pesos de los modelos NO forman parte del APK y nunca se descargan de
- * forma automática desde esta clase.
- */
 class ModelosImagen(private val context: Context) {
     data class ModeloImagen(
         val id: String,
         val nombre: String,
         val descripcion: String,
         val backend: String,
-        val estado: Estado = Estado.PLANIFICADO,
-        val tamanoAprox: String = "Por verificar"
+        val estado: Estado,
+        val artefactos: List<ModelWeightsManager.Artifact>
     )
-
-    enum class Estado { PLANIFICADO, NO_DISPONIBLE, LISTO }
+    enum class Estado { NO_DISPONIBLE, LISTO }
 
     companion object {
-        val MODELOS = listOf(
-            ModeloImagen(
-                id = "sd-mobile",
-                nombre = "Stable Diffusion móvil",
-                descripcion = "Motor local basado en stable-diffusion.cpp con backend Vulkan. Los pesos se incorporarán como modelos descargables y verificables en una fase posterior.",
-                backend = "stable-diffusion.cpp + Vulkan",
-                estado = Estado.LISTO,
-                tamanoAprox = "Depende del modelo descargado"
-            )
-        )
+        private const val SD_URL = "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/f03de327dd89b501a01da37fc5240cf4fdba85a1/v1-5-pruned-emaonly.safetensors"
+        val MODELOS = listOf(ModeloImagen(
+            "sd15", "Stable Diffusion 1.5", "Texto a imagen local · SD 1.5 · Vulkan", "stable-diffusion.cpp + Vulkan", Estado.LISTO,
+            listOf(ModelWeightsManager.Artifact("v1-5-pruned-emaonly.safetensors", SD_URL, "6ce0161689b3853acaa03779ec93eafe75a02f4ced659bee03f50797806fa2fa", 4_265_146_304L, "diffusion"))
+        ))
     }
 
     private val root = File(context.filesDir, "modelos-imagen").apply { mkdirs() }
-
-    fun carpeta(m: ModeloImagen): File = File(root, m.id).apply { mkdirs() }
-
-    /**
-     * Esta versión solo comprueba la presencia de un archivo marcador creado
-     * por la futura capa de descarga/verificación. No descarga nada.
-     */
-    fun descargado(m: ModeloImagen): Boolean = carpeta(m).listFiles()?.any {
-        it.isFile && (it.extension.equals("safetensors", true) || it.extension.equals("gguf", true) || it.extension.equals("ckpt", true))
-    } == true
-
-    fun progreso(m: ModeloImagen): Int = if (descargado(m)) 100 else 0
-
-    fun faltantes(m: ModeloImagen): List<String> = if (descargado(m)) emptyList() else listOf("Pesos del modelo")
-
-    fun espacioLibreBytes(): Long = root.usableSpace
-
-    fun puedeUsarse(m: ModeloImagen): Boolean = m.estado == Estado.LISTO && descargado(m)
+    private val weights = ModelWeightsManager(context)
+    fun carpeta(m: ModeloImagen) = File(root, m.id).apply { mkdirs() }
+    fun verificacion(m: ModeloImagen) = weights.verifyAll(carpeta(m), m.artefactos)
+    fun descargado(m: ModeloImagen): Boolean = verificacion(m).ok
+    fun descargar(m: ModeloImagen, onProgress: (Int) -> Unit = {}) { m.artefactos.forEach { weights.download(carpeta(m), it, onProgress) }; verificacion(m) }
+    fun espacioLibreBytes() = root.usableSpace
 }
