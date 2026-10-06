@@ -27,7 +27,8 @@ class ModelosVideo(private val context: Context) {
     private val weights = ModelWeightsManager(context)
     fun carpeta(m: ModeloVideo) = File(root, m.id).apply { mkdirs() }
     fun verificacion(m: ModeloVideo) = weights.verifyAll(carpeta(m), m.artefactos)
-    fun puedeUsarse(m: ModeloVideo) = verificacion(m).ok
+    /** Rápido (sin hash): apto para el hilo principal. La verificación completa va en verificacion(). */
+    fun puedeUsarse(m: ModeloVideo) = weights.presentAll(carpeta(m), m.artefactos)
     fun descargar(m: ModeloVideo, onProgress: (Int) -> Unit = {}) {
         val total = m.artefactos.sumOf { it.expectedBytes }.coerceAtLeast(1L); var done = 0L
         m.artefactos.forEach { a -> weights.download(carpeta(m), a) { p -> onProgress(((done + a.expectedBytes * p / 100L) * 100L / total).toInt()) }; done += a.expectedBytes }
