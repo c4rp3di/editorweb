@@ -19,6 +19,7 @@ object DiffusionNative {
                 System.loadLibrary(LIBRARY_NAME)
                 disponible = true
                 DebugLog.log("DIFFUSION", "lib$LIBRARY_NAME.so cargada correctamente")
+                DebugLog.nativeLogPath()?.let { ruta -> runCatching { nativeInstallLog(ruta) }.onFailure { DebugLog.log("DIFFUSION", "⚠ no se pudo activar el registro nativo: ${it.message}") } }
                 runCatching { DebugLog.log("DIFFUSION", "nativeVersion=${nativeVersion().take(500)}") }.onFailure { DebugLog.log("DIFFUSION", "⚠ nativeVersion falló: ${it.message}") }
             } catch (e: UnsatisfiedLinkError) {
                 disponible = false
@@ -114,6 +115,7 @@ object DiffusionNative {
     }
 
     private external fun nativeProgress(): String
+    private external fun nativeInstallLog(path: String)
     private external fun nativeVersion(): String
     private external fun nativeGenerateImage(
         modelPath: String,
