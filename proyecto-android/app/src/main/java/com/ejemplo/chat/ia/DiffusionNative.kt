@@ -100,6 +100,20 @@ object DiffusionNative {
         )
     }
 
+    data class Progreso(val fase: Int, val paso: Int, val pasos: Int, val ultimoPasoMs: Long)
+
+    /** fase: 0 inactivo · 1 cargando modelo · 2 muestreando · 3 decodificando/guardando. */
+    fun progreso(): Progreso {
+        if (!estaDisponible()) return Progreso(0, 0, 0, 0)
+        return try {
+            val p = nativeProgress().split('|')
+            Progreso(p[0].toInt(), p[1].toInt(), p[2].toInt(), p[3].toLong())
+        } catch (_: Throwable) {
+            Progreso(0, 0, 0, 0)
+        }
+    }
+
+    private external fun nativeProgress(): String
     private external fun nativeVersion(): String
     private external fun nativeGenerateImage(
         modelPath: String,
