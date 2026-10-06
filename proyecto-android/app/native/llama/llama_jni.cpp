@@ -21,6 +21,22 @@ struct ChatProHandle {
     llama_pos current_position = 0;
 };
 
+// Último estado de nativeGenerate, solo ASCII, para mostrarlo en el log de la app.
+static std::string g_last_status = "sin_generaciones";
+
+static std::string safeTail(const std::string & s, size_t n) {
+    const size_t start = s.size() > n ? s.size() - n : 0;
+    std::string out;
+    for (size_t i = start; i < s.size(); ++i) {
+        const unsigned char c = static_cast<unsigned char>(s[i]);
+        if (c == '\n') out += "\\n";
+        else if (c == '\r') out += "\\r";
+        else if (c < 0x20 || c >= 0x80) out += '?';
+        else out += static_cast<char>(c);
+    }
+    return out;
+}
+
 static std::string toString(JNIEnv * env, jstring value) {
     if (!value) return {};
     const char * chars = env->GetStringUTFChars(value, nullptr);
@@ -104,11 +120,12 @@ Java_com_ejemplo_chat_ia_llama_LlamaCppNative_nativeLoadModel(
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_ejemplo_chat_ia_llama_LlamaCppNative_nativeGenerate(
         JNIEnv * env, jclass, jlong handle, jstring jprompt, jint max_tokens) {
+    g_last_status = "sin_handle_o_modelo";
     auto * h = reinterpret_cast<ChatProHandle *>(handle);
     if (!h || !h->model || !h->context || !h->sampler) return env->NewStringUTF("");
 
     const std::string prompt = toString(env, jprompt);
-    if (prompt.empty()) return env->NewStringUTF("");
+    if (prompt.empty()) { g_last_status = "prompt_vacio"; return env->NewStringUTF(""); }
 
     common_chat_msg user;
     user.role = "user";
@@ -118,32 +135,45 @@ Java_com_ejemplo_chat_ia_llama_LlamaCppNative_nativeGenerate(
     const std::string formatted = has_template
         ? common_chat_format_single(h->templates.get(), h->history, user, true, false)
         : prompt;
+    const std::string plantilla = has_template ? "si" : "no";
+    const std::string formatted_tail = safeTail(formatted, 240);
 
     const auto tokens = common_tokenize(h->context, formatted, has_template, has_template);
-    if (tokens.empty()) return env->NewStringUTF("");
+    if (tokens.empty()) {
+        g_last_status = "tokens_vacios · plantilla=" + plantilla + " · formateado_bytes=" + std::to_string(formatted.size())
+            + " · formateado_final=[" + formatted_tail + "]";
+        return env->NewStringUTF("");
+    }
 
     const int limit = std::max(1, static_cast<int>(max_tokens));
     const int context_size = static_cast<int>(llama_n_ctx(h->context));
     if (h->current_position + static_cast<llama_pos>(tokens.size()) + limit >= context_size) {
+        g_last_status = "contexto_lleno · pos=" + std::to_string(h->current_position) + "/" + std::to_string(context_size)
+            + " · tokens_prompt=" + std::to_string(tokens.size());
         return env->NewStringUTF("[Contexto lleno; inicia una nueva conversación para continuar.]");
     }
 
     if (!decode(h, tokens, h->current_position)) {
+        g_last_status = "error_decodificando_prompt · tokens_prompt=" + std::to_string(tokens.size())
+            + " · pos=" + std::to_string(h->current_position) + "/" + std::to_string(context_size);
         return env->NewStringUTF("");
     }
     h->current_position += static_cast<llama_pos>(tokens.size());
     common_sampler_reset(h->sampler);
 
     std::string output;
+    std::string parada = "limite_de_tokens";
+    int generados = 0;
     for (int i = 0; i < limit; ++i) {
         const llama_token token = common_sampler_sample(h->sampler, h->context, -1);
-        if (llama_vocab_is_eog(llama_model_get_vocab(h->model), token)) break;
+        if (llama_vocab_is_eog(llama_model_get_vocab(h->model), token)) { parada = "fin_de_secuencia(eog)"; break; }
         common_sampler_accept(h->sampler, token, true);
 
         output += common_token_to_piece(h->context, token);
+        ++generados;
         h->batch.clear();
         h->batch.add(token, h->current_position, 0, true);
-        if (llama_process(h->context, LLAMA_PROCESS_TYPE_DECODE, h->batch.get()) != 0) break;
+        if (llama_process(h->context, LLAMA_PROCESS_TYPE_DECODE, h->batch.get()) != 0) { parada = "error_decodificando_token"; break; }
         ++h->current_position;
     }
 
@@ -154,7 +184,18 @@ Java_com_ejemplo_chat_ia_llama_LlamaCppNative_nativeGenerate(
         assistant.content = output;
         h->history.push_back(std::move(assistant));
     }
+
+    g_last_status = "ok · plantilla=" + plantilla + " · tokens_prompt=" + std::to_string(tokens.size())
+        + " · generados=" + std::to_string(generados) + " · parada=" + parada
+        + " · pos=" + std::to_string(h->current_position) + "/" + std::to_string(context_size)
+        + " · historial=" + std::to_string(h->history.size()) + " mensajes"
+        + " · formateado_final=[" + formatted_tail + "]";
     return env->NewStringUTF(output.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_ejemplo_chat_ia_llama_LlamaCppNative_nativeLastStatus(JNIEnv * env, jclass) {
+    return env->NewStringUTF(g_last_status.c_str());
 }
 
 extern "C" JNIEXPORT void JNICALL
