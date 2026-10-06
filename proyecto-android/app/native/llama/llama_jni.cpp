@@ -19,6 +19,8 @@ struct ChatProHandle {
     common_sampler * sampler = nullptr;
     std::vector<common_chat_msg> history;
     llama_pos current_position = 0;
+    uint32_t context_size = 4096;
+    int32_t threads = 4;
 };
 
 // Último estado de nativeGenerate, solo ASCII, para mostrarlo en el log de la app.
@@ -59,6 +61,26 @@ static bool decode(ChatProHandle * h, const std::vector<llama_token> & tokens, l
     return true;
 }
 
+static bool resetContext(ChatProHandle * h) {
+    if (!h || !h->model) return false;
+    if (h->context) {
+        llama_free(h->context);
+        h->context = nullptr;
+    }
+    llama_context_params ctx = llama_context_default_params();
+    ctx.n_ctx = h->context_size;
+    ctx.n_batch = 512;
+    ctx.n_ubatch = 512;
+    ctx.n_threads = h->threads;
+    ctx.n_threads_batch = h->threads;
+    h->context = llama_init_from_model(h->model, ctx);
+    if (!h->context) return false;
+    h->batch = common_batch(h->context);
+    h->current_position = 0;
+    common_sampler_reset(h->sampler);
+    return true;
+}
+
 static void releaseHandle(ChatProHandle * h) {
     if (!h) return;
     if (h->sampler) common_sampler_free(h->sampler);
@@ -95,6 +117,7 @@ Java_com_ejemplo_chat_ia_llama_LlamaCppNative_nativeLoadModel(
     const int trained = llama_model_n_ctx_train(h->model);
     const int wanted = std::max(512, static_cast<int>(requested_context));
     ctx.n_ctx = trained > 0 ? std::min(wanted, trained) : wanted;
+    h->context_size = ctx.n_ctx;
     ctx.n_batch = 512;
     ctx.n_ubatch = 512;
 
@@ -102,6 +125,7 @@ Java_com_ejemplo_chat_ia_llama_LlamaCppNative_nativeLoadModel(
     const int threads = std::max(1, std::min(static_cast<int>(requested_threads), std::max(1, cpu)));
     ctx.n_threads = threads;
     ctx.n_threads_batch = threads;
+    h->threads = threads;
 
     h->context = llama_init_from_model(h->model, ctx);
     if (!h->context) { releaseHandle(h); return 0; }
@@ -133,7 +157,7 @@ Java_com_ejemplo_chat_ia_llama_LlamaCppNative_nativeGenerate(
 
     const bool has_template = common_chat_templates_was_explicit(h->templates.get());
     const std::string formatted = has_template
-        ? common_chat_format_single(h->templates.get(), h->history, user, true, false)
+        ? common_chat_format_single(h->templates.get(), h->history, user, true, true)
         : prompt;
     const std::string plantilla = has_template ? "si" : "no";
     const std::string formatted_tail = safeTail(formatted, 240);
@@ -191,6 +215,63 @@ Java_com_ejemplo_chat_ia_llama_LlamaCppNative_nativeGenerate(
         + " · historial=" + std::to_string(h->history.size()) + " mensajes"
         + " · formateado_final=[" + formatted_tail + "]";
     return env->NewStringUTF(output.c_str());
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_ejemplo_chat_ia_llama_LlamaCppNative_nativeRestoreHistory(
+        JNIEnv * env, jclass, jlong handle, jobjectArray jroles, jobjectArray jcontents) {
+    auto * h = reinterpret_cast<ChatProHandle *>(handle);
+    if (!h || !h->model || !h->context || !h->sampler || !jroles || !jcontents) return JNI_FALSE;
+    const jsize n = env->GetArrayLength(jroles);
+    if (n != env->GetArrayLength(jcontents)) return JNI_FALSE;
+
+    std::vector<common_chat_msg> restored;
+    restored.reserve(static_cast<size_t>(n));
+    for (jsize i = 0; i < n; ++i) {
+        auto roleObj = static_cast<jstring>(env->GetObjectArrayElement(jroles, i));
+        auto contentObj = static_cast<jstring>(env->GetObjectArrayElement(jcontents, i));
+        common_chat_msg msg;
+        msg.role = toString(env, roleObj);
+        msg.content = toString(env, contentObj);
+        env->DeleteLocalRef(roleObj);
+        env->DeleteLocalRef(contentObj);
+        if (msg.role != "user" && msg.role != "assistant" && msg.role != "system") continue;
+        restored.push_back(std::move(msg));
+    }
+
+    if (!resetContext(h)) {
+        g_last_status = "error_reiniciando_contexto";
+        return JNI_FALSE;
+    }
+    if (restored.empty()) {
+        h->history.clear();
+        g_last_status = "historial_restaurado=0 · pos=0/" + std::to_string(h->context_size);
+        return JNI_TRUE;
+    }
+
+    common_chat_templates_inputs inputs;
+    inputs.messages = restored;
+    inputs.add_generation_prompt = false;
+    inputs.use_jinja = true;
+    const std::string formatted = common_chat_templates_apply(h->templates.get(), inputs).prompt;
+    const auto tokens = common_tokenize(h->context, formatted, true, true);
+    if (tokens.empty()) {
+        g_last_status = "error_historial_tokens_vacios";
+        return JNI_FALSE;
+    }
+    if (static_cast<llama_pos>(tokens.size()) >= static_cast<llama_pos>(h->context_size)) {
+        g_last_status = "historial_demasiado_grande · tokens=" + std::to_string(tokens.size()) + "/" + std::to_string(h->context_size);
+        return JNI_FALSE;
+    }
+    if (!decode(h, tokens, 0)) {
+        g_last_status = "error_decodificando_historial · tokens=" + std::to_string(tokens.size());
+        return JNI_FALSE;
+    }
+    h->current_position = static_cast<llama_pos>(tokens.size());
+    h->history = std::move(restored);
+    g_last_status = "historial_restaurado=" + std::to_string(h->history.size()) + " mensajes · tokens=" + std::to_string(tokens.size())
+        + " · pos=" + std::to_string(h->current_position) + "/" + std::to_string(h->context_size);
+    return JNI_TRUE;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
