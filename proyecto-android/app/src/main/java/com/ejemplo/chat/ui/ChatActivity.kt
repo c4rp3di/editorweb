@@ -1020,7 +1020,7 @@ class ChatActivity : AppCompatActivity() {
         val m=modeloImagenActual ?: error("No hay modelo de imagen")
         val vr=withContext(Dispatchers.IO){imagenes.verificacion(m)}; DebugLog.log("DIFFUSION","imagen verificación antes de generar: ${vr.ok} · ${vr.message}"); if(!vr.ok) error(vr.message)
         val raw=File(cacheDir,"cpimg-${System.currentTimeMillis()}.cpimg"); val png=File(createdFiles.directory(CreatedFile.Kind.IMAGE),"imagen-${System.currentTimeMillis()}.png")
-        withContext(Dispatchers.IO){ DiffusionNative.generarImagen(m.artefactos.first().let{File(imagenes.carpeta(m),it.fileName).absolutePath},prompt=prompt,outputPath=raw.absolutePath,width=512,height=512,steps=4) || error("stable-diffusion.cpp no generó imagen") ; DiffusionOutput.imageToPng(raw,png) }
+        withContext(Dispatchers.IO){ DiffusionNative.generarImagen(m.artefactos.first().let{File(imagenes.carpeta(m),it.fileName).absolutePath},prompt=prompt,outputPath=png.absolutePath,width=512,height=512,steps=4) || error("stable-diffusion.cpp no generó imagen") }
         val item=createdFiles.register(png,"image/png",CreatedFile.Kind.IMAGE,sesionId,prompt,nombreModelo,512,512); raw.delete(); mensajes.add("m" to "[[IMAGE]]${item.path}"); DebugLog.log("FILES","imagen registrada · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
     }
 
