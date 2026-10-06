@@ -178,12 +178,24 @@ static void onProgress(int step, int steps, float time, void * /*data*/) {
     if (step >= steps && steps > 0) g_phase.store(3);
 }
 
+// stable-diffusion.cpp no imprime nada si no hay callback registrado: sin esto los
+// errores reales (memoria, Vulkan, operador no soportado...) no llegan a native.log.
+static void onSdLog(sd_log_level_t level, const char * text, void * /*data*/) {
+    if (!text) return;
+    const int lv = static_cast<int>(level); // 0 debug · 1 info · 2 warn · 3 error
+    if (lv < 1) return;
+    std::string s(text);
+    while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
+    nlogf("SD %s: %.400s", lv >= 3 ? "ERROR" : (lv == 2 ? "WARN" : "INFO"), s.c_str());
+}
+
 struct PhaseGuard {
     PhaseGuard() {
         g_phase.store(1);
         g_step.store(0);
         g_steps.store(0);
         g_last_step_ms.store(0);
+        sd_set_log_callback(onSdLog, nullptr);
         sd_set_progress_callback(onProgress, nullptr);
     }
     ~PhaseGuard() { g_phase.store(0); }
@@ -351,7 +363,8 @@ static sd_ctx_t * createContext(const std::string & modelPath,
     // de RSS ocurre dentro de stable-diffusion.cpp, después del último paso
     // de muestreo, mientras decodifica el VAE. Limitamos la memoria de trabajo
     // de Vulkan y dejamos que el VAE procese por teselas.
-    params.max_vram = "1.5";
+    // PRUEBA v19.1: max_vram desactivado (sospecha de regresión: 1.5 GiB < UNet F16 ~1.7 GiB).
+    // params.max_vram = "1.5";
     params.disable_prefetch = true;
     return new_sd_ctx(&params);
 }
