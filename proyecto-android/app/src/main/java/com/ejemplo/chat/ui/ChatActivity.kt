@@ -946,6 +946,7 @@ class ChatActivity : AppCompatActivity() {
         val backend = when { modeloVideoActual != null -> "stable-diffusion.cpp/Vulkan vídeo"; modeloImagenActual != null -> "stable-diffusion.cpp/Vulkan imagen"; modeloLlamaActual != null -> "llama.cpp"; else -> "LiteRT" }
         tvEstado.text = "Generando · $nombreModelo"; DebugLog.log("GEN", "inicio · $backend · $nombreModelo · prompt=${prompt.length} · ${DebugLog.mem()}"); DebugLog.markStart("$backend · $prompt")
         val inicio = System.currentTimeMillis()
+        val vigia: Job? = if (modeloImagenActual != null || modeloVideoActual != null) vigilarGeneracion(nombreModelo) else null
         lifecycleScope.launch {
             try {
                 when {
@@ -958,7 +959,38 @@ class ChatActivity : AppCompatActivity() {
                 DebugLog.log("GEN", "fin · $backend · ${System.currentTimeMillis()-inicio} ms · ${DebugLog.mem()}")
             } catch(e:CancellationException){ DebugLog.log("GEN","cancelada · $backend"); throw e
             } catch(e:Exception){ DebugLog.log("GEN","⚠ excepción $backend: ${e.javaClass.name}: ${e.message}"); mensajes.add("m" to "Error: ${e.message ?: e.javaClass.simpleName}"); render(null)
-            } finally { DebugLog.markEnd(); generando=false; actualizarBotonEnvio(); tvEstado.text="Listo · $nombreModelo" }
+            } finally { vigia?.cancel(); progreso.visibility = View.GONE; DebugLog.markEnd(); generando=false; actualizarBotonEnvio(); tvEstado.text="Listo · $nombreModelo" }
+        }
+    }
+
+    /** Muestra fase, paso y tiempo mientras el motor nativo trabaja, y lo vuelca al log cada 5 s. */
+    private fun vigilarGeneracion(nombre: String): Job = lifecycleScope.launch {
+        progreso.visibility = View.VISIBLE
+        progreso.isIndeterminate = true
+        var seg = 0
+        while (isActive) {
+            delay(1000)
+            seg++
+            val p = DiffusionNative.progreso()
+            val fase = when (p.fase) {
+                1 -> "cargando el modelo en la GPU"
+                2 -> "generando"
+                3 -> "decodificando y guardando"
+                else -> "preparando"
+            }
+            val hayPasos = p.fase == 2 && p.pasos > 0
+            val detalle = if (hayPasos) " · paso ${p.paso}/${p.pasos}" else ""
+            tvEstado.text = "$nombre · $fase$detalle · ${"%d:%02d".format(seg / 60, seg % 60)}"
+            if (hayPasos) {
+                progreso.isIndeterminate = false
+                progreso.max = 100
+                progreso.progress = (p.paso * 100 / p.pasos).coerceIn(0, 100)
+            } else {
+                progreso.isIndeterminate = true
+            }
+            if (seg % 5 == 0) {
+                DebugLog.log("GEN", "t=${seg}s · fase=${p.fase} paso=${p.paso}/${p.pasos} · último paso ${p.ultimoPasoMs} ms · ${DebugLog.mem()}")
+            }
         }
     }
 
