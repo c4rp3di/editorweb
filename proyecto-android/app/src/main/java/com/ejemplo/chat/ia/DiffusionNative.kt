@@ -36,7 +36,7 @@ object DiffusionNative {
         return nativeVersion()
     }
 
-    /** Escribe un contenedor interno CPIMG1 con los píxeles de la primera imagen generada. */
+    /** Genera la primera imagen y la escribe directamente como PNG nativo. */
     fun generarImagen(
         modelPath: String,
         clipLPath: String? = null,
@@ -68,7 +68,7 @@ object DiffusionNative {
         )
     }
 
-    /** Escribe un contenedor interno CPVID1 con frames RGBA para el encoder Android posterior. */
+    /** Genera frames en un contenedor nativo para el encoder Android posterior. */
     fun generarVideo(
         diffusionModelPath: String,
         vaePath: String,
