@@ -351,14 +351,22 @@ static sd_ctx_t * createContext(const std::string & modelPath,
     params.t5xxl_path = emptyToNull(t5);
     params.vae_path = emptyToNull(vae);
     params.diffusion_model_path = emptyToNull(diffusionModel);
-    params.backend = "vulkan0";
-    params.params_backend = "vulkan0";
+    // v19.2: UNet y CLIP en la GPU Vulkan; VAE en CPU (en Mali-G715 cada tile de VAE tardaba
+    // ~130 s y acababa en "waitForFences Timeout"). Sintaxis por módulo: docs/backend.md.
+    // Vídeo (Wan, !ligero): el T5 (umt5 Q4_K) abortaba en ggml_backend_sched_split_graph porque
+    // Vulkan0 no puede ejecutar una operación sobre su tabla de embeddings; el codificador de texto va a CPU.
+    const char * backendSpec = ligero ? "diffusion=vulkan0,vae=cpu"
+                                      : "diffusion=vulkan0,te=cpu,vae=cpu";
+    params.backend = backendSpec;
+    params.params_backend = backendSpec;
     params.n_threads = 4;
     // Modo ligero (imagen): pesos a F16 y sin mmap, para no duplicar en RAM el archivo y los buffers de la GPU.
     params.enable_mmap = !ligero;
     if (ligero) params.wtype = SD_TYPE_F16;
-    params.flash_attn = true;
-    params.diffusion_flash_attn = true;
+    // v19.2 PRUEBA: flash attention desactivado (en Mali sin coopmat el shader FA es escalar y lento;
+    // el UNet tardaba ~59 s por paso). Si empeora, volver a true.
+    params.flash_attn = false;
+    params.diffusion_flash_attn = false;
     // La v15 ya evitaba las copias Java, pero los logs muestran que el pico
     // de RSS ocurre dentro de stable-diffusion.cpp, después del último paso
     // de muestreo, mientras decodifica el VAE. Limitamos la memoria de trabajo
