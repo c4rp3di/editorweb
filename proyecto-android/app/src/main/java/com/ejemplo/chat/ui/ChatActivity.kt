@@ -97,6 +97,7 @@ class ChatActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_chat)
         DebugLog.init(this)
+        DiffusionNative.estaDisponible() // activa pronto el registro nativo (stdout/stderr + crashes)
         motor = MotorIA(this)
         imagenes = ModelosImagen(this)
         videos = ModelosVideo(this)
