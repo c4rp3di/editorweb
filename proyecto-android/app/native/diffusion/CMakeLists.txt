@@ -55,6 +55,7 @@ target_include_directories(chatpro-diffusion PRIVATE
 find_library(log-lib log)
 find_library(android-lib android)
 find_library(vulkan-lib vulkan)
+find_library(z-lib z)
 
 if(NOT vulkan-lib)
     message(FATAL_ERROR "No se encontró libvulkan para el target Android")
@@ -65,4 +66,5 @@ target_link_libraries(chatpro-diffusion
     ${log-lib}
     ${android-lib}
     ${vulkan-lib}
+    ${z-lib}
 )
