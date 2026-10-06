@@ -193,9 +193,12 @@ Java_com_ejemplo_chat_ia_DiffusionNative_nativeGenerateVideo(
     sd_image_t * outFrames = nullptr;
     sd_audio_t * audio = nullptr;
     int frameCount = 0;
-    const bool ok = generate_video(ctx, &gen, &outFrames, &frameCount, &audio);
+    int fpsOut = 0;
+    // La API actual de stable-diffusion.cpp devuelve además los fps reales.
+    const bool ok = generate_video(ctx, &gen, &outFrames, &frameCount, &audio, &fpsOut);
+    const int writeFps = fpsOut > 0 ? fpsOut : fps;
     bool wrote = false;
-    if (ok && outFrames && frameCount > 0) wrote = writeVideoContainer(outPath, outFrames, frameCount, fps);
+    if (ok && outFrames && frameCount > 0) wrote = writeVideoContainer(outPath, outFrames, frameCount, writeFps);
 
     if (audio) free_sd_audio(audio);
     if (outFrames) free_sd_images(outFrames, frameCount);
