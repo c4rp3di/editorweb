@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
@@ -21,12 +22,16 @@ import androidx.lifecycle.lifecycleScope
 import com.ejemplo.chat.R
 import com.ejemplo.chat.ia.DebugLog
 import com.ejemplo.chat.ia.MotorIA
+import com.ejemplo.chat.ia.DiffusionNative
 import com.ejemplo.chat.ia.ModelosImagen
+import com.ejemplo.chat.ia.ModelosVideo
 import com.ejemplo.chat.ia.llama.LlamaCppModel
 import com.ejemplo.chat.ia.llama.LlamaCppModelManager
 import com.ejemplo.chat.ia.llama.LlamaCppNative
 import com.ejemplo.chat.ia.llama.NativeLlamaCppTextEngine
 import android.content.Intent
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +62,7 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var btnModelo: MaterialButton
     private lateinit var contenedor: LinearLayout
     private lateinit var imagenes: ModelosImagen
+    private lateinit var videos: ModelosVideo
     private lateinit var llamaManager: LlamaCppModelManager
     private val llamaEngine = NativeLlamaCppTextEngine()
 
@@ -88,6 +94,7 @@ class ChatActivity : AppCompatActivity() {
         DebugLog.init(this)
         motor = MotorIA(this)
         imagenes = ModelosImagen(this)
+        videos = ModelosVideo(this)
         llamaManager = LlamaCppModelManager(this)
 
         drawer = findViewById(R.id.drawer)
@@ -137,7 +144,7 @@ class ChatActivity : AppCompatActivity() {
         if (DebugLog.interruptedLast) {
             Toast.makeText(
                 this,
-                "La última generación de imagen se interrumpió (la app se cerró). Mira 🐞 Depuración en el menú.",
+                "La última generación se interrumpió (la app se cerró). Mira 🐞 Depuración en el menú.",
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -508,73 +515,136 @@ class ChatActivity : AppCompatActivity() {
         data class Texto(val m: MotorIA.Modelo) : Entrada() { override val id get() = m.id }
         data class Llama(val m: LlamaCppModel) : Entrada() { override val id get() = m.id }
         data class Imagen(val m: ModelosImagen.ModeloImagen) : Entrada() { override val id get() = m.id }
+        data class Video(val m: ModelosVideo.ModeloVideo) : Entrada() { override val id get() = m.id }
     }
 
     private fun entradas(): List<Entrada> =
-        MotorIA.MODELOS.map { Entrada.Texto(it) } + listOf(Entrada.Llama(LlamaCppModel.DEEPSEEK_R1_DISTILL_QWEN_1_5B_Q4_K_M)) + ModelosImagen.MODELOS.map { Entrada.Imagen(it) }
+        MotorIA.MODELOS.map { Entrada.Texto(it) } + listOf(Entrada.Llama(LlamaCppModel.DEEPSEEK_R1_DISTILL_QWEN_1_5B_Q4_K_M)) + ModelosImagen.MODELOS.map { Entrada.Imagen(it) } + ModelosVideo.MODELOS.map { Entrada.Video(it) }
 
     private fun estaDescargada(e: Entrada) = when (e) {
         is Entrada.Texto -> motor.modeloDescargado(e.m)
         is Entrada.Llama -> llamaManager.modeloListo(e.m)
         is Entrada.Imagen -> imagenes.descargado(e.m)
+        is Entrada.Video -> videos.puedeUsarse(e.m)
     }
 
     private fun estaActiva(e: Entrada) = when (e) {
         is Entrada.Texto -> modeloActual?.id == e.m.id
         is Entrada.Llama -> modeloLlamaActual?.id == e.m.id
         is Entrada.Imagen -> modeloImagenActual?.id == e.m.id
+        is Entrada.Video -> false
     }
 
-    private fun etiqueta(e: Entrada): String = when (e) {
-        is Entrada.Texto -> {
-            val estado = when {
-                estaActiva(e) -> "✓ activo"
-                estaDescargada(e) -> "✓ descargado"
-                else -> "${e.m.tamanoMb} MB · descarga manual"
-            }
-            "${e.m.nombre}${if (e.m.vision) " · visión" else ""} · texto\n$estado"
-        }
-        is Entrada.Llama -> {
-            val estado = when {
-                estaActiva(e) -> "✓ seleccionado"
-                estaDescargada(e) -> "✓ GGUF verificado"
-                else -> "${e.m.tamanoAproximadoMb} MB · descarga manual"
-            }
-            "${e.m.nombre} · texto\n$estado"
-        }
-        is Entrada.Imagen -> "${e.m.nombre} · imagen\n🧪 backend pendiente de verificación · ${e.m.backend}"
+    private fun tituloDe(e: Entrada): String = when (e) {
+        is Entrada.Texto -> e.m.nombre + if (e.m.vision) " · visión" else ""
+        is Entrada.Llama -> e.m.nombre
+        is Entrada.Imagen -> e.m.nombre
+        is Entrada.Video -> e.m.nombre
     }
 
-    /** Un solo selector para todos los modelos. El botón principal cambia entre «Usar» y «Descargar». */
+    private fun detalleDe(e: Entrada): String = when (e) {
+        is Entrada.Texto -> when {
+            estaActiva(e) -> "✓ activo"
+            estaDescargada(e) -> "✓ descargado"
+            else -> "${e.m.tamanoMb} MB · descarga manual"
+        }
+        is Entrada.Llama -> when {
+            estaActiva(e) -> "✓ seleccionado"
+            estaDescargada(e) -> "✓ GGUF verificado"
+            else -> "${e.m.tamanoAproximadoMb} MB · descarga manual"
+        }
+        is Entrada.Imagen -> if (DiffusionNative.estaDisponible()) "Motor nativo cargado · faltan los pesos" else "Motor nativo no disponible"
+        is Entrada.Video -> if (DiffusionNative.estaDisponible()) "Motor nativo cargado · faltan los pesos" else "Motor nativo no disponible"
+    }
+
+    private fun colorAtributo(attr: Int, defecto: Int): Int {
+        val ta = obtainStyledAttributes(intArrayOf(attr))
+        return try { ta.getColor(0, defecto) } finally { ta.recycle() }
+    }
+
+    /** Selector unificado en hoja inferior, con secciones Texto / Imagen / Vídeo. */
     private fun elegirModelo(preseleccion: String? = null) {
         if (generando) return
         val lista = entradas()
-        val items = lista.map { etiqueta(it) }.toTypedArray()
-        var elegido = lista.indexOfFirst { it.id == preseleccion }
-            .takeIf { it >= 0 }
-            ?: lista.indexOfFirst { estaActiva(it) }.coerceAtLeast(0)
+        val hoja = BottomSheetDialog(this)
+        val colorPrincipal = colorAtributo(android.R.attr.textColorPrimary, Color.WHITE)
+        val colorSecundario = colorAtributo(android.R.attr.textColorSecondary, Color.GRAY)
+        val acento = Color.parseColor("#6366F1")
 
-        val dialogo = AlertDialog.Builder(this)
-            .setTitle("Modelos")
-            .setSingleChoiceItems(items, elegido) { d, which ->
-                elegido = which
-                (d as AlertDialog).getButton(AlertDialog.BUTTON_POSITIVE).text =
-                    if (estaDescargada(lista[which])) "Usar" else "Descargar"
-            }
-            .setPositiveButton("Usar", null) // se sobrescribe abajo para poder decidir
-            .setNegativeButton("Cancelar", null)
-            .create()
+        val raiz = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(24))
+        }
+        raiz.addView(TextView(this).apply {
+            text = "Modelos"
+            textSize = 20f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(colorPrincipal)
+            setPadding(dp(4), 0, 0, dp(4))
+        })
 
-        dialogo.setOnShowListener {
-            val positivo = dialogo.getButton(AlertDialog.BUTTON_POSITIVE)
-            positivo.text = if (estaDescargada(lista[elegido])) "Usar" else "Descargar"
-            positivo.setOnClickListener {
-                val e = lista[elegido]
-                dialogo.dismiss()
-                if (estaDescargada(e)) usar(e) else confirmarDescarga(e)
+        val secciones = listOf(
+            "Texto" to lista.filter { it is Entrada.Texto || it is Entrada.Llama },
+            "Imagen" to lista.filter { it is Entrada.Imagen },
+            "Vídeo" to lista.filter { it is Entrada.Video }
+        )
+        for ((nombreSeccion, items) in secciones) {
+            if (items.isEmpty()) continue
+            raiz.addView(TextView(this).apply {
+                text = nombreSeccion.uppercase(Locale.getDefault())
+                textSize = 12f
+                letterSpacing = 0.08f
+                setTextColor(colorSecundario)
+                setPadding(dp(4), dp(14), 0, dp(6))
+            })
+            for (e in items) {
+                val activa = estaActiva(e)
+                val sugerida = !activa && e.id == preseleccion
+                val fila = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(14), dp(12), dp(14), dp(12))
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(14).toFloat()
+                        setColor(Color.parseColor(if (activa || sugerida) "#226366F1" else "#14808080"))
+                        if (activa || sugerida) setStroke(dp(1), acento)
+                    }
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener {
+                        hoja.dismiss()
+                        if (estaDescargada(e)) usar(e) else confirmarDescarga(e)
+                    }
+                }
+                val columna = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                columna.addView(TextView(this).apply {
+                    text = tituloDe(e)
+                    textSize = 16f
+                    setTextColor(colorPrincipal)
+                })
+                columna.addView(TextView(this).apply {
+                    text = if (sugerida) "Descargado · toca para usar" else detalleDe(e)
+                    textSize = 13f
+                    setTextColor(colorSecundario)
+                    setPadding(0, dp(2), 0, 0)
+                })
+                fila.addView(columna, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                if (activa) {
+                    fila.addView(TextView(this).apply {
+                        text = "✓"
+                        textSize = 18f
+                        setTextColor(acento)
+                    })
+                }
+                raiz.addView(fila, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
             }
         }
-        dialogo.show()
+
+        val sv = ScrollView(this)
+        sv.addView(raiz)
+        hoja.setContentView(sv)
+        hoja.setOnShowListener { hoja.behavior.state = BottomSheetBehavior.STATE_EXPANDED }
+        hoja.show()
     }
 
     private fun confirmarDescarga(e: Entrada) {
@@ -610,13 +680,8 @@ class ChatActivity : AppCompatActivity() {
                     }
                     .show()
             }
-            is Entrada.Imagen -> {
-                Toast.makeText(
-                    this,
-                    "Este modelo de imagen todavía no está disponible para descargar: el backend está pendiente de verificación.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+            is Entrada.Imagen -> avisoMotorSinPesos("imagen")
+            is Entrada.Video -> avisoMotorSinPesos("vídeo")
             is Entrada.Texto -> {
                 AlertDialog.Builder(this)
                     .setTitle("Descargar ${e.m.nombre}")
@@ -651,6 +716,19 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun avisoMotorSinPesos(tipo: String) {
+        val motorOk = DiffusionNative.estaDisponible()
+        AlertDialog.Builder(this)
+            .setTitle("Generación de $tipo")
+            .setMessage(
+                (if (motorOk) "El motor nativo (stable-diffusion.cpp + Vulkan) está cargado en este APK."
+                else "El motor nativo no se ha podido cargar en este dispositivo.") +
+                "\n\nTodavía faltan dos piezas: un catálogo de pesos con URL y SHA-256 verificados, y conectar la generación con el chat. Por eso aún no se puede descargar ni usar un modelo de $tipo desde la app."
+            )
+            .setPositiveButton("Entendido", null)
+            .show()
+    }
+
     private fun usar(e: Entrada) {
         when (e) {
             is Entrada.Texto -> {
@@ -661,7 +739,8 @@ class ChatActivity : AppCompatActivity() {
                 getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo").putString("modelo_llama", e.m.id).apply()
                 prepararLlama(e.m)
             }
-            is Entrada.Imagen -> Toast.makeText(this, "Este backend de imagen está pendiente de verificación y todavía no se puede usar.", Toast.LENGTH_LONG).show()
+            is Entrada.Imagen -> avisoMotorSinPesos("imagen")
+            is Entrada.Video -> avisoMotorSinPesos("vídeo")
         }
     }
 
@@ -690,7 +769,9 @@ class ChatActivity : AppCompatActivity() {
             return
         }
         lifecycleScope.launch {
+            DebugLog.log("LLAMA", "preparando ${m.nombre} · archivo=${llamaManager.archivoDe(m).name}")
             val verificacion = llamaManager.verificarModelo(m)
+            DebugLog.log("LLAMA", "verificación GGUF: válido=${verificacion.valido} · ${verificacion.mensaje}")
             if (!verificacion.valido) {
                 tvEstado.text = "GGUF no válido"
                 Toast.makeText(this@ChatActivity, verificacion.mensaje, Toast.LENGTH_LONG).show()
@@ -711,6 +792,7 @@ class ChatActivity : AppCompatActivity() {
                 tvEstado.text = "Listo · ${m.nombre} · llama.cpp CPU"
                 actualizarBotonEnvio()
             } catch (e: Exception) {
+                DebugLog.log("LLAMA", "⚠ error al preparar ${m.nombre}: ${e.javaClass.simpleName}: ${e.message}")
                 progreso.visibility = View.GONE
                 tvEstado.text = "No se pudo cargar ${m.nombre}"
                 Toast.makeText(this@ChatActivity, e.message ?: "Error al cargar llama.cpp", Toast.LENGTH_LONG).show()
@@ -821,7 +903,12 @@ class ChatActivity : AppCompatActivity() {
     private fun generarDesde(prompt: String, ruta: String?, guardar: Boolean) {
         generando = true
         btnEnviar.isEnabled = false
-        tvEstado.text = "Generando · ${modeloLlamaActual?.nombre ?: modeloActual?.nombre ?: ""}"
+        val nombreModelo = modeloLlamaActual?.nombre ?: modeloActual?.nombre ?: ""
+        val backend = if (modeloLlamaActual != null) "llama.cpp" else "LiteRT"
+        tvEstado.text = "Generando · $nombreModelo"
+        DebugLog.log("GEN", "inicio · $backend · $nombreModelo · mensajes=${mensajes.size} · imagen=${ruta != null} · «${prompt.take(80).replace("\n", "\\n")}»")
+        DebugLog.markStart("$backend · $prompt")
+        val inicio = System.currentTimeMillis()
         lifecycleScope.launch {
             val respuesta = StringBuilder()
             try {
@@ -836,12 +923,24 @@ class ChatActivity : AppCompatActivity() {
                         render(respuesta.toString())
                     }
                 }
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { respuesta.append("Error: ${e.message ?: e.javaClass.simpleName}") }
-            mensajes.add("m" to respuesta.toString())
+            } catch (e: CancellationException) {
+                DebugLog.log("GEN", "cancelada")
+                DebugLog.markEnd()
+                throw e
+            } catch (e: Exception) {
+                DebugLog.log("GEN", "⚠ excepción: ${e.javaClass.name}: ${e.message}\n" + e.stackTrace.take(6).joinToString("\n") { "    at $it" })
+                respuesta.append("Error: ${e.message ?: e.javaClass.simpleName}")
+            }
+            val texto = respuesta.toString()
+            val visible = texto.replace(Regex("<think>[\\s\\S]*?(</think>|$)"), "").trim()
+            DebugLog.log("GEN", "fin · ${texto.length} car en ${System.currentTimeMillis() - inicio} ms · ${DebugLog.mem()}")
+            if (texto.isBlank()) DebugLog.log("GEN", "⚠ respuesta completamente vacía")
+            else if (visible.isEmpty()) DebugLog.log("GEN", "⚠ solo hay bloque <think> sin texto de respuesta visible")
+            DebugLog.markEnd()
+            mensajes.add("m" to texto)
             if (guardar) guardarSesion()
             render(null)
-            tvEstado.text = "Listo · ${modeloLlamaActual?.nombre ?: modeloActual?.nombre ?: ""}"
+            tvEstado.text = "Listo · $nombreModelo"
             generando = false
             btnEnviar.isEnabled = true
         }
