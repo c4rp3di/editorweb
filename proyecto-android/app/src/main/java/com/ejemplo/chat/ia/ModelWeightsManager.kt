@@ -18,11 +18,27 @@ class ModelWeightsManager(private val context: Context) {
     )
     data class Result(val ok: Boolean, val message: String, val file: File? = null)
 
+    // SHA-256 ya comprobado: se guarda tamaño + fecha de modificación + hash esperado por ruta.
+    // Si el archivo cambia (tamaño o fecha), la huella no coincide y se vuelve a calcular.
+    private val prefs = context.getSharedPreferences("weights_verified", Context.MODE_PRIVATE)
+    private fun huella(file: File, a: Artifact) = "${file.length()}:${file.lastModified()}:${a.sha256}"
+    private fun verificadoEnCache(file: File, a: Artifact) = prefs.getString(file.absolutePath, null) == huella(file, a)
+    private fun marcarVerificado(file: File, a: Artifact) { prefs.edit().putString(file.absolutePath, huella(file, a)).apply() }
+
+    /** Comprobación rápida y sin hash para la interfaz: todos los archivos existen y tienen el tamaño esperado. */
+    fun presentAll(dir: File, artifacts: List<Artifact>): Boolean =
+        artifacts.isNotEmpty() && artifacts.all { a ->
+            val f = File(dir, a.fileName)
+            f.isFile && f.length() > 0 && (a.expectedBytes <= 0 || f.length() == a.expectedBytes)
+        }
+
     fun verify(file: File, artifact: Artifact): Result {
         if (!file.isFile) return Result(false, "falta ${artifact.fileName}")
         if (artifact.expectedBytes > 0 && file.length() != artifact.expectedBytes) return Result(false, "tamaño incorrecto ${file.name}: ${file.length()} != ${artifact.expectedBytes}")
+        if (verificadoEnCache(file, artifact)) return Result(true, "OK (SHA-256 ya verificado) ${artifact.fileName} · ${artifact.role}", file)
         val actual = sha256(file)
         if (!actual.equals(artifact.sha256, ignoreCase = true)) return Result(false, "SHA-256 incorrecto ${file.name}: $actual")
+        if (!file.name.endsWith(".part")) marcarVerificado(file, artifact)
         return Result(true, "OK ${artifact.fileName} · ${artifact.role}", file)
     }
 
@@ -75,6 +91,7 @@ class ModelWeightsManager(private val context: Context) {
             if (!verified.ok) throw IllegalStateException(verified.message)
             if (target.exists()) target.delete()
             if (!part.renameTo(target)) throw IllegalStateException("No se pudo activar ${artifact.fileName}")
+            marcarVerificado(target, artifact)
             DebugLog.log("WEIGHTS", "descarga OK · ${artifact.role} · SHA-256 ${artifact.sha256}")
             return target
         } catch (e: Exception) {
