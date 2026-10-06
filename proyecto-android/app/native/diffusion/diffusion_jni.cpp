@@ -10,6 +10,9 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <algorithm>
+
+#include <zlib.h>
 
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -153,10 +156,26 @@ static std::atomic<int> g_step{0};
 static std::atomic<int> g_steps{0};
 static std::atomic<long long> g_last_step_ms{0};
 
+static long currentRssMb() {
+    std::ifstream in("/proc/self/status");
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.rfind("VmRSS:", 0) == 0) {
+            long kb = 0;
+            if (sscanf(line.c_str(), "VmRSS: %ld kB", &kb) == 1) return kb / 1024;
+        }
+    }
+    return -1;
+}
+
 static void onProgress(int step, int steps, float time, void * /*data*/) {
     g_step.store(step);
     g_steps.store(steps);
     g_last_step_ms.store(static_cast<long long>(time * 1000.0f));
+    // stable-diffusion.cpp puede seguir dentro de generate_image después del último
+    // callback. Marcamos esa fase como salida/decodificación para no confundir
+    // "140/140" con "la función JNI ya ha terminado".
+    if (step >= steps && steps > 0) g_phase.store(3);
 }
 
 struct PhaseGuard {
@@ -182,22 +201,100 @@ static const char * emptyToNull(const std::string & s) {
     return s.empty() ? nullptr : s.c_str();
 }
 
-static bool writeImageContainer(const std::string & path, const sd_image_t & image) {
-    if (!image.data || image.width == 0 || image.height == 0 || image.channel == 0) return false;
-    const std::uint64_t bytes = static_cast<std::uint64_t>(image.width) * image.height * image.channel;
+static void writeBe32(std::ofstream & out, std::uint32_t v) {
+    const unsigned char b[4] = {
+        static_cast<unsigned char>((v >> 24) & 0xff),
+        static_cast<unsigned char>((v >> 16) & 0xff),
+        static_cast<unsigned char>((v >> 8) & 0xff),
+        static_cast<unsigned char>(v & 0xff)
+    };
+    out.write(reinterpret_cast<const char *>(b), 4);
+}
+
+static bool writePngChunk(std::ofstream & out, const char type[4], const unsigned char * data, std::size_t size) {
+    if (size > 0xffffffffu) return false;
+    writeBe32(out, static_cast<std::uint32_t>(size));
+    out.write(type, 4);
+    if (size) out.write(reinterpret_cast<const char *>(data), static_cast<std::streamsize>(size));
+    uLong crc = crc32(0L, Z_NULL, 0);
+    crc = crc32(crc, reinterpret_cast<const Bytef *>(type), 4);
+    if (size) crc = crc32(crc, reinterpret_cast<const Bytef *>(data), static_cast<uInt>(size));
+    writeBe32(out, static_cast<std::uint32_t>(crc));
+    return out.good();
+}
+
+// Escribe PNG directamente desde el buffer nativo, fila a fila. Esto evita el
+// antiguo camino CPIMG1 -> ByteArray -> IntArray -> Bitmap -> PNG, que creaba
+// varias copias completas de la imagen en el proceso Android.
+static bool writePngStreaming(const std::string & path, const sd_image_t & image) {
+    if (!image.data || image.width == 0 || image.height == 0) return false;
+    if (image.channel != 3 && image.channel != 4) return false;
+    const std::size_t rowBytes = static_cast<std::size_t>(image.width) * image.channel;
+    if (rowBytes > 0xffffffffu) return false;
+
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     if (!out) return false;
-    const char magic[8] = {'C','P','I','M','G','1','\0','\0'};
-    const std::uint32_t width = image.width;
-    const std::uint32_t height = image.height;
-    const std::uint32_t channels = image.channel;
-    const std::uint64_t size = bytes;
-    out.write(magic, sizeof(magic));
-    out.write(reinterpret_cast<const char *>(&width), sizeof(width));
-    out.write(reinterpret_cast<const char *>(&height), sizeof(height));
-    out.write(reinterpret_cast<const char *>(&channels), sizeof(channels));
-    out.write(reinterpret_cast<const char *>(&size), sizeof(size));
-    out.write(reinterpret_cast<const char *>(image.data), static_cast<std::streamsize>(bytes));
+    static const unsigned char signature[8] = {137,80,78,71,13,10,26,10};
+    out.write(reinterpret_cast<const char *>(signature), sizeof(signature));
+
+    unsigned char ihdr[13] = {};
+    ihdr[0] = static_cast<unsigned char>((image.width >> 24) & 0xff);
+    ihdr[1] = static_cast<unsigned char>((image.width >> 16) & 0xff);
+    ihdr[2] = static_cast<unsigned char>((image.width >> 8) & 0xff);
+    ihdr[3] = static_cast<unsigned char>(image.width & 0xff);
+    ihdr[4] = static_cast<unsigned char>((image.height >> 24) & 0xff);
+    ihdr[5] = static_cast<unsigned char>((image.height >> 16) & 0xff);
+    ihdr[6] = static_cast<unsigned char>((image.height >> 8) & 0xff);
+    ihdr[7] = static_cast<unsigned char>(image.height & 0xff);
+    ihdr[8] = 8;              // bit depth
+    ihdr[9] = image.channel == 4 ? 6 : 2; // RGBA / RGB
+    if (!writePngChunk(out, "IHDR", ihdr, sizeof(ihdr))) return false;
+
+    z_stream zs{};
+    if (deflateInit(&zs, Z_BEST_SPEED) != Z_OK) return false;
+    std::vector<unsigned char> row(rowBytes + 1);
+    std::vector<unsigned char> compressed(64 * 1024);
+    bool ok = true;
+    bool wroteIdat = false;
+
+    auto emit = [&](int flush) -> bool {
+        zs.next_out = compressed.data();
+        zs.avail_out = static_cast<uInt>(compressed.size());
+        const int rc = deflate(&zs, flush);
+        if (rc != Z_OK && rc != Z_STREAM_END) return false;
+        const std::size_t produced = compressed.size() - zs.avail_out;
+        if (produced > 0) {
+            if (!writePngChunk(out, "IDAT", compressed.data(), produced)) return false;
+            wroteIdat = true;
+        }
+        return true;
+    };
+
+    const unsigned char * pixels = image.data;
+    for (std::uint32_t y = 0; y < image.height && ok; ++y) {
+        row[0] = 0; // PNG filter: None
+        std::memcpy(row.data() + 1, pixels + static_cast<std::size_t>(y) * rowBytes, rowBytes);
+        zs.next_in = row.data();
+        zs.avail_in = static_cast<uInt>(row.size());
+        while (zs.avail_in > 0 && ok) ok = emit(Z_NO_FLUSH);
+    }
+    if (ok) {
+        zs.next_in = nullptr;
+        zs.avail_in = 0;
+        int rc = Z_OK;
+        while (rc == Z_OK) {
+            zs.next_out = compressed.data();
+            zs.avail_out = static_cast<uInt>(compressed.size());
+            rc = deflate(&zs, Z_FINISH);
+            const std::size_t produced = compressed.size() - zs.avail_out;
+            if (produced && !writePngChunk(out, "IDAT", compressed.data(), produced)) ok = false;
+            if (rc != Z_OK && rc != Z_STREAM_END) ok = false;
+        }
+    }
+    deflateEnd(&zs);
+    if (!ok || !wroteIdat) return false;
+    if (!writePngChunk(out, "IEND", nullptr, 0)) return false;
+    out.flush();
     return out.good();
 }
 
@@ -308,16 +405,25 @@ static jboolean generateImageImpl(
 
     sd_image_t * images = nullptr;
     int count = 0;
-    nlogf("IMG start model=%s size=%dx%d steps=%d", model.c_str(), width, height, steps);
+    nlogf("IMG start model=%s size=%dx%d steps=%d rss=%ldMB", model.c_str(), width, height, steps, currentRssMb());
     const bool ok = generate_image(ctx, &gen, &images, &count);
     g_phase.store(3);
-    nlogf("IMG generate returned=%d count=%d", ok ? 1 : 0, count);
+    nlogf("IMG generate returned=%d count=%d rss=%ldMB", ok ? 1 : 0, count, currentRssMb());
     bool wrote = false;
-    if (ok && images && count > 0) wrote = writeImageContainer(outPath, images[0]);
+    if (ok && images && count > 0) {
+        nlogf("IMG salida recibida width=%u height=%u channels=%u bytes=%llu rss=%ldMB",
+              images[0].width, images[0].height, images[0].channel,
+              static_cast<unsigned long long>(static_cast<std::uint64_t>(images[0].width) * images[0].height * images[0].channel),
+              currentRssMb());
+        wrote = writePngStreaming(outPath, images[0]);
+        nlogf("IMG PNG directo terminado=%d rss=%ldMB", wrote ? 1 : 0, currentRssMb());
+    } else {
+        nlogf("IMG sin salida utilizable: ok=%d count=%d", ok ? 1 : 0, count);
+    }
 
-    if (images) free_sd_images(images, count);
+    if (images) { free_sd_images(images, count); images = nullptr; }
     free_sd_ctx(ctx);
-    nlogf("IMG end wrote=%d", wrote ? 1 : 0);
+    nlogf("IMG end wrote=%d rss=%ldMB", wrote ? 1 : 0, currentRssMb());
     return wrote ? JNI_TRUE : JNI_FALSE;
 }
 
