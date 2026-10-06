@@ -48,7 +48,27 @@ object DebugLog {
             }
         }
         logPreviousExits(context)
+        absorberRegistroNativo()
         log("MEM", mem())
+    }
+
+    /** Archivo donde el código nativo vuelca stdout/stderr y los informes de señal (crash). */
+    fun nativeLogPath(): String? = appContext?.let { File(it.filesDir, "native.log").absolutePath }
+
+    /** Pasa al log principal lo que dejó el código nativo en la sesión anterior (incluye el motivo de un crash). */
+    private fun absorberRegistroNativo() {
+        val f = appContext?.let { File(it.filesDir, "native.log") } ?: return
+        try {
+            if (!f.isFile || f.length() == 0L) return
+            val texto = f.readText().takeLast(14_000)
+            val lineas = texto.lines().filter { it.isNotBlank() }.takeLast(120)
+            log("NATIVE", "--- salida nativa de la sesión anterior (${lineas.size} líneas, ${f.length() / 1024} KB en total) ---")
+            lineas.forEach { log("NATIVE", it.take(300)) }
+            log("NATIVE", "--- fin salida nativa ---")
+            f.delete()
+        } catch (e: Exception) {
+            log("NATIVE", "no se pudo leer native.log: ${e.message}")
+        }
     }
 
     @Synchronized
