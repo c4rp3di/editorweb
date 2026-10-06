@@ -255,6 +255,7 @@ class ChatActivity : AppCompatActivity() {
                     render(null)
                     drawer.closeDrawer(GravityCompat.START)
                     if (modeloActual != null) motor.nuevaConversacion(historialTexto())
+                    else if (modeloLlamaActual != null) lifecycleScope.launch { restaurarContextoLlama() }
                 }
                 setOnLongClickListener {
                     if (generando) return@setOnLongClickListener true
@@ -527,7 +528,14 @@ class ChatActivity : AppCompatActivity() {
         if (modeloActual == null && modeloLlamaActual == null && modeloImagenActual == null && modeloVideoActual == null) return
         while (mensajes.size > ultimoUsuario + 1) mensajes.removeAt(mensajes.lastIndex)
         val prompt = mensajes[ultimoUsuario].second.removePrefix("📷 ").trim()
-        generarDesde(prompt, null, guardar = true)
+        if (modeloLlamaActual != null) {
+            lifecycleScope.launch {
+                restaurarContextoLlama()
+                generarDesde(prompt, null, guardar = true)
+            }
+        } else {
+            generarDesde(prompt, null, guardar = true)
+        }
     }
 
     /** Entrada del selector unificado: modelo de texto o de imagen. */
@@ -799,6 +807,17 @@ class ChatActivity : AppCompatActivity() {
         DebugLog.log("DIFFUSION", "modelo VIDEO activado · ${m.id} · ${videos.carpeta(m).absolutePath}")
     }
 
+    private suspend fun restaurarContextoLlama() {
+        if (modeloLlamaActual == null) return
+        val historial = historialTexto()
+        try {
+            val ok = llamaEngine.restaurarHistorial(historial)
+            if (!ok) DebugLog.log("LLAMA", "⚠ no se pudo restaurar el contexto de la sesión actual · mensajes=${historial.size}")
+        } catch (e: Exception) {
+            DebugLog.log("LLAMA", "⚠ excepción restaurando contexto: ${e.javaClass.simpleName}: ${e.message}")
+        }
+    }
+
     private fun prepararLlama(m: LlamaCppModel) {
         modeloLlamaActual = m
         modeloActual = null
@@ -832,6 +851,7 @@ class ChatActivity : AppCompatActivity() {
                 progreso.isIndeterminate = true
                 tvEstado.text = "Cargando ${m.nombre} · llama.cpp…"
                 llamaEngine.cargar(llamaManager.archivoDe(m), contexto = 4096, hilos = 4)
+                restaurarContextoLlama()
                 progreso.visibility = View.GONE
                 tvEstado.text = "Listo · ${m.nombre} · llama.cpp CPU"
                 actualizarBotonEnvio()
@@ -910,6 +930,7 @@ class ChatActivity : AppCompatActivity() {
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("sesion", sesionId).apply()
         quitarImagen()
         motor.nuevaConversacion()
+        if (modeloLlamaActual != null) lifecycleScope.launch { restaurarContextoLlama() }
         render(null)
         renderSidebar()
         drawer.closeDrawer(GravityCompat.START)
@@ -998,12 +1019,9 @@ class ChatActivity : AppCompatActivity() {
     private suspend fun generarImagenLocal(prompt:String, nombreModelo:String) {
         val m=modeloImagenActual ?: error("No hay modelo de imagen")
         val vr=withContext(Dispatchers.IO){imagenes.verificacion(m)}; DebugLog.log("DIFFUSION","imagen verificación antes de generar: ${vr.ok} · ${vr.message}"); if(!vr.ok) error(vr.message)
-        val png=File(createdFiles.directory(CreatedFile.Kind.IMAGE),"imagen-${System.currentTimeMillis()}.png")
-        withContext(Dispatchers.IO){
-            DebugLog.log("DIFFUSION","imagen salida directa PNG nativo · sin CPIMG1/Bitmap intermedio")
-            DiffusionNative.generarImagen(m.artefactos.first().let{File(imagenes.carpeta(m),it.fileName).absolutePath},prompt=prompt,outputPath=png.absolutePath,width=512,height=512,steps=4) || error("stable-diffusion.cpp no generó imagen")
-        }
-        val item=createdFiles.register(png,"image/png",CreatedFile.Kind.IMAGE,sesionId,prompt,nombreModelo,512,512); mensajes.add("m" to "[[IMAGE]]${item.path}"); DebugLog.log("FILES","imagen registrada · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
+        val raw=File(cacheDir,"cpimg-${System.currentTimeMillis()}.cpimg"); val png=File(createdFiles.directory(CreatedFile.Kind.IMAGE),"imagen-${System.currentTimeMillis()}.png")
+        withContext(Dispatchers.IO){ DiffusionNative.generarImagen(m.artefactos.first().let{File(imagenes.carpeta(m),it.fileName).absolutePath},prompt=prompt,outputPath=raw.absolutePath,width=512,height=512,steps=4) || error("stable-diffusion.cpp no generó imagen") ; DiffusionOutput.imageToPng(raw,png) }
+        val item=createdFiles.register(png,"image/png",CreatedFile.Kind.IMAGE,sesionId,prompt,nombreModelo,512,512); raw.delete(); mensajes.add("m" to "[[IMAGE]]${item.path}"); DebugLog.log("FILES","imagen registrada · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
     }
 
     private suspend fun generarVideoLocal(prompt:String, nombreModelo:String) {
