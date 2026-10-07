@@ -5,7 +5,7 @@
     <item android:id="@+id/accionRenombrar" android:title="Renombrar" />
     <item android:id="@+id/accionComprimir" android:title="Comprimir en ZIP" />
     <item android:id="@+id/accionExtraer" android:title="Extraer ZIP" />
-    <item android:id="@+id/accionAbrirConOtra" android:title="Abrir con otra app" />
+    <item android:id="@+id/accionAbrirConOtra" android:title="Abrir con…" />
     <item android:id="@+id/accionInfo" android:title="Información" />
     <item android:id="@+id/accionSeleccionarTodo" android:title="Seleccionar todo" />
 </menu>
