@@ -60,10 +60,12 @@ class PantallaVisorDocumento : Fragment() {
 
         val w = v.findViewById<WebView>(R.id.webDocumento)
         web = w
-        w.setBackgroundColor(if (oscuro) 0xFF12121F.toInt() else Color.WHITE)
+        val esHtml = esHtml()
+        w.setBackgroundColor(if (oscuro && !esHtml) 0xFF12121F.toInt() else Color.WHITE)
         w.settings.apply {
             javaScriptEnabled = false
-            allowFileAccess = false
+            // En la vista previa HTML se permite leer los archivos de su misma carpeta (CSS, imágenes)
+            allowFileAccess = esHtml
             allowContentAccess = false
             setSupportZoom(true)
             builtInZoomControls = true
@@ -92,13 +94,20 @@ class PantallaVisorDocumento : Fragment() {
         cargarDocumento()
     }
 
+    private fun esHtml(): Boolean = archivo.extension.lowercase().let { it == "html" || it == "htm" }
+
     private fun cargarDocumento() {
         val esHoja = archivo.extension.lowercase().let { it == "xlsx" || it == "xlsm" }
+        val html = esHtml()
         cargando.visibility = View.VISIBLE
         viewLifecycleOwner.lifecycleScope.launch {
             val resultado = withContext(Dispatchers.IO) {
                 runCatching {
-                    if (esHoja) {
+                    if (html) {
+                        val texto = GestorArchivos.leerTextoDetectado(archivo)?.texto
+                            ?: throw IllegalArgumentException("No es un archivo de texto")
+                        Pair<LectorOffice.LibroXlsx?, String>(null, texto)
+                    } else if (esHoja) {
                         val l = LectorOffice.LibroXlsx.abrir(archivo)
                         Pair<LectorOffice.LibroXlsx?, String>(l, l.hojaAHtml(0, oscuro))
                     } else {
@@ -114,7 +123,11 @@ class PantallaVisorDocumento : Fragment() {
                 return@launch
             }
             libro = par.first
-            mostrarHtml(par.second)
+            if (html) {
+                web?.loadDataWithBaseURL("file://" + (archivo.parent ?: "") + "/", par.second, "text/html", "utf-8", null)
+            } else {
+                mostrarHtml(par.second)
+            }
             val l = libro
             if (l != null) {
                 cacheHojas[0] = par.second
