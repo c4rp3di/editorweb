@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/accionBusquedaGlobal" android:title="Buscar en todo el dispositivo" />
+    <item android:id="@+id/accionRecientes" android:title="Recientes" />
     <item android:id="@+id/accionOcultos" android:title="Mostrar archivos ocultos" android:checkable="true" />
     <item android:id="@+id/accionPapelera" android:title="Papelera" />
     <item android:id="@+id/accionAlmacenamientos" android:title="Almacenamientos (interno / SD)" />
