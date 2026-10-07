@@ -38,6 +38,7 @@ import com.carpe.gestorarchivos.data.Filtro
 import com.carpe.gestorarchivos.data.Formato
 import com.carpe.gestorarchivos.data.GestorArchivos
 import com.carpe.gestorarchivos.data.Papelera
+import com.carpe.gestorarchivos.data.ResumenCarpetas
 import com.carpe.gestorarchivos.data.Permisos
 import com.carpe.gestorarchivos.data.PortapapelesInterno
 import com.carpe.gestorarchivos.data.RepositorioFavoritos
@@ -79,6 +80,7 @@ class PantallaGestor : Fragment() {
     private lateinit var ajustes: Ajustes
     private lateinit var papelera: Papelera
     private lateinit var callbackAtras: OnBackPressedCallback
+    private lateinit var abridor: AbridorArchivos
 
     private var filtro = Filtro.TODOS
     private var busqueda = ""
@@ -96,6 +98,15 @@ class PantallaGestor : Fragment() {
     private class ResultadoBusqueda(val items: List<ArchivoItem>, val truncado: Boolean)
 
     // ------------------------------------------------------------------ ciclo de vida
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // El buscador global pide abrir una carpeta concreta
+        parentFragmentManager.setFragmentResultListener(PantallaBusqueda.REQ_CARPETA, this) { _, datos ->
+            val carpeta = datos.getString(PantallaBusqueda.CLAVE_RUTA)?.let { File(it) }
+            if (carpeta != null && carpeta.isDirectory) irA(carpeta)
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, contenedor: ViewGroup?, estado: Bundle?
@@ -139,6 +150,8 @@ class PantallaGestor : Fragment() {
             alTocar = { item -> abrirItem(item) },
             alCambiarSeleccion = { sel -> actualizarBarraSeleccion(sel) }
         )
+        adaptador.alPulsarMas = { _, ancla -> mostrarMenuSeleccion(ancla) }
+        abridor = AbridorArchivos(this, alIrACarpeta = { irA(it) }, alZip = { dialogoZip(it) })
         recycler.adapter = adaptador
 
         vista.findViewById<View>(R.id.botonSubir).setOnClickListener { subirNivel() }
@@ -561,7 +574,7 @@ class PantallaGestor : Fragment() {
                 }
                 R.id.accionComprimir -> comprimirSeleccion(sel)
                 R.id.accionExtraer -> extraerZip(item)
-                R.id.accionAbrirConOtra -> abrirConAppExterna(item.archivo)
+                R.id.accionAbrirConOtra -> abridor.abrirCon(item)
                 R.id.accionInfo -> mostrarInfo(item)
                 R.id.accionSeleccionarTodo -> adaptador.seleccionarTodo()
             }
@@ -573,62 +586,12 @@ class PantallaGestor : Fragment() {
     // ------------------------------------------------------------------ abrir
 
     private fun abrirItem(item: ArchivoItem) {
-        when (item.categoria) {
-            Categoria.CARPETA -> irA(item.archivo)
-            Categoria.TEXTO -> abrirEditorTexto(item.archivo)
-            Categoria.IMAGEN -> abrirImagen(item)
-            Categoria.VIDEO, Categoria.AUDIO ->
-                navegarA(PantallaReproductor.nueva(item.archivo.absolutePath), "reproductor")
-            Categoria.PDF ->
-                navegarA(PantallaVisorPdf.nueva(item.archivo.absolutePath), "pdf")
-            Categoria.DOCUMENTO, Categoria.HOJA ->
-                if (item.extension == "docx" || item.extension == "xlsx" || item.extension == "xlsm") {
-                    navegarA(PantallaVisorDocumento.nueva(item.archivo.absolutePath), "documento")
-                } else {
-                    abrirConAppExterna(item.archivo)
-                }
-            Categoria.COMPRIMIDO ->
-                if (item.extension == "zip") dialogoZip(item) else abrirConAppExterna(item.archivo)
-            else -> abrirConAppExterna(item.archivo)
-        }
+        abridor.abrir(item, adaptador.obtenerItems())
     }
 
-    private fun abrirImagen(item: ArchivoItem) {
-        val imagenes = adaptador.obtenerItems().filter { it.categoria == Categoria.IMAGEN }
-        var indice = imagenes.indexOfFirst { it.clave == item.clave }.coerceAtLeast(0)
-        var lista = imagenes
-        if (lista.size > 300) {
-            val desde = (indice - 150).coerceAtLeast(0)
-            val hasta = (desde + 300).coerceAtMost(lista.size)
-            lista = lista.subList(desde, hasta)
-            indice -= desde
-        }
-        navegarA(PantallaVisorImagen.nueva(lista.map { it.archivo.absolutePath }, indice), "imagen")
-    }
+    private fun abrirEditorTexto(archivo: File) = abridor.abrirEditor(archivo)
 
-    private fun abrirEditorTexto(archivo: File) {
-        val tam = archivo.length()
-        when {
-            tam > 10L * 1024 * 1024 ->
-                toast("Archivo demasiado grande para editar (${Formato.tamano(tam)}). Máximo 10 MB.", true)
-            tam > 2L * 1024 * 1024 ->
-                AlertDialog.Builder(requireContext())
-                    .setTitle("Archivo grande")
-                    .setMessage("Este archivo ocupa ${Formato.tamano(tam)}. Editarlo puede ir lento.")
-                    .setPositiveButton("Abrir de todas formas") { _, _ ->
-                        navegarA(PantallaEditorTexto.nueva(archivo.absolutePath), "editor")
-                    }
-                    .setNegativeButton("Cancelar", null)
-                    .show()
-            else -> navegarA(PantallaEditorTexto.nueva(archivo.absolutePath), "editor")
-        }
-    }
-
-    private fun abrirConAppExterna(archivo: File) {
-        if (!GestorArchivos.abrirConOtraApp(requireContext(), archivo)) {
-            toast("No hay app para abrir este tipo de archivo")
-        }
-    }
+    private fun abrirConAppExterna(archivo: File) = abridor.abrirConSelector(archivo)
 
     private fun dialogoZip(item: ArchivoItem) {
         AlertDialog.Builder(requireContext())
@@ -702,6 +665,8 @@ class PantallaGestor : Fragment() {
                     ajustes.mostrarOcultos = !ajustes.mostrarOcultos
                     refrescar()
                 }
+                R.id.accionBusquedaGlobal -> navegarA(PantallaBusqueda.nueva(true), "busqueda")
+                R.id.accionRecientes -> navegarA(PantallaBusqueda.nueva(false), "recientes")
                 R.id.accionPapelera -> navegarA(PantallaPapelera(), "papelera")
                 R.id.accionAlmacenamientos -> mostrarAlmacenamientos()
                 R.id.accionAnalizador -> carpetaActual?.let {
@@ -792,6 +757,7 @@ class PantallaGestor : Fragment() {
             )
             PortapapelesInterno.vaciar()
             actualizarEstadoFabPegar()
+            ResumenCarpetas.invalidar()
             refrescar()
         }
     }
@@ -852,6 +818,7 @@ class PantallaGestor : Fragment() {
                 fallos > 0
             )
             adaptador.limpiarSeleccion()
+            ResumenCarpetas.invalidar()
             refrescar()
         }
     }
@@ -874,6 +841,7 @@ class PantallaGestor : Fragment() {
             ) { r ->
                 adaptador.limpiarSeleccion()
                 if (r.getOrDefault(false)) toast("Creado ${destino.name}") else toast("No se pudo comprimir", true)
+                ResumenCarpetas.invalidar()
                 refrescar()
             }
         }
@@ -893,6 +861,7 @@ class PantallaGestor : Fragment() {
         ) { r ->
             adaptador.limpiarSeleccion()
             if (r.getOrDefault(false)) toast("Extraído en «${destino.name}»") else toast("No se pudo extraer el ZIP", true)
+            ResumenCarpetas.invalidar()
             refrescar()
         }
     }
