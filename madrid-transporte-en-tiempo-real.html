@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Madrid Transporte en Tiempo Real</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#fff;--fg:#1d2430;--mut:#6b7585;--line:#e3e7ee;--acc:#2563eb;--shadow:0 4px 16px rgba(0,0,0,.22)}
+@media(prefers-color-scheme:dark){:root{--bg:#1b212b;--fg:#e8ecf3;--mut:#9aa5b5;--line:#2c3544;--shadow:0 4px 16px rgba(0,0,0,.6)}}
+html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--fg)}
+#map{height:100%;width:100%}
+.fab{position:absolute;z-index:1000;border:0;background:var(--bg);color:var(--fg);box-shadow:var(--shadow);cursor:pointer}
+#menu-btn{top:12px;right:12px;width:44px;height:44px;border-radius:50%;display:grid;place-items:center}
+#menu-btn svg{width:22px;height:22px;fill:currentColor}
+#locate-btn{top:66px;right:12px;width:44px;height:44px;border-radius:50%;display:grid;place-items:center}
+#locate-btn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2}
+#chips{position:absolute;z-index:1000;left:12px;bottom:calc(18px + env(safe-area-inset-bottom,0px));display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 24px)}
+.chip{display:flex;align-items:center;gap:6px;background:var(--bg);padding:7px 11px;border-radius:20px;box-shadow:var(--shadow);font-size:13px;cursor:pointer;user-select:none}
+.chip input{display:none}.chip i{width:10px;height:10px;border-radius:50%}
+.chip:has(input:not(:checked)){opacity:.45}
+#toast{position:absolute;z-index:1000;left:12px;top:12px;max-width:calc(100% - 80px);background:var(--bg);padding:7px 11px;border-radius:10px;box-shadow:var(--shadow);font-size:12px;color:var(--mut)}
+/* Modal */
+#modal{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px}
+#modal.open{display:flex}
+.card{background:var(--bg);border-radius:14px;box-shadow:var(--shadow);width:100%;max-width:380px;max-height:90%;overflow:auto;padding:18px}
+.card h3{margin:0 0 4px;font-size:17px}
+.card label{display:block;margin-top:12px;font-size:13px;font-weight:600}
+.card input,.card select{width:100%;box-sizing:border-box;margin-top:4px;padding:9px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--fg);font-size:14px}
+.card small{display:block;color:var(--mut);font-size:11.5px;margin-top:3px;line-height:1.35}
+.card small a{color:var(--acc)}
+.svc{border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-top:12px}
+.svc summary{cursor:pointer;font-weight:600;font-size:14px}
+.badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;background:var(--line);color:var(--mut)}
+.badge.ok{background:rgba(22,163,74,.15);color:#16a34a}
+.row{display:flex;gap:8px;margin-top:16px}
+.btn{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--fg);font-weight:600;cursor:pointer}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff}
+/* Marcadores */
+.v{display:flex;align-items:center;justify-content:center;color:#fff;font:700 10px/1 system-ui,sans-serif;border:1.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);white-space:nowrap}
+.v.bus{border-radius:5px;min-width:22px;height:15px;padding:0 3px}
+.v.tren{border-radius:50%;width:20px;height:20px;font-size:9px}
+.stop{width:16px;height:16px;border-radius:4px;background:#f59e0b;color:#fff;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.5);font:700 10px/13px system-ui;text-align:center}
+.arr{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:13px}.arr span:nth-child(2){flex:1}
+.me{width:16px;height:16px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 6px rgba(37,99,235,.25)}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="toast">Iniciando…</div>
+
+<button class="fab" id="menu-btn" aria-label="Ajustes"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>
+<button class="fab" id="locate-btn" aria-label="Mi ubicación"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg></button>
+
+<div id="chips">
+  <label class="chip"><input type="checkbox" id="t-bus" checked><i style="background:#2563eb"></i>Autobuses</label>
+  <label class="chip"><input type="checkbox" id="t-tren" checked><i style="background:#dc2626"></i>Metro / Trenes</label>
+  <label class="chip"><input type="checkbox" id="t-stop" checked><i style="background:#f59e0b"></i>Paradas</label>
+</div>
+
+<div id="modal"><div class="card">
+  <h3>Ajustes</h3>
+  <small>Las claves se guardan solo en este navegador.</small>
+
+  <label>Fuente de datos
+    <select id="mode">
+      <option value="demo">Demo (vehículos simulados, sin claves)</option>
+      <option value="real">Real (usa los servicios de abajo)</option>
+    </select>
+  </label>
+
+  <details class="svc" open>
+    <summary>🚌 Autobuses EMT <span class="badge" id="b-emt"></span></summary>
+    <small>Gratis. 1) Crea una cuenta en <a href="https://mobilitylabs.emtmadrid.es/" target="_blank" rel="noopener">Mobility Labs de EMT</a> y verifica tu email. 2) Escribe aquí ese mismo email y contraseña. Documentación: <a href="https://apidocs.emtmadrid.es/" target="_blank" rel="noopener">apidocs.emtmadrid.es</a>.</small>
+    <label>Email <input id="emt-mail" type="email" placeholder="tu@email.com" autocomplete="off"></label>
+    <label>Contraseña <input id="emt-pass" type="password" placeholder="Contraseña" autocomplete="off"></label>
+    <div class="row" style="margin-top:10px"><button class="btn" id="emt-test" type="button">Probar conexión</button></div>
+    <small id="emt-res"></small>
+  </details>
+
+  <details class="svc">
+    <summary>🚆 Cercanías Renfe <span class="badge" id="b-renfe"></span></summary>
+    <small>Sin registro. Renfe publica las posiciones de sus trenes como datos abiertos en <a href="https://data.renfe.com/" target="_blank" rel="noopener">data.renfe.com</a>. Déjalo vacío para usar la dirección por defecto.</small>
+    <label>URL de posiciones (GTFS-RT JSON) <input id="renfe-url" placeholder="https://gtfs.renfe.com/vehicle_positions.json"></label>
+  </details>
+
+  <details class="svc">
+    <summary>🚇 Metro de Madrid</summary>
+    <small>No hay una API pública con la posición de los trenes en tiempo real, así que aquí no hay nada que configurar. El Consorcio de Transportes publica solo datos de líneas y horarios en su <a href="https://datos.crtm.es/" target="_blank" rel="noopener">portal de datos abiertos</a>.</small>
+  </details>
+
+  <details class="svc">
+    <summary>🗺️ Mapa base <span class="badge" id="b-base"></span></summary>
+    <small>OpenStreetMap funciona sin clave. Desde finales de agosto de 2026 <b>CARTO exige una clave gratuita</b> (sin ella marca cada tesela con "API KEY REQUIRED"). Se pide en <a href="https://carto.com/basemaps/apikey/" target="_blank" rel="noopener">carto.com/basemaps/apikey</a>: no hace falta cuenta y te la envían por email.</small>
+    <label>Estilo
+      <select id="basemap">
+        <option value="osm">OpenStreetMap (sin clave)</option>
+        <option value="carto-voyager">CARTO Voyager (clave)</option>
+        <option value="carto-light">CARTO claro (clave)</option>
+        <option value="carto-dark">CARTO oscuro (clave)</option>
+        <option value="custom">Personalizado (URL propia)</option>
+      </select>
+    </label>
+    <label>Clave de CARTO <input id="cartokey" placeholder="Tu clave de CARTO" autocomplete="off"></label>
+    <label>URL de teselas personalizada <input id="tileurl" placeholder="https://.../{z}/{x}/{y}.png"></label>
+    <small>Sin clave, los estilos de CARTO se sustituyen por OpenStreetMap. Revisa la <a href="https://operations.osmfoundation.org/policies/tiles/" target="_blank" rel="noopener">política de teselas de OSM</a> para uso intensivo. Mantén visibles las atribuciones.</small>
+  </details>
+
+  <label>Actualizar cada (segundos, mín. 15) <input id="every" type="number" min="15" value="20"></label>
+
+  <div class="row">
+    <button class="btn" id="close">Cerrar</button>
+    <button class="btn p" id="save">Guardar</button>
+  </div>
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const toast=t=>$('toast').textContent=t;
+const store={get(k){try{return localStorage.getItem(k)||''}catch(e){return ''}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+const map=L.map('map',{zoomControl:false}).setView([40.4200,-3.7000],14);
+L.control.zoom({position:'bottomright'}).addTo(map);
+const CARTO='https://{s}.basemaps.cartocdn.com/';
+const BASES={
+  'osm':['https://tile.openstreetmap.org/{z}/{x}/{y}.png','© OpenStreetMap',false],
+  'carto-voyager':[CARTO+'rastertiles/voyager/{z}/{x}/{y}.png','© OpenStreetMap · © CARTO',true],
+  'carto-light':[CARTO+'light_all/{z}/{x}/{y}.png','© OpenStreetMap · © CARTO',true],
+  'carto-dark':[CARTO+'dark_all/{z}/{x}/{y}.png','© OpenStreetMap · © CARTO',true]
+};
+let baseLayer;
+function setBase(){
+  if(baseLayer)map.removeLayer(baseLayer);
+  const k=store.get('basemap')||'osm',custom=store.get('tileurl'),key=store.get('cartokey');
+  let url,attr;
+  if(k==='custom'&&custom){url=custom;attr='Mapa personalizado'}
+  else{
+    let b=BASES[k]||BASES.osm;
+    if(b[2]&&!key)b=BASES.osm; // CARTO sin clave = marca de agua, usamos OSM
+    url=b[0]+(b[2]?'?key='+encodeURIComponent(key):'');attr=b[1];
+  }
+  baseLayer=L.tileLayer(url,{attribution:attr,maxZoom:19,subdomains:'abcd'}).addTo(map);
+  baseLayer.bringToBack();
+}
+setBase();
+
+const layers={bus:L.layerGroup().addTo(map),tren:L.layerGroup().addTo(map),stop:L.layerGroup().addTo(map)};
+['bus','tren','stop'].forEach(k=>$('t-'+k).onchange=e=>e.target.checked?layers[k].addTo(map):map.removeLayer(layers[k]));
+
+const icon=(cls,txt,col)=>L.divIcon({className:'',html:`<div class="v ${cls}" style="background:${col}">${txt}</div>`,iconSize:null,iconAnchor:cls==='bus'?[11,8]:[10,10]});
+
+/* ---------- DEMO: líneas aproximadas ---------- */
+const LINES=[
+ {kind:'bus', n:'27', c:'#2563eb', n_veh:4, pts:[[40.4036,-3.7019],[40.4066,-3.6892],[40.4195,-3.6931],[40.4254,-3.6890],[40.4400,-3.6890],[40.4658,-3.6895]]},
+ {kind:'bus', n:'3',  c:'#0d9488', n_veh:3, pts:[[40.4306,-3.7143],[40.4234,-3.7123],[40.4169,-3.7036],[40.4066,-3.6892]]},
+ {kind:'bus', n:'74', c:'#7c3aed', n_veh:3, pts:[[40.4120,-3.7210],[40.4169,-3.7036],[40.4195,-3.6931],[40.4300,-3.6770]]},
+ {kind:'tren',n:'1',  c:'#38A3DC', n_veh:3, spd:2.2, pts:[[40.4659,-3.6890],[40.4262,-3.7013],[40.4169,-3.7036],[40.4066,-3.6892]]},
+ {kind:'tren',n:'3',  c:'#FFDF00', tx:'#000', n_veh:3, spd:2.2, pts:[[40.4348,-3.7190],[40.4202,-3.7058],[40.4169,-3.7036],[40.4086,-3.7010]]},
+];
+const dist=(a,b)=>Math.hypot(b[0]-a[0],b[1]-a[1]);
+LINES.forEach(l=>{
+  l.cum=[0];for(let i=1;i<l.pts.length;i++)l.cum.push(l.cum[i-1]+dist(l.pts[i-1],l.pts[i]));
+  l.len=l.cum[l.cum.length-1];
+  l.poly=L.polyline(l.pts,{color:l.c,weight:3,opacity:.35,dashArray:l.kind==='bus'?'4 6':null});
+  l.veh=Array.from({length:l.n_veh},(_,i)=>{
+    const m=L.marker(l.pts[0],{icon:icon(l.kind,l.n,l.c),zIndexOffset:500}).bindPopup(`${l.kind==='bus'?'Bus':'Metro'} línea ${l.n} <small>(simulado)</small>`).addTo(layers[l.kind]);
+    return {m,p:(i/l.n_veh)*2*l.len,v:(l.spd||1)*(0.7+Math.random()*.6)*0.00012};
+  });
+});
+function at(l,s){ // s en [0,2len): ida y vuelta
+  const d=s<l.len?s:2*l.len-s;let i=1;while(i<l.cum.length-1&&l.cum[i]<d)i++;
+  const t=(d-l.cum[i-1])/((l.cum[i]-l.cum[i-1])||1),a=l.pts[i-1],b=l.pts[i];
+  return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+}
+let raf;
+function runDemo(){
+  cancelAnimationFrame(raf);
+  const tick=()=>{LINES.forEach(l=>l.veh.forEach(v=>{v.p=(v.p+v.v)%(2*l.len);v.m.setLatLng(at(l,v.p))}));raf=requestAnimationFrame(tick)};
+  LINES.forEach(l=>{layers[l.kind].addLayer(l.poly);l.veh.forEach(v=>layers[l.kind].addLayer(v.m))});
+  tick();toast('Modo demo · vehículos simulados');
+}
+
+/* ---------- REAL ---------- */
+let timer,realMarkers=new Map();
+function stopDemo(){cancelAnimationFrame(raf);LINES.forEach(l=>{layers[l.kind].removeLayer(l.poly);l.veh.forEach(v=>layers[l.kind].removeLayer(v.m))})}
+async function loadRenfe(){
+  const url=store.get('renfe')||'https://gtfs.renfe.com/vehicle_positions.json';
+  const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);
+  const data=await r.json(),seen=new Set();
+  (data.entity||[]).forEach(e=>{
+    const v=e.vehicle;if(!v||!v.position)return;
+    const {latitude:la,longitude:lo}=v.position;
+    if(la<40.2||la>40.7||lo<-4.1||lo>-3.3)return; // solo zona de Madrid
+    const id=e.id,label=(v.trip&&(v.trip.routeId||'').replace(/^.*?([A-Z]\d+\w*)$/,'$1').slice(0,4))||'C';
+    seen.add(id);
+    let m=realMarkers.get(id);
+    if(m)m.setLatLng([la,lo]);
+    else{m=L.marker([la,lo],{icon:icon('tren',label,'#dc2626')}).bindPopup(`Tren ${label}`).addTo(layers.tren);realMarkers.set(id,m)}
+  });
+  realMarkers.forEach((m,id)=>{if(!seen.has(id)){layers.tren.removeLayer(m);realMarkers.delete(id)}});
+  return seen.size;
+}
+async function loadReal(){
+  try{setStatus('tren',`${await loadRenfe()} trenes Renfe`)}
+  catch(e){setStatus('tren','Renfe no accesible desde el navegador (probable bloqueo CORS)')}
+}
+
+/* ---------- Paradas y llegadas EMT ---------- */
+const EMT='https://openapi.emtmadrid.es';
+let tok={v:'',t:0};
+async function emtToken(){
+  if(tok.v&&Date.now()-tok.t<3600e3)return tok.v;
+  const r=await fetch(EMT+'/v1/mobilitylabs/user/login/',{headers:{email:store.get('emtMail'),password:store.get('emtPass')}});
+  const j=await r.json(),t=j.data&&j.data[0]&&j.data[0].accessToken;
+  if(!t)throw new Error(j.description||'login fallido');
+  tok={v:t,t:Date.now()};return t;
+}
+async function emtStopsAround(c){
+  const r=await fetch(`${EMT}/v2/transport/busemtmad/stops/arroundxy/${c.lng}/${c.lat}/400/`,{headers:{accessToken:await emtToken()}});
+  return (await r.json()).data||[];
+}
+async function emtArrivalsRaw(id){
+  const r=await fetch(`${EMT}/v2/transport/busemtmad/stops/${id}/arrives/`,{method:'POST',
+    headers:{accessToken:await emtToken(),'Content-Type':'application/json'},
+    body:JSON.stringify({cultureInfo:'ES',Text_StopRequired_YN:'N',Text_EstimationsRequired_YN:'Y',Text_IncidencesRequired_YN:'N'})});
+  if(!r.ok){tok.v='';throw new Error('HTTP '+r.status)}
+  const j=await r.json();
+  if(j.code&&j.code!=='00'&&j.code!=='01'){tok.v='';throw new Error(j.description||('código '+j.code))}
+  return (j.data&&j.data[0]&&j.data[0].Arrive)||[];
+}
+async function emtArrivals(id){
+  return (await emtArrivalsRaw(id)).map(x=>({line:x.line,dest:x.destination,s:Number(x.estimateArrive)})).sort((a,b)=>a.s-b.s);
+}
+const demoArr=()=>['27','3','74'].map(l=>({line:l,dest:'Destino demo',s:30+Math.random()*900})).sort((a,b)=>a.s-b.s);
+const fmt=s=>s>=999999||s<0?'+45 min':s<60?'Llegando':Math.round(s/60)+' min';
+const stopHtml=(n,id,a)=>`<b>${n}</b> <small>#${id}</small>`+(a.length?a.slice(0,6).map(x=>`<div class="arr"><span class="v bus" style="background:#2563eb">${x.line}</span><span>${x.dest||''}</span><b>${fmt(x.s)}</b></div>`).join(''):'<br>Sin estimaciones ahora mismo');
+const stopMarks=new Map();
+function addStop(s){
+  if(stopMarks.has(s.id))return;
+  const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:'<div class="stop">P</div>',iconSize:[16,16],iconAnchor:[8,8]})}).addTo(layers.stop);
+  m.bindPopup('Cargando…',{minWidth:210});let iv;
+  const refresh=async()=>{try{m.getPopup().setContent(stopHtml(s.name,s.id,s.demo?demoArr():await emtArrivals(s.id)))}catch(e){m.getPopup().setContent('Error: '+e.message)}};
+  m.on('popupopen',()=>{refresh();iv=setInterval(refresh,15000)});
+  m.on('popupclose',()=>clearInterval(iv));
+  stopMarks.set(s.id,{m,lat:s.lat,lng:s.lng});
+}
+async function loadStops(){
+  if(store.get('mode')!=='real'||!store.get('emtMail')||map.getZoom()<15)return;
+  try{(await emtStopsAround(map.getCenter())).forEach(s=>{const c=s.geometry&&s.geometry.coordinates;if(c)addStop({id:String(s.stopId),name:s.stopName||s.name,lat:c[1],lng:c[0]})})}
+  catch(e){setStatus('bus','EMT: '+e.message+' (¿credenciales o CORS?)');return}
+  pollBuses();
+}
+map.on('moveend',loadStops);
+
+/* ---------- Autobuses reales (posición GPS que devuelve /arrives/) ---------- */
+const st={},busLive=new Map();let lastPoll=0;
+const setStatus=(k,v)=>{st[k]=v;toast(Object.values(st).join(' · '))};
+const hue=l=>{let h=0;for(const c of String(l))h=(h*31+c.charCodeAt(0))%360;return `hsl(${h} 65% 42%)`};
+async function pollBuses(){
+  if(store.get('mode')!=='real'||!store.get('emtMail')||map.getZoom()<14||document.hidden)return;
+  if(Date.now()-lastPoll<8000)return;lastPoll=Date.now();
+  const c=map.getCenter();
+  const near=[...stopMarks.entries()].map(([id,o])=>({id,d:c.distanceTo([o.lat,o.lng])})).sort((a,b)=>a.d-b.d).slice(0,5);
+  if(!near.length)return;
+  try{
+    const res=await Promise.all(near.map(n=>emtArrivalsRaw(n.id)));
+    const now=Date.now();
+    res.flat().forEach(a=>{
+      const g=a.geometry&&a.geometry.coordinates;if(!g||!a.bus)return;
+      const ll=[g[1],g[0]],id=String(a.bus);
+      let o=busLive.get(id);
+      const pop=`Bus línea <b>${a.line}</b><br>→ ${a.destination||''}<br><small>Vehículo ${a.bus}</small>`;
+      if(o){o.m.setLatLng(ll);o.m.setPopupContent(pop)}
+      else{o={m:L.marker(ll,{icon:icon('bus',a.line,hue(a.line)),zIndexOffset:500}).bindPopup(pop).addTo(layers.bus)};busLive.set(id,o)}
+      o.t=now;
+    });
+    busLive.forEach((o,id)=>{if(now-o.t>45000){layers.bus.removeLayer(o.m);busLive.delete(id)}});
+    setStatus('bus',`${busLive.size} autobuses EMT`);
+  }catch(e){setStatus('bus','EMT: '+e.message)}
+}
+
+
+function start(){
+  clearInterval(timer);stopDemo();layers.stop.clearLayers();stopMarks.clear();busLive.forEach(o=>layers.bus.removeLayer(o.m));busLive.clear();Object.keys(st).forEach(k=>delete st[k]);realMarkers.forEach(m=>layers.tren.removeLayer(m));realMarkers.clear();
+  if(store.get('mode')==='real'){loadReal();loadStops();timer=setInterval(()=>{loadReal();pollBuses()},Math.max(15,+store.get('every')||20)*1000)}
+  else{runDemo();let k=0;LINES.filter(l=>l.kind==='bus').forEach(l=>l.pts.forEach(q=>addStop({id:'D'+(++k),name:'Parada demo '+k,lat:q[0],lng:q[1],demo:true})))}
+}
+
+/* ---------- Ubicación ---------- */
+let me;
+$('locate-btn').onclick=()=>{
+  if(!navigator.geolocation)return toast('Geolocalización no disponible');
+  navigator.geolocation.getCurrentPosition(p=>{
+    const ll=[p.coords.latitude,p.coords.longitude];
+    if(!me)me=L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[16,16],iconAnchor:[8,8]})}).addTo(map);
+    else me.setLatLng(ll);
+    map.flyTo(ll,16);
+  },()=>toast('No se pudo obtener tu ubicación'),{enableHighAccuracy:true,timeout:10000});
+};
+
+/* ---------- Modal ---------- */
+const modal=$('modal');
+const badge=(id,ok,t)=>{const e=$(id);e.textContent=t;e.className='badge'+(ok?' ok':'')};
+function badges(){
+  const e=store.get('emtMail')&&store.get('emtPass');badge('b-emt',e,e?'Configurado':'Sin configurar');
+  const r=store.get('renfe');badge('b-renfe',true,r?'Personalizada':'Por defecto');
+  badge('b-base',true,{osm:'OSM','carto-voyager':'CARTO Voyager','carto-light':'CARTO claro','carto-dark':'CARTO oscuro',custom:'Personalizado'}[store.get('basemap')||'osm']);
+}
+$('menu-btn').onclick=()=>{
+  $('mode').value=store.get('mode')||'demo';$('renfe-url').value=store.get('renfe');
+  $('emt-mail').value=store.get('emtMail');$('emt-pass').value=store.get('emtPass');$('every').value=store.get('every')||20;
+  $('basemap').value=store.get('basemap')||'osm';$('cartokey').value=store.get('cartokey');$('tileurl').value=store.get('tileurl');
+  $('emt-res').textContent='';badges();modal.classList.add('open');
+};
+$('emt-test').onclick=async()=>{
+  store.set('emtMail',$('emt-mail').value.trim());store.set('emtPass',$('emt-pass').value);tok.v='';
+  const o=$('emt-res');o.textContent='Probando…';
+  try{await emtToken();o.textContent='✅ Conexión correcta. Elige "Real" y guarda.'}
+  catch(e){o.textContent='❌ '+e.message+' (revisa email y contraseña; si son correctos puede ser un bloqueo CORS del navegador)'}
+  badges();
+};
+$('close').onclick=()=>modal.classList.remove('open');
+modal.onclick=e=>{if(e.target===modal)modal.classList.remove('open')};
+$('save').onclick=()=>{
+  store.set('mode',$('mode').value);store.set('renfe',$('renfe-url').value.trim());
+  store.set('emtMail',$('emt-mail').value.trim());store.set('emtPass',$('emt-pass').value.trim());store.set('every',$('every').value);
+  store.set('basemap',$('basemap').value);store.set('cartokey',$('cartokey').value.trim());store.set('tileurl',$('tileurl').value.trim());setBase();
+  modal.classList.remove('open');start();
+};
+start();
+</script>
+</body>
+</html>
