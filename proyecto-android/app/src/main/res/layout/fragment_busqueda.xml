@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/fondo">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="4dp"
+        android:background="@color/barra_superior"
+        android:elevation="3dp">
+
+        <ImageView
+            android:id="@+id/botonVolverBusqueda"
+            style="@style/BotonBarra"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="Cerrar" />
+
+        <EditText
+            android:id="@+id/entradaBusquedaGlobal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Buscar en todo el dispositivo"
+            android:inputType="text"
+            android:imeOptions="actionSearch"
+            android:maxLines="1"
+            android:textSize="15sp"
+            android:textColor="@color/texto" />
+
+        <ProgressBar
+            android:id="@+id/indicadorBusquedaGlobal"
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginEnd="8dp"
+            android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/botonLimpiarBusquedaGlobal"
+            style="@style/BotonBarra"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:visibility="gone"
+            android:contentDescription="Borrar texto" />
+    </LinearLayout>
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="6dp">
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/grupoFiltrosBusqueda"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:singleLine="true"
+            app:singleSelection="true"
+            app:selectionRequired="true">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipBTodos"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Todo"
+                android:checked="true" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipBImagenes"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Imágenes" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipBVideos"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Vídeos" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipBAudio"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Audio" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipBDocumentos"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Documentos" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipBComprimidos"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Comprimidos" />
+        </com.google.android.material.chip.ChipGroup>
+    </HorizontalScrollView>
+
+    <LinearLayout
+        android:id="@+id/filaVista"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/grupoVistaBusqueda"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            app:singleLine="true"
+            app:singleSelection="true"
+            app:selectionRequired="true">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipAbiertos"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Abiertos en la app"
+                android:checked="true" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipNuevos"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Modificados hace poco" />
+        </com.google.android.material.chip.ChipGroup>
+
+        <TextView
+            android:id="@+id/botonBorrarHistorial"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:text="Borrar"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/primario"
+            android:background="?attr/selectableItemBackground"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/listaBusqueda"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scrollbars="vertical" />
+
+        <LinearLayout
+            android:id="@+id/estadoBusquedaVacio"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/iconoBusquedaVacio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="56sp" />
+
+            <TextView
+                android:id="@+id/textoBusquedaVacio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:textSize="15sp"
+                android:textColor="@color/texto_secundario" />
+        </LinearLayout>
+    </FrameLayout>
+</LinearLayout>
