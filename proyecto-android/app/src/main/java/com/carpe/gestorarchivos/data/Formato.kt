@@ -15,6 +15,9 @@ object Formato {
     fun fecha(ms: Long): String =
         SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(ms))
 
+    fun fechaHora(ms: Long): String =
+        SimpleDateFormat("dd/MM/yy HH:mm", Locale.getDefault()).format(Date(ms))
+
     fun fechaCorta(ms: Long): String =
         SimpleDateFormat("dd/MM/yy", Locale.getDefault()).format(Date(ms))
 }
