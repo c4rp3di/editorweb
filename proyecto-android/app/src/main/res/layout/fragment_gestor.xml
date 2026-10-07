@@ -57,10 +57,11 @@
                 android:src="@android:drawable/ic_menu_sort_by_size"
                 android:contentDescription="Ordenar" />
 
-            <ImageView
+            <TextView
                 android:id="@+id/botonMas"
-                style="@style/BotonBarra"
-                android:src="@android:drawable/ic_menu_more"
+                style="@style/BotonBarraTexto"
+                android:text="⋮"
+                android:textStyle="bold"
                 android:contentDescription="Más opciones" />
         </LinearLayout>
 
@@ -242,11 +243,12 @@
             android:tint="@android:color/white"
             android:contentDescription="Borrar" />
 
-        <ImageView
+        <TextView
             android:id="@+id/botonSelMas"
-            style="@style/BotonBarra"
-            android:src="@android:drawable/ic_menu_more"
-            android:tint="@android:color/white"
+            style="@style/BotonBarraTexto"
+            android:text="⋮"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
             android:contentDescription="Más acciones" />
     </LinearLayout>
 
