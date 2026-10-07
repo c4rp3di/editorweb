@@ -1,7 +1,11 @@
 <resources>
     <style name="Theme.MiApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/primario</item>
-        <item name="colorPrimaryDark">@color/primario_oscuro</item>
-        <item name="colorAccent">@color/acento</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="colorPrimary">#6366F1</item>
+        <item name="colorPrimaryVariant">#4F46E5</item>
+        <item name="colorAccent">#6366F1</item>
+        <item name="android:navigationBarColor">?android:attr/colorBackground</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
     </style>
 </resources>
