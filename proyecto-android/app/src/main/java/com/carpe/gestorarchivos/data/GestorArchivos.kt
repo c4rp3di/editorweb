@@ -2,6 +2,8 @@ package com.carpe.gestorarchivos.data
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.core.content.FileProvider
 import java.io.File
 import java.nio.ByteBuffer
@@ -227,10 +229,33 @@ object GestorArchivos {
     fun uriDe(context: Context, archivo: File) =
         FileProvider.getUriForFile(context, context.packageName + ".fileprovider", archivo)
 
+    /** Muestra siempre el selector de apps del sistema («Abrir con…»), aunque haya una app predeterminada. */
     fun abrirConOtraApp(context: Context, archivo: File): Boolean {
         return try {
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uriDe(context, archivo), ArchivoItem.adivinarMime(archivo.name))
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "Abrir con"))
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** Abre un HTML directamente en el navegador del dispositivo. Devuelve false si no pudo. */
+    fun abrirEnNavegador(context: Context, archivo: File): Boolean {
+        return try {
+            val pm = context.packageManager
+            val sondeo = Intent(Intent.ACTION_VIEW, Uri.parse("http://www.example.com"))
+                .addCategory(Intent.CATEGORY_BROWSABLE)
+            val predeterminado = pm.resolveActivity(sondeo, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+            val paquete = if (predeterminado != null && predeterminado != "android") predeterminado
+            else pm.queryIntentActivities(sondeo, 0).firstOrNull()?.activityInfo?.packageName
+            if (paquete == null) return false
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uriDe(context, archivo), "text/html")
+                setPackage(paquete)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(intent)
