@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="BotonBarra">
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:padding">12dp</item>
+        <item name="android:scaleType">centerInside</item>
+        <item name="android:tint">@color/texto</item>
+    </style>
+    <style name="BotonBarraTexto">
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:layout_width">44dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:textColor">@color/texto</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+</resources>
