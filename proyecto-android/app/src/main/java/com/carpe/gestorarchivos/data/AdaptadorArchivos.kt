@@ -39,6 +39,12 @@ class AdaptadorArchivos(
     private var modoSeleccion = false
     private var pxMiniatura = 120
 
+    /** Si se define, la pulsación larga llama a esto en lugar de entrar en modo selección. */
+    var alMantener: ((ArchivoItem) -> Unit)? = null
+
+    /** Botón ⋮ que aparece en los elementos seleccionados. */
+    var alPulsarMas: ((ArchivoItem, View) -> Unit)? = null
+
     /** Muestra la carpeta contenedora en el detalle (útil en resultados de búsqueda recursiva). */
     var mostrarRutaPadre = false
 
@@ -90,6 +96,7 @@ class AdaptadorArchivos(
         val nombre: TextView = v.findViewById(R.id.nombreItem)
         val detalle: TextView = v.findViewById(R.id.detalleItem)
         val check: CheckBox = v.findViewById(R.id.checkSeleccion)
+        val mas: TextView = v.findViewById(R.id.botonMasItem)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -106,11 +113,24 @@ class AdaptadorArchivos(
         holder.nombre.text = item.nombre
         holder.icono.text = Iconos.de(categoria)
 
-        val partes = ArrayList<String>()
-        partes.add(if (item.esCarpeta) "Carpeta" else item.tamanoLegible)
-        if (item.ultimaModificacion > 0) partes.add(Formato.fechaCorta(item.ultimaModificacion))
-        if (mostrarRutaPadre) item.archivo.parent?.let { partes.add(it) }
-        holder.detalle.text = partes.joinToString(" · ")
+        holder.detalle.tag = item.clave
+        val fecha = if (item.ultimaModificacion > 0) Formato.fechaHora(item.ultimaModificacion) else ""
+        val ruta = if (mostrarRutaPadre) item.archivo.parent else null
+        if (item.esCarpeta) {
+            val resumen = ResumenCarpetas.enCache(item.archivo)
+            holder.detalle.text = detalleCarpeta(
+                if (resumen != null) ResumenCarpetas.descripcion(resumen) else "Calculando…", fecha, ruta
+            )
+            if (resumen == null) {
+                ResumenCarpetas.pedir(item.archivo, { holder.detalle.tag == item.clave }) { r ->
+                    if (holder.detalle.tag == item.clave) {
+                        holder.detalle.text = detalleCarpeta(ResumenCarpetas.descripcion(r), fecha, ruta)
+                    }
+                }
+            }
+        } else {
+            holder.detalle.text = detalleCarpeta(item.tamanoLegible, fecha, ruta)
+        }
 
         holder.check.visibility = if (modoSeleccion) View.VISIBLE else View.GONE
         holder.check.isChecked = seleccionado
@@ -148,9 +168,21 @@ class AdaptadorArchivos(
             if (modoSeleccion) alternarSeleccion(item.clave) else alTocar(item)
         }
         holder.itemView.setOnLongClickListener {
-            alternarSeleccion(item.clave)
+            val m = alMantener
+            if (m != null) m(item) else alternarSeleccion(item.clave)
             true
         }
+
+        holder.mas.visibility = if (seleccionado && alPulsarMas != null) View.VISIBLE else View.GONE
+        holder.mas.setOnClickListener { alPulsarMas?.invoke(item, holder.mas) }
+    }
+
+    private fun detalleCarpeta(principal: String, fecha: String, ruta: String?): String {
+        val partes = ArrayList<String>()
+        if (principal.isNotEmpty()) partes.add(principal)
+        if (fecha.isNotEmpty()) partes.add(fecha)
+        if (ruta != null) partes.add(ruta)
+        return partes.joinToString(" · ")
     }
 
     private fun mostrarMiniatura(holder: VH, bmp: Bitmap) {
