@@ -197,6 +197,70 @@ jobs:
                         private static final String[] PERMS = { __PERMS_JAVA_LIST__ };
                         private static final int FILE_CHOOSER_CODE = 51426;
                         private ValueCallback<Uri[]> filePathCallback;
+                    // Peticiones HTTP nativas para esquivar CORS. Solo responden si la pagina
+                    // actual pertenece a la URL de la app (no a una web externa).
+                    private static volatile String paginaActual = "";
+                    private static final String SHIM_FETCH =
+                        "(function(){" +
+                        "if(!window.AndroidPuente||!AndroidPuente.fetchNativo||window.__nfOn)return;" +
+                        "window.__nfOn=true;" +
+                        "var orig=window.fetch.bind(window),pend={},n=0;" +
+                        "window.__nf=function(id,r){var p=pend[id];delete pend[id];if(!p)return;" +
+                        "if(r.error)p.rej(new TypeError(r.error));else p.res(new Response(r.body,{status:r.status}))};" +
+                        "window.fetch=function(input,init){init=init||{};" +
+                        "var url=typeof input==='string'?input:input.url;" +
+                        "if(!/^https?:/i.test(url))return orig(input,init);" +
+                        "var h={};new Headers(init.headers||(typeof input!=='string'?input.headers:{})||{}).forEach(function(v,k){h[k]=v});" +
+                        "return new Promise(function(res,rej){var id=String(++n);pend[id]={res:res,rej:rej};" +
+                        "AndroidPuente.fetchNativo(id,JSON.stringify({url:url,method:init.method||(typeof input!=='string'&&input.method)||'GET',headers:h," +
+                        "body:init.body==null?undefined:String(init.body)}))})};" +
+                        "})();";
+                    static class PuenteRed {
+                        private final WebView wv;
+                        PuenteRed(WebView wv) { this.wv = wv; }
+                        @android.webkit.JavascriptInterface
+                        public void fetchNativo(final String id, final String req) {
+                            new Thread(() -> {
+                                org.json.JSONObject out = new org.json.JSONObject();
+                                try {
+                                    if (!paginaActual.startsWith("__APP_URL__")) throw new Exception("origen no permitido");
+                                    org.json.JSONObject r = new org.json.JSONObject(req);
+                                    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(r.getString("url")).openConnection();
+                                    c.setRequestMethod(r.optString("method", "GET"));
+                                    c.setConnectTimeout(15000);
+                                    c.setReadTimeout(20000);
+                                    org.json.JSONObject h = r.optJSONObject("headers");
+                                    if (h != null) {
+                                        java.util.Iterator<String> it = h.keys();
+                                        while (it.hasNext()) { String k = it.next(); c.setRequestProperty(k, h.getString(k)); }
+                                    }
+                                    if (r.has("body")) {
+                                        c.setDoOutput(true);
+                                        java.io.OutputStream os = c.getOutputStream();
+                                        os.write(r.getString("body").getBytes("UTF-8"));
+                                        os.close();
+                                    }
+                                    int code = c.getResponseCode();
+                                    java.io.InputStream is = code >= 400 ? c.getErrorStream() : c.getInputStream();
+                                    String body = "";
+                                    if (is != null) {
+                                        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                                        byte[] buf = new byte[8192];
+                                        int n;
+                                        while ((n = is.read(buf)) > 0) bo.write(buf, 0, n);
+                                        is.close();
+                                        body = bo.toString("UTF-8");
+                                    }
+                                    out.put("status", code);
+                                    out.put("body", body);
+                                } catch (Exception e) {
+                                    try { out.put("error", e.getMessage() == null ? "error" : e.getMessage()); } catch (Exception ignored) {}
+                                }
+                                final String js = "window.__nf(" + org.json.JSONObject.quote(id) + "," + out.toString() + ")";
+                                wv.post(() -> wv.evaluateJavascript(js, null));
+                            }).start();
+                        }
+                    }
                         @Override
                         protected void onCreate(Bundle savedInstanceState) {
                             super.onCreate(savedInstanceState);
@@ -211,7 +275,20 @@ jobs:
                             settings.setDomStorageEnabled(true);
                             settings.setGeolocationEnabled(true);
                             settings.setAllowFileAccess(true);
-                            webView.setWebViewClient(new WebViewClient());
+                            webView.addJavascriptInterface(new PuenteRed(webView), "AndroidPuente");
+                    webView.setWebViewClient(new WebViewClient() {
+                        @Override
+                        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                            super.onPageStarted(view, url, favicon);
+                            paginaActual = url == null ? "" : url;
+                            if (paginaActual.startsWith("__APP_URL__")) view.evaluateJavascript(SHIM_FETCH, null);
+                        }
+                        @Override
+                        public void onPageFinished(WebView view, String url) {
+                            super.onPageFinished(view, url);
+                            if (url != null && url.startsWith("__APP_URL__")) view.evaluateJavascript(SHIM_FETCH, null);
+                        }
+                    });
                             webView.setWebChromeClient(new WebChromeClient() {
                                 @Override
                                 public void onPermissionRequest(final PermissionRequest request) {
