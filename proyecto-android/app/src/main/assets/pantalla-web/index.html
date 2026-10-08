@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Madrid Transporte en Tiempo Real</title>
-<link rel="stylesheet" href="recursos/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
 :root{--bg:#fff;--fg:#1d2430;--mut:#6b7585;--line:#e3e7ee;--acc:#2563eb;--shadow:0 4px 16px rgba(0,0,0,.22)}
 @media(prefers-color-scheme:dark){:root{--bg:#1b212b;--fg:#e8ecf3;--mut:#9aa5b5;--line:#2c3544;--shadow:0 4px 16px rgba(0,0,0,.6)}}
@@ -58,9 +58,9 @@ html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Ro
 .v.bus{border-radius:5px;min-width:22px;height:15px;padding:0 3px}
 .v.tren{border-radius:50%;width:20px;height:20px;font-size:9px}
 .stop{width:16px;height:16px;border-radius:4px;background:#f59e0b;color:#fff;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.5);font:700 10px/13px system-ui;text-align:center}
-.arr{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:13px}.arr span:nth-child(2){flex:1}
+.arr b{white-space:nowrap}.arr{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:13px}.arr span:nth-child(2){flex:1}
 .me{width:16px;height:16px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 6px rgba(37,99,235,.25)}
-.ms{width:14px;height:14px;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 5px #0009}.ms.multi{width:16px;height:16px}.tr{width:40px;height:24px;display:grid;place-items:center;filter:drop-shadow(0 1px 3px #0008)}.tr div{width:36px;height:21px;clip-path:polygon(0 18%,62% 18%,62% 0,100% 50%,62% 100%,62% 82%,0 82%);display:grid;place-items:center;border:1px solid #fff}.tr span{font:800 9px system-ui;color:#fff;text-shadow:0 1px 2px #000}.arr{display:flex;gap:7px;align-items:center;margin:5px 0;font-size:13px}
+.ms{width:14px;height:14px;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 5px #0009}.ms.multi{width:16px;height:16px}.tr{width:40px;height:24px;display:grid;place-items:center;filter:drop-shadow(0 1px 3px #0008)}.tr div{width:36px;height:21px;clip-path:polygon(0 18%,62% 18%,62% 0,100% 50%,62% 100%,62% 82%,0 82%);display:grid;place-items:center;border:1px solid #fff}.tr span{font:800 9px system-ui;color:#fff;text-shadow:0 1px 2px #000}.arr b{white-space:nowrap}.arr{display:flex;gap:7px;align-items:center;margin:5px 0;font-size:13px}
 </style>
 </head>
 <body>
@@ -109,7 +109,7 @@ html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Ro
 
   <details class="svc">
     <summary>🚇 Metro de Madrid</summary>
-    <small>Sin registro ni clave. Las llegadas vienen del servicio de teleindicadores de Metro y las posiciones de los convoyes se <b>estiman</b> a partir de esos tiempos y del trazado de cada línea (no es GPS). Las peticiones solo funcionan desde la APK con HTTP nativo; en un navegador las bloquea CORS.</small>
+    <small>Sin registro ni clave. Las llegadas vienen del servicio de teleindicadores de Metro y las posiciones de los convoyes se <b>estiman</b> a partir de esos tiempos y del trazado de cada línea (no es GPS). Las peticiones solo funcionan desde la APK; en un navegador las bloquea CORS.</small>
   </details>
 
   <details class="svc">
@@ -137,7 +137,7 @@ html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Ro
   </div>
 </div></div>
 
-<script src="recursos/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const toast=t=>$('toast').textContent=t;
@@ -510,7 +510,7 @@ document.addEventListener('click',e=>{
 },true);
 
 /* ---------- Metro de Madrid (teleindicadores + geometría ArcGIS) ---------- */
-// En la APK (Capacitor con CapacitorHttp activado) esta llamada va directa, sin CORS ni proxy.
+// En la APK la llamada va por el puente nativo (AndroidPuente.fetchTexto): sin CORS ni proxy.
 // Si algún día usas un proxy, cambia solo esta constante.
 const MET=(()=>{
 const METRO_API='https://serviciosapp.metromadrid.es/servicios/rest/teleindicadores/';
@@ -544,12 +544,39 @@ const apiGet=async url=>{
 const api=async c=>{c=num(c);const h=cache.get(c);if(h&&Date.now()-h.t<15000)return h.d;
   const d=await apiGet(METRO_API+encodeURIComponent(c));
   cache.set(c,{t:Date.now(),d});return d};
+// Minutos de un campo de Metro. Vacío / null / sin dato => NaN (antes se convertía en 0 y salía "0 min" en todo).
+const mins=v=>{if(v==null)return NaN;const t=String(v).trim();if(!t||/^null$/i.test(t))return NaN;const n=Number(t);return Number.isFinite(n)&&n>=0?n:NaN};
+const fmin=m=>m<0.5?'Llegando':Math.round(m)+' min';
+const nice=x=>{x=String(x||'').trim();if(x!==x.toUpperCase())return x;return x.toLowerCase().replace(/(^|[\s\-(])([a-záéíóúñü])/g,(m,a,b)=>a+b.toUpperCase()).replace(/(\s)(De|Del|La|Las|Los|El|Y|A|En)(?=\s)/g,(m,a,b)=>a+b.toLowerCase())};
+const sbg=s=>{const L=s.lines.slice().sort((a,b)=>a-b);if(L.length<2)return col(L[0]||'');const n=L.length;return 'conic-gradient('+L.map((l,i)=>col(l)+' '+(i*100/n).toFixed(1)+'% '+((i+1)*100/n).toFixed(1)+'%').join(',')+')'};
+// Una estación con transbordo tiene un código por línea (CODIGOEMPRESA). Se consultan todos y, si más de uno
+// devuelve la misma línea/andén/sentido, se queda con el primero (así no hay filas repetidas).
+async function rowsOf(s,only){
+  const seen=new Set(),out=[];let ok=0,last;
+  for(const code of s.codes){
+    await new Promise(r=>setTimeout(r,0)); // deja respirar a la interfaz (fetchTexto es síncrono)
+    let d;try{d=await api(code);ok++}catch(e){last=e;continue}
+    for(const v of d?.Vtelindicadores||[]){
+      const line=num(v.linea);if(!line||(only&&!only.has(line)))continue;
+      const k=line+'|'+String(v.anden||'').trim()+'|'+norm(v.sentido);
+      if(seen.has(k))continue;seen.add(k);
+      out.push({line,dest:String(v.sentido||'').trim(),etas:[mins(v.proximo),mins(v.siguiente)].filter(Number.isFinite)});
+    }
+  }
+  if(!ok&&last)throw last;
+  return out;
+}
 // Sin línea elegida solo se consultan las estaciones visibles (máx. 40); con línea, las de esa línea.
+const MAXC=70; // tope de códigos de estación consultados por refresco
 function pick(){
-  if(M.focus.size)return M.stations.filter(s=>s.lines.some(l=>M.focus.has(l)));
-  if(map.getZoom()<13)return[];
-  const b=map.getBounds(),c=map.getCenter(),cc=[c.lat,c.lng];
-  return M.stations.filter(s=>s.code&&b.contains([s.lat,s.lng])).sort((x,y)=>D([x.lat,x.lng],cc)-D([y.lat,y.lng],cc)).slice(0,40);
+  let r;
+  if(M.focus.size)r=M.stations.filter(s=>s.lines.some(l=>M.focus.has(l)));
+  else{
+    if(map.getZoom()<13)return[];
+    const b=map.getBounds(),c=map.getCenter(),cc=[c.lat,c.lng];
+    r=M.stations.filter(s=>s.codes.length&&b.contains([s.lat,s.lng])).sort((x,y)=>D([x.lat,x.lng],cc)-D([y.lat,y.lng],cc));
+  }
+  let n=0;return r.filter(s=>(n+=s.codes.length)<=MAXC);
 }
 const num=x=>(String(x??'').match(/\d+/)||[''])[0],norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),D=(a,b)=>Math.hypot((a[0]-b[0])*111000,(a[1]-b[1])*85000),C={1:'#0055A4',2:'#E30613',3:'#FFD100',4:'#8B5A2B',5:'#2F8A2F',6:'#777',7:'#F28C28',8:'#F28AA6',9:'#7B3F98',10:'#005CA9',11:'#6B8E23',12:'#6B5B2B'},col=l=>C[l]||'#555';
 const SU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/0/query?where=1%3D1&outFields=CODIGOESTACION,DENOMINACION,CODIGOEMPRESA,LINEAS&returnGeometry=true&outSR=4326&f=geojson',LU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/4/query?where=1%3D1&outFields=NUMEROLINEAUSUARIO&returnGeometry=true&outSR=4326&f=geojson';
@@ -561,9 +588,9 @@ function point(p,n){for(let i=0;i<p.length-1;i++){let s=D(p[i],p[i+1]);if(n<=s){
 function bear(a,b){return Math.atan2((b[1]-a[1])*Math.cos((a[0]+b[0])*Math.PI/360),b[0]-a[0])*180/Math.PI-90}
 function join(ps,ss){if(ps.length<2)return ps[0]||[];let u=ps.map(p=>p.slice()),o=u.shift();while(u.length){let z={d:1e99,j:0,r:0};u.forEach((p,j)=>[[p[0],0],[p[p.length-1],1]].forEach(([e,r])=>{let d=D(o[o.length-1],e);if(d<z.d)z={d,j,r}}));let p=u.splice(z.j,1)[0];if(z.r)p.reverse();if(D(o[o.length-1],p[0])<100)p=p.slice(1);o.push(...p)}if(ss.length>1&&along(o,[ss[0].lat,ss[0].lng])>along(o,[ss[ss.length-1].lat,ss[ss.length-1].lng]))o.reverse();return o}
 const order=l=>M.stations.filter(s=>s.lines.includes(l)).sort((a,b)=>along(M.paths.get(l),[a.lat,a.lng])-along(M.paths.get(l),[b.lat,b.lng]));
-let gp;function geometry(){return gp||(gp=geometry0().catch(e=>{gp=null;throw e}))}async function geometry0(){if(M.ready)return;let[a,b]=await Promise.all([apiGet(SU),apiGet(LU)]),by=new Map();for(let f of a.features||[]){let p=f.properties||{},c=f.geometry?.coordinates;if(!c||c.length<2)continue;let id=String(p.CODIGOESTACION||''),s=by.get(id)||{id,name:String(p.DENOMINACION||''),codes:[],lat:+c[1],lng:+c[0],lines:[]};let ec=String(p.CODIGOEMPRESA||'').trim();if(ec&&!s.codes.includes(ec))s.codes.push(ec);for(let l of String(p.LINEAS||'').split(/[,;\s]+/).map(num).filter(Boolean))if(!s.lines.includes(l))s.lines.push(l);by.set(id,s)}M.stations=[...by.values()];for(let f of b.features||[]){let l=num(f.properties?.NUMEROLINEAUSUARIO),p=flat(f.geometry);if(l&&p.length>1)(M.parts.get(l)||M.parts.set(l,[]).get(l)).push(p)}for(let[l,ps]of M.parts)M.paths.set(l,join(ps,M.stations.filter(s=>s.lines.includes(l))));lines();stations();M.ready=true}
+let gp;function geometry(){return gp||(gp=geometry0().catch(e=>{gp=null;throw e}))}async function geometry0(){if(M.ready)return;let[a,b]=await Promise.all([apiGet(SU),apiGet(LU)]),by=[];for(let f of a.features||[]){let p=f.properties||{},c=f.geometry?.coordinates;if(!c||c.length<2)continue;let la=+c[1],ln=+c[0],nk=norm(p.DENOMINACION).replace(/\s+/g,' ').trim(),s=by.find(g=>g.nk===nk&&D([g.lat,g.lng],[la,ln])<400);if(!s){s={id:'s'+by.length,nk,name:nice(p.DENOMINACION),codes:[],lat:la,lng:ln,n:0,lines:[]};by.push(s)}s.lat=(s.lat*s.n+la)/(s.n+1);s.lng=(s.lng*s.n+ln)/(s.n+1);s.n++;let ec=String(p.CODIGOEMPRESA||'').trim();if(ec&&!s.codes.includes(ec))s.codes.push(ec);for(let l of String(p.LINEAS||'').split(/[,;\s]+/).map(num).filter(Boolean))if(!s.lines.includes(l))s.lines.push(l);}M.stations=by;for(let f of b.features||[]){let l=num(f.properties?.NUMEROLINEAUSUARIO),p=flat(f.geometry);if(l&&p.length>1)(M.parts.get(l)||M.parts.set(l,[]).get(l)).push(p)}for(let[l,ps]of M.parts)M.paths.set(l,join(ps,M.stations.filter(s=>s.lines.includes(l))));lines();stations();M.ready=true}
 function lines(){LL.clearLayers();for(let[l,ps]of M.parts)if(!M.focus.size||M.focus.has(l))for(let p of ps){L.polyline(p,{color:'#fff',weight:8,opacity:.9}).addTo(LL);L.polyline(p,{color:col(l),weight:5}).addTo(LL)}$('q-clear').hidden=!M.focus.size&&!lineMode}
-function stations(){SL.clearLayers();if(map.getZoom()<14)return;for(let s of M.stations){if(M.focus.size&&!s.lines.some(l=>M.focus.has(l)))continue;let ic=L.divIcon({className:'',html:'<div class="ms'+(s.lines.length>1?' multi':'')+'" style="background:'+col(s.lines[0]||'')+'"></div>',iconSize:[18,18],iconAnchor:[9,9]});L.marker([s.lat,s.lng],{icon:ic,zIndexOffset:300}).bindTooltip(s.name,{direction:'top'}).on('click',()=>station(s)).addTo(SL)}}map.on('zoomend',stations);
+function stations(){SL.clearLayers();if(map.getZoom()<14)return;for(let s of M.stations){if(M.focus.size&&!s.lines.some(l=>M.focus.has(l)))continue;let ic=L.divIcon({className:'',html:'<div class="ms'+(s.lines.length>1?' multi':'')+'" style="background:'+sbg(s)+'"></div>',iconSize:[18,18],iconAnchor:[9,9]});L.marker([s.lat,s.lng],{icon:ic,zIndexOffset:300}).bindTooltip(s.name,{direction:'top'}).on('click',()=>station(s)).addTo(SL)}}map.on('zoomend',stations);
 function dest(l,d){let n=norm(d);return order(l).find(s=>norm(s.name)===n||norm(s.name).includes(n)||n.includes(norm(s.name)))}
 const tic=(l,a)=>L.divIcon({className:'',html:'<div class="tr" style="transform:rotate('+a+'deg)"><div style="background:'+col(l)+'"><span style="transform:rotate('+(-a)+'deg)">L'+l+'</span></div></div>',iconSize:[40,24],iconAnchor:[20,12]});
 function subpath(p,a,b){if(!p?.length)return[];a=Math.max(0,Math.min(len(p),a));b=Math.max(0,Math.min(len(p),b));if(a>b)[a,b]=[b,a];let out=[point(p,a)],n=0;for(let i=0;i<p.length-1;i++){let s=D(p[i],p[i+1]),next=n+s;if(next>a&&next<b)out.push(p[i+1]);n=next}out.push(point(p,b));return out}
@@ -571,7 +598,7 @@ function route(c){RL.clearLayers();if(!c)return;let p=M.paths.get(c.l),L0=len(p)
 function select(k,c){M.selected=k;M.focus=new Set([String(c.l)]);LL.clearLayers();SL.clearLayers();TL.eachLayer(m=>{if(m!==M.markers.get(k))m.setOpacity(0)});RL.clearLayers();route(c);let m=M.markers.get(k);if(m){m.setOpacity(1);m.openPopup()}map.closePopup()}
 function moveMarker(m,to,dur=28500){let from=m.getLatLng(),t0=performance.now();if(m._raf)cancelAnimationFrame(m._raf);function f(now){let a=Math.min(1,(now-t0)/dur),e=a*a*(3-2*a),lat=from.lat+(to[0]-from.lat)*e,lng=from.lng+(to[1]-from.lng)*e;m.setLatLng([lat,lng]);if(M.selected&&m===M.markers.get(M.selected)){let cc=m._data;if(cc){cc.p=[lat,lng];route(cc)}}if(a<1)m._raf=requestAnimationFrame(f);else m._raf=null}m._raf=requestAnimationFrame(f)}
 function up(k,c){let m=M.markers.get(k);if(!m){m=L.marker(c.p,{icon:tic(c.l,c.a),zIndexOffset:600}).addTo(TL);m._line=c.l;M.markers.set(k,m)}else{m.setIcon(tic(c.l,c.a));m._line=c.l;moveMarker(m,c.p)}m._data=c;m.off('click').on('click',e=>{L.DomEvent.stopPropagation(e);select(k,m._data)});m.bindPopup('<b>Metro L'+c.l+'</b><br>'+String(c.dest||'').replace(/[<>]/g,'')+'<br><small>ETA '+Math.max(0,Math.round(c.eta))+' min · '+(c.dir>0?'sentido ida':'sentido vuelta')+'</small>');if(M.selected===k){route(c);m.setOpacity(1)}}
-async function trains(){if(document.hidden)return;try{await geometry();let focus=new Set(M.focus),ss=pick(),by=new Map();ss.forEach(s=>s.code&&by.set(s.code,s));let a=[...by.values()],i=0,fails=0,cand=[],speed=480;async function worker(){while(i<a.length){let s=a[i++];try{let d=await api(s.code);for(let v of d?.Vtelindicadores||[]){let l=num(v.linea),p=M.paths.get(l);if(!p||(focus.size&&!focus.has(l)))continue;let ds=dest(l,v.sentido);if(!ds)continue;let o=along(p,[s.lat,s.lng]),da=along(p,[ds.lat,ds.lng]),dir=da>=o?1:-1;for(let f of ['proximo','siguiente']){let eta=Number(v[f]);if(!Number.isFinite(eta)||eta<0||eta>15)continue;let at=eta===0?o:Math.max(0,Math.min(len(p),o-dir*eta*speed)),pos=point(p,at),ahead=point(p,Math.max(0,Math.min(len(p),at+dir*160)));cand.push({l,dir,dest:String(v.sentido||''),eta,at,p:pos,a:bear(pos,ahead)})}}}catch(e){fails++}}}await Promise.all(Array.from({length:6},worker));if(a.length&&fails===a.length)throw Error('sin acceso a Metro (¿CORS? solo funciona en la APK con HTTP nativo)');let g=new Map();cand.forEach(c=>{let k=c.l+'|'+c.dir;(g.get(k)||g.set(k,[]).get(k)).push(c)});let fin=[];for(let a of g.values()){a.sort((x,y)=>x.at-y.at);let k=[];for(let c of a){let p=k[k.length-1];if(p&&Math.abs(c.at-p.at)<550){if(c.eta<p.eta)k[k.length-1]=c}else k.push(c)}fin.push(...k)}let seen=new Set();fin.forEach(c=>{let k=c.l+'|'+c.dir+'|'+Math.round(c.at/350);seen.add(k);up(k,c)});for(let[k,m]of M.markers)if((focus.size&&!focus.has(String(m._line)))||!seen.has(k)){if(M.selected===k){M.selected=null;RL.clearLayers()}TL.removeLayer(m);M.markers.delete(k)}setStatus('metro','Metro experimental · '+(M.focus.size?[...M.focus].map(x=>'L'+x).join(', '):'todas las líneas')+' · '+M.markers.size+' convoyes estimados');0}catch(e){setStatus('metro','Metro: '+e.message)}}
+async function trains(){if(document.hidden)return;try{await geometry();let focus=new Set(M.focus),a=pick(),i=0,fails=0,cand=[],speed=480;async function worker(){while(i<a.length){let s=a[i++];try{for(let v of await rowsOf(s,focus.size?focus:null)){let l=v.line,p=M.paths.get(l);if(!p)continue;let ds=dest(l,v.dest);if(!ds)continue;let o=along(p,[s.lat,s.lng]),da=along(p,[ds.lat,ds.lng]),dir=da>=o?1:-1;for(let eta of v.etas){if(eta>15)continue;let at=eta===0?o:Math.max(0,Math.min(len(p),o-dir*eta*speed)),pos=point(p,at),ahead=point(p,Math.max(0,Math.min(len(p),at+dir*160)));cand.push({l,dir,dest:v.dest,eta,at,p:pos,a:bear(pos,ahead)})}}}catch(e){fails++}}}await Promise.all(Array.from({length:3},worker));if(a.length&&fails===a.length)throw Error('sin acceso a Metro (solo funciona en la APK)');let g=new Map();cand.forEach(c=>{let k=c.l+'|'+c.dir;(g.get(k)||g.set(k,[]).get(k)).push(c)});let fin=[];for(let a of g.values()){a.sort((x,y)=>x.at-y.at);let k=[];for(let c of a){let p=k[k.length-1];if(p&&Math.abs(c.at-p.at)<550){if(c.eta<p.eta)k[k.length-1]=c}else k.push(c)}fin.push(...k)}let seen=new Set();fin.forEach(c=>{let k=c.l+'|'+c.dir+'|'+Math.round(c.at/350);seen.add(k);up(k,c)});for(let[k,m]of M.markers)if((focus.size&&!focus.has(String(m._line)))||!seen.has(k)){if(M.selected===k){M.selected=null;RL.clearLayers()}TL.removeLayer(m);M.markers.delete(k)}setStatus('metro','Metro experimental · '+(M.focus.size?[...M.focus].map(x=>'L'+x).join(', '):'todas las líneas')+' · '+M.markers.size+' convoyes estimados');0}catch(e){setStatus('metro','Metro: '+e.message)}}
 function focus(ls){M.focus=new Set(ls.map(num).filter(Boolean));M.selected=null;RL.clearLayers();lines();stations();M.markers.forEach(m=>{if(m._raf)cancelAnimationFrame(m._raf);TL.removeLayer(m)});M.markers.clear();trains()}
 function showAll(){M.focus.clear();M.selected=null;RL.clearLayers();LL.clearLayers();SL.clearLayers();M.markers.forEach(m=>{if(m._raf)cancelAnimationFrame(m._raf);TL.removeLayer(m)});M.markers.clear();lines();stations();trains()}
 map.on('click',e=>{if(e.originalEvent?.target?.closest?.('.leaflet-marker-icon'))return;if(M.selected||M.focus.size)showAll()});
@@ -579,21 +606,8 @@ async function station(s){
   focus(s.lines);map.flyTo([s.lat,s.lng],17,{duration:.45});
   let p=L.popup({maxWidth:300}).setLatLng([s.lat,s.lng]).setContent('<b>'+s.name.replace(/[<>]/g,'')+'</b><div id="eta" style="margin-top:8px;color:#667">Consultando tiempos…</div>').openOn(map);
   try{
-    const codes=s.codes||[];
-    let rows=[];
-    for(const code of codes.slice(0,3)){
-      const d=await api(code);
-      for(const v of d?.Vtelindicadores||[]){
-        const line=num(v.linea);
-        const dest=String(v.sentido||'');
-        const vals=[v.proximo,v.siguiente].map(Number).filter(Number.isFinite);
-        vals.forEach(min=>rows.push({line,dest,min}));
-      }
-    }
-    const seen=new Set();
-    rows=rows.filter(x=>{const k=x.line+'|'+x.dest+'|'+x.min;if(seen.has(k))return false;seen.add(k);return true})
-      .sort((a,b)=>a.min-b.min).slice(0,12);
-    $('eta').innerHTML=rows.length?rows.map(x=>'<div class="arr"><span class="v" style="background:'+col(x.line)+'">L'+x.line+'</span><span>'+x.dest.replace(/[<>]/g,'')+'</span><b>'+Math.max(0,Math.round(x.min))+' min</b></div>').join(''):'Sin tiempos disponibles';
+    const rows=(await rowsOf(s)).filter(r=>r.etas.length).sort((a,b)=>(+a.line)-(+b.line)||a.etas[0]-b.etas[0]);
+    $('eta').innerHTML=rows.length?rows.map(r=>'<div class="arr"><span class="v" style="background:'+col(r.line)+'">L'+r.line+'</span><span>'+r.dest.replace(/[<>]/g,'')+'</span><b>'+r.etas.map(fmin).join(' · ')+'</b></div>').join(''):'Sin tiempos disponibles';
   }catch(e){$('eta').innerHTML='No se pudo consultar los tiempos.'}
 }
 function sugg(raw){
