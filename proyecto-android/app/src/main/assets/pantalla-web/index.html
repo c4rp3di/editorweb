@@ -1,120 +1,607 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Metro Madrid — versión anterior</title>
-<link rel="stylesheet" href="recursos/leaflet.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Madrid Transporte en Tiempo Real</title>
+<link rel="stylesheet" href="recursos/leaflet.min.css">
 <style>
-html,body,#map{height:100%;margin:0}body{font-family:system-ui,sans-serif}
-.top{position:absolute;z-index:1000;top:12px;left:12px;right:12px;display:flex;gap:8px}
-.search{flex:1;background:#fff;border-radius:24px;padding:0 14px;height:44px;box-shadow:0 3px 14px #0003;display:flex}
-.search input{border:0;outline:0;flex:1;font-size:16px}
-.btn{border:0;background:#fff;border-radius:22px;width:44px;height:44px;box-shadow:0 3px 14px #0003;font-size:19px}
-.toast{position:absolute;z-index:1000;top:66px;left:12px;background:#fff;border-radius:10px;padding:8px 10px;box-shadow:0 3px 14px #0003;font-size:12px;color:#687385}
-.station{width:18px;height:18px;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 5px #0008}
-.label{background:#fff;border-radius:5px;padding:2px 4px;box-shadow:0 1px 4px #0004;font-size:11px;white-space:nowrap}
+:root{--bg:#fff;--fg:#1d2430;--mut:#6b7585;--line:#e3e7ee;--acc:#2563eb;--shadow:0 4px 16px rgba(0,0,0,.22)}
+@media(prefers-color-scheme:dark){:root{--bg:#1b212b;--fg:#e8ecf3;--mut:#9aa5b5;--line:#2c3544;--shadow:0 4px 16px rgba(0,0,0,.6)}}
+html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--fg)}
+#map{height:100%;width:100%}
+.fab{position:absolute;z-index:1000;border:0;background:var(--bg);color:var(--fg);box-shadow:var(--shadow);cursor:pointer}
+#menu-btn{position:static;flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center}
+#menu-btn svg{width:22px;height:22px;fill:currentColor}
+#locate-btn{top:66px;right:12px;width:44px;height:44px;border-radius:50%;display:grid;place-items:center}
+#locate-btn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2}
+#chips{position:absolute;z-index:1000;left:12px;bottom:calc(18px + env(safe-area-inset-bottom,0px));display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 24px)}
+.chip{display:flex;align-items:center;gap:6px;background:var(--bg);padding:7px 11px;border-radius:20px;box-shadow:var(--shadow);font-size:13px;cursor:pointer;user-select:none}
+.chip input{display:none}.chip i{width:10px;height:10px;border-radius:50%}
+.chip:has(input:not(:checked)){opacity:.45}
+#toast:empty{display:none}
+#toast{position:absolute;z-index:1000;left:12px;top:68px;max-width:calc(100% - 80px);background:var(--bg);padding:7px 11px;border-radius:10px;box-shadow:var(--shadow);font-size:12px;color:var(--mut)}
+/* Barra superior */
+#topbar{position:absolute;z-index:1100;top:calc(12px + env(safe-area-inset-top,0px));left:12px;right:12px;display:flex;gap:8px;align-items:center;pointer-events:none}
+#topbar>*{pointer-events:auto}
+#search{position:relative;flex:1;min-width:0;height:44px;background:var(--bg);border-radius:22px;box-shadow:var(--shadow);display:flex;align-items:center;gap:8px;padding:0 6px 0 14px}
+#search svg{width:18px;height:18px;flex:none;fill:none;stroke:var(--mut);stroke-width:2}
+#q{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--fg);font-size:16px;height:100%}
+#q-clear{flex:none;width:32px;height:32px;border:0;border-radius:50%;background:transparent;color:var(--mut);font-size:16px;cursor:pointer}
+#topbar-slot{display:flex;gap:8px;flex:none} /* hueco para futuros botones */
+#sugg{position:absolute;top:50px;left:0;right:0;background:var(--bg);border-radius:14px;box-shadow:var(--shadow);max-height:50vh;overflow:auto;display:none}
+.sg{display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line)}
+.sg:last-child{border-bottom:0}.sg:active{background:var(--line)}.sg.mut{color:var(--mut);cursor:default}
+.sg span:last-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Metro */
+.mst{width:14px;height:14px;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.55)}
+.mlb{background:var(--bg);color:var(--fg);border-radius:5px;padding:2px 4px;box-shadow:0 1px 4px rgba(0,0,0,.3);font-size:11px;white-space:nowrap}
+.mdot{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);flex:none}
+.sg small{color:var(--mut);margin-left:6px}
+/* Popup de parada */
+.sh{display:flex;flex-wrap:wrap;align-items:center;gap:4px;max-width:260px}
+.sh small{color:var(--mut)}
+.v.bus.s{min-width:18px;height:13px;font-size:9px;padding:0 3px;cursor:pointer}
+/* Modal */
+#modal{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px}
+#modal.open{display:flex}
+.card{background:var(--bg);border-radius:14px;box-shadow:var(--shadow);width:100%;max-width:380px;max-height:90%;overflow:auto;padding:18px}
+.card h3{margin:0 0 4px;font-size:17px}
+.card label{display:block;margin-top:12px;font-size:13px;font-weight:600}
+.card input,.card select{width:100%;box-sizing:border-box;margin-top:4px;padding:9px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--fg);font-size:14px}
+.card small{display:block;color:var(--mut);font-size:11.5px;margin-top:3px;line-height:1.35}
+.card small a{color:var(--acc)}
+.svc{border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-top:12px}
+.svc summary{cursor:pointer;font-weight:600;font-size:14px}
+.badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;background:var(--line);color:var(--mut)}
+.badge.ok{background:rgba(22,163,74,.15);color:#16a34a}
+.row{display:flex;gap:8px;margin-top:16px}
+.btn{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--fg);font-weight:600;cursor:pointer}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff}
+/* Marcadores */
+.v{display:flex;align-items:center;justify-content:center;color:#fff;font:700 10px/1 system-ui,sans-serif;border:1.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);white-space:nowrap}
+.v.bus{border-radius:5px;min-width:22px;height:15px;padding:0 3px}
+.v.tren{border-radius:50%;width:20px;height:20px;font-size:9px}
+.stop{width:16px;height:16px;border-radius:4px;background:#f59e0b;color:#fff;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.5);font:700 10px/13px system-ui;text-align:center}
+.arr{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:13px}.arr span:nth-child(2){flex:1}
+.me{width:16px;height:16px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 6px rgba(37,99,235,.25)}
 </style>
 </head>
 <body>
 <div id="map"></div>
-<div class="top">
-  <div class="search"><input id="q" placeholder="Buscar estación…"></div>
-  <button class="btn" id="loc">⌖</button>
+<div id="toast">Iniciando…</div>
+
+<button class="fab" id="locate-btn" aria-label="Mi ubicación"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg></button>
+
+<div id="topbar">
+  <div id="search">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Línea o estación (ej. N10, Sol)" autocomplete="off" autocapitalize="characters" enterkeyhint="search">
+    <button id="q-clear" hidden aria-label="Quitar línea">✕</button>
+    <div id="sugg"></div>
+  </div>
+  <div id="topbar-slot"></div>
+  <button class="fab" id="menu-btn" aria-label="Ajustes"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button>
 </div>
-<div class="toast" id="toast">Cargando Metro…</div>
-<script src="recursos/leaflet.js"></script>
+
+<div id="chips">
+  <label class="chip"><input type="checkbox" id="t-bus" checked><i style="background:#2563eb"></i>Autobuses</label>
+  <label class="chip"><input type="checkbox" id="t-metro" checked><i style="background:#38A3DC"></i>Metro</label>
+  <label class="chip"><input type="checkbox" id="t-tren" checked><i style="background:#dc2626"></i>Cercanías</label>
+  <label class="chip"><input type="checkbox" id="t-stop" checked><i style="background:#f59e0b"></i>Paradas</label>
+</div>
+
+<div id="modal"><div class="card">
+  <h3>Ajustes</h3>
+  <small>Las claves se guardan solo en este navegador.</small>
+
+
+  <details class="svc" open>
+    <summary>🚌 Autobuses EMT <span class="badge" id="b-emt"></span></summary>
+    <small>Gratis. 1) Crea una cuenta en <a href="https://mobilitylabs.emtmadrid.es/" target="_blank" rel="noopener">Mobility Labs de EMT</a> y verifica tu email. 2) Escribe aquí ese mismo email y contraseña. Documentación: <a href="https://apidocs.emtmadrid.es/" target="_blank" rel="noopener">apidocs.emtmadrid.es</a>.</small>
+    <label>Email <input id="emt-mail" type="email" placeholder="tu@email.com" autocomplete="off"></label>
+    <label>Contraseña <input id="emt-pass" type="password" placeholder="Contraseña" autocomplete="off"></label>
+    <div class="row" style="margin-top:10px"><button class="btn" id="emt-test" type="button">Probar conexión</button></div>
+    <small id="emt-res"></small>
+  </details>
+
+  <details class="svc">
+    <summary>🚆 Cercanías Renfe <span class="badge" id="b-renfe"></span></summary>
+    <small>Sin registro. Renfe publica las posiciones de sus trenes como datos abiertos en <a href="https://data.renfe.com/" target="_blank" rel="noopener">data.renfe.com</a>. Déjalo vacío para usar la dirección por defecto.</small>
+    <label>URL de posiciones (GTFS-RT JSON) <input id="renfe-url" placeholder="https://gtfs.renfe.com/vehicle_positions.json"></label>
+    <small id="renfe-res"></small>
+  </details>
+
+  <details class="svc">
+    <summary>🚇 Metro de Madrid <span class="badge" id="b-metro"></span></summary>
+    <small>No necesita clave. Las líneas y estaciones vienen de los <a href="https://datos.crtm.es/" target="_blank" rel="noopener">datos abiertos del Consorcio de Transportes</a>. Los tiempos de llegada los da el servicio que usa la app de Metro de Madrid, que no es una API pública documentada: puede cambiar o bloquear el acceso desde el navegador. No existe posición de trenes en tiempo real.</small>
+    <small id="metro-res"></small>
+  </details>
+
+  <details class="svc">
+    <summary>🗺️ Mapa base <span class="badge" id="b-base"></span></summary>
+    <small>OpenStreetMap funciona sin clave. Desde finales de agosto de 2026 <b>CARTO exige una clave gratuita</b> (sin ella marca cada tesela con "API KEY REQUIRED"). Se pide en <a href="https://carto.com/basemaps/apikey/" target="_blank" rel="noopener">carto.com/basemaps/apikey</a>: no hace falta cuenta y te la envían por email.</small>
+    <label>Estilo
+      <select id="basemap">
+        <option value="osm">OpenStreetMap (sin clave)</option>
+        <option value="carto-voyager">CARTO Voyager (clave)</option>
+        <option value="carto-light">CARTO claro (clave)</option>
+        <option value="carto-dark">CARTO oscuro (clave)</option>
+        <option value="custom">Personalizado (URL propia)</option>
+      </select>
+    </label>
+    <label>Clave de CARTO <input id="cartokey" placeholder="Tu clave de CARTO" autocomplete="off"></label>
+    <label>URL de teselas personalizada <input id="tileurl" placeholder="https://.../{z}/{x}/{y}.png"></label>
+    <small>Sin clave, los estilos de CARTO se sustituyen por OpenStreetMap. Revisa la <a href="https://operations.osmfoundation.org/policies/tiles/" target="_blank" rel="noopener">política de teselas de OSM</a> para uso intensivo. Mantén visibles las atribuciones.</small>
+  </details>
+
+  <label>Actualizar cada (segundos, mín. 15) <input id="every" type="number" min="15" value="20"></label>
+
+  <div class="row">
+    <button class="btn" id="close">Cerrar</button>
+    <button class="btn p" id="save">Guardar</button>
+  </div>
+</div></div>
+
+<script src="recursos/leaflet.min.js"></script>
 <script>
-const map=L.map('map').setView([40.4168,-3.7038],12);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'© OpenStreetMap'}).addTo(map);
-const lineLayer=L.layerGroup().addTo(map), stationLayer=L.layerGroup().addTo(map), labelLayer=L.layerGroup();
-const stations=[];
-const COLORS={'1':'#0055A4','2':'#E30613','3':'#FFD100','4':'#8B5A2B','5':'#2F8A2F','6':'#777','7':'#F28C28','8':'#F28AA6','9':'#7B3F98','10':'#005CA9','11':'#6B8E23','12':'#6B5B2B'};
-const lineColor=l=>COLORS[String(l)]||'#555';
-const norm=s=>(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase().trim();
-const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const $=id=>document.getElementById(id);
+const toast=t=>$('toast').textContent=t;
+const store={get(k){try{return localStorage.getItem(k)||''}catch(e){return ''}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 
-async function loadLines(){
- const u='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/4/query?where=1%3D1&outFields=NUMEROLINEAUSUARIO&returnGeometry=true&outSR=4326&f=geojson';
- const j=await fetch(u).then(r=>r.json()), grouped={};
- for(const f of j.features||[]){
-   const l=String(f.properties?.NUMEROLINEAUSUARIO||'').match(/\d+/)?.[0],g=f.geometry;if(!l||!g)continue;
-   const paths=g.type==='MultiLineString'?g.coordinates:[g.coordinates];
-   (grouped[l]??=[]).push(...paths);
- }
- for(const l in grouped) for(const p of grouped[l]){
-   if(p.length>1)L.polyline(p.map(c=>[c[1],c[0]]),{color:lineColor(l),weight:5,opacity:.95,interactive:false}).addTo(lineLayer);
- }
- return Object.keys(grouped).length;
+const map=L.map('map',{zoomControl:false}).setView([40.4200,-3.7000],14);
+L.control.zoom({position:'bottomright'}).addTo(map);
+const CARTO='https://{s}.basemaps.cartocdn.com/';
+const BASES={
+  'osm':['https://tile.openstreetmap.org/{z}/{x}/{y}.png','© OpenStreetMap',false],
+  'carto-voyager':[CARTO+'rastertiles/voyager/{z}/{x}/{y}.png','© OpenStreetMap · © CARTO',true],
+  'carto-light':[CARTO+'light_all/{z}/{x}/{y}.png','© OpenStreetMap · © CARTO',true],
+  'carto-dark':[CARTO+'dark_all/{z}/{x}/{y}.png','© OpenStreetMap · © CARTO',true]
+};
+let baseLayer;
+function setBase(){
+  if(baseLayer)map.removeLayer(baseLayer);
+  const k=store.get('basemap')||'osm',custom=store.get('tileurl'),key=store.get('cartokey');
+  let url,attr;
+  if(k==='custom'&&custom){url=custom;attr='Mapa personalizado'}
+  else{
+    let b=BASES[k]||BASES.osm;
+    if(b[2]&&!key)b=BASES.osm; // CARTO sin clave = marca de agua, usamos OSM
+    url=b[0]+(b[2]?'?key='+encodeURIComponent(key):'');attr=b[1];
+  }
+  baseLayer=L.tileLayer(url,{attribution:attr,maxZoom:19,subdomains:'abcd'}).addTo(map);
+  baseLayer.bringToBack();
+}
+setBase();
+
+const layers={bus:L.layerGroup().addTo(map),tren:L.layerGroup().addTo(map),stop:L.layerGroup().addTo(map),metro:L.layerGroup().addTo(map)};
+['bus','tren','stop','metro'].forEach(k=>$('t-'+k).onchange=e=>e.target.checked?layers[k].addTo(map):map.removeLayer(layers[k]));
+
+const icon=(cls,txt,col)=>L.divIcon({className:'',html:`<div class="v ${cls}" style="background:${col}">${txt}</div>`,iconSize:null,iconAnchor:cls==='bus'?[11,8]:[10,10]});
+
+/* ---------- Ruta resaltada al pulsar un vehículo ---------- */
+const lineLayer=L.layerGroup().addTo(map),lineStopLayer=L.layerGroup().addTo(map);
+const routeLayer=L.layerGroup().addTo(map),routeStopLayer=L.layerGroup().addTo(map);
+let sel=null,routeStopOpen=false;
+function nearest(pts,ll){
+  if(!Array.isArray(ll))ll=[ll.lat,ll.lng]; // acepta L.LatLng
+  const k=Math.cos(ll[0]*Math.PI/180);let best={d:Infinity,i:0,p:pts[0]};
+  for(let i=0;i<pts.length-1;i++){
+    const a=pts[i],b=pts[i+1],ax=a[1]*k,ay=a[0],dx=b[1]*k-ax,dy=b[0]-ay,q=dx*dx+dy*dy;
+    let t=q?(((ll[1]*k-ax)*dx+(ll[0]-ay)*dy)/q):0;t=Math.max(0,Math.min(1,t));
+    const d=(ll[1]*k-(ax+t*dx))**2+(ll[0]-(ay+t*dy))**2;
+    if(d<best.d)best={d,i,p:[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]};
+  }
+  return best;
+}
+function updateRoute(){ // pts van ordenados desde cabecera: punteado = recorrido, continuo = por recorrer
+  routeLayer.clearLayers();
+  if(!sel)return;
+  const pts=sel.pts();if(!pts||pts.length<2)return;
+  const n=nearest(pts,sel.ll()),done=pts.slice(0,n.i+1).concat([n.p]),todo=[n.p].concat(pts.slice(n.i+1));
+  L.polyline(todo,{color:'#fff',weight:9,opacity:.85,interactive:false}).addTo(routeLayer);
+  L.polyline(todo,{color:sel.color,weight:5,opacity:.95,interactive:false}).addTo(routeLayer);
+  L.polyline(done,{color:sel.color,weight:4,opacity:.95,dashArray:'1 9',lineCap:'round',interactive:false}).addTo(routeLayer);
+  const dot=(ll,t)=>L.circleMarker(ll,{radius:6,color:'#fff',weight:2,fillColor:sel.color,fillOpacity:1,bubblingMouseEvents:false}).bindTooltip(t).addTo(routeLayer);
+  dot(pts[0],'Cabecera'+(sel.head?': '+sel.head:''));dot(pts[pts.length-1],'Final');
+}
+const clearRoute=()=>{sel=null;routeLayer.clearLayers();routeStopLayer.clearLayers()};
+// Al cerrarse el popup del vehículo se quita su ruta, salvo que se haya cerrado porque
+// se pulsó una parada de esa ruta (Leaflet cierra el popup en 'preclick', antes que el 'click' de la parada).
+// Se comprueba un instante después, y solo si la ruta sigue siendo de ese vehículo.
+const closeRoute=marker=>()=>setTimeout(()=>{if(sel&&sel.owner===marker&&!routeStopOpen)clearRoute()},0);
+map.on('click',clearRoute); // tocar el mapa vacío quita la ruta
+function showRouteStops(list,color){
+  routeStopLayer.clearLayers();
+  (list||[]).forEach(s=>stopMarker(s,color,true).addTo(routeStopLayer));
+}
+const routeCache=new Map();
+async function emtRoute(label){
+  if(routeCache.has(label))return routeCache.get(label);
+  const r=await fetch(`${EMT}/v1/transport/busemtmad/lines/${encodeURIComponent(label)}/route/`,{headers:{accessToken:await emtToken()}});
+  if(!r.ok){tok.v='';throw new Error('HTTP '+r.status)}
+  const j=await r.json(),d=Array.isArray(j.data)?j.data[0]:j.data;
+  if(!d||!d.itinerary)throw new Error(j.description||'sin itinerario');
+  const flat=fc=>{const out=[];((fc&&fc.features)||[]).forEach(f=>{const g=f.geometry;if(!g)return;
+    (g.type==='MultiLineString'?g.coordinates:[g.coordinates]).forEach(part=>part.forEach(c=>{const ll=[c[1],c[0]],l=out[out.length-1];if(!l||l[0]!==ll[0]||l[1]!==ll[1])out.push(ll)}))});return out};
+  const stops=fc=>((fc&&fc.features)||[]).filter(f=>f.geometry&&f.geometry.coordinates).map(f=>({id:String(f.properties.stopNum),name:f.properties.stopName,lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0]}));
+  const st=d.stops||{};
+  const o={nameA:d.nameSectionA,nameB:d.nameSectionB,toA:flat(d.itinerary.toA),toB:flat(d.itinerary.toB),stopsA:stops(st.toA),stopsB:stops(st.toB)};
+  routeCache.set(label,o);return o;
+}
+const nd=x=>String(x||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+async function selectReal(id){
+  const o=busLive.get(id);if(!o)return;
+  clearRoute();
+  try{
+    const r=await emtRoute(o.line),d=nd(o.dest),A=nd(r.nameA),B=nd(r.nameB),ll=o.m.getLatLng();
+    let dir=null;
+    if(d&&A&&(d.includes(A)||A.includes(d)))dir='toA';else if(d&&B&&(d.includes(B)||B.includes(d)))dir='toB';
+    if(!dir)dir=(r.toA.length>1?nearest(r.toA,ll).d:Infinity)<=(r.toB.length>1?nearest(r.toB,ll).d:Infinity)?'toA':'toB';
+    const pts=r[dir];if(pts.length<2)throw new Error('ruta vacía');
+    sel={owner:o.m,pts:()=>pts,ll:()=>o.m.getLatLng(),color:o.color,head:dir==='toA'?r.nameB:r.nameA};
+    updateRoute();
+    showRouteStops(r[dir==='toA'?'stopsA':'stopsB'],o.color);
+  }catch(e){setStatus('bus','Ruta: '+e.message)}
 }
 
-async function loadStations(){
- const u='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/0/query?where=1%3D1&outFields=OBJECTID,CODIGOESTACION,DENOMINACION,CODIGOEMPRESA,LINEAS&returnGeometry=true&outSR=4326&f=geojson';
- const j=await fetch(u).then(r=>r.json()), byId=new Map();
- for(const f of j.features||[]){
-   const p=f.properties||{}, c=f.geometry?.coordinates||[], name=String(p.DENOMINACION||'').trim();
-   if(c.length<2||!name)continue;
-   const id=String(p.CODIGOESTACION||p.OBJECTID||name);
-   let s=byId.get(id);
-   if(!s)s={id,name,lat:+c[1],lng:+c[0],codes:[],lines:[]};
-   const code=String(p.CODIGOEMPRESA||'').trim();
-   if(code&&!s.codes.includes(code))s.codes.push(code);
-   for(const l of String(p.LINEAS||'').split(/[,;\s]+/).map(x=>(x.match(/\d+/)||[])[0]).filter(Boolean))
-     if(!s.lines.includes(l))s.lines.push(l);
-   byId.set(id,s);
- }
- stations.push(...byId.values());
- renderStations();
- return stations.length;
+/* ---------- REAL ---------- */
+let timer,realMarkers=new Map();
+async function loadRenfe(){
+  const url=store.get('renfe')||'https://gtfs.renfe.com/vehicle_positions.json';
+  const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);
+  const data=await r.json(),seen=new Set();
+  (data.entity||[]).forEach(e=>{
+    const v=e.vehicle;if(!v||!v.position)return;
+    const {latitude:la,longitude:lo}=v.position;
+    if(la<40.2||la>40.7||lo<-4.1||lo>-3.3)return; // solo zona de Madrid
+    const id=e.id,label=(v.trip&&(v.trip.routeId||'').replace(/^.*?([A-Z]\d+\w*)$/,'$1').slice(0,4))||'C';
+    seen.add(id);
+    let m=realMarkers.get(id);
+    if(m)m.setLatLng([la,lo]);
+    else{m=L.marker([la,lo],{icon:icon('tren',label,'#dc2626')}).bindPopup(`Tren ${label}`).addTo(layers.tren);realMarkers.set(id,m)}
+  });
+  realMarkers.forEach((m,id)=>{if(!seen.has(id)){layers.tren.removeLayer(m);realMarkers.delete(id)}});
+  return seen.size;
 }
-function renderStations(){
- for(const s of stations){
-   const bg=s.lines.length>1?'conic-gradient('+s.lines.map((l,i)=>lineColor(l)+' '+(i*360/s.lines.length)+'deg '+((i+1)*360/s.lines.length)+'deg').join(',')+')':lineColor(s.lines[0]);
-   const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:`<div class="station" style="background:${bg}"></div>`,iconSize:[22,22],iconAnchor:[11,11]})});
-   m.on('click',()=>openStation(s));m.addTo(stationLayer);
-   const lab=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:`<div class="label">${esc(s.name)}</div>`,iconSize:null,iconAnchor:[0,-12]})});
-   lab.addTo(labelLayer);
- }
- map.on('zoomend',()=>{if(map.getZoom()>=16){labelLayer.addTo(map)}else{map.removeLayer(labelLayer)}});
- if(map.getZoom()>=16)labelLayer.addTo(map);
+let renfe={ok:null,msg:''};
+async function loadReal(){
+  try{renfe={ok:true,msg:`✅ ${await loadRenfe()} trenes en la zona de Madrid.`}}
+  catch(e){renfe={ok:false,msg:'❌ No se pudo leer ('+e.message+'). Lo más probable es que el servidor de Renfe bloquee la petición desde el navegador (CORS); haría falta un proxy.'}}
+  badges();
 }
-let activeToken=0;
-async function openStation(s){
- const token=++activeToken;
- const popup=L.popup({maxWidth:320,minWidth:250}).setLatLng([s.lat,s.lng]).setContent(`<b>${esc(s.name)}</b><br><span style="color:#687385">Consultando tiempos…</span>`).openOn(map);
- try{
-   const codes=s.codes||[];
-   let rows=[];
-   for(const code of codes.slice(0,3)){
-     const r=await fetch('https://serviciosapp.metromadrid.es/servicios/rest/teleindicadores/'+encodeURIComponent(Number(code)));
-     if(!r.ok)continue;
-     const d=await r.json();
-     for(const v of d.Vtelindicadores||[]){
-       const line=(String(v.linea||'').match(/\d+/)||[])[0];
-       const dest=String(v.sentido||'');
-       const vals=[v.proximo,v.siguiente].map(Number).filter(Number.isFinite);
-       vals.forEach(min=>rows.push({line,dest,min}));
-     }
-   }
-   if(token!==activeToken)return;
-   const seen=new Set();
-   rows=rows.filter(x=>{const k=x.line+'|'+x.dest+'|'+x.min;if(seen.has(k))return false;seen.add(k);return true})
-            .sort((a,b)=>a.min-b.min).slice(0,12);
-   const body=rows.length?rows.map(x=>`<div style="margin:6px 0"><b style="color:${lineColor(x.line)}">L${esc(x.line)}</b> · ${esc(x.dest||'Destino no indicado')} — <b>${Math.round(x.min)} min</b></div>`).join(''):'<span style="color:#687385">Sin tiempos disponibles ahora.</span>';
-   popup.setContent(`<b>${esc(s.name)}</b><div style="margin-top:8px">${body}</div>`);
- }catch(e){if(token===activeToken)popup.setContent(`<b>${esc(s.name)}</b><br><span style="color:#b00">No se pudo consultar los tiempos.</span>`)}
+
+/* ---------- Paradas y llegadas EMT ---------- */
+const EMT='https://openapi.emtmadrid.es';
+let tok={v:'',t:0};
+async function emtToken(){
+  if(tok.v&&Date.now()-tok.t<3600e3)return tok.v;
+  const r=await fetch(EMT+'/v1/mobilitylabs/user/login/',{headers:{email:store.get('emtMail'),password:store.get('emtPass')}});
+  const j=await r.json(),t=j.data&&j.data[0]&&j.data[0].accessToken;
+  if(!t)throw new Error(j.description||'login fallido');
+  tok={v:t,t:Date.now()};return t;
 }
-document.getElementById('q').addEventListener('input',e=>{
- const q=norm(e.target.value);if(!q)return;
- const s=stations.find(x=>norm(x.name).includes(q));
- if(s){map.setView([s.lat,s.lng],17);openStation(s)}
+async function emtStopsAround(c){
+  const r=await fetch(`${EMT}/v2/transport/busemtmad/stops/arroundxy/${c.lng}/${c.lat}/400/`,{headers:{accessToken:await emtToken()}});
+  return (await r.json()).data||[];
+}
+const natCmp=(a,b)=>String(a).localeCompare(String(b),'es',{numeric:true});
+const esc=x=>String(x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function emtStopData(id,line){
+  const r=await fetch(`${EMT}/v2/transport/busemtmad/stops/${id}/arrives/${line?encodeURIComponent(line)+'/':''}`,{method:'POST',
+    headers:{accessToken:await emtToken(),'Content-Type':'application/json'},
+    body:JSON.stringify({cultureInfo:'ES',Text_StopRequired_YN:'Y',Text_EstimationsRequired_YN:'Y',Text_IncidencesRequired_YN:'N'})});
+  if(!r.ok){tok.v='';throw new Error('HTTP '+r.status)}
+  const j=await r.json();
+  if(j.code&&j.code!=='00'&&j.code!=='01'){tok.v='';throw new Error(j.description||('código '+j.code))}
+  const d=(j.data&&j.data[0])||{},arrive=d.Arrive||[],info=(d.StopInfo&&d.StopInfo[0])||{};
+  const lines=[...new Set([...(info.lines||[]).map(x=>String(x.label)),...arrive.map(x=>String(x.line))])].filter(Boolean).sort(natCmp);
+  return {arrive,lines};
+}
+const emtArrivalsRaw=async(id,line)=>(await emtStopData(id,line)).arrive;
+const mapArr=arr=>arr.map(x=>({line:x.line,dest:x.destination,s:Number(x.estimateArrive)})).sort((a,b)=>a.s-b.s);
+const fmt=s=>s>=999999||s<0?'+45 min':s<60?'Llegando':Math.round(s/60)+' min';
+const lineBadges=ls=>(ls||[]).map(l=>`<span class="v bus s" data-line="${esc(l)}" style="background:${hue(l)}">${esc(l)}</span>`).join('');
+const stopHtml=(n,id,a,lines)=>`<div class="sh"><b>${esc(n)}</b><small>#${esc(id)}</small>${lineBadges(lines)}</div>`+
+  (a===null?'<div class="arr">Cargando…</div>':a.length?a.slice(0,6).map(x=>`<div class="arr"><span class="v bus" style="background:${hue(x.line)}">${esc(x.line)}</span><span>${esc(x.dest||'')}</span><b>${fmt(x.s)}</b></div>`).join(''):'<div class="arr">Sin estimaciones ahora mismo</div>');
+const stopMarks=new Map();
+function stopMarker(s,color,inRoute){
+  const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:`<div class="stop"${color?` style="background:${color}"`:''}>P</div>`,iconSize:[16,16],iconAnchor:[8,8]}),zIndexOffset:inRoute?300:0});
+  let lines=s.lines||[];
+  m.bindPopup(stopHtml(s.name,s.id,null,lines),{minWidth:210});let iv;
+  const refresh=async()=>{
+    try{const d=await emtStopData(s.id);if(d.lines.length)lines=d.lines;m.getPopup().setContent(stopHtml(s.name,s.id,mapArr(d.arrive),lines))}
+    catch(e){m.getPopup().setContent(stopHtml(s.name,s.id,[],lines).replace('Sin estimaciones ahora mismo','Error: '+esc(e.message)))}
+  };
+  m.on('popupopen',()=>{if(inRoute)routeStopOpen=true;refresh();iv=setInterval(refresh,15000)});
+  m.on('popupclose',()=>{if(inRoute)routeStopOpen=false;clearInterval(iv)});
+  return m;
+}
+function addStop(s){
+  if(stopMarks.has(s.id))return;
+  const m=stopMarker(s).addTo(layers.stop);
+  stopMarks.set(s.id,{m,lat:s.lat,lng:s.lng});
+}
+async function loadStops(){
+  if(lineMode||!store.get('emtMail')||map.getZoom()<15)return;
+  try{
+    const list=await emtStopsAround(map.getCenter());if(lineMode)return;
+    list.forEach(s=>{const c=s.geometry&&s.geometry.coordinates;
+      if(c)addStop({id:String(s.stopId),name:s.stopName||s.name,lat:c[1],lng:c[0],lines:[...new Set((s.lines||[]).map(x=>String(x.label)))].sort(natCmp)})});
+  }
+  catch(e){setStatus('bus','EMT: '+e.message+' (¿credenciales o CORS?)');return}
+  pollBuses();
+}
+map.on('moveend',loadStops);
+
+/* ---------- Autobuses reales (posición GPS que devuelve /arrives/) ---------- */
+const st={},busLive=new Map();let lastPoll=0;
+const setStatus=(k,v)=>{st[k]=v;toast(Object.values(st).join(' · '))};
+const hue=l=>{let h=0;for(const c of String(l))h=(h*31+c.charCodeAt(0))%360;return `hsl(${h} 65% 42%)`};
+function upsertBuses(list){
+  const now=Date.now();
+  list.forEach(a=>{
+    const g=a.geometry&&a.geometry.coordinates;if(!g||!a.bus)return;
+    const ll=[g[1],g[0]],id=String(a.bus);
+    let o=busLive.get(id);
+    const pop=`Bus línea <b>${esc(a.line)}</b><br>→ ${esc(a.destination||'')}<br><small>Vehículo ${esc(a.bus)}</small><br><small>Punteado: recorrido · Continuo: por recorrer</small>`;
+    if(o){o.m.setLatLng(ll);o.m.setPopupContent(pop)}
+    else{
+      o={m:L.marker(ll,{icon:icon('bus',a.line,hue(a.line)),zIndexOffset:500}).bindPopup(pop).addTo(layers.bus)};busLive.set(id,o);
+      o.m.on('popupopen',()=>selectReal(id));o.m.on('popupclose',closeRoute(o.m));
+    }
+    o.line=a.line;o.dest=a.destination;o.color=hue(a.line);o.t=now;
+  });
+}
+function sweepBuses(maxAge){const now=Date.now();busLive.forEach((o,id)=>{if(now-o.t>maxAge){layers.bus.removeLayer(o.m);busLive.delete(id)}})}
+
+async function pollBuses(){
+  if(lineMode||!store.get('emtMail')||map.getZoom()<14||document.hidden)return;
+  if(Date.now()-lastPoll<8000)return;lastPoll=Date.now();
+  const c=map.getCenter();
+  const near=[...stopMarks.entries()].map(([id,o])=>({id,d:c.distanceTo([o.lat,o.lng])})).sort((a,b)=>a.d-b.d).slice(0,5);
+  if(!near.length)return;
+  try{
+    const res=await Promise.all(near.map(n=>emtArrivalsRaw(n.id)));
+    if(lineMode)return;
+    upsertBuses(res.flat());sweepBuses(45000);updateRoute();
+    setStatus('bus',`${busLive.size} autobuses EMT`);
+  }catch(e){setStatus('bus','EMT: '+e.message)}
+}
+
+/* ---------- Búsqueda de línea ---------- */
+// Un autobús aparece en las llegadas de las paradas que tiene por delante, así que se consulta una muestra repartida de paradas de la línea.
+let LINES_DB=null;
+async function emtLinesList(){
+  if(LINES_DB)return LINES_DB;
+  const d=new Date(),ymd=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  try{const c=JSON.parse(store.get('linesdb')||'null');if(c&&c.d===ymd&&c.l&&c.l.length){LINES_DB=c.l;return LINES_DB}}catch(e){}
+  const r=await fetch(`${EMT}/v2/transport/busemtmad/lines/info/${ymd}/`,{headers:{accessToken:await emtToken()}});
+  if(!r.ok){tok.v='';throw new Error('HTTP '+r.status)}
+  const j=await r.json(),seen=new Map();
+  (j.data||[]).forEach(x=>{if(x.label!=null&&!seen.has(String(x.label)))seen.set(String(x.label),{label:String(x.label),nameA:x.nameA||'',nameB:x.nameB||''})});
+  LINES_DB=[...seen.values()].sort((a,b)=>natCmp(a.label,b.label));
+  if(!LINES_DB.length)throw new Error(j.description||'lista de líneas vacía');
+  store.set('linesdb',JSON.stringify({d:ymd,l:LINES_DB}));return LINES_DB;
+}
+/* ---------- Metro: líneas, estaciones y tiempos ---------- */
+const MCOL={'1':'#38A3DC','2':'#E30613','3':'#FFD100','4':'#8B5A2B','5':'#2F8A2F','6':'#777','7':'#F28C28','8':'#F28AA6','9':'#7B3F98','10':'#005CA9','11':'#6B8E23','12':'#A5A500'};
+const mcol=l=>MCOL[String(l)]||'#555';
+const metroLabels=L.layerGroup();
+let metro={ok:null,msg:'Sin cargar'},metroStations=[],metroLoading=false;const metroById=new Map();
+function syncMetroLabels(){if($('t-metro').checked&&map.getZoom()>=16)metroLabels.addTo(map);else map.removeLayer(metroLabels)}
+map.on('zoomend',syncMetroLabels);$('t-metro').addEventListener('change',syncMetroLabels);
+const mHead=s=>`<div class="sh"><b>${esc(s.name)}</b>${s.lines.map(l=>`<span class="v bus s" style="background:${mcol(l)}">L${esc(l)}</span>`).join('')}</div>`;
+const mRows=rows=>rows===null?'<div class="arr">Consultando tiempos…</div>':rows.length?rows.map(x=>`<div class="arr"><span class="v bus" style="background:${mcol(x.line)}">L${esc(x.line)}</span><span>${esc(x.dest||'Destino no indicado')}</span><b>${x.min<1?'Llegando':Math.round(x.min)+' min'}</b></div>`).join(''):'<div class="arr">Sin tiempos disponibles ahora</div>';
+async function metroTimes(s){
+  const codes=s.codes.slice(0,3);if(!codes.length)return [];
+  const res=await Promise.all(codes.map(c=>fetch('https://serviciosapp.metromadrid.es/servicios/rest/teleindicadores/'+encodeURIComponent(Number(c))).then(r=>r.ok?r.json():null).catch(()=>null)));
+  if(res.every(x=>x===null))throw new Error('sin respuesta del servicio (¿CORS?)');
+  let rows=[];
+  res.forEach(d=>((d&&d.Vtelindicadores)||[]).forEach(v=>{
+    const line=(String(v.linea||'').match(/\d+/)||[])[0];
+    [v.proximo,v.siguiente].map(Number).filter(Number.isFinite).forEach(min=>rows.push({line,dest:String(v.sentido||''),min}));
+  }));
+  const seen=new Set();
+  return rows.filter(x=>{const k=x.line+'|'+x.dest+'|'+x.min;if(seen.has(k))return false;seen.add(k);return true}).sort((a,b)=>a.min-b.min).slice(0,12);
+}
+function metroMarker(s){
+  const bg=s.lines.length>1?'conic-gradient('+s.lines.map((l,i)=>mcol(l)+' '+(i*360/s.lines.length)+'deg '+((i+1)*360/s.lines.length)+'deg').join(',')+')':mcol(s.lines[0]);
+  s.bg=bg;
+  const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:`<div class="mst" style="background:${bg}"></div>`,iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:-200});
+  m.bindPopup(mHead(s)+mRows(null),{minWidth:230});let iv;
+  const refresh=async()=>{try{m.getPopup().setContent(mHead(s)+mRows(await metroTimes(s)))}catch(e){m.getPopup().setContent(mHead(s)+`<div class="arr">No se pudieron consultar los tiempos: ${esc(e.message)}</div>`)}};
+  m.on('popupopen',()=>{refresh();iv=setInterval(refresh,15000)});
+  m.on('popupclose',()=>clearInterval(iv));
+  return m;
+}
+async function loadMetro(){
+  if(metroLoading||metroStations.length)return;
+  metroLoading=true;metro={ok:null,msg:'Cargando…'};badges();
+  try{
+    const base='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/';
+    const url=(n,f)=>`${base}${n}/query?where=1%3D1&outFields=${f}&returnGeometry=true&outSR=4326&f=geojson`;
+    const [jl,js]=await Promise.all([fetch(url(4,'NUMEROLINEAUSUARIO')).then(r=>r.json()),fetch(url(0,'OBJECTID,CODIGOESTACION,DENOMINACION,CODIGOEMPRESA,LINEAS')).then(r=>r.json())]);
+    const grouped={};
+    (jl.features||[]).forEach(f=>{
+      const l=(String((f.properties||{}).NUMEROLINEAUSUARIO||'').match(/\d+/)||[])[0],g=f.geometry;if(!l||!g)return;
+      (grouped[l]=grouped[l]||[]).push(...(g.type==='MultiLineString'?g.coordinates:[g.coordinates]));
+    });
+    Object.keys(grouped).forEach(l=>grouped[l].forEach(pts=>{if(pts.length>1)L.polyline(pts.map(c=>[c[1],c[0]]),{color:mcol(l),weight:4,opacity:.85,interactive:false}).addTo(layers.metro)}));
+    const byId=new Map();
+    (js.features||[]).forEach(f=>{
+      const p=f.properties||{},c=(f.geometry&&f.geometry.coordinates)||[],name=String(p.DENOMINACION||'').trim();
+      if(c.length<2||!name)return;
+      const id=String(p.CODIGOESTACION||p.OBJECTID||name);
+      let s=byId.get(id);if(!s)s={id,name,lat:+c[1],lng:+c[0],codes:[],lines:[]};
+      const code=String(p.CODIGOEMPRESA||'').trim();if(code&&!s.codes.includes(code))s.codes.push(code);
+      String(p.LINEAS||'').split(/[,;\s]+/).map(x=>(x.match(/\d+/)||[])[0]).filter(Boolean).forEach(l=>{if(!s.lines.includes(l))s.lines.push(l)});
+      byId.set(id,s);
+    });
+    metroStations=[...byId.values()];
+    metroStations.forEach(s=>{
+      metroById.set(s.id,s);s.m=metroMarker(s).addTo(layers.metro);
+      L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:`<div class="mlb">${esc(s.name)}</div>`,iconSize:null,iconAnchor:[0,-10]}),interactive:false}).addTo(metroLabels);
+    });
+    syncMetroLabels();
+    metro={ok:true,msg:`✅ ${metroStations.length} estaciones · ${Object.keys(grouped).length} líneas de Metro`};
+  }catch(e){metro={ok:false,msg:'❌ No se pudo cargar el Metro ('+e.message+'). Se reintentará al guardar los ajustes.'}}
+  metroLoading=false;badges();
+}
+function goStation(id){
+  const s=metroById.get(String(id));if(!s)return;
+  hideSugg();$('q').value=s.name;$('q').blur();$('q-clear').hidden=false;
+  if(!map.hasLayer(layers.metro)){$('t-metro').checked=true;layers.metro.addTo(map);syncMetroLabels()}
+  map.setView([s.lat,s.lng],Math.max(map.getZoom(),16));
+  setTimeout(()=>s.m.openPopup(),150);
+}
+const pick=h=>h.t==='bus'?showLine(h.label):goStation(h.s.id);
+
+/* ---------- Buscador: líneas de bus y estaciones de metro ---------- */
+let lineMode=null,sq=0,matches=[];
+const showSugg=h=>{$('sugg').innerHTML=h;$('sugg').style.display=h?'block':'none'};
+const hideSugg=()=>showSugg('');
+const hasEmt=()=>!!(store.get('emtMail')&&store.get('emtPass'));
+const busRow=x=>`<div class="sg" data-line="${esc(x.label)}"><span class="v bus" style="background:${hue(x.label)}">${esc(x.label)}</span><span>${esc(x.nameA)} ⇄ ${esc(x.nameB)}</span></div>`;
+const metRow=s=>`<div class="sg" data-station="${esc(s.id)}"><span class="mdot" style="background:${s.bg||mcol(s.lines[0])}"></span><span>${esc(s.name)}<small>${s.lines.map(l=>'L'+esc(l)).join(' · ')}</small></span></div>`;
+async function suggest(){
+  const raw=nd($('q').value),q=raw.replace(/\s+/g,''),my=++sq;
+  if(!q){matches=[];hideSugg();return}
+  let byLabel=[],byName=[],err='';
+  if(hasEmt()){
+    try{
+      const list=await emtLinesList();
+      byLabel=list.filter(x=>nd(x.label).startsWith(q)).slice(0,5);
+      byName=raw.length>=3?list.filter(x=>!nd(x.label).startsWith(q)&&nd(x.nameA+' '+x.nameB).includes(raw)).slice(0,3):[];
+    }catch(e){err=e.message}
+    if(my!==sq)return;
+  }
+  const sts=raw.length>=2?metroStations.filter(x=>nd(x.name).includes(raw)).sort((a,b)=>(nd(b.name).startsWith(raw)-nd(a.name).startsWith(raw))||natCmp(a.name,b.name)).slice(0,5):[];
+  matches=[...byLabel.map(x=>({t:'bus',...x})),...sts.map(s=>({t:'metro',s})),...byName.map(x=>({t:'bus',...x}))];
+  let h=matches.map(x=>x.t==='bus'?busRow(x):metRow(x.s)).join('');
+  if(!h)h=`<div class="sg mut">${!hasEmt()?'Sin resultados. Para buscar líneas de bus añade tu cuenta de EMT en Ajustes (⋮)':err?'No se pudo cargar la lista de líneas: '+esc(err):'Sin resultados'}</div>`;
+  else if(err)h+=`<div class="sg mut">Líneas de bus no disponibles: ${esc(err)}</div>`;
+  showSugg(h);
+}
+function sampleIds(stops,max){
+  const n=stops.length;if(!n)return[];
+  const k=Math.max(1,Math.ceil(n/max)),out=[];
+  for(let i=0;i<n;i+=k)out.push(stops[i].id);
+  if(out[out.length-1]!==stops[n-1].id)out.push(stops[n-1].id);
+  return out;
+}
+async function pollLine(){
+  if(!lineMode||document.hidden)return;
+  const {label,r}=lineMode;
+  const ids=[...new Set([...sampleIds(r.stopsA,7),...sampleIds(r.stopsB,7)])];
+  try{
+    const res=await Promise.all(ids.map(id=>emtArrivalsRaw(id,label).catch(()=>null)));
+    if(!lineMode||lineMode.label!==label)return;
+    if(res.length&&res.every(x=>x===null))throw new Error('sin respuesta de EMT');
+    upsertBuses(res.flat().filter(a=>a&&String(a.line)===label));
+    sweepBuses(60000);updateRoute();
+    setStatus('bus',`Línea ${label} · ${busLive.size} autobuses activos`);
+  }catch(e){setStatus('bus','EMT: '+e.message)}
+}
+function exitLine(){
+  if(!lineMode)return;
+  lineMode=null;lineLayer.clearLayers();lineStopLayer.clearLayers();clearRoute();
+  busLive.forEach(o=>layers.bus.removeLayer(o.m));busLive.clear();
+  setStatus('bus','');loadStops();
+}
+async function showLine(label){
+  label=String(label);map.closePopup();hideSugg();
+  $('q').value=label;$('q').blur();$('q-clear').hidden=false;
+  const had=lineMode;lineMode=null;lineLayer.clearLayers();lineStopLayer.clearLayers();clearRoute();
+  busLive.forEach(o=>layers.bus.removeLayer(o.m));busLive.clear();
+  layers.stop.clearLayers();stopMarks.clear();
+  setStatus('bus',`Cargando línea ${label}…`);
+  try{
+    const r=await emtRoute(label),color=hue(label);
+    if(!(r.toA.length>1||r.toB.length>1))throw new Error('sin itinerario');
+    lineMode={label,r};
+    [r.toA,r.toB].forEach(pts=>{if(pts.length>1)L.polyline(pts,{color:'#fff',weight:8,opacity:.85,interactive:false}).addTo(lineLayer)});
+    [r.toA,r.toB].forEach(pts=>{if(pts.length>1)L.polyline(pts,{color,weight:4,opacity:.95,interactive:false}).addTo(lineLayer)});
+    const seen=new Set();
+    [...r.stopsA,...r.stopsB].forEach(s=>{if(seen.has(s.id))return;seen.add(s.id);stopMarker(s,color,false).addTo(lineStopLayer)});
+    map.fitBounds(L.latLngBounds([...r.toA,...r.toB]),{paddingTopLeft:[24,84],paddingBottomRight:[24,70]});
+    pollLine();
+  }catch(e){setStatus('bus',`Línea ${label}: ${e.message}`)}
+}
+
+function start(){
+  clearInterval(timer);clearRoute();lineMode=null;lineLayer.clearLayers();lineStopLayer.clearLayers();$('q').value='';$('q-clear').hidden=true;hideSugg();layers.stop.clearLayers();stopMarks.clear();
+  busLive.forEach(o=>layers.bus.removeLayer(o.m));busLive.clear();Object.keys(st).forEach(k=>delete st[k]);
+  realMarkers.forEach(m=>layers.tren.removeLayer(m));realMarkers.clear();
+  if(!(store.get('emtMail')&&store.get('emtPass')))setStatus('bus','Añade tu cuenta de EMT en Ajustes (⋮)');
+  loadReal();loadStops();loadMetro();
+  timer=setInterval(()=>{loadReal();lineMode?pollLine():pollBuses()},Math.max(15,+store.get('every')||20)*1000);
+}
+
+/* ---------- Ubicación ---------- */
+let me;
+$('locate-btn').onclick=()=>{
+  if(!navigator.geolocation)return toast('Geolocalización no disponible');
+  navigator.geolocation.getCurrentPosition(p=>{
+    const ll=[p.coords.latitude,p.coords.longitude];
+    if(!me)me=L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[16,16],iconAnchor:[8,8]})}).addTo(map);
+    else me.setLatLng(ll);
+    map.flyTo(ll,16);
+  },()=>toast('No se pudo obtener tu ubicación'),{enableHighAccuracy:true,timeout:10000});
+};
+
+/* ---------- Modal ---------- */
+const modal=$('modal');
+const badge=(id,ok,t)=>{const e=$(id);e.textContent=t;e.className='badge'+(ok?' ok':'')};
+function badges(){
+  const e=store.get('emtMail')&&store.get('emtPass');badge('b-emt',e,e?'Configurado':'Sin configurar');
+  const r=store.get('renfe');badge('b-renfe',renfe.ok!==false,renfe.ok===false?'Sin acceso':(r?'Personalizada':'Por defecto'));$('renfe-res').textContent=renfe.msg;
+  badge('b-metro',metro.ok!==false,metro.ok===null?'Cargando…':metro.ok?'Cargado':'Error');$('metro-res').textContent=metro.msg;
+  badge('b-base',true,{osm:'OSM','carto-voyager':'CARTO Voyager','carto-light':'CARTO claro','carto-dark':'CARTO oscuro',custom:'Personalizado'}[store.get('basemap')||'osm']);
+}
+$('menu-btn').onclick=()=>{
+  $('renfe-url').value=store.get('renfe');
+  $('emt-mail').value=store.get('emtMail');$('emt-pass').value=store.get('emtPass');$('every').value=store.get('every')||20;
+  $('basemap').value=store.get('basemap')||'osm';$('cartokey').value=store.get('cartokey');$('tileurl').value=store.get('tileurl');
+  $('emt-res').textContent='';badges();modal.classList.add('open');
+};
+$('emt-test').onclick=async()=>{
+  store.set('emtMail',$('emt-mail').value.trim());store.set('emtPass',$('emt-pass').value);tok.v='';
+  const o=$('emt-res');o.textContent='Probando…';
+  try{await emtToken();o.textContent='✅ Conexión correcta. Pulsa Guardar para ver los autobuses.'}
+  catch(e){o.textContent='❌ '+e.message+' (revisa email y contraseña; si son correctos puede ser un bloqueo CORS del navegador)'}
+  badges();
+};
+$('close').onclick=()=>modal.classList.remove('open');
+modal.onclick=e=>{if(e.target===modal)modal.classList.remove('open')};
+$('save').onclick=()=>{
+  store.set('renfe',$('renfe-url').value.trim());
+  store.set('emtMail',$('emt-mail').value.trim());store.set('emtPass',$('emt-pass').value.trim());store.set('every',$('every').value);
+  store.set('basemap',$('basemap').value);store.set('cartokey',$('cartokey').value.trim());store.set('tileurl',$('tileurl').value.trim());setBase();
+  modal.classList.remove('open');start();
+};
+/* ---------- Eventos del buscador ---------- */
+$('q').addEventListener('input',()=>{$('q-clear').hidden=!$('q').value&&!lineMode;suggest()});
+$('q').addEventListener('focus',()=>{if($('q').value&&!lineMode)suggest()});
+$('q').addEventListener('keydown',async e=>{
+  if(e.key==='Escape'){hideSugg();$('q').blur();return}
+  if(e.key!=='Enter')return;
+  e.preventDefault();
+  await suggest();
+  const q=nd($('q').value).replace(/\s+/g,''),hit=matches.find(x=>x.t==='bus'&&nd(x.label)===q)||matches[0];
+  if(hit)pick(hit);else if(q)setStatus('bus',`No encuentro «${$('q').value.trim()}»`);
 });
-document.getElementById('loc').onclick=()=>map.locate({setView:true,maxZoom:17});
-(async()=>{
- try{
-   const n=await loadLines(),s=await loadStations();
-   document.getElementById('toast').textContent=`${s} estaciones · ${n} líneas de Metro`;
- }catch(e){document.getElementById('toast').textContent='Error cargando Metro'}
-})();
+$('q-clear').onclick=()=>{$('q').value='';$('q-clear').hidden=true;hideSugg();matches=[];exitLine()};
+// Pulsar una línea (sugerencia o chip en una parada); en fase de captura porque Leaflet detiene la propagación de los popups
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-line]'),t=e.target.closest('[data-station]');
+  if(b){e.preventDefault();showLine(b.dataset.line);return}
+  if(t){e.preventDefault();goStation(t.dataset.station);return}
+  if(!e.target.closest('#search'))hideSugg();
+},true);
+
+start();
+if(!(store.get('emtMail')&&store.get('emtPass')))$('menu-btn').click();
 </script>
-</body></html>
+</body>
+</html>
