@@ -547,28 +547,40 @@ const api=async c=>{c=num(c);const h=cache.get(c);if(h&&Date.now()-h.t<15000)ret
   cache.set(c,{t:Date.now(),d});return d};
 // Minutos de un campo de Metro. Vacío / null / sin dato => NaN (antes se convertía en 0 y salía "0 min" en todo).
 const mins=v=>{if(v==null)return NaN;const t=String(v).trim();if(!t||/^null$/i.test(t))return NaN;const n=Number(t);return Number.isFinite(n)&&n>=0?n:NaN};
-const fmin=m=>m<0.5?'Llegando':Math.round(m)+' min';
+const fmin=m=>m<0.5?'Llegando':Math.max(1,Math.round(m))+' min';
 const nice=x=>{x=String(x||'').trim();if(x!==x.toUpperCase())return x;return x.toLowerCase().replace(/(^|[\s\-(])([a-záéíóúñü])/g,(m,a,b)=>a+b.toUpperCase()).replace(/(\s)(De|Del|La|Las|Los|El|Y|A|En)(?=\s)/g,(m,a,b)=>a+b.toLowerCase())};
 const sbg=s=>{const L=s.lines.slice().sort((a,b)=>a-b);if(L.length<2)return col(L[0]||'');const n=L.length;return 'conic-gradient('+L.map((l,i)=>col(l)+' '+(i*100/n).toFixed(1)+'% '+((i+1)*100/n).toFixed(1)+'%').join(',')+')'};
-// Una estación con transbordo tiene un código por línea (CODIGOEMPRESA). Se consultan todos y, si más de uno
-// devuelve la misma línea/andén/sentido, se queda con el primero (así no hay filas repetidas).
+// El servicio de Metro responde por ESTACIÓN FÍSICA: el código de una línea (p. ej. 112 = Sol por la L1) devuelve
+// las llegadas de todas las líneas de esa estación, y los códigos de las otras líneas (208, 306) vienen vacíos.
+// Se prueban los códigos de menor a mayor y se para en el primero que devuelve datos.
+// Cada registro trae la hora de su previsión: "proximo" son minutos DESDE ESA HORA. Si el dato es viejo, se descuenta
+// el tiempo transcurrido y, si el tren ya debería haber llegado hace rato (o el aviso es muy antiguo), se descarta:
+// al acabar el servicio la API sigue devolviendo el último "0" y antes salía "Llegando" para siempre.
+const GRACIA=60,CADUCA=600; // s: margen tras llegada / antigüedad máxima del aviso
 async function rowsOf(s,only){
-  const seen=new Set(),out=[];let ok=0,last;
-  for(const code of s.codes){
+  const out=[],now=Date.now();let ok=0,last;
+  const codes=s.codes.slice().sort((a,b)=>parseInt(a,10)-parseInt(b,10));
+  for(const code of codes){
     await new Promise(r=>setTimeout(r,0)); // deja respirar a la interfaz (fetchTexto es síncrono)
     let d;try{d=await api(code);ok++}catch(e){last=e;continue}
-    for(const v of d?.Vtelindicadores||[]){
+    const vs=d?.Vtelindicadores||[];if(!vs.length)continue;
+    const seen=new Set();
+    for(const v of vs){
       const line=num(v.linea);if(!line||(only&&!only.has(line)))continue;
       const k=line+'|'+String(v.anden||'').trim()+'|'+norm(v.sentido);
       if(seen.has(k))continue;seen.add(k);
-      out.push({line,dest:String(v.sentido||'').trim(),etas:[mins(v.proximo),mins(v.siguiente)].filter(Number.isFinite)});
+      const t=Date.parse(v.fechaHoraEmisionPrevision),age=Number.isFinite(t)?Math.max(0,(now-t)/1000):0;
+      const etas=[];
+      if(age<=CADUCA)for(const f of [v.proximo,v.siguiente]){const m=mins(f);if(!Number.isFinite(m))continue;const rem=m*60-age;if(rem<-GRACIA)continue;etas.push(Math.max(0,rem/60))}
+      out.push({line,dest:String(v.sentido||'').trim(),etas,age});
     }
+    break; // este código ya cubre toda la estación
   }
   if(!ok&&last)throw last;
   return out;
 }
 // Sin línea elegida solo se consultan las estaciones visibles (máx. 40); con línea, las de esa línea.
-const MAXC=70; // tope de códigos de estación consultados por refresco
+const MAXC=60; // tope de estaciones consultadas por refresco
 function pick(){
   let r;
   if(M.focus.size)r=M.stations.filter(s=>s.lines.some(l=>M.focus.has(l)));
@@ -577,7 +589,7 @@ function pick(){
     const b=map.getBounds(),c=map.getCenter(),cc=[c.lat,c.lng];
     r=M.stations.filter(s=>s.codes.length&&b.contains([s.lat,s.lng])).sort((x,y)=>D([x.lat,x.lng],cc)-D([y.lat,y.lng],cc));
   }
-  let n=0;return r.filter(s=>(n+=s.codes.length)<=MAXC);
+  return r.slice(0,MAXC);
 }
 const num=x=>(String(x??'').match(/\d+/)||[''])[0],norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),D=(a,b)=>Math.hypot((a[0]-b[0])*111000,(a[1]-b[1])*85000),C={1:'#0055A4',2:'#E30613',3:'#FFD100',4:'#8B5A2B',5:'#2F8A2F',6:'#777',7:'#F28C28',8:'#F28AA6',9:'#7B3F98',10:'#005CA9',11:'#6B8E23',12:'#6B5B2B'},col=l=>C[l]||'#555';
 const SU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/0/query?where=1%3D1&outFields=CODIGOESTACION,DENOMINACION,CODIGOEMPRESA,LINEAS&returnGeometry=true&outSR=4326&f=geojson',LU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/4/query?where=1%3D1&outFields=NUMEROLINEAUSUARIO&returnGeometry=true&outSR=4326&f=geojson';
@@ -601,17 +613,21 @@ function moveMarker(m,to,dur=28500){let from=m.getLatLng(),t0=performance.now();
 function up(k,c){let m=M.markers.get(k);if(!m){m=L.marker(c.p,{icon:tic(c.l,c.a),zIndexOffset:600}).addTo(TL);m._line=c.l;M.markers.set(k,m)}else{m.setIcon(tic(c.l,c.a));m._line=c.l;moveMarker(m,c.p)}m._data=c;m.off('click').on('click',e=>{L.DomEvent.stopPropagation(e);select(k,m._data)});m.bindPopup('<b>Metro L'+c.l+'</b><br>'+String(c.dest||'').replace(/[<>]/g,'')+'<br><small>ETA '+Math.max(0,Math.round(c.eta))+' min · '+(c.dir>0?'sentido ida':'sentido vuelta')+'</small>');if(M.selected===k){route(c);m.setOpacity(1)}}
 const convoysOn=()=>store.get('metroConvoys')==='1';
 function clearConvoys(){M.markers.forEach(m=>{if(m._raf)cancelAnimationFrame(m._raf);TL.removeLayer(m)});M.markers.clear();M.selected=null;RL.clearLayers();setStatus('metro','')}
-async function trains(){if(!convoysOn()){if(M.markers.size||st.metro)clearConvoys();return}if(document.hidden)return;try{await geometry();let focus=new Set(M.focus),a=pick(),i=0,fails=0,cand=[],speed=480;async function worker(){while(i<a.length){let s=a[i++];try{for(let v of await rowsOf(s,focus.size?focus:null)){let l=v.line,p=M.paths.get(l);if(!p)continue;let ds=dest(l,v.dest);if(!ds)continue;let o=along(p,[s.lat,s.lng]),da=along(p,[ds.lat,ds.lng]),dir=da>=o?1:-1;for(let eta of v.etas){if(eta>15)continue;let at=eta===0?o:Math.max(0,Math.min(len(p),o-dir*eta*speed)),pos=point(p,at),ahead=point(p,Math.max(0,Math.min(len(p),at+dir*160)));cand.push({l,dir,dest:v.dest,eta,at,p:pos,a:bear(pos,ahead)})}}}catch(e){fails++}}}await Promise.all(Array.from({length:3},worker));if(a.length&&fails===a.length)throw Error('sin acceso a Metro (solo funciona en la APK)');let g=new Map();cand.forEach(c=>{let k=c.l+'|'+c.dir;(g.get(k)||g.set(k,[]).get(k)).push(c)});let fin=[];for(let a of g.values()){a.sort((x,y)=>x.at-y.at);let k=[];for(let c of a){let p=k[k.length-1];if(p&&Math.abs(c.at-p.at)<550){if(c.eta<p.eta)k[k.length-1]=c}else k.push(c)}fin.push(...k)}let seen=new Set();fin.forEach(c=>{let k=c.l+'|'+c.dir+'|'+Math.round(c.at/350);seen.add(k);up(k,c)});for(let[k,m]of M.markers)if((focus.size&&!focus.has(String(m._line)))||!seen.has(k)){if(M.selected===k){M.selected=null;RL.clearLayers()}TL.removeLayer(m);M.markers.delete(k)}setStatus('metro','');0}catch(e){setStatus('metro','Metro: '+e.message)}}
+async function trains(){if(!convoysOn()){if(M.markers.size||st.metro)clearConvoys();return}if(document.hidden)return;try{await geometry();let focus=new Set(M.focus),a=pick(),i=0,fails=0,cand=[],speed=480;async function worker(){while(i<a.length){let s=a[i++];try{for(let v of await rowsOf(s,focus.size?focus:null)){let l=v.line,p=M.paths.get(l);if(!p)continue;let ds=dest(l,v.dest);if(!ds)continue;let o=along(p,[s.lat,s.lng]),da=along(p,[ds.lat,ds.lng]),dir=da>=o?1:-1;for(let eta of v.etas){if(eta>15)continue;let at=eta<0.5?o:Math.max(0,Math.min(len(p),o-dir*eta*speed)),pos=point(p,at),ahead=point(p,Math.max(0,Math.min(len(p),at+dir*160)));cand.push({l,dir,dest:v.dest,eta,at,p:pos,a:bear(pos,ahead)})}}}catch(e){fails++}}}await Promise.all(Array.from({length:3},worker));if(a.length&&fails===a.length)throw Error('sin acceso a Metro (solo funciona en la APK)');let g=new Map();cand.forEach(c=>{let k=c.l+'|'+c.dir;(g.get(k)||g.set(k,[]).get(k)).push(c)});let fin=[];for(let a of g.values()){a.sort((x,y)=>x.at-y.at);let k=[];for(let c of a){let p=k[k.length-1];if(p&&Math.abs(c.at-p.at)<550){if(c.eta<p.eta)k[k.length-1]=c}else k.push(c)}fin.push(...k)}let seen=new Set();fin.forEach(c=>{let k=c.l+'|'+c.dir+'|'+Math.round(c.at/350);seen.add(k);up(k,c)});for(let[k,m]of M.markers)if((focus.size&&!focus.has(String(m._line)))||!seen.has(k)){if(M.selected===k){M.selected=null;RL.clearLayers()}TL.removeLayer(m);M.markers.delete(k)}setStatus('metro','');0}catch(e){setStatus('metro','Metro: '+e.message)}}
 function focus(ls){M.focus=new Set(ls.map(num).filter(Boolean));M.selected=null;RL.clearLayers();lines();stations();M.markers.forEach(m=>{if(m._raf)cancelAnimationFrame(m._raf);TL.removeLayer(m)});M.markers.clear();trains()}
 function showAll(){M.focus.clear();M.selected=null;RL.clearLayers();LL.clearLayers();SL.clearLayers();M.markers.forEach(m=>{if(m._raf)cancelAnimationFrame(m._raf);TL.removeLayer(m)});M.markers.clear();lines();stations();trains()}
 map.on('click',e=>{if(e.originalEvent?.target?.closest?.('.leaflet-marker-icon'))return;if(M.selected||M.focus.size)showAll()});
 async function station(s){
   focus(s.lines);map.flyTo([s.lat,s.lng],17,{duration:.45});
-  let p=L.popup({maxWidth:300}).setLatLng([s.lat,s.lng]).setContent('<b>'+s.name.replace(/[<>]/g,'')+'</b><div id="eta" style="margin-top:8px;color:#667">Consultando tiempos…</div>').openOn(map);
+  // Se actualiza con setContent (no con innerHTML) para que Leaflet no vuelva a pintar "Consultando…" al terminar el vuelo del mapa
+  const nm=s.name.replace(/[<>]/g,''),p=L.popup({maxWidth:300}).setLatLng([s.lat,s.lng]),show=h=>p.setContent('<b>'+nm+'</b><div id="eta" style="margin-top:8px;color:#667">'+h+'</div>');
+  show('Consultando tiempos…');p.openOn(map);
   try{
-    const rows=(await rowsOf(s)).filter(r=>r.etas.length).sort((a,b)=>(+a.line)-(+b.line)||a.etas[0]-b.etas[0]);
-    $('eta').innerHTML=rows.length?rows.map(r=>'<div class="arr"><span class="v" style="background:'+col(r.line)+'">L'+r.line+'</span><span>'+r.dest.replace(/[<>]/g,'')+'</span><b>'+r.etas.map(fmin).join(' · ')+'</b></div>').join(''):'Sin tiempos disponibles';
-  }catch(e){$('eta').innerHTML='No se pudo consultar los tiempos.'}
+    const all=await rowsOf(s),rows=all.filter(r=>r.etas.length).sort((a,b)=>(+a.line)-(+b.line)||a.etas[0]-b.etas[0]);
+    if(rows.length)show(rows.map(r=>'<div class="arr"><span class="v" style="background:'+col(r.line)+'">L'+r.line+'</span><span>'+r.dest.replace(/[<>]/g,'')+'</span><b>'+r.etas.map(fmin).join(' · ')+'</b></div>').join(''));
+    else if(all.length){const a=Math.round(Math.min(...all.map(r=>r.age))/60);show('Sin trenes previstos ahora<br><small>Último aviso de Metro hace '+(a>=60?Math.floor(a/60)+' h '+(a%60)+' min':a+' min')+'</small>')}
+    else show('Sin tiempos disponibles');
+  }catch(e){show('No se pudo consultar los tiempos.')}
 }
 function sugg(raw){
   const q=norm(raw).replace(/\s+/g,''),t=norm(raw).trim();if(!q||!M.ready)return'';
