@@ -1,7 +1,3 @@
 <resources>
-    <style name="Theme.MiApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/primario</item>
-        <item name="colorPrimaryDark">@color/primario_oscuro</item>
-        <item name="colorAccent">@color/acento</item>
-    </style>
+    <style name="Theme.MiApp" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
 </resources>
