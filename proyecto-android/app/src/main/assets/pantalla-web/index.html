@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Metro Madrid — versión anterior</title>
+<link rel="stylesheet" href="recursos/leaflet.css">
+<style>
+html,body,#map{height:100%;margin:0}body{font-family:system-ui,sans-serif}
+.top{position:absolute;z-index:1000;top:12px;left:12px;right:12px;display:flex;gap:8px}
+.search{flex:1;background:#fff;border-radius:24px;padding:0 14px;height:44px;box-shadow:0 3px 14px #0003;display:flex}
+.search input{border:0;outline:0;flex:1;font-size:16px}
+.btn{border:0;background:#fff;border-radius:22px;width:44px;height:44px;box-shadow:0 3px 14px #0003;font-size:19px}
+.toast{position:absolute;z-index:1000;top:66px;left:12px;background:#fff;border-radius:10px;padding:8px 10px;box-shadow:0 3px 14px #0003;font-size:12px;color:#687385}
+.station{width:18px;height:18px;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 5px #0008}
+.label{background:#fff;border-radius:5px;padding:2px 4px;box-shadow:0 1px 4px #0004;font-size:11px;white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="top">
+  <div class="search"><input id="q" placeholder="Buscar estación…"></div>
+  <button class="btn" id="loc">⌖</button>
+</div>
+<div class="toast" id="toast">Cargando Metro…</div>
+<script src="recursos/leaflet.js"></script>
+<script>
+const map=L.map('map').setView([40.4168,-3.7038],12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'© OpenStreetMap'}).addTo(map);
+const lineLayer=L.layerGroup().addTo(map), stationLayer=L.layerGroup().addTo(map), labelLayer=L.layerGroup();
+const stations=[];
+const COLORS={'1':'#0055A4','2':'#E30613','3':'#FFD100','4':'#8B5A2B','5':'#2F8A2F','6':'#777','7':'#F28C28','8':'#F28AA6','9':'#7B3F98','10':'#005CA9','11':'#6B8E23','12':'#6B5B2B'};
+const lineColor=l=>COLORS[String(l)]||'#555';
+const norm=s=>(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase().trim();
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+async function loadLines(){
+ const u='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/4/query?where=1%3D1&outFields=NUMEROLINEAUSUARIO&returnGeometry=true&outSR=4326&f=geojson';
+ const j=await fetch(u).then(r=>r.json()), grouped={};
+ for(const f of j.features||[]){
+   const l=String(f.properties?.NUMEROLINEAUSUARIO||'').match(/\d+/)?.[0],g=f.geometry;if(!l||!g)continue;
+   const paths=g.type==='MultiLineString'?g.coordinates:[g.coordinates];
+   (grouped[l]??=[]).push(...paths);
+ }
+ for(const l in grouped) for(const p of grouped[l]){
+   if(p.length>1)L.polyline(p.map(c=>[c[1],c[0]]),{color:lineColor(l),weight:5,opacity:.95,interactive:false}).addTo(lineLayer);
+ }
+ return Object.keys(grouped).length;
+}
+
+async function loadStations(){
+ const u='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/0/query?where=1%3D1&outFields=OBJECTID,CODIGOESTACION,DENOMINACION,CODIGOEMPRESA,LINEAS&returnGeometry=true&outSR=4326&f=geojson';
+ const j=await fetch(u).then(r=>r.json()), byId=new Map();
+ for(const f of j.features||[]){
+   const p=f.properties||{}, c=f.geometry?.coordinates||[], name=String(p.DENOMINACION||'').trim();
+   if(c.length<2||!name)continue;
+   const id=String(p.CODIGOESTACION||p.OBJECTID||name);
+   let s=byId.get(id);
+   if(!s)s={id,name,lat:+c[1],lng:+c[0],codes:[],lines:[]};
+   const code=String(p.CODIGOEMPRESA||'').trim();
+   if(code&&!s.codes.includes(code))s.codes.push(code);
+   for(const l of String(p.LINEAS||'').split(/[,;\s]+/).map(x=>(x.match(/\d+/)||[])[0]).filter(Boolean))
+     if(!s.lines.includes(l))s.lines.push(l);
+   byId.set(id,s);
+ }
+ stations.push(...byId.values());
+ renderStations();
+ return stations.length;
+}
+function renderStations(){
+ for(const s of stations){
+   const bg=s.lines.length>1?'conic-gradient('+s.lines.map((l,i)=>lineColor(l)+' '+(i*360/s.lines.length)+'deg '+((i+1)*360/s.lines.length)+'deg').join(',')+')':lineColor(s.lines[0]);
+   const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:`<div class="station" style="background:${bg}"></div>`,iconSize:[22,22],iconAnchor:[11,11]})});
+   m.on('click',()=>openStation(s));m.addTo(stationLayer);
+   const lab=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:`<div class="label">${esc(s.name)}</div>`,iconSize:null,iconAnchor:[0,-12]})});
+   lab.addTo(labelLayer);
+ }
+ map.on('zoomend',()=>{if(map.getZoom()>=16){labelLayer.addTo(map)}else{map.removeLayer(labelLayer)}});
+ if(map.getZoom()>=16)labelLayer.addTo(map);
+}
+let activeToken=0;
+async function openStation(s){
+ const token=++activeToken;
+ const popup=L.popup({maxWidth:320,minWidth:250}).setLatLng([s.lat,s.lng]).setContent(`<b>${esc(s.name)}</b><br><span style="color:#687385">Consultando tiempos…</span>`).openOn(map);
+ try{
+   const codes=s.codes||[];
+   let rows=[];
+   for(const code of codes.slice(0,3)){
+     const r=await fetch('https://serviciosapp.metromadrid.es/servicios/rest/teleindicadores/'+encodeURIComponent(Number(code)));
+     if(!r.ok)continue;
+     const d=await r.json();
+     for(const v of d.Vtelindicadores||[]){
+       const line=(String(v.linea||'').match(/\d+/)||[])[0];
+       const dest=String(v.sentido||'');
+       const vals=[v.proximo,v.siguiente].map(Number).filter(Number.isFinite);
+       vals.forEach(min=>rows.push({line,dest,min}));
+     }
+   }
+   if(token!==activeToken)return;
+   const seen=new Set();
+   rows=rows.filter(x=>{const k=x.line+'|'+x.dest+'|'+x.min;if(seen.has(k))return false;seen.add(k);return true})
+            .sort((a,b)=>a.min-b.min).slice(0,12);
+   const body=rows.length?rows.map(x=>`<div style="margin:6px 0"><b style="color:${lineColor(x.line)}">L${esc(x.line)}</b> · ${esc(x.dest||'Destino no indicado')} — <b>${Math.round(x.min)} min</b></div>`).join(''):'<span style="color:#687385">Sin tiempos disponibles ahora.</span>';
+   popup.setContent(`<b>${esc(s.name)}</b><div style="margin-top:8px">${body}</div>`);
+ }catch(e){if(token===activeToken)popup.setContent(`<b>${esc(s.name)}</b><br><span style="color:#b00">No se pudo consultar los tiempos.</span>`)}
+}
+document.getElementById('q').addEventListener('input',e=>{
+ const q=norm(e.target.value);if(!q)return;
+ const s=stations.find(x=>norm(x.name).includes(q));
+ if(s){map.setView([s.lat,s.lng],17);openStation(s)}
+});
+document.getElementById('loc').onclick=()=>map.locate({setView:true,maxZoom:17});
+(async()=>{
+ try{
+   const n=await loadLines(),s=await loadStations();
+   document.getElementById('toast').textContent=`${s} estaciones · ${n} líneas de Metro`;
+ }catch(e){document.getElementById('toast').textContent='Error cargando Metro'}
+})();
+</script>
+</body></html>
