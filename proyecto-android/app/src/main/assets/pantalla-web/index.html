@@ -575,7 +575,27 @@ async function trains(){if(document.hidden)return;try{await geometry();let focus
 function focus(ls){M.focus=new Set(ls.map(num).filter(Boolean));M.selected=null;RL.clearLayers();lines();stations();M.markers.forEach(m=>{if(m._raf)cancelAnimationFrame(m._raf);TL.removeLayer(m)});M.markers.clear();trains()}
 function showAll(){M.focus.clear();M.selected=null;RL.clearLayers();LL.clearLayers();SL.clearLayers();M.markers.forEach(m=>{if(m._raf)cancelAnimationFrame(m._raf);TL.removeLayer(m)});M.markers.clear();lines();stations();trains()}
 map.on('click',e=>{if(e.originalEvent?.target?.closest?.('.leaflet-marker-icon'))return;if(M.selected||M.focus.size)showAll()});
-async function station(s){focus(s.lines);map.flyTo([s.lat,s.lng],17,{duration:.45});let p=L.popup({maxWidth:300}).setLatLng([s.lat,s.lng]).setContent('<b>'+s.name.replace(/[<>]/g,'')+'</b><div id="eta" style="margin-top:8px;color:#667">Consultando tiempos…</div>').openOn(map);try{let rows=[];for(const code of (s.codes||[]).slice(0,3)){const d=await api(code);for(const v of d?.Vtelindicadores||[])if(s.lines.includes(num(v.linea)))rows.push(v)}$('eta').innerHTML=rows.map(v=>'<div class="arr"><span class="v" style="background:'+col(num(v.linea))+'">L'+num(v.linea)+'</span><span>'+String(v.sentido||'')+'</span><b>'+((Number.isFinite(Number(v.proximo)))?Math.max(0,Math.round(Number(v.proximo)))+' min':'—')+'</b></div>').join('')||'Sin tiempos disponibles'}catch(e){$('eta').innerHTML='No se pudo consultar los tiempos.'}}
+async function station(s){
+  focus(s.lines);map.flyTo([s.lat,s.lng],17,{duration:.45});
+  let p=L.popup({maxWidth:300}).setLatLng([s.lat,s.lng]).setContent('<b>'+s.name.replace(/[<>]/g,'')+'</b><div id="eta" style="margin-top:8px;color:#667">Consultando tiempos…</div>').openOn(map);
+  try{
+    const codes=s.codes||[];
+    let rows=[];
+    for(const code of codes.slice(0,3)){
+      const d=await api(code);
+      for(const v of d?.Vtelindicadores||[]){
+        const line=num(v.linea);
+        const dest=String(v.sentido||'');
+        const vals=[v.proximo,v.siguiente].map(Number).filter(Number.isFinite);
+        vals.forEach(min=>rows.push({line,dest,min}));
+      }
+    }
+    const seen=new Set();
+    rows=rows.filter(x=>{const k=x.line+'|'+x.dest+'|'+x.min;if(seen.has(k))return false;seen.add(k);return true})
+      .sort((a,b)=>a.min-b.min).slice(0,12);
+    $('eta').innerHTML=rows.length?rows.map(x=>'<div class="arr"><span class="v" style="background:'+col(x.line)+'">L'+x.line+'</span><span>'+x.dest.replace(/[<>]/g,'')+'</span><b>'+Math.max(0,Math.round(x.min))+' min</b></div>').join(''):'Sin tiempos disponibles';
+  }catch(e){$('eta').innerHTML='No se pudo consultar los tiempos.'}
+}
 function sugg(raw){
   const q=norm(raw).replace(/\s+/g,''),t=norm(raw).trim();if(!q||!M.ready)return'';
   const ls=/^l\d*$/.test(q)?[...M.paths.keys()].sort((a,b)=>a-b).filter(l=>('l'+l).startsWith(q)):[];
