@@ -19,15 +19,15 @@ android {
         }
     }
 
-    namespace 'com.carpe.metro'
+    namespace 'com.ejemplo.trasportedirecto'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.carpe.metro"
+        applicationId "com.ejemplo.trasportedirecto"
         minSdk 24
         targetSdk 34
         versionCode 1
-        versionName "v1.0"
+        versionName "v3.0"
     }
 
     buildFeatures {
