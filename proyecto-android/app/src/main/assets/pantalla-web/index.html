@@ -33,11 +33,6 @@ html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Ro
 .sg{display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line)}
 .sg:last-child{border-bottom:0}.sg:active{background:var(--line)}.sg.mut{color:var(--mut);cursor:default}
 .sg span:last-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* Metro */
-.mst{width:14px;height:14px;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,.55)}
-.mlb{background:var(--bg);color:var(--fg);border-radius:5px;padding:2px 4px;box-shadow:0 1px 4px rgba(0,0,0,.3);font-size:11px;white-space:nowrap}
-.mdot{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);flex:none}
-.sg small{color:var(--mut);margin-left:6px}
 /* Popup de parada */
 .sh{display:flex;flex-wrap:wrap;align-items:center;gap:4px;max-width:260px}
 .sh small{color:var(--mut)}
@@ -65,6 +60,7 @@ html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Ro
 .stop{width:16px;height:16px;border-radius:4px;background:#f59e0b;color:#fff;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.5);font:700 10px/13px system-ui;text-align:center}
 .arr{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:13px}.arr span:nth-child(2){flex:1}
 .me{width:16px;height:16px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 6px rgba(37,99,235,.25)}
+.ms{width:14px;height:14px;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 5px #0009}.ms.multi{width:16px;height:16px}.tr{width:40px;height:24px;display:grid;place-items:center;filter:drop-shadow(0 1px 3px #0008)}.tr div{width:36px;height:21px;clip-path:polygon(0 18%,62% 18%,62% 0,100% 50%,62% 100%,62% 82%,0 82%);display:grid;place-items:center;border:1px solid #fff}.tr span{font:800 9px system-ui;color:#fff;text-shadow:0 1px 2px #000}.arr{display:flex;gap:7px;align-items:center;margin:5px 0;font-size:13px}
 </style>
 </head>
 <body>
@@ -76,7 +72,7 @@ html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Ro
 <div id="topbar">
   <div id="search">
     <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-    <input id="q" type="search" placeholder="Línea o estación (ej. N10, Sol)" autocomplete="off" autocapitalize="characters" enterkeyhint="search">
+    <input id="q" type="search" placeholder="Buscar línea (ej. N10, 27)" autocomplete="off" autocapitalize="characters" enterkeyhint="search">
     <button id="q-clear" hidden aria-label="Quitar línea">✕</button>
     <div id="sugg"></div>
   </div>
@@ -86,8 +82,7 @@ html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Ro
 
 <div id="chips">
   <label class="chip"><input type="checkbox" id="t-bus" checked><i style="background:#2563eb"></i>Autobuses</label>
-  <label class="chip"><input type="checkbox" id="t-metro" checked><i style="background:#38A3DC"></i>Metro</label>
-  <label class="chip"><input type="checkbox" id="t-tren" checked><i style="background:#dc2626"></i>Cercanías</label>
+  <label class="chip"><input type="checkbox" id="t-tren" checked><i style="background:#dc2626"></i>Metro / Trenes</label>
   <label class="chip"><input type="checkbox" id="t-stop" checked><i style="background:#f59e0b"></i>Paradas</label>
 </div>
 
@@ -113,9 +108,8 @@ html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Ro
   </details>
 
   <details class="svc">
-    <summary>🚇 Metro de Madrid <span class="badge" id="b-metro"></span></summary>
-    <small>No necesita clave. Las líneas y estaciones vienen de los <a href="https://datos.crtm.es/" target="_blank" rel="noopener">datos abiertos del Consorcio de Transportes</a>. Los tiempos de llegada los da el servicio que usa la app de Metro de Madrid, que no es una API pública documentada: puede cambiar o bloquear el acceso desde el navegador. No existe posición de trenes en tiempo real.</small>
-    <small id="metro-res"></small>
+    <summary>🚇 Metro de Madrid</summary>
+    <small>Sin registro ni clave. Las llegadas vienen del servicio de teleindicadores de Metro y las posiciones de los convoyes se <b>estiman</b> a partir de esos tiempos y del trazado de cada línea (no es GPS). Las peticiones solo funcionan desde la APK con HTTP nativo; en un navegador las bloquea CORS.</small>
   </details>
 
   <details class="svc">
@@ -174,8 +168,8 @@ function setBase(){
 }
 setBase();
 
-const layers={bus:L.layerGroup().addTo(map),tren:L.layerGroup().addTo(map),stop:L.layerGroup().addTo(map),metro:L.layerGroup().addTo(map)};
-['bus','tren','stop','metro'].forEach(k=>$('t-'+k).onchange=e=>e.target.checked?layers[k].addTo(map):map.removeLayer(layers[k]));
+const layers={bus:L.layerGroup().addTo(map),tren:L.layerGroup().addTo(map),stop:L.layerGroup().addTo(map)};
+['bus','tren','stop'].forEach(k=>$('t-'+k).onchange=e=>e.target.checked?layers[k].addTo(map):map.removeLayer(layers[k]));
 
 const icon=(cls,txt,col)=>L.divIcon({className:'',html:`<div class="v ${cls}" style="background:${col}">${txt}</div>`,iconSize:null,iconAnchor:cls==='bus'?[11,8]:[10,10]});
 
@@ -384,104 +378,20 @@ async function emtLinesList(){
   if(!LINES_DB.length)throw new Error(j.description||'lista de líneas vacía');
   store.set('linesdb',JSON.stringify({d:ymd,l:LINES_DB}));return LINES_DB;
 }
-/* ---------- Metro: líneas, estaciones y tiempos ---------- */
-const MCOL={'1':'#38A3DC','2':'#E30613','3':'#FFD100','4':'#8B5A2B','5':'#2F8A2F','6':'#777','7':'#F28C28','8':'#F28AA6','9':'#7B3F98','10':'#005CA9','11':'#6B8E23','12':'#A5A500'};
-const mcol=l=>MCOL[String(l)]||'#555';
-const metroLabels=L.layerGroup();
-let metro={ok:null,msg:'Sin cargar'},metroStations=[],metroLoading=false;const metroById=new Map();
-function syncMetroLabels(){if($('t-metro').checked&&map.getZoom()>=16)metroLabels.addTo(map);else map.removeLayer(metroLabels)}
-map.on('zoomend',syncMetroLabels);$('t-metro').addEventListener('change',syncMetroLabels);
-const mHead=s=>`<div class="sh"><b>${esc(s.name)}</b>${s.lines.map(l=>`<span class="v bus s" style="background:${mcol(l)}">L${esc(l)}</span>`).join('')}</div>`;
-const mRows=rows=>rows===null?'<div class="arr">Consultando tiempos…</div>':rows.length?rows.map(x=>`<div class="arr"><span class="v bus" style="background:${mcol(x.line)}">L${esc(x.line)}</span><span>${esc(x.dest||'Destino no indicado')}</span><b>${x.min<1?'Llegando':Math.round(x.min)+' min'}</b></div>`).join(''):'<div class="arr">Sin tiempos disponibles ahora</div>';
-async function metroTimes(s){
-  const codes=s.codes.slice(0,3);if(!codes.length)return [];
-  const res=await Promise.all(codes.map(c=>fetch('https://serviciosapp.metromadrid.es/servicios/rest/teleindicadores/'+encodeURIComponent(Number(c))).then(r=>r.ok?r.json():null).catch(()=>null)));
-  if(res.every(x=>x===null))throw new Error('sin respuesta del servicio (¿CORS?)');
-  let rows=[];
-  res.forEach(d=>((d&&d.Vtelindicadores)||[]).forEach(v=>{
-    const line=(String(v.linea||'').match(/\d+/)||[])[0];
-    [v.proximo,v.siguiente].map(Number).filter(Number.isFinite).forEach(min=>rows.push({line,dest:String(v.sentido||''),min}));
-  }));
-  const seen=new Set();
-  return rows.filter(x=>{const k=x.line+'|'+x.dest+'|'+x.min;if(seen.has(k))return false;seen.add(k);return true}).sort((a,b)=>a.min-b.min).slice(0,12);
-}
-function metroMarker(s){
-  const bg=s.lines.length>1?'conic-gradient('+s.lines.map((l,i)=>mcol(l)+' '+(i*360/s.lines.length)+'deg '+((i+1)*360/s.lines.length)+'deg').join(',')+')':mcol(s.lines[0]);
-  s.bg=bg;
-  const m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:`<div class="mst" style="background:${bg}"></div>`,iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:-200});
-  m.bindPopup(mHead(s)+mRows(null),{minWidth:230});let iv;
-  const refresh=async()=>{try{m.getPopup().setContent(mHead(s)+mRows(await metroTimes(s)))}catch(e){m.getPopup().setContent(mHead(s)+`<div class="arr">No se pudieron consultar los tiempos: ${esc(e.message)}</div>`)}};
-  m.on('popupopen',()=>{refresh();iv=setInterval(refresh,15000)});
-  m.on('popupclose',()=>clearInterval(iv));
-  return m;
-}
-async function loadMetro(){
-  if(metroLoading||metroStations.length)return;
-  metroLoading=true;metro={ok:null,msg:'Cargando…'};badges();
-  try{
-    const base='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/';
-    const url=(n,f)=>`${base}${n}/query?where=1%3D1&outFields=${f}&returnGeometry=true&outSR=4326&f=geojson`;
-    const [jl,js]=await Promise.all([fetch(url(4,'NUMEROLINEAUSUARIO')).then(r=>r.json()),fetch(url(0,'OBJECTID,CODIGOESTACION,DENOMINACION,CODIGOEMPRESA,LINEAS')).then(r=>r.json())]);
-    const grouped={};
-    (jl.features||[]).forEach(f=>{
-      const l=(String((f.properties||{}).NUMEROLINEAUSUARIO||'').match(/\d+/)||[])[0],g=f.geometry;if(!l||!g)return;
-      (grouped[l]=grouped[l]||[]).push(...(g.type==='MultiLineString'?g.coordinates:[g.coordinates]));
-    });
-    Object.keys(grouped).forEach(l=>grouped[l].forEach(pts=>{if(pts.length>1)L.polyline(pts.map(c=>[c[1],c[0]]),{color:mcol(l),weight:4,opacity:.85,interactive:false}).addTo(layers.metro)}));
-    const byId=new Map();
-    (js.features||[]).forEach(f=>{
-      const p=f.properties||{},c=(f.geometry&&f.geometry.coordinates)||[],name=String(p.DENOMINACION||'').trim();
-      if(c.length<2||!name)return;
-      const id=String(p.CODIGOESTACION||p.OBJECTID||name);
-      let s=byId.get(id);if(!s)s={id,name,lat:+c[1],lng:+c[0],codes:[],lines:[]};
-      const code=String(p.CODIGOEMPRESA||'').trim();if(code&&!s.codes.includes(code))s.codes.push(code);
-      String(p.LINEAS||'').split(/[,;\s]+/).map(x=>(x.match(/\d+/)||[])[0]).filter(Boolean).forEach(l=>{if(!s.lines.includes(l))s.lines.push(l)});
-      byId.set(id,s);
-    });
-    metroStations=[...byId.values()];
-    metroStations.forEach(s=>{
-      metroById.set(s.id,s);s.m=metroMarker(s).addTo(layers.metro);
-      L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:`<div class="mlb">${esc(s.name)}</div>`,iconSize:null,iconAnchor:[0,-10]}),interactive:false}).addTo(metroLabels);
-    });
-    syncMetroLabels();
-    metro={ok:true,msg:`✅ ${metroStations.length} estaciones · ${Object.keys(grouped).length} líneas de Metro`};
-  }catch(e){metro={ok:false,msg:'❌ No se pudo cargar el Metro ('+e.message+'). Se reintentará al guardar los ajustes.'}}
-  metroLoading=false;badges();
-}
-function goStation(id){
-  const s=metroById.get(String(id));if(!s)return;
-  hideSugg();$('q').value=s.name;$('q').blur();$('q-clear').hidden=false;
-  if(!map.hasLayer(layers.metro)){$('t-metro').checked=true;layers.metro.addTo(map);syncMetroLabels()}
-  map.setView([s.lat,s.lng],Math.max(map.getZoom(),16));
-  setTimeout(()=>s.m.openPopup(),150);
-}
-const pick=h=>h.t==='bus'?showLine(h.label):goStation(h.s.id);
-
-/* ---------- Buscador: líneas de bus y estaciones de metro ---------- */
 let lineMode=null,sq=0,matches=[];
 const showSugg=h=>{$('sugg').innerHTML=h;$('sugg').style.display=h?'block':'none'};
 const hideSugg=()=>showSugg('');
-const hasEmt=()=>!!(store.get('emtMail')&&store.get('emtPass'));
-const busRow=x=>`<div class="sg" data-line="${esc(x.label)}"><span class="v bus" style="background:${hue(x.label)}">${esc(x.label)}</span><span>${esc(x.nameA)} ⇄ ${esc(x.nameB)}</span></div>`;
-const metRow=s=>`<div class="sg" data-station="${esc(s.id)}"><span class="mdot" style="background:${s.bg||mcol(s.lines[0])}"></span><span>${esc(s.name)}<small>${s.lines.map(l=>'L'+esc(l)).join(' · ')}</small></span></div>`;
 async function suggest(){
   const raw=nd($('q').value),q=raw.replace(/\s+/g,''),my=++sq;
   if(!q){matches=[];hideSugg();return}
-  let byLabel=[],byName=[],err='';
-  if(hasEmt()){
-    try{
-      const list=await emtLinesList();
-      byLabel=list.filter(x=>nd(x.label).startsWith(q)).slice(0,5);
-      byName=raw.length>=3?list.filter(x=>!nd(x.label).startsWith(q)&&nd(x.nameA+' '+x.nameB).includes(raw)).slice(0,3):[];
-    }catch(e){err=e.message}
-    if(my!==sq)return;
-  }
-  const sts=raw.length>=2?metroStations.filter(x=>nd(x.name).includes(raw)).sort((a,b)=>(nd(b.name).startsWith(raw)-nd(a.name).startsWith(raw))||natCmp(a.name,b.name)).slice(0,5):[];
-  matches=[...byLabel.map(x=>({t:'bus',...x})),...sts.map(s=>({t:'metro',s})),...byName.map(x=>({t:'bus',...x}))];
-  let h=matches.map(x=>x.t==='bus'?busRow(x):metRow(x.s)).join('');
-  if(!h)h=`<div class="sg mut">${!hasEmt()?'Sin resultados. Para buscar líneas de bus añade tu cuenta de EMT en Ajustes (⋮)':err?'No se pudo cargar la lista de líneas: '+esc(err):'Sin resultados'}</div>`;
-  else if(err)h+=`<div class="sg mut">Líneas de bus no disponibles: ${esc(err)}</div>`;
-  showSugg(h);
+  if(!(store.get('emtMail')&&store.get('emtPass'))){showSugg(MET.sugg(raw)+'<div class="sg mut">Añade tu cuenta de EMT en Ajustes (⋮)</div>');return}
+  let list;
+  try{list=await emtLinesList()}catch(e){if(my===sq)showSugg(`<div class="sg mut">No se pudo cargar la lista de líneas: ${esc(e.message)}</div>`);return}
+  if(my!==sq)return;
+  const byLabel=list.filter(x=>nd(x.label).startsWith(q));
+  const byName=raw.length>=3?list.filter(x=>!nd(x.label).startsWith(q)&&nd(x.nameA+' '+x.nameB).includes(raw)):[];
+  matches=[...byLabel,...byName].slice(0,8);
+  showSugg(MET.sugg(raw)+(matches.length?matches.map(x=>`<div class="sg" data-line="${esc(x.label)}"><span class="v bus" style="background:${hue(x.label)}">${esc(x.label)}</span><span>${esc(x.nameA)} ⇄ ${esc(x.nameB)}</span></div>`).join(''):(MET.sugg(raw)?'':'<div class="sg mut">Sin resultados</div>')));
 }
 function sampleIds(stops,max){
   const n=stops.length;if(!n)return[];
@@ -510,7 +420,7 @@ function exitLine(){
   setStatus('bus','');loadStops();
 }
 async function showLine(label){
-  label=String(label);map.closePopup();hideSugg();
+  label=String(label);MET.reset();map.closePopup();hideSugg();
   $('q').value=label;$('q').blur();$('q-clear').hidden=false;
   const had=lineMode;lineMode=null;lineLayer.clearLayers();lineStopLayer.clearLayers();clearRoute();
   busLive.forEach(o=>layers.bus.removeLayer(o.m));busLive.clear();
@@ -534,8 +444,8 @@ function start(){
   busLive.forEach(o=>layers.bus.removeLayer(o.m));busLive.clear();Object.keys(st).forEach(k=>delete st[k]);
   realMarkers.forEach(m=>layers.tren.removeLayer(m));realMarkers.clear();
   if(!(store.get('emtMail')&&store.get('emtPass')))setStatus('bus','Añade tu cuenta de EMT en Ajustes (⋮)');
-  loadReal();loadStops();loadMetro();
-  timer=setInterval(()=>{loadReal();lineMode?pollLine():pollBuses()},Math.max(15,+store.get('every')||20)*1000);
+  loadReal();loadStops();MET.trains();
+  timer=setInterval(()=>{loadReal();MET.trains();lineMode?pollLine():pollBuses()},Math.max(15,+store.get('every')||20)*1000);
 }
 
 /* ---------- Ubicación ---------- */
@@ -556,7 +466,6 @@ const badge=(id,ok,t)=>{const e=$(id);e.textContent=t;e.className='badge'+(ok?' 
 function badges(){
   const e=store.get('emtMail')&&store.get('emtPass');badge('b-emt',e,e?'Configurado':'Sin configurar');
   const r=store.get('renfe');badge('b-renfe',renfe.ok!==false,renfe.ok===false?'Sin acceso':(r?'Personalizada':'Por defecto'));$('renfe-res').textContent=renfe.msg;
-  badge('b-metro',metro.ok!==false,metro.ok===null?'Cargando…':metro.ok?'Cargado':'Error');$('metro-res').textContent=metro.msg;
   badge('b-base',true,{osm:'OSM','carto-voyager':'CARTO Voyager','carto-light':'CARTO claro','carto-dark':'CARTO oscuro',custom:'Personalizado'}[store.get('basemap')||'osm']);
 }
 $('menu-btn').onclick=()=>{
@@ -588,17 +497,93 @@ $('q').addEventListener('keydown',async e=>{
   if(e.key!=='Enter')return;
   e.preventDefault();
   await suggest();
-  const q=nd($('q').value).replace(/\s+/g,''),hit=matches.find(x=>x.t==='bus'&&nd(x.label)===q)||matches[0];
-  if(hit)pick(hit);else if(q)setStatus('bus',`No encuentro «${$('q').value.trim()}»`);
+  const ml=MET.fromQuery($('q').value);if(ml){hideSugg();$('q').blur();MET.focus(ml);return}
+  const q=nd($('q').value).replace(/\s+/g,''),hit=matches.find(x=>nd(x.label)===q)||matches[0];
+  if(hit)showLine(hit.label);else if(q)setStatus('bus',`No encuentro la línea «${$('q').value.trim()}»`);
 });
-$('q-clear').onclick=()=>{$('q').value='';$('q-clear').hidden=true;hideSugg();matches=[];exitLine()};
+$('q-clear').onclick=()=>{MET.reset();$('q').value='';$('q-clear').hidden=true;hideSugg();matches=[];exitLine()};
 // Pulsar una línea (sugerencia o chip en una parada); en fase de captura porque Leaflet detiene la propagación de los popups
 document.addEventListener('click',e=>{
-  const b=e.target.closest('[data-line]'),t=e.target.closest('[data-station]');
+  const b=e.target.closest('[data-line]');
   if(b){e.preventDefault();showLine(b.dataset.line);return}
-  if(t){e.preventDefault();goStation(t.dataset.station);return}
   if(!e.target.closest('#search'))hideSugg();
 },true);
+
+/* ---------- Metro de Madrid (teleindicadores + geometría ArcGIS) ---------- */
+// En la APK (Capacitor con CapacitorHttp activado) esta llamada va directa, sin CORS ni proxy.
+// Si algún día usas un proxy, cambia solo esta constante.
+const MET=(()=>{
+const METRO_API='https://serviciosapp.metromadrid.es/servicios/rest/teleindicadores/';
+const cache=new Map();
+const apiGet=async url=>{
+  if(window.AndroidPuente&&typeof window.AndroidPuente.fetchTexto==='function'){
+    const t=window.AndroidPuente.fetchTexto(url);
+    const j=JSON.parse(t);
+    if(j&&j.__error)throw Error(j.__error);
+    return j;
+  }
+  const r=await fetch(url,{headers:{accept:'application/json'}});
+  if(!r.ok)throw Error('HTTP '+r.status);
+  return r.json();
+};
+const api=async c=>{c=num(c);const h=cache.get(c);if(h&&Date.now()-h.t<15000)return h.d;
+  const d=await apiGet(METRO_API+encodeURIComponent(c));
+  cache.set(c,{t:Date.now(),d});return d};
+// Sin línea elegida solo se consultan las estaciones visibles (máx. 40); con línea, las de esa línea.
+function pick(){
+  if(M.focus.size)return M.stations.filter(s=>s.lines.some(l=>M.focus.has(l)));
+  if(map.getZoom()<13)return[];
+  const b=map.getBounds(),c=map.getCenter(),cc=[c.lat,c.lng];
+  return M.stations.filter(s=>s.code&&b.contains([s.lat,s.lng])).sort((x,y)=>D([x.lat,x.lng],cc)-D([y.lat,y.lng],cc)).slice(0,40);
+}
+const num=x=>(String(x??'').match(/\d+/)||[''])[0],norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),D=(a,b)=>Math.hypot((a[0]-b[0])*111000,(a[1]-b[1])*85000),C={1:'#0055A4',2:'#E30613',3:'#FFD100',4:'#8B5A2B',5:'#2F8A2F',6:'#777',7:'#F28C28',8:'#F28AA6',9:'#7B3F98',10:'#005CA9',11:'#6B8E23',12:'#6B5B2B'},col=l=>C[l]||'#555';
+const SU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/0/query?where=1%3D1&outFields=CODIGOESTACION,DENOMINACION,CODIGOEMPRESA,LINEAS&returnGeometry=true&outSR=4326&f=geojson',LU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/4/query?where=1%3D1&outFields=NUMEROLINEAUSUARIO&returnGeometry=true&outSR=4326&f=geojson';
+const LL=L.layerGroup().addTo(layers.tren),SL=L.layerGroup().addTo(layers.tren),TL=L.layerGroup().addTo(layers.tren),RL=L.layerGroup().addTo(layers.tren),M={stations:[],parts:new Map(),paths:new Map(),markers:new Map(),focus:new Set(),selected:null,ready:false};
+const flat=g=>(g?.type==='MultiLineString'?g.coordinates:[g?.coordinates]).flatMap(p=>(p||[]).map(c=>[+c[1],+c[0]]));
+function near(p,ll){let z={d:1e99,i:0,t:0};for(let i=0;i<p.length-1;i++){let a=p[i],b=p[i+1],dy=b[0]-a[0],dx=b[1]-a[1],q=dy*dy+dx*dx||1,t=((ll[0]-a[0])*dy+(ll[1]-a[1])*dx)/q;t=Math.max(0,Math.min(1,t));let x=[a[0]+dy*t,a[1]+dx*t],d=D(ll,x);if(d<z.d)z={d,i,t}}return z}
+function along(p,ll){let q=near(p,ll),n=0;for(let i=0;i<q.i;i++)n+=D(p[i],p[i+1]);return n+D(p[q.i],p[q.i+1]||p[q.i])*q.t}function len(p){let n=0;for(let i=0;i<p.length-1;i++)n+=D(p[i],p[i+1]);return n}
+function point(p,n){for(let i=0;i<p.length-1;i++){let s=D(p[i],p[i+1]);if(n<=s){let t=s?n/s:0;return[p[i][0]+(p[i+1][0]-p[i][0])*t,p[i][1]+(p[i+1][1]-p[i][1])*t]}n-=s}return p[p.length-1]}
+function bear(a,b){return Math.atan2((b[1]-a[1])*Math.cos((a[0]+b[0])*Math.PI/360),b[0]-a[0])*180/Math.PI-90}
+function join(ps,ss){if(ps.length<2)return ps[0]||[];let u=ps.map(p=>p.slice()),o=u.shift();while(u.length){let z={d:1e99,j:0,r:0};u.forEach((p,j)=>[[p[0],0],[p[p.length-1],1]].forEach(([e,r])=>{let d=D(o[o.length-1],e);if(d<z.d)z={d,j,r}}));let p=u.splice(z.j,1)[0];if(z.r)p.reverse();if(D(o[o.length-1],p[0])<100)p=p.slice(1);o.push(...p)}if(ss.length>1&&along(o,[ss[0].lat,ss[0].lng])>along(o,[ss[ss.length-1].lat,ss[ss.length-1].lng]))o.reverse();return o}
+const order=l=>M.stations.filter(s=>s.lines.includes(l)).sort((a,b)=>along(M.paths.get(l),[a.lat,a.lng])-along(M.paths.get(l),[b.lat,b.lng]));
+let gp;function geometry(){return gp||(gp=geometry0().catch(e=>{gp=null;throw e}))}async function geometry0(){if(M.ready)return;let[a,b]=await Promise.all([fetch(SU).then(r=>r.json()),fetch(LU).then(r=>r.json())]),by=new Map();for(let f of a.features||[]){let p=f.properties||{},c=f.geometry?.coordinates;if(!c||c.length<2)continue;let id=String(p.CODIGOESTACION||''),s=by.get(id)||{id,name:String(p.DENOMINACION||''),code:num(p.CODIGOEMPRESA),lat:+c[1],lng:+c[0],lines:[]};for(let l of String(p.LINEAS||'').split(/[,;\s]+/).map(num).filter(Boolean))if(!s.lines.includes(l))s.lines.push(l);by.set(id,s)}M.stations=[...by.values()];for(let f of b.features||[]){let l=num(f.properties?.NUMEROLINEAUSUARIO),p=flat(f.geometry);if(l&&p.length>1)(M.parts.get(l)||M.parts.set(l,[]).get(l)).push(p)}for(let[l,ps]of M.parts)M.paths.set(l,join(ps,M.stations.filter(s=>s.lines.includes(l))));lines();stations();M.ready=true}
+function lines(){LL.clearLayers();for(let[l,ps]of M.parts)if(!M.focus.size||M.focus.has(l))for(let p of ps){L.polyline(p,{color:'#fff',weight:8,opacity:.9}).addTo(LL);L.polyline(p,{color:col(l),weight:5}).addTo(LL)}$('q-clear').hidden=!M.focus.size&&!lineMode}
+function stations(){SL.clearLayers();if(map.getZoom()<14)return;for(let s of M.stations){if(M.focus.size&&!s.lines.some(l=>M.focus.has(l)))continue;let ic=L.divIcon({className:'',html:'<div class="ms'+(s.lines.length>1?' multi':'')+'" style="background:'+col(s.lines[0]||'')+'"></div>',iconSize:[18,18],iconAnchor:[9,9]});L.marker([s.lat,s.lng],{icon:ic,zIndexOffset:300}).bindTooltip(s.name,{direction:'top'}).on('click',()=>station(s)).addTo(SL)}}map.on('zoomend',stations);
+function dest(l,d){let n=norm(d);return order(l).find(s=>norm(s.name)===n||norm(s.name).includes(n)||n.includes(norm(s.name)))}
+const tic=(l,a)=>L.divIcon({className:'',html:'<div class="tr" style="transform:rotate('+a+'deg)"><div style="background:'+col(l)+'"><span style="transform:rotate('+(-a)+'deg)">L'+l+'</span></div></div>',iconSize:[40,24],iconAnchor:[20,12]});
+function subpath(p,a,b){if(!p?.length)return[];a=Math.max(0,Math.min(len(p),a));b=Math.max(0,Math.min(len(p),b));if(a>b)[a,b]=[b,a];let out=[point(p,a)],n=0;for(let i=0;i<p.length-1;i++){let s=D(p[i],p[i+1]),next=n+s;if(next>a&&next<b)out.push(p[i+1]);n=next}out.push(point(p,b));return out}
+function route(c){RL.clearLayers();if(!c)return;let p=M.paths.get(c.l),L0=len(p),end=c.at,start=c.dir>0?0:L0,pts=subpath(p,start,end);if(pts.length>1)L.polyline(pts,{color:col(c.l),weight:5,dashArray:'7 8',opacity:.95,lineCap:'butt',lineJoin:'round'}).addTo(RL)}
+function select(k,c){M.selected=k;M.focus=new Set([String(c.l)]);LL.clearLayers();SL.clearLayers();TL.eachLayer(m=>{if(m!==M.markers.get(k))m.setOpacity(0)});RL.clearLayers();route(c);let m=M.markers.get(k);if(m){m.setOpacity(1);m.openPopup()}map.closePopup()}
+function moveMarker(m,to,dur=28500){let from=m.getLatLng(),t0=performance.now();if(m._raf)cancelAnimationFrame(m._raf);function f(now){let a=Math.min(1,(now-t0)/dur),e=a*a*(3-2*a),lat=from.lat+(to[0]-from.lat)*e,lng=from.lng+(to[1]-from.lng)*e;m.setLatLng([lat,lng]);if(M.selected&&m===M.markers.get(M.selected)){let cc=m._data;if(cc){cc.p=[lat,lng];route(cc)}}if(a<1)m._raf=requestAnimationFrame(f);else m._raf=null}m._raf=requestAnimationFrame(f)}
+function up(k,c){let m=M.markers.get(k);if(!m){m=L.marker(c.p,{icon:tic(c.l,c.a),zIndexOffset:600}).addTo(TL);m._line=c.l;M.markers.set(k,m)}else{m.setIcon(tic(c.l,c.a));m._line=c.l;moveMarker(m,c.p)}m._data=c;m.off('click').on('click',e=>{L.DomEvent.stopPropagation(e);select(k,m._data)});m.bindPopup('<b>Metro L'+c.l+'</b><br>'+String(c.dest||'').replace(/[<>]/g,'')+'<br><small>ETA '+Math.max(0,Math.round(c.eta))+' min · '+(c.dir>0?'sentido ida':'sentido vuelta')+'</small>');if(M.selected===k){route(c);m.setOpacity(1)}}
+async function trains(){if(document.hidden)return;try{await geometry();let focus=new Set(M.focus),ss=pick(),by=new Map();ss.forEach(s=>s.code&&by.set(s.code,s));let a=[...by.values()],i=0,fails=0,cand=[],speed=480;async function worker(){while(i<a.length){let s=a[i++];try{let d=await api(s.code);for(let v of d?.Vtelindicadores||[]){let l=num(v.linea),p=M.paths.get(l);if(!p||(focus.size&&!focus.has(l)))continue;let ds=dest(l,v.sentido);if(!ds)continue;let o=along(p,[s.lat,s.lng]),da=along(p,[ds.lat,ds.lng]),dir=da>=o?1:-1;for(let f of ['proximo','siguiente']){let eta=Number(v[f]);if(!Number.isFinite(eta)||eta<0||eta>15)continue;let at=eta===0?o:Math.max(0,Math.min(len(p),o-dir*eta*speed)),pos=point(p,at),ahead=point(p,Math.max(0,Math.min(len(p),at+dir*160)));cand.push({l,dir,dest:String(v.sentido||''),eta,at,p:pos,a:bear(pos,ahead)})}}}catch(e){fails++}}}await Promise.all(Array.from({length:6},worker));if(a.length&&fails===a.length)throw Error('sin acceso a Metro (¿CORS? solo funciona en la APK con HTTP nativo)');let g=new Map();cand.forEach(c=>{let k=c.l+'|'+c.dir;(g.get(k)||g.set(k,[]).get(k)).push(c)});let fin=[];for(let a of g.values()){a.sort((x,y)=>x.at-y.at);let k=[];for(let c of a){let p=k[k.length-1];if(p&&Math.abs(c.at-p.at)<550){if(c.eta<p.eta)k[k.length-1]=c}else k.push(c)}fin.push(...k)}let seen=new Set();fin.forEach(c=>{let k=c.l+'|'+c.dir+'|'+Math.round(c.at/350);seen.add(k);up(k,c)});for(let[k,m]of M.markers)if((focus.size&&!focus.has(String(m._line)))||!seen.has(k)){if(M.selected===k){M.selected=null;RL.clearLayers()}TL.removeLayer(m);M.markers.delete(k)}setStatus('metro','Metro experimental · '+(M.focus.size?[...M.focus].map(x=>'L'+x).join(', '):'todas las líneas')+' · '+M.markers.size+' convoyes estimados');0}catch(e){setStatus('metro','Metro: '+e.message)}}
+function focus(ls){M.focus=new Set(ls.map(num).filter(Boolean));M.selected=null;RL.clearLayers();lines();stations();M.markers.forEach(m=>{if(m._raf)cancelAnimationFrame(m._raf);TL.removeLayer(m)});M.markers.clear();trains()}
+function showAll(){M.focus.clear();M.selected=null;RL.clearLayers();LL.clearLayers();SL.clearLayers();M.markers.forEach(m=>{if(m._raf)cancelAnimationFrame(m._raf);TL.removeLayer(m)});M.markers.clear();lines();stations();trains()}
+map.on('click',e=>{if(e.originalEvent?.target?.closest?.('.leaflet-marker-icon'))return;if(M.selected||M.focus.size)showAll()});
+function station(s){focus(s.lines);map.flyTo([s.lat,s.lng],17,{duration:.45});let p=L.popup({maxWidth:300}).setLatLng([s.lat,s.lng]).setContent('<b>'+s.name.replace(/[<>]/g,'')+'</b><div id="eta" style="margin-top:8px;color:#667">Consultando tiempos…</div>').openOn(map);api(s.code).then(d=>{$('eta').innerHTML=(d?.Vtelindicadores||[]).filter(v=>s.lines.includes(num(v.linea))).map(v=>'<div class="arr"><span class="v" style="background:'+col(num(v.linea))+'">L'+num(v.linea)+'</span><span>'+String(v.sentido||'')+'</span><b>'+((Number.isFinite(Number(v.proximo)))?Math.max(0,Math.round(Number(v.proximo)))+' min':'—')+'</b></div>').join('')||'Sin tiempos disponibles'})}
+function sugg(raw){
+  const q=norm(raw).replace(/\s+/g,''),t=norm(raw).trim();if(!q||!M.ready)return'';
+  const ls=/^l\d*$/.test(q)?[...M.paths.keys()].sort((a,b)=>a-b).filter(l=>('l'+l).startsWith(q)):[];
+  const ss=t.length>=3?M.stations.filter(s=>norm(s.name).includes(t)).slice(0,5):[];
+  return ls.map(l=>`<div class="sg" data-mline="${l}"><span class="v" style="background:${col(l)}">L${l}</span><span>Metro · mostrar solo esta línea</span></div>`).join('')
+    +ss.map(s=>`<div class="sg" data-mst="${s.id}"><span class="v" style="background:${col(s.lines[0]||'')}">M</span><span>${s.name.replace(/[<>&]/g,'')} · ${s.lines.map(l=>'L'+l).join(', ')}</span></div>`).join('');
+}
+const prep=()=>{if(lineMode)exitLine();clearRoute();$('q-clear').hidden=false};
+document.addEventListener('click',e=>{
+  const x=e.target.closest('[data-mline],[data-mst]');if(!x)return;
+  e.preventDefault();hideSugg();$('q').blur();
+  if(x.dataset.mline){$('q').value='L'+x.dataset.mline;prep();focus([x.dataset.mline])}
+  else{const s=M.stations.find(s=>s.id===x.dataset.mst);if(s){$('q').value=s.name;prep();station(s)}}
+},true);
+let deb;map.on('moveend',()=>{if(M.focus.size)return;clearTimeout(deb);deb=setTimeout(trains,900)});
+geometry().catch(e=>setStatus('metro','Metro: '+e.message));
+return{
+  trains,sugg,
+  reset(){if(M.focus.size||M.selected)showAll()},
+  fromQuery(v){const m=norm(v).replace(/\s+/g,'').match(/^l(\d{1,2})$/);return m&&M.paths.has(m[1])?m[1]:null},
+  focus:l=>{prep();focus([l])}
+};
+})();
 
 start();
 if(!(store.get('emtMail')&&store.get('emtPass')))$('menu-btn').click();
