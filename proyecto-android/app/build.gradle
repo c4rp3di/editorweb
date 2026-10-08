@@ -19,11 +19,11 @@ android {
         }
     }
 
-    namespace 'com.carpe.android'
+    namespace 'com.carpe.metro'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.carpe.android"
+        applicationId "com.carpe.metro"
         minSdk 24
         targetSdk 34
         versionCode 1
