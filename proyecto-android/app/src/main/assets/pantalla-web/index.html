@@ -110,6 +110,7 @@ html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Ro
   <details class="svc">
     <summary>🚇 Metro de Madrid</summary>
     <small>Sin registro ni clave. Las llegadas vienen del servicio de teleindicadores de Metro y las posiciones de los convoyes se <b>estiman</b> a partir de esos tiempos y del trazado de cada línea (no es GPS). Las peticiones solo funcionan desde la APK; en un navegador las bloquea CORS.</small>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:0.85rem"><input type="checkbox" id="metro-convoys" style="width:auto;margin:0"> Mostrar convoyes aproximados (experimental)</label>
   </details>
 
   <details class="svc">
@@ -330,7 +331,7 @@ map.on('moveend',loadStops);
 
 /* ---------- Autobuses reales (posición GPS que devuelve /arrives/) ---------- */
 const st={},busLive=new Map();let lastPoll=0;
-const setStatus=(k,v)=>{st[k]=v;toast(Object.values(st).join(' · '))};
+const setStatus=(k,v)=>{st[k]=v;toast(Object.values(st).filter(Boolean).join(' · '))};
 const hue=l=>{let h=0;for(const c of String(l))h=(h*31+c.charCodeAt(0))%360;return `hsl(${h} 65% 42%)`};
 function upsertBuses(list){
   const now=Date.now();
@@ -470,7 +471,7 @@ function badges(){
 }
 $('menu-btn').onclick=()=>{
   $('renfe-url').value=store.get('renfe');
-  $('emt-mail').value=store.get('emtMail');$('emt-pass').value=store.get('emtPass');$('every').value=store.get('every')||20;
+  $('emt-mail').value=store.get('emtMail');$('emt-pass').value=store.get('emtPass');$('every').value=store.get('every')||20;$('metro-convoys').checked=store.get('metroConvoys')==='1';
   $('basemap').value=store.get('basemap')||'osm';$('cartokey').value=store.get('cartokey');$('tileurl').value=store.get('tileurl');
   $('emt-res').textContent='';badges();modal.classList.add('open');
 };
@@ -485,7 +486,7 @@ $('close').onclick=()=>modal.classList.remove('open');
 modal.onclick=e=>{if(e.target===modal)modal.classList.remove('open')};
 $('save').onclick=()=>{
   store.set('renfe',$('renfe-url').value.trim());
-  store.set('emtMail',$('emt-mail').value.trim());store.set('emtPass',$('emt-pass').value.trim());store.set('every',$('every').value);
+  store.set('emtMail',$('emt-mail').value.trim());store.set('emtPass',$('emt-pass').value.trim());store.set('every',$('every').value);store.set('metroConvoys',$('metro-convoys').checked?'1':'0');
   store.set('basemap',$('basemap').value);store.set('cartokey',$('cartokey').value.trim());store.set('tileurl',$('tileurl').value.trim());setBase();
   modal.classList.remove('open');start();
 };
@@ -598,7 +599,9 @@ function route(c){RL.clearLayers();if(!c)return;let p=M.paths.get(c.l),L0=len(p)
 function select(k,c){M.selected=k;M.focus=new Set([String(c.l)]);LL.clearLayers();SL.clearLayers();TL.eachLayer(m=>{if(m!==M.markers.get(k))m.setOpacity(0)});RL.clearLayers();route(c);let m=M.markers.get(k);if(m){m.setOpacity(1);m.openPopup()}map.closePopup()}
 function moveMarker(m,to,dur=28500){let from=m.getLatLng(),t0=performance.now();if(m._raf)cancelAnimationFrame(m._raf);function f(now){let a=Math.min(1,(now-t0)/dur),e=a*a*(3-2*a),lat=from.lat+(to[0]-from.lat)*e,lng=from.lng+(to[1]-from.lng)*e;m.setLatLng([lat,lng]);if(M.selected&&m===M.markers.get(M.selected)){let cc=m._data;if(cc){cc.p=[lat,lng];route(cc)}}if(a<1)m._raf=requestAnimationFrame(f);else m._raf=null}m._raf=requestAnimationFrame(f)}
 function up(k,c){let m=M.markers.get(k);if(!m){m=L.marker(c.p,{icon:tic(c.l,c.a),zIndexOffset:600}).addTo(TL);m._line=c.l;M.markers.set(k,m)}else{m.setIcon(tic(c.l,c.a));m._line=c.l;moveMarker(m,c.p)}m._data=c;m.off('click').on('click',e=>{L.DomEvent.stopPropagation(e);select(k,m._data)});m.bindPopup('<b>Metro L'+c.l+'</b><br>'+String(c.dest||'').replace(/[<>]/g,'')+'<br><small>ETA '+Math.max(0,Math.round(c.eta))+' min · '+(c.dir>0?'sentido ida':'sentido vuelta')+'</small>');if(M.selected===k){route(c);m.setOpacity(1)}}
-async function trains(){if(document.hidden)return;try{await geometry();let focus=new Set(M.focus),a=pick(),i=0,fails=0,cand=[],speed=480;async function worker(){while(i<a.length){let s=a[i++];try{for(let v of await rowsOf(s,focus.size?focus:null)){let l=v.line,p=M.paths.get(l);if(!p)continue;let ds=dest(l,v.dest);if(!ds)continue;let o=along(p,[s.lat,s.lng]),da=along(p,[ds.lat,ds.lng]),dir=da>=o?1:-1;for(let eta of v.etas){if(eta>15)continue;let at=eta===0?o:Math.max(0,Math.min(len(p),o-dir*eta*speed)),pos=point(p,at),ahead=point(p,Math.max(0,Math.min(len(p),at+dir*160)));cand.push({l,dir,dest:v.dest,eta,at,p:pos,a:bear(pos,ahead)})}}}catch(e){fails++}}}await Promise.all(Array.from({length:3},worker));if(a.length&&fails===a.length)throw Error('sin acceso a Metro (solo funciona en la APK)');let g=new Map();cand.forEach(c=>{let k=c.l+'|'+c.dir;(g.get(k)||g.set(k,[]).get(k)).push(c)});let fin=[];for(let a of g.values()){a.sort((x,y)=>x.at-y.at);let k=[];for(let c of a){let p=k[k.length-1];if(p&&Math.abs(c.at-p.at)<550){if(c.eta<p.eta)k[k.length-1]=c}else k.push(c)}fin.push(...k)}let seen=new Set();fin.forEach(c=>{let k=c.l+'|'+c.dir+'|'+Math.round(c.at/350);seen.add(k);up(k,c)});for(let[k,m]of M.markers)if((focus.size&&!focus.has(String(m._line)))||!seen.has(k)){if(M.selected===k){M.selected=null;RL.clearLayers()}TL.removeLayer(m);M.markers.delete(k)}setStatus('metro','Metro experimental · '+(M.focus.size?[...M.focus].map(x=>'L'+x).join(', '):'todas las líneas')+' · '+M.markers.size+' convoyes estimados');0}catch(e){setStatus('metro','Metro: '+e.message)}}
+const convoysOn=()=>store.get('metroConvoys')==='1';
+function clearConvoys(){M.markers.forEach(m=>{if(m._raf)cancelAnimationFrame(m._raf);TL.removeLayer(m)});M.markers.clear();M.selected=null;RL.clearLayers();setStatus('metro','')}
+async function trains(){if(!convoysOn()){if(M.markers.size||st.metro)clearConvoys();return}if(document.hidden)return;try{await geometry();let focus=new Set(M.focus),a=pick(),i=0,fails=0,cand=[],speed=480;async function worker(){while(i<a.length){let s=a[i++];try{for(let v of await rowsOf(s,focus.size?focus:null)){let l=v.line,p=M.paths.get(l);if(!p)continue;let ds=dest(l,v.dest);if(!ds)continue;let o=along(p,[s.lat,s.lng]),da=along(p,[ds.lat,ds.lng]),dir=da>=o?1:-1;for(let eta of v.etas){if(eta>15)continue;let at=eta===0?o:Math.max(0,Math.min(len(p),o-dir*eta*speed)),pos=point(p,at),ahead=point(p,Math.max(0,Math.min(len(p),at+dir*160)));cand.push({l,dir,dest:v.dest,eta,at,p:pos,a:bear(pos,ahead)})}}}catch(e){fails++}}}await Promise.all(Array.from({length:3},worker));if(a.length&&fails===a.length)throw Error('sin acceso a Metro (solo funciona en la APK)');let g=new Map();cand.forEach(c=>{let k=c.l+'|'+c.dir;(g.get(k)||g.set(k,[]).get(k)).push(c)});let fin=[];for(let a of g.values()){a.sort((x,y)=>x.at-y.at);let k=[];for(let c of a){let p=k[k.length-1];if(p&&Math.abs(c.at-p.at)<550){if(c.eta<p.eta)k[k.length-1]=c}else k.push(c)}fin.push(...k)}let seen=new Set();fin.forEach(c=>{let k=c.l+'|'+c.dir+'|'+Math.round(c.at/350);seen.add(k);up(k,c)});for(let[k,m]of M.markers)if((focus.size&&!focus.has(String(m._line)))||!seen.has(k)){if(M.selected===k){M.selected=null;RL.clearLayers()}TL.removeLayer(m);M.markers.delete(k)}setStatus('metro','');0}catch(e){setStatus('metro','Metro: '+e.message)}}
 function focus(ls){M.focus=new Set(ls.map(num).filter(Boolean));M.selected=null;RL.clearLayers();lines();stations();M.markers.forEach(m=>{if(m._raf)cancelAnimationFrame(m._raf);TL.removeLayer(m)});M.markers.clear();trains()}
 function showAll(){M.focus.clear();M.selected=null;RL.clearLayers();LL.clearLayers();SL.clearLayers();M.markers.forEach(m=>{if(m._raf)cancelAnimationFrame(m._raf);TL.removeLayer(m)});M.markers.clear();lines();stations();trains()}
 map.on('click',e=>{if(e.originalEvent?.target?.closest?.('.leaflet-marker-icon'))return;if(M.selected||M.focus.size)showAll()});
