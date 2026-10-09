@@ -1,3 +1,8 @@
 <resources>
-    <string name="app_name">Trasporte directo</string>
+    <string name="app_name">Carpe Extractor</string>
+    <string name="extractor_titulo">APKs instaladas</string>
+    <string name="extractor_compartir">Compartir / guardar APK</string>
+    <string name="extractor_ok">APK extraído:</string>
+    <string name="extractor_error">Error:</string>
+    <string name="extractor_splits">Esta app usa APK dividido (%1$d partes). Se extrae solo la base.</string>
 </resources>
