@@ -1,8 +1,9 @@
 <resources>
-    <string name="app_name">Carpe Extractor</string>
-    <string name="extractor_titulo">APKs instaladas</string>
-    <string name="extractor_compartir">Compartir / guardar APK</string>
-    <string name="extractor_ok">APK extraído:</string>
-    <string name="extractor_error">Error:</string>
-    <string name="extractor_splits">Esta app usa APK dividido (%1$d partes). Se extrae solo la base.</string>
+    <string name="app_name">APK Panoptes</string>
+    <string name="app_titulo">APK Panoptes — Apps instaladas</string>
+    <string name="toca_para_analizar">toca para analizar</string>
+    <string name="compartir_apk">Compartir / guardar APK</string>
+    <string name="extraccion_ok">APK extraído:</string>
+    <string name="extraccion_error">Error:</string>
+    <string name="analisis_iniciado">Análisis iniciado</string>
 </resources>
