@@ -8,7 +8,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="16dp"
-        android:text="@string/extractor_titulo"
+        android:text="@string/app_titulo"
         android:textSize="20sp"
         android:textStyle="bold"
         android:background="#6C5CE7"
