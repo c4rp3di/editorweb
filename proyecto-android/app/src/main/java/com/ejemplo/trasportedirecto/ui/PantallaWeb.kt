@@ -48,6 +48,10 @@ import com.ejemplo.trasportedirecto.R
 class PantallaWeb : Fragment() {
 
     private var webView: WebView? = null
+    // Pool para las peticiones nativas asíncronas de AndroidPuente.fetchAsync (hilos daemon: no retienen la app).
+    private val poolRed = java.util.concurrent.Executors.newFixedThreadPool(6) { r ->
+        Thread(r).apply { isDaemon = true }
+    }
     private var ultimaCarga: String = ""
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
 
@@ -122,6 +126,19 @@ fun fetchTexto(url: String): String {
         "{\"__error\":\"${e.message?.replace("\"", "'") ?: "desconocido"}\"}"
     }
 }
+
+        // Versión ASÍNCRONA de fetchTexto: no bloquea el hilo de JavaScript y permite varias peticiones a la vez.
+        // La respuesta vuelve a la página llamando a window.__metroCb(id, texto).
+        @JavascriptInterface
+        fun fetchAsync(url: String, id: String) {
+            poolRed.execute {
+                val respuesta = fetchTexto(url)
+                val js = "window.__metroCb&&window.__metroCb(" +
+                    org.json.JSONObject.quote(id) + "," +
+                    org.json.JSONObject.quote(respuesta) + ")"
+                webView?.post { webView?.evaluateJavascript(js, null) }
+            }
+        }
     }
 
     override fun onCreateView(
