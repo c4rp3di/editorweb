@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- [PERMISOS:FUNCIONALIDADES] -->
+
     <application
-        android:allowBackup="false"
-        android:label="Metro Tren por Tramo - Diagnóstico"
-        android:supportsRtl="true"
-        android:usesCleartextTraffic="false"
-        android:theme="@style/AppTheme">
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.MiApp">
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -14,18 +23,11 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- [ACTIVITY_META:FUNCIONALIDADES] -->
         </activity>
-        <service
-            android:name=".MetroAccessibilityService"
-            android:label="Sonda de accesibilidad para Metro"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
+
+        <!-- [APPLICATION:FUNCIONALIDADES] -->
+
     </application>
+
 </manifest>
