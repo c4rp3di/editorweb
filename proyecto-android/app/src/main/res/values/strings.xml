@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">Trasporte directo</string>
+    <string name="app_name">Metro Accesibilidad Probe</string>
+    <string name="service_description">Lee localmente el texto y las etiquetas de la pantalla de Metro de Madrid para comprobar qué información expone la interfaz accesible. No transmite datos.</string>
 </resources>
