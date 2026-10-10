@@ -100,7 +100,7 @@ class MainActivity : Activity() {
         }
         val scroll = ScrollView(this).apply {
             isFillViewport = true
-            addView(output, ScrollView.LayoutParams(-1, -2))
+            addView(output, ViewGroup.LayoutParams(-1, -2))
         }
         outer.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(outer, ViewGroup.LayoutParams(-1, -1))
