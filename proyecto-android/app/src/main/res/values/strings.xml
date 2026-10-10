@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Metro Accesibilidad Probe</string>
-    <string name="service_description">Lee localmente el texto y las etiquetas de la pantalla de Metro de Madrid para comprobar qué información expone la interfaz accesible. No transmite datos.</string>
+    <string name="app_name">Metro Tren por Tramo - Diagnóstico</string>
+    <string name="service_description">Lee localmente el árbol de accesibilidad de la aplicación oficial de Metro de Madrid cuando el usuario activa el servicio.</string>
 </resources>
