@@ -1,9 +1,3 @@
 <resources>
-    <string name="app_name">APK Panoptes</string>
-    <string name="app_titulo">APK Panoptes — Apps instaladas</string>
-    <string name="toca_para_analizar">toca para analizar</string>
-    <string name="compartir_apk">Compartir / guardar APK</string>
-    <string name="extraccion_ok">APK extraído:</string>
-    <string name="extraccion_error">Error:</string>
-    <string name="analisis_iniciado">Análisis iniciado</string>
+    <string name="app_name">Trasporte directo</string>
 </resources>
