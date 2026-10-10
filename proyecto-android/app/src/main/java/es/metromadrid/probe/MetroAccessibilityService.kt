@@ -7,12 +7,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Lee únicamente el árbol accesible de Metro; no toma capturas ni usa red o archivos. */
+/** Lee solo el árbol accesible de Metro. No realiza capturas de imagen. */
 class MetroAccessibilityService : AccessibilityService() {
     companion object {
         private const val TARGET_PACKAGE = "es.metromadrid.metroandroid"
-        private const val MAX_NODES = 180
-        private const val MAX_CHARS = 22000
+        private const val MAX_NODES = 220
+        private const val MAX_CHARS = 26000
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -42,31 +42,19 @@ class MetroAccessibilityService : AccessibilityService() {
         counter[0]++
         repeat(depth.coerceAtMost(16)) { out.append("  ") }
         out.append('[').append(counter[0]).append("] ").append(safe(node.className, 100))
-        val viewId = node.viewIdResourceName
-        val text = node.text
-        val desc = node.contentDescription
-        if (!viewId.isNullOrEmpty()) out.append(" id=").append(safe(viewId, 180))
-        if (!text.isNullOrEmpty()) out.append(" text=\"").append(safe(text, 220)).append('"')
-        if (!desc.isNullOrEmpty()) out.append(" desc=\"").append(safe(desc, 220)).append('"')
+        node.viewIdResourceName?.takeIf { it.isNotEmpty() }?.let { out.append(" id=").append(safe(it, 180)) }
+        node.text?.takeIf { it.isNotEmpty() }?.let { out.append(" text=\"").append(safe(it, 220)).append('"') }
+        node.contentDescription?.takeIf { it.isNotEmpty() }?.let { out.append(" desc=\"").append(safe(it, 220)).append('"') }
         if (node.isClickable) out.append(" clickable")
         if (node.isScrollable) out.append(" scrollable")
         if (node.isEditable) out.append(" editable")
         out.append('\n')
-
-        val children = node.childCount
-        for (i in 0 until children) {
+        for (i in 0 until node.childCount) {
             if (counter[0] >= MAX_NODES || out.length >= MAX_CHARS) break
             val child = try { node.getChild(i) } catch (_: Exception) { null }
-            try {
-                if (child != null) walk(child, depth + 1, counter, out)
-            } catch (_: Exception) {
-                // Omite únicamente el nodo que no se pueda consultar.
-            } finally {
-                if (child != null) {
-                    @Suppress("DEPRECATION")
-                    child.recycle()
-                }
-            }
+            try { if (child != null) walk(child, depth + 1, counter, out) }
+            catch (_: Exception) { }
+            finally { if (child != null) { @Suppress("DEPRECATION") child.recycle() } }
         }
         if (counter[0] >= MAX_NODES || out.length >= MAX_CHARS) {
             repeat((depth + 1).coerceAtMost(16)) { out.append("  ") }
@@ -74,12 +62,9 @@ class MetroAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun safe(value: CharSequence?, max: Int): String {
-        if (value == null) return ""
-        var s = value.toString().replace('\n', ' ').replace('\r', ' ').replace('\t', ' ').replace('"', '\'')
-        if (s.length > max) s = s.substring(0, max) + "…"
-        return s
-    }
+    private fun safe(value: CharSequence?, max: Int): String = (value?.toString() ?: "")
+        .replace('\n', ' ').replace('\r', ' ').replace('\t', ' ').replace('"', '\'')
+        .let { if (it.length > max) it.substring(0, max) + "…" else it }
 
     private fun eventTypeName(type: Int): String = when (type) {
         AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> "WINDOW_STATE_CHANGED"
