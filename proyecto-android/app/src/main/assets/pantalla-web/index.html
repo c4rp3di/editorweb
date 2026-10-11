@@ -581,9 +581,12 @@ async function rowsOf(s,only){
       const k=line+'|'+String(v.anden||'').trim()+'|'+norm(v.sentido);
       const t=Date.parse(v.fechaHoraEmisionPrevision),age=Number.isFinite(t)?Math.max(0,(now-t)/1000):0;
       const p=mins(v.proximo),q=mins(v.siguiente),etas=[];
-      if(age<=CADUCA)for(const m of [p,q]){if(!Number.isFinite(m))continue;const rem=m*60-age;if(rem<-GRACIA)continue;etas.push(rem/60)}
+      const etasE=[];
+      if(age<=CADUCA)for(const m of [p,q]){if(!Number.isFinite(m))continue;const rem=m*60-age;if(rem<-GRACIA)continue;etas.push(rem/60);
+        // la pantalla redondea HACIA ARRIBA (el 3 es "entre 2 y 3 min"): para colocar trenes se usa el punto medio
+        etasE.push(((m>0?m-.5:0)*60-age)/60)}
       // proximo vacío + siguiente con dato = hay un tren parado en el andén (las pantallas no lo muestran)
-      const row={line,dest:String(v.sentido||'').trim(),etas,age,plat:age<=CADUCA&&!Number.isFinite(p)&&Number.isFinite(q),raw:[v.anden,v.sentido,v.proximo,v.siguiente,v.fechaHoraEmisionPrevision,now]};
+      const row={line,dest:String(v.sentido||'').trim(),etas,etasE,age,plat:age<=CADUCA&&!Number.isFinite(p)&&Number.isFinite(q),raw:[v.anden,v.sentido,v.proximo,v.siguiente,v.fechaHoraEmisionPrevision,now]};
       const o=best.get(k);if(!o||age<o.age)best.set(k,row);
       if(age<=CADUCA&&only&&only.has(line))viva=true;
     }
@@ -595,7 +598,7 @@ async function rowsOf(s,only){
 }
 // Sin línea elegida solo se consultan las estaciones visibles (máx. 40); con línea, las de esa línea.
 const num=x=>(String(x??'').match(/\d+/)||[''])[0],norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),D=(a,b)=>Math.hypot((a[0]-b[0])*111000,(a[1]-b[1])*85000),C={1:'#0055A4',2:'#E30613',3:'#FFD100',4:'#8B5A2B',5:'#2F8A2F',6:'#777',7:'#F28C28',8:'#F28AA6',9:'#7B3F98',10:'#005CA9',11:'#6B8E23',12:'#6B5B2B'},col=l=>C[l]||'#555';
-const SU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/0/query?where=1%3D1&outFields=CODIGOESTACION,DENOMINACION,CODIGOEMPRESA,LINEAS&returnGeometry=true&outSR=4326&f=geojson',LU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/4/query?where=1%3D1&outFields=NUMEROLINEAUSUARIO&returnGeometry=true&outSR=4326&f=geojson';
+const SU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/0/query?where=1%3D1&outFields=CODIGOESTACION,DENOMINACION,CODIGOEMPRESA,LINEAS&returnGeometry=true&outSR=4326&f=geojson',LU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/4/query?where=1%3D1&outFields=NUMEROLINEAUSUARIO,SENTIDO,IDTRAMO&returnGeometry=true&outSR=4326&f=geojson';
 const LL=L.layerGroup().addTo(layers.tren),SL=L.layerGroup().addTo(layers.tren),TL=L.layerGroup().addTo(layers.tren),RL=L.layerGroup().addTo(layers.tren),M={stations:[],parts:new Map(),paths:new Map(),markers:new Map(),focus:new Set(),selected:null,ready:false};
 const flat=g=>(g?.type==='MultiLineString'?g.coordinates:[g?.coordinates]).flatMap(p=>(p||[]).map(c=>[+c[1],+c[0]]));
 function near(p,ll){let z={d:1e99,i:0,t:0};for(let i=0;i<p.length-1;i++){let a=p[i],b=p[i+1],dy=b[0]-a[0],dx=b[1]-a[1],q=dy*dy+dx*dx||1,t=((ll[0]-a[0])*dy+(ll[1]-a[1])*dx)/q;t=Math.max(0,Math.min(1,t));let x=[a[0]+dy*t,a[1]+dx*t],d=D(ll,x);if(d<z.d)z={d,i,t}}return z}
@@ -604,7 +607,11 @@ function point(p,n){for(let i=0;i<p.length-1;i++){let s=D(p[i],p[i+1]);if(n<=s){
 function bear(a,b){return Math.atan2((b[1]-a[1])*Math.cos((a[0]+b[0])*Math.PI/360),b[0]-a[0])*180/Math.PI-90}
 function join(ps,ss){if(ps.length<2)return ps[0]||[];let u=ps.map(p=>p.slice()),o=u.shift();while(u.length){let z={d:1e99,j:0,r:0};u.forEach((p,j)=>[[p[0],0],[p[p.length-1],1]].forEach(([e,r])=>{let d=D(o[o.length-1],e);if(d<z.d)z={d,j,r}}));let p=u.splice(z.j,1)[0];if(z.r)p.reverse();if(D(o[o.length-1],p[0])<100)p=p.slice(1);o.push(...p)}if(ss.length>1&&along(o,[ss[0].lat,ss[0].lng])>along(o,[ss[ss.length-1].lat,ss[ss.length-1].lng]))o.reverse();return o}
 const order=l=>M.stations.filter(s=>s.lines.includes(l)).sort((a,b)=>along(M.paths.get(l),[a.lat,a.lng])-along(M.paths.get(l),[b.lat,b.lng]));
-let gp;function geometry(){return gp||(gp=geometry0().catch(e=>{gp=null;throw e}))}async function geometry0(){if(M.ready)return;let[a,b]=await Promise.all([apiGet(SU),apiGet(LU)]),by=[];for(let f of a.features||[]){let p=f.properties||{},c=f.geometry?.coordinates;if(!c||c.length<2)continue;let la=+c[1],ln=+c[0],nk=norm(p.DENOMINACION).replace(/\s+/g,' ').trim(),s=by.find(g=>g.nk===nk&&D([g.lat,g.lng],[la,ln])<400);if(!s){s={id:'s'+by.length,nk,name:nice(p.DENOMINACION),codes:[],lat:la,lng:ln,n:0,lines:[]};by.push(s)}s.lat=(s.lat*s.n+la)/(s.n+1);s.lng=(s.lng*s.n+ln)/(s.n+1);s.n++;let ec=String(p.CODIGOEMPRESA||'').trim();if(ec&&!s.codes.includes(ec))s.codes.push(ec);for(let l of String(p.LINEAS||'').split(/[,;\s]+/).map(num).filter(Boolean))if(!s.lines.includes(l))s.lines.push(l);}M.stations=by;for(let f of b.features||[]){let l=num(f.properties?.NUMEROLINEAUSUARIO),p=flat(f.geometry);if(l&&p.length>1)(M.parts.get(l)||M.parts.set(l,[]).get(l)).push(p)}for(let[l,ps]of M.parts)M.paths.set(l,join(ps,M.stations.filter(s=>s.lines.includes(l))));lines();stations();M.ready=true}
+let gp;function geometry(){return gp||(gp=geometry0().catch(e=>{gp=null;throw e}))}async function geometry0(){if(M.ready)return;let[a,b]=await Promise.all([apiGet(SU),apiGet(LU)]),by=[];for(let f of a.features||[]){let p=f.properties||{},c=f.geometry?.coordinates;if(!c||c.length<2)continue;let la=+c[1],ln=+c[0],nk=norm(p.DENOMINACION).replace(/\s+/g,' ').trim(),s=by.find(g=>g.nk===nk&&D([g.lat,g.lng],[la,ln])<400);if(!s){s={id:'s'+by.length,nk,name:nice(p.DENOMINACION),codes:[],lat:la,lng:ln,n:0,lines:[]};by.push(s)}s.lat=(s.lat*s.n+la)/(s.n+1);s.lng=(s.lng*s.n+ln)/(s.n+1);s.n++;let ec=String(p.CODIGOEMPRESA||'').trim();if(ec&&!s.codes.includes(ec))s.codes.push(ec);for(let l of String(p.LINEAS||'').split(/[,;\s]+/).map(num).filter(Boolean))if(!s.lines.includes(l))s.lines.push(l);}M.stations=by;{const seg=new Map();for(let f of b.features||[]){const pr=f.properties||{},l=num(pr.NUMEROLINEAUSUARIO),p=flat(f.geometry);if(!l||p.length<2)continue;
+  const mm=/^\d+_(\d+)_(\d+)__/.exec(String(pr.IDTRAMO||'')),sd=+pr.SENTIDO||1;
+  if(!mm){(M.parts.get(l)||M.parts.set(l,[]).get(l)).push(p);continue}
+  const key=l+'|'+mm[2],o=seg.get(key);if(!o||sd<o.sd)seg.set(key,{l,p,sd})} // un tramo por sentido: solo uno (el sentido 1 si existe)
+  for(const{l,p}of seg.values())(M.parts.get(l)||M.parts.set(l,[]).get(l)).push(p)}for(let[l,ps]of M.parts)M.paths.set(l,join(ps,M.stations.filter(s=>s.lines.includes(l))));lines();stations();M.ready=true}
 function lines(){LL.clearLayers();for(let[l,ps]of M.parts)if(!M.focus.size||M.focus.has(l))for(let p of ps){L.polyline(p,{color:'#fff',weight:8,opacity:.9}).addTo(LL);L.polyline(p,{color:col(l),weight:5}).addTo(LL)}$('q-clear').hidden=!M.focus.size&&!lineMode}
 function stations(){SL.clearLayers();if(map.getZoom()<14)return;for(let s of M.stations){if(M.focus.size&&!s.lines.some(l=>M.focus.has(l)))continue;let ic=L.divIcon({className:'',html:'<div class="ms'+(s.lines.length>1?' multi':'')+'" style="background:'+sbg(s)+'"></div>',iconSize:[18,18],iconAnchor:[9,9]});L.marker([s.lat,s.lng],{icon:ic,zIndexOffset:300}).bindTooltip(s.name,{direction:'top'}).on('click',()=>station(s)).addTo(SL)}}map.on('zoomend',stations);
 function dest(l,d){let n=norm(d);return order(l).find(s=>norm(s.name)===n||norm(s.name).includes(n)||n.includes(norm(s.name)))}
@@ -621,7 +628,12 @@ const models=new Map(),isCirc=p=>p.length>2&&D(p[0],p[p.length-1])<400;
 function lineModel(l){
   if(models.has(l))return models.get(l);
   const p=M.paths.get(l);if(!p||p.length<2)return null;
-  const Lp=len(p),circ=isCirc(p),sts=order(l).map(s=>({s,S:along(p,[s.lat,s.lng]),name:s.name})),n=sts.length;
+  const Lp=len(p),circ=isCirc(p),sts=[];
+  for(const s of order(l)){const x={s,S:along(p,[s.lat,s.lng]),name:s.name},q=sts[sts.length-1];
+    // dos fichas de la misma estación (p. ej. cada línea la tiene por separado): se funden y se juntan sus códigos
+    if(q&&norm(q.name)===norm(x.name)&&x.S-q.S<2500){q.s={...q.s,codes:[...new Set([...q.s.codes,...s.codes])]};continue}
+    sts.push(x)}
+  const n=sts.length;
   if(n<3)return null;
   const seg=[];for(let i=0;i<n-1;i++)seg.push(Math.max(50,sts[i+1].S-sts[i].S));
   if(circ)seg.push(Math.max(50,Lp-sts[n-1].S+sts[0].S));
@@ -765,10 +777,10 @@ function track(est,m,now){
     Object.assign(t,{c:x.c,j:x.j,e:x.e,t0:x.t0,dest:x.dest,miss:0})}
   est.forEach((x,i)=>{if(uE.has(i))return;const id='t'+(++tid);M.tracks.set(id,{id,m,line:m.line,dir:x.dir,c:x.c,j:x.j,e:x.e,t0:x.t0,dest:x.dest,miss:0,u:x.u,al:0,shown:false})});
   for(const t of M.tracks.values())if(t.line===m.line&&!uT.has(t)&&t.t0!==now)t.miss++;
-  // Barrera: dos trenes del mismo sentido no pueden estar a <200 m (ahí hay un duplicado): se retira el menos fiable
-  const ts=[...M.tracks.values()].filter(t=>t.line===m.line&&t.miss<2);
+  // Barrera: dos trenes del mismo sentido no pueden estar a <400 m (ahí hay un duplicado): se retira el menos fiable
+  const ts=[...M.tracks.values()].filter(t=>t.line===m.line&&t.miss<3);ts.forEach(t=>t.pp=posU(t.c,t.j,t.e,t.t0,now));
   for(let a=0;a<ts.length;a++)for(let b=a+1;b<ts.length;b++){
-    const x=ts[a],y=ts[b];if(x.dir!==y.dir||x.miss>=2||y.miss>=2||cdist(x.u,y.u,m)>=200)continue;
+    const x=ts[a],y=ts[b];if(x.dir!==y.dir||x.miss>=3||y.miss>=3||cdist(x.pp,y.pp,m)>=400)continue;
     const lo=x.miss!==y.miss?(x.miss>y.miss?x:y):(x.al<y.al?x:y);lo.miss=9;
   }
 }
@@ -814,7 +826,7 @@ function frame(ts){
     }
     const ic=t.mk&&t.mk._icon; // si se oculta y se vuelve a mostrar la capa de Metro, Leaflet recrea el icono
     if(ic&&t.ic!==ic){t.ic=ic;t.tr=ic.querySelector('.tr');t.sp=t.tr.querySelector('span');ic.style.opacity='0'}
-    const dying=t.miss>=2||(!m.circ&&t.j===m.n-1&&now-(t.t0+t.e*60000)>25000);
+    const dying=t.miss>=3||(!m.circ&&t.j===m.n-1&&now-(t.t0+t.e*60000)>25000);
     const goal=dying?0:(M.selTrack&&M.selTrack!==t?.3:1);
     t.al+=(goal-t.al)*(1-Math.exp(-dt/.25));
     if(draw&&ic){t.mk.setLatLng(pos);t.tr.style.transform='rotate('+t.th.toFixed(1)+'deg)';t.sp.style.transform='rotate('+(-t.th).toFixed(1)+'deg)';t.mk._icon.style.opacity=t.al.toFixed(2)}
@@ -832,7 +844,7 @@ function saveLog(){try{let s=JSON.stringify(LOG);if(s.length>2.5e6){LOG.snaps.sp
 function logInfo(){const el=$('metro-log-info');if(!el)return;const n=LOG.snaps.length;el.textContent=n?n+' capturas · de '+new Date(LOG.snaps[0].t).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})+' a '+new Date(LOG.snaps[n-1].t).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Sin capturas todavía'}
 function logSnap(m,boards,t0,line){
   if(!LOG.lines[line])LOG.lines[line]={names:m.sts.map(s=>s.name),S:m.sts.map(s=>Math.round(s.S)),Lp:Math.round(m.Lp),circ:m.circ};
-  LOG.snaps.push({t:t0,t1:Date.now(),l:line,b:boards.map(b=>b?b.map(r=>r.raw):null),tr:[...M.tracks.values()].filter(t=>t.line===line&&t.miss<2).map(t=>[t.id,t.dir,t.c.ord[t.j],+t.e.toFixed(2),Math.round(t.u)])});
+  LOG.snaps.push({t:t0,t1:Date.now(),l:line,b:boards.map(b=>b?b.map(r=>r.raw):null),tr:[...M.tracks.values()].filter(t=>t.line===line&&t.miss<3).map(t=>[t.id,t.dir,t.c.ord[t.j],+t.e.toFixed(2),Math.round(t.u)])});
   if(LOG.snaps.length>LOGMAX)LOG.snaps.splice(0,LOG.snaps.length-LOGMAX);
   if(++logSince>=10){logSince=0;saveLog()}
   logInfo();
@@ -859,7 +871,7 @@ const logText=last=>JSON.stringify({v:1,exportado:new Date().toISOString(),ua:na
 // ---- Datos: una pantalla por estación de la línea, en paralelo ----
 async function fetchBoards(m){
   const n=m.n,out=new Array(n),only=new Set([m.line]);let i=0,fails=0;
-  async function w(){while(i<n){const k=i++;try{out[k]=await rowsOf(m.sts[k].s,only)}catch(e){fails++;out[k]=null}}}
+  async function w(){while(i<n){const k=i++;try{out[k]=(await rowsOf(m.sts[k].s,only)).map(r=>({...r,etas:r.etasE||r.etas}))}catch(e){fails++;out[k]=null}}}
   await Promise.all(Array.from({length:hasAsync()?8:3},w));
   if(fails===n)throw Error('sin acceso a Metro (solo funciona en la APK)');
   return out;
@@ -894,7 +906,7 @@ function wantTry(){
   const si=m.sts.findIndex(x=>x.s===w.st||x.name===w.st.name);if(si<0){M.want=null;return}
   let best=null,bd=Infinity;
   for(const t of M.tracks.values()){ // el tren de ese sentido al que le falta menos para llegar a la estación
-    if(t.line!==w.line||t.miss>=2)continue;
+    if(t.line!==w.line||t.miss>=3)continue;
     if(w.dest&&norm(t.dest)!==norm(w.dest))continue;
     const c=t.c,k=c.ord.indexOf(si);if(k<0)continue;
     let d=c.U[k]-t.u;if(c.circ)d=((d%c.Lp)+c.Lp)%c.Lp;else if(d<-15)continue;
