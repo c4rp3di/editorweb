@@ -36,7 +36,6 @@ jobs:
       PROJECT_TYPE: ${{ github.event.inputs.project_type }}
       ENTRY_FILE: ${{ github.event.inputs.entry_file }}
       TARGETS_JSON: ${{ github.event.inputs.targets_json }}
-      TARGETS_JSON: ${{ github.event.inputs.targets_json }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
