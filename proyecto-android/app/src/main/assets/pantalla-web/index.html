@@ -879,12 +879,56 @@ async function trains(){
     est.forEach(x=>x.u=posU(x.c,x.j,x.e,x.t0,now));
     est=dedupe(est,m);track(est,m,now);ensureLoop();setStatus('metro','');
     if(logOn())logSnap(m,boards,now,line);
+    wantTry();
   }catch(e){setStatus('metro','Metro: '+e.message)}
   finally{busy=false;if(redo){redo=false;setTimeout(trains,0)}}
 }
 function focus(ls){M.focus=new Set(ls.map(num).filter(Boolean));clearConvoys();lines();stations();trains()}
 function showAll(){M.focus.clear();clearConvoys();LL.clearLayers();SL.clearLayers();lines();stations();trains()}
-map.on('click',e=>{if(e.originalEvent?.target?.closest?.('.leaflet-marker-icon'))return;if(M.selTrack){deselect();return}if(M.focus.size)showAll()});
+// ---- Tocar una fila del globo de una estación: elige esa línea y, con los convoyes activos, va al tren que está llegando ----
+M.want=null;
+function wantTry(){
+  const w=M.want;if(!w)return;
+  if(Date.now()>w.until||M.focus.size!==1||!M.focus.has(w.line)||!convoysOn()){M.want=null;return}
+  const m=lineModel(w.line);if(!m)return;
+  const si=m.sts.findIndex(x=>x.s===w.st||x.name===w.st.name);if(si<0){M.want=null;return}
+  let best=null,bd=Infinity;
+  for(const t of M.tracks.values()){ // el tren de ese sentido al que le falta menos para llegar a la estación
+    if(t.line!==w.line||t.miss>=2)continue;
+    if(w.dest&&norm(t.dest)!==norm(w.dest))continue;
+    const c=t.c,k=c.ord.indexOf(si);if(k<0)continue;
+    let d=c.U[k]-t.u;if(c.circ)d=((d%c.Lp)+c.Lp)%c.Lp;else if(d<-15)continue;
+    if(d<bd){bd=d;best=t}
+  }
+  if(!best)return; // aún no hay trenes calculados: se reintenta en el siguiente refresco
+  M.want=null;let n=0;
+  const go=()=>{
+    if(!M.tracks.has(best.id))return;
+    if(!best.mk&&n++<20){setTimeout(go,100);return}
+    const S=best.S!==undefined?best.S:(best.dir>0?best.u:best.m.Lp-best.u);
+    map.flyTo(best.mk?best.mk.getLatLng():point(best.m.p,S),Math.max(map.getZoom(),16),{duration:.6});
+    select(best);
+  };
+  setTimeout(go,120);
+}
+document.addEventListener('click',e=>{
+  const x=e.target.closest&&e.target.closest('.arr[data-pl]');if(!x)return;
+  e.preventDefault();
+  const line=x.dataset.pl,dest=decodeURIComponent(x.dataset.pd||''),st=M.stations.find(s=>s.id===x.dataset.ps);
+  const ya=M.focus.size===1&&M.focus.has(line);
+  $('q').value='L'+line;prep();
+  if(!ya)focus([line]); // ya estaba elegida: se conservan los convoyes que hay
+  if(convoysOn()&&st){M.want={line,dest,st,until:Date.now()+25000};wantTry()}
+},true);
+// La línea elegida se mantiene al cerrar un globo (estación, parada...): el toque que lo cierra no cuenta.
+// Solo se suelta con un toque posterior sobre un punto vacío del mapa.
+let popClosedAt=-1e9;map.on('popupclose',()=>{popClosedAt=performance.now()});
+map.on('click',e=>{
+  if(e.originalEvent?.target?.closest?.('.leaflet-marker-icon'))return;
+  if(M.selTrack){deselect();return}
+  if(performance.now()-popClosedAt<600)return;
+  if(M.focus.size)showAll();
+});
 async function station(s){
   focus(s.lines);map.flyTo([s.lat,s.lng],17,{duration:.45});
   // Se actualiza con setContent (no con innerHTML) para que Leaflet no vuelva a pintar "Consultando…" al terminar el vuelo del mapa
@@ -892,7 +936,7 @@ async function station(s){
   show('Consultando tiempos…');p.openOn(map);
   try{
     const all=await rowsOf(s),rows=all.filter(r=>r.etas.length).sort((a,b)=>(+a.line)-(+b.line)||a.etas[0]-b.etas[0]);
-    if(rows.length)show(rows.map(r=>'<div class="arr"><span class="v" style="background:'+col(r.line)+'">L'+r.line+'</span><span>'+r.dest.replace(/[<>]/g,'')+'</span><b>'+r.etas.map(fmin).join(' · ')+'</b></div>').join(''));
+    if(rows.length)show(rows.map(r=>'<div class="arr" data-pl="'+r.line+'" data-pd="'+encodeURIComponent(r.dest)+'" data-ps="'+s.id+'" style="cursor:pointer" title="Ver esta línea"><span class="v" style="background:'+col(r.line)+'">L'+r.line+'</span><span>'+r.dest.replace(/[<>]/g,'')+'</span><b>'+r.etas.map(fmin).join(' · ')+'</b></div>').join('')+'<div style="margin-top:6px;font-size:11px;color:#889">Toca una línea para elegirla</div>');
     else if(all.length){const a=Math.round(Math.min(...all.map(r=>r.age))/60);show('Sin trenes previstos ahora<br><small>Último aviso de Metro hace '+(a>=60?Math.floor(a/60)+' h '+(a%60)+' min':a+' min')+'</small>')}
     else show('Sin tiempos disponibles');
   }catch(e){show('No se pudo consultar los tiempos.')}
