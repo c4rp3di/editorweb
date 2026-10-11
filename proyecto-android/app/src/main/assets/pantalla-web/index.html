@@ -111,6 +111,10 @@ html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Ro
     <summary>🚇 Metro de Madrid</summary>
     <small>Sin registro ni clave. Las llegadas vienen del servicio de teleindicadores de Metro y las posiciones de los convoyes se <b>estiman</b> a partir de esos tiempos y del trazado de cada línea (no es GPS). Las peticiones solo funcionan desde la APK; en un navegador las bloquea CORS.</small>
     <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:0.85rem"><input type="checkbox" id="metro-convoys" style="width:auto;margin:0"> Mostrar convoyes aproximados (solo con una línea elegida)</label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:0.85rem"><input type="checkbox" id="metro-log" style="width:auto;margin:0"> Registrar datos de Metro (solo para depurar)</label>
+    <small>Se guarda mientras haya una línea elegida y los convoyes activados. Para pasarlo: <b>Guardar archivo</b> (queda en Descargas) y adjúntalo.</small>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><button class="btn" id="metro-log-save" type="button">Guardar archivo</button><button class="btn" id="metro-log-copy" type="button">Copiar</button><button class="btn" id="metro-log-clear" type="button">Borrar</button></div>
+    <small id="metro-log-info"></small>
   </details>
 
   <details class="svc">
@@ -579,7 +583,7 @@ async function rowsOf(s,only){
       const p=mins(v.proximo),q=mins(v.siguiente),etas=[];
       if(age<=CADUCA)for(const m of [p,q]){if(!Number.isFinite(m))continue;const rem=m*60-age;if(rem<-GRACIA)continue;etas.push(rem/60)}
       // proximo vacío + siguiente con dato = hay un tren parado en el andén (las pantallas no lo muestran)
-      const row={line,dest:String(v.sentido||'').trim(),etas,age,plat:age<=CADUCA&&!Number.isFinite(p)&&Number.isFinite(q)};
+      const row={line,dest:String(v.sentido||'').trim(),etas,age,plat:age<=CADUCA&&!Number.isFinite(p)&&Number.isFinite(q),raw:[v.anden,v.sentido,v.proximo,v.siguiente,v.fechaHoraEmisionPrevision,now]};
       const o=best.get(k);if(!o||age<o.age)best.set(k,row);
       if(age<=CADUCA&&only&&only.has(line))viva=true;
     }
@@ -740,7 +744,13 @@ function reconstruct(m,boards,dirs,now){
   return out;
 }
 const cdist=(a,b,m)=>{let d=Math.abs(a-b);if(m.circ){d%=m.Lp;d=Math.min(d,m.Lp-d)}return d};
-function dedupe(est,m){est.sort((a,b)=>a.dir-b.dir||a.u-b.u);const out=[];for(const x of est){const q=out[out.length-1];if(q&&q.dir===x.dir&&cdist(q.u,x.u,m)<380){if(x.e<q.e)out[out.length-1]=x;continue}out.push(x)}return out}
+function dedupe(est,m){
+  const nu=x=>m.circ?((x.u%m.Lp)+m.Lp)%m.Lp:x.u;
+  est.sort((a,b)=>a.dir-b.dir||nu(a)-nu(b));const out=[];
+  for(const x of est){const q=out[out.length-1];if(q&&q.dir===x.dir&&cdist(q.u,x.u,m)<380){if(x.e<q.e)out[out.length-1]=x;continue}out.push(x)}
+  if(m.circ)for(const dir of [1,-1]){ // en una circular el último y el primero también son vecinos
+    const g=out.filter(x=>x.dir===dir);if(g.length>2){const f=g[0],l=g[g.length-1];if(cdist(f.u,l.u,m)<380)out.splice(out.indexOf(f.e<l.e?l:f),1)}}
+  return out}
 // Casa las estimaciones nuevas con los trenes que ya se están siguiendo (así no hay saltos ni parpadeos).
 let tid=0;
 function track(est,m,now){
@@ -755,6 +765,12 @@ function track(est,m,now){
     Object.assign(t,{c:x.c,j:x.j,e:x.e,t0:x.t0,dest:x.dest,miss:0})}
   est.forEach((x,i)=>{if(uE.has(i))return;const id='t'+(++tid);M.tracks.set(id,{id,m,line:m.line,dir:x.dir,c:x.c,j:x.j,e:x.e,t0:x.t0,dest:x.dest,miss:0,u:x.u,al:0,shown:false})});
   for(const t of M.tracks.values())if(t.line===m.line&&!uT.has(t)&&t.t0!==now)t.miss++;
+  // Barrera: dos trenes del mismo sentido no pueden estar a <200 m (ahí hay un duplicado): se retira el menos fiable
+  const ts=[...M.tracks.values()].filter(t=>t.line===m.line&&t.miss<2);
+  for(let a=0;a<ts.length;a++)for(let b=a+1;b<ts.length;b++){
+    const x=ts[a],y=ts[b];if(x.dir!==y.dir||x.miss>=2||y.miss>=2||cdist(x.u,y.u,m)>=200)continue;
+    const lo=x.miss!==y.miss?(x.miss>y.miss?x:y):(x.al<y.al?x:y);lo.miss=9;
+  }
 }
 // ---- Animación ----
 let raf=0,lastTs=0,lastDom=0,lastRoute=0,lastPop=0;
@@ -808,6 +824,38 @@ function frame(ts){
   if(M.tracks.size)raf=requestAnimationFrame(frame);
 }
 function clearConvoys(){for(const t of M.tracks.values())if(t.mk)TL.removeLayer(t.mk);M.tracks.clear();deselect();if(raf){cancelAnimationFrame(raf);raf=0}setStatus('metro','')}
+// ---- Registro de depuración (Ajustes > Metro): guarda lo que devuelven las pantallas y lo que dibuja el motor, para repetirlo después ----
+const LOGMAX=300;let LOG={lines:{},snaps:[]},logSince=0;
+try{const j=JSON.parse(store.get('metroLog')||'null');if(j&&Array.isArray(j.snaps))LOG=j}catch(e){}
+const logOn=()=>store.get('metroLogOn')==='1';
+function saveLog(){try{let s=JSON.stringify(LOG);if(s.length>2.5e6){LOG.snaps.splice(0,Math.floor(LOG.snaps.length/2));s=JSON.stringify(LOG)}store.set('metroLog',s)}catch(e){}}
+function logInfo(){const el=$('metro-log-info');if(!el)return;const n=LOG.snaps.length;el.textContent=n?n+' capturas · de '+new Date(LOG.snaps[0].t).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})+' a '+new Date(LOG.snaps[n-1].t).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Sin capturas todavía'}
+function logSnap(m,boards,t0,line){
+  if(!LOG.lines[line])LOG.lines[line]={names:m.sts.map(s=>s.name),S:m.sts.map(s=>Math.round(s.S)),Lp:Math.round(m.Lp),circ:m.circ};
+  LOG.snaps.push({t:t0,t1:Date.now(),l:line,b:boards.map(b=>b?b.map(r=>r.raw):null),tr:[...M.tracks.values()].filter(t=>t.line===line&&t.miss<2).map(t=>[t.id,t.dir,t.c.ord[t.j],+t.e.toFixed(2),Math.round(t.u)])});
+  if(LOG.snaps.length>LOGMAX)LOG.snaps.splice(0,LOG.snaps.length-LOGMAX);
+  if(++logSince>=10){logSince=0;saveLog()}
+  logInfo();
+}
+const logText=last=>JSON.stringify({v:1,exportado:new Date().toISOString(),ua:navigator.userAgent.slice(0,90),lines:LOG.lines,snaps:last?LOG.snaps.slice(-last):LOG.snaps});
+(()=>{
+  const cb=$('metro-log');if(!cb)return;
+  cb.checked=logOn();cb.onchange=()=>{store.set('metroLogOn',cb.checked?'1':'0');if(!cb.checked)saveLog();logInfo()};
+  $('metro-log-save').onclick=()=>{
+    if(!LOG.snaps.length){toast('No hay capturas todavía');return}
+    const d=new Date(),z=n=>String(n).padStart(2,'0'),name='metro_registro_'+d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+'-'+z(d.getHours())+z(d.getMinutes())+'.html',txt=logText();
+    if(window.AndroidPuente&&typeof window.AndroidPuente.descargar==='function')window.AndroidPuente.descargar(name,txt);
+    else{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));a.download=name;a.click()}
+  };
+  $('metro-log-copy').onclick=async()=>{
+    if(!LOG.snaps.length){toast('No hay capturas todavía');return}
+    const txt=logText(40);
+    try{await navigator.clipboard.writeText(txt)}catch(e){const ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(_){}ta.remove()}
+    toast('Copiadas las últimas '+Math.min(40,LOG.snaps.length)+' capturas');
+  };
+  $('metro-log-clear').onclick=()=>{LOG={lines:{},snaps:[]};logSince=0;saveLog();logInfo();toast('Registro borrado')};
+  logInfo();
+})();
 // ---- Datos: una pantalla por estación de la línea, en paralelo ----
 async function fetchBoards(m){
   const n=m.n,out=new Array(n),only=new Set([m.line]);let i=0,fails=0;
@@ -830,6 +878,7 @@ async function trains(){
     const now=Date.now();let est=reconstruct(m,boards,resolveDirs(m,boards),now);
     est.forEach(x=>x.u=posU(x.c,x.j,x.e,x.t0,now));
     est=dedupe(est,m);track(est,m,now);ensureLoop();setStatus('metro','');
+    if(logOn())logSnap(m,boards,now,line);
   }catch(e){setStatus('metro','Metro: '+e.message)}
   finally{busy=false;if(redo){redo=false;setTimeout(trains,0)}}
 }
