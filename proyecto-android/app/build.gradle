@@ -26,7 +26,7 @@ android {
         applicationId "com.ejemplo.trasportedirecto"
         minSdk 24
         targetSdk 34
-        versionCode 8
+        versionCode 9
         versionName "v16.0"
     }
 
