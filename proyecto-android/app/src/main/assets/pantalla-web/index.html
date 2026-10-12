@@ -622,7 +622,7 @@ const convoysOn=()=>store.get('metroConvoys')==='1';
    siguientes con minutos crecientes (≈ lo que tarda el tramo); cuando ese encadenado se rompe, empieza otro tren.
    La posición sale de retroceder por el trazado esos minutos con los tiempos por tramo (marcha + parada).
    Cada tren es un objeto persistente que se mueve solo entre refrescos y se corrige poco a poco. */
-const RUN=620,DWELL=0.35,TOL=1.0,MATCH=450,VMAX=32,BLEND=0.5; // m/min de marcha · min de parada · min de tolerancia · m para reconocer un tren · m/s máx.
+const RUN=520,DWELL=0.40,TOL=1.4,MATCH=550,VMAX=32,BLEND=0.5; // m/min de marcha · min de parada · min de tolerancia · m para reconocer un tren · m/s máx.
 M.tracks=new Map();M.selTrack=null;
 const models=new Map(),isCirc=p=>p.length>2&&D(p[0],p[p.length-1])<400;
 function lineModel(l){
@@ -640,10 +640,10 @@ function lineModel(l){
   const m={line:l,p,Lp,circ,sts,n,seg};models.set(l,m);return m;
 }
 // Tiempos por tramo: por defecto longitud/velocidad + parada; se afinan solos con lo que se observa (y se guardan).
-let learned={};try{learned=JSON.parse(store.get('metroSeg')||'{}')}catch(e){}
+let learned={};try{learned=JSON.parse(store.get('metroSeg2')||'{}')}catch(e){}
 const defT=(m,i)=>m.seg[i]/RUN+DWELL,segT=(m,i)=>{const v=learned[m.line+'|'+i];return v>0?v:defT(m,i)};
 const segIdx=(m,a,b)=>Math.abs(a-b)===1?Math.min(a,b):m.n-1; // tramo entre dos estaciones contiguas (el cierre del circular es el último)
-let saveT;const learn=(m,i,dt)=>{const d=defT(m,i),k=m.line+'|'+i,old=learned[k]>0?learned[k]:d;learned[k]=+Math.max(d*.5,Math.min(d*2,old*.95+dt*.05)).toFixed(3);clearTimeout(saveT);saveT=setTimeout(()=>store.set('metroSeg',JSON.stringify(learned)),3000)};
+let saveT;const learn=(m,i,dt)=>{const d=defT(m,i),k=m.line+'|'+i,old=learned[k]>0?learned[k]:d;learned[k]=+Math.max(d*.5,Math.min(d*2,old*.95+dt*.05)).toFixed(3);clearTimeout(saveT);saveT=setTimeout(()=>store.set('metroSeg2',JSON.stringify(learned)),3000)};
 // Contexto de un sentido: estaciones en orden de marcha y su posición U (m recorridos en ese sentido, ascendente).
 function dirCtx(m,dir){
   const n=m.n,ord=[...Array(n).keys()];if(dir<0)ord.reverse();
@@ -759,9 +759,9 @@ const cdist=(a,b,m)=>{let d=Math.abs(a-b);if(m.circ){d%=m.Lp;d=Math.min(d,m.Lp-d
 function dedupe(est,m){
   const nu=x=>m.circ?((x.u%m.Lp)+m.Lp)%m.Lp:x.u;
   est.sort((a,b)=>a.dir-b.dir||nu(a)-nu(b));const out=[];
-  for(const x of est){const q=out[out.length-1];if(q&&q.dir===x.dir&&cdist(q.u,x.u,m)<380){if(x.e<q.e)out[out.length-1]=x;continue}out.push(x)}
+  for(const x of est){const q=out[out.length-1];if(q&&q.dir===x.dir&&cdist(q.u,x.u,m)<600){if(x.e<q.e)out[out.length-1]=x;continue}out.push(x)}
   if(m.circ)for(const dir of [1,-1]){ // en una circular el último y el primero también son vecinos
-    const g=out.filter(x=>x.dir===dir);if(g.length>2){const f=g[0],l=g[g.length-1];if(cdist(f.u,l.u,m)<380)out.splice(out.indexOf(f.e<l.e?l:f),1)}}
+    const g=out.filter(x=>x.dir===dir);if(g.length>2){const f=g[0],l=g[g.length-1];if(cdist(f.u,l.u,m)<600)out.splice(out.indexOf(f.e<l.e?l:f),1)}}
   return out}
 // Casa las estimaciones nuevas con los trenes que ya se están siguiendo (así no hay saltos ni parpadeos).
 let tid=0;
@@ -780,7 +780,7 @@ function track(est,m,now){
   // Barrera: dos trenes del mismo sentido no pueden estar a <400 m (ahí hay un duplicado): se retira el menos fiable
   const ts=[...M.tracks.values()].filter(t=>t.line===m.line&&t.miss<3);ts.forEach(t=>t.pp=posU(t.c,t.j,t.e,t.t0,now));
   for(let a=0;a<ts.length;a++)for(let b=a+1;b<ts.length;b++){
-    const x=ts[a],y=ts[b];if(x.dir!==y.dir||x.miss>=3||y.miss>=3||cdist(x.pp,y.pp,m)>=400)continue;
+    const x=ts[a],y=ts[b];if(x.dir!==y.dir||x.miss>=3||y.miss>=3||cdist(x.pp,y.pp,m)>=600)continue;
     const lo=x.miss!==y.miss?(x.miss>y.miss?x:y):(x.al<y.al?x:y);lo.miss=9;
   }
 }
