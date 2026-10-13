@@ -6,10 +6,16 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
-@Database(entities = [SessionEntity::class], version = 1, exportSchema = false)
+@Database(
+    entities = [SessionEntity::class, DnsEventEntity::class, NetEventEntity::class],
+    version = 2,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun sessionDao(): SessionDao
+
+    abstract fun dnsDao(): DnsDao
 
     companion object {
         @Volatile
@@ -36,6 +42,8 @@ abstract class AppDatabase : RoomDatabase() {
             val fabrica = SupportOpenHelperFactory(clave)
             return Room.databaseBuilder(contexto, AppDatabase::class.java, "vigia.db")
                 .openHelperFactory(fabrica)
+                // La versión 1 solo guardaba sesiones de prueba: se recrea el esquema sin migrar.
+                .fallbackToDestructiveMigrationFrom(1)
                 .build()
         }
     }
