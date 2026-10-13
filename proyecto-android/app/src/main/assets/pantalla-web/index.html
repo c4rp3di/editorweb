@@ -605,7 +605,15 @@ function near(p,ll){let z={d:1e99,i:0,t:0};for(let i=0;i<p.length-1;i++){let a=p
 function along(p,ll){let q=near(p,ll),n=0;for(let i=0;i<q.i;i++)n+=D(p[i],p[i+1]);return n+D(p[q.i],p[q.i+1]||p[q.i])*q.t}function len(p){let n=0;for(let i=0;i<p.length-1;i++)n+=D(p[i],p[i+1]);return n}
 function point(p,n){for(let i=0;i<p.length-1;i++){let s=D(p[i],p[i+1]);if(n<=s){let t=s?n/s:0;return[p[i][0]+(p[i+1][0]-p[i][0])*t,p[i][1]+(p[i+1][1]-p[i][1])*t]}n-=s}return p[p.length-1]}
 function bear(a,b){return Math.atan2((b[1]-a[1])*Math.cos((a[0]+b[0])*Math.PI/360),b[0]-a[0])*180/Math.PI-90}
-function join(ps,ss){if(ps.length<2)return ps[0]||[];let u=ps.map(p=>p.slice()),o=u.shift();while(u.length){let z={d:1e99,j:0,r:0};u.forEach((p,j)=>[[p[0],0],[p[p.length-1],1]].forEach(([e,r])=>{let d=D(o[o.length-1],e);if(d<z.d)z={d,j,r}}));let p=u.splice(z.j,1)[0];if(z.r)p.reverse();if(D(o[o.length-1],p[0])<100)p=p.slice(1);o.push(...p)}if(ss.length>1&&along(o,[ss[0].lat,ss[0].lng])>along(o,[ss[ss.length-1].lat,ss[ss.length-1].lng]))o.reverse();return o}
+function join(ps,ss){if(ps.length<2)return ps[0]||[];let u=ps.map(p=>p.slice()),k=0;u.forEach((p,i)=>{if(len(p)>len(u[k]))k=i});let o=u.splice(k,1)[0];
+  // se une desde AMBOS extremos de la pieza más larga (el orden de la capa es arbitrario); las piezas que no enlazan (ramales sueltos) no entran en el eje
+  for(;;){let z={d:1e99};u.forEach((p,j)=>{const a=p[0],b=p[p.length-1],h=o[0],t=o[o.length-1];
+      for(const[d,w,r]of[[D(t,a),'t',0],[D(t,b),'t',1],[D(h,b),'h',0],[D(h,a),'h',1]])if(d<z.d)z={d,j,w,r}});
+    if(!(z.d<500))break;let p=u.splice(z.j,1)[0];
+    if(z.w==='t'){if(z.r)p.reverse();if(D(o[o.length-1],p[0])<100)p=p.slice(1);o.push(...p)}
+    else{if(z.r)p.reverse();if(D(o[0],p[p.length-1])<100)p=p.slice(0,-1);o.unshift(...p)}}
+  o.dropped=u.length;
+  if(ss.length>1&&along(o,[ss[0].lat,ss[0].lng])>along(o,[ss[ss.length-1].lat,ss[ss.length-1].lng]))o.reverse();return o}
 const order=l=>M.stations.filter(s=>s.lines.includes(l)).sort((a,b)=>along(M.paths.get(l),[a.lat,a.lng])-along(M.paths.get(l),[b.lat,b.lng]));
 let gp;function geometry(){return gp||(gp=geometry0().catch(e=>{gp=null;throw e}))}async function geometry0(){if(M.ready)return;let[a,b]=await Promise.all([apiGet(SU),apiGet(LU)]),by=[];for(let f of a.features||[]){let p=f.properties||{},c=f.geometry?.coordinates;if(!c||c.length<2)continue;let la=+c[1],ln=+c[0],nk=norm(p.DENOMINACION).replace(/\s+/g,' ').trim(),s=by.find(g=>g.nk===nk&&D([g.lat,g.lng],[la,ln])<400);if(!s){s={id:'s'+by.length,nk,name:nice(p.DENOMINACION),codes:[],lat:la,lng:ln,n:0,lines:[]};by.push(s)}s.lat=(s.lat*s.n+la)/(s.n+1);s.lng=(s.lng*s.n+ln)/(s.n+1);s.n++;let ec=String(p.CODIGOEMPRESA||'').trim();if(ec&&!s.codes.includes(ec))s.codes.push(ec);for(let l of String(p.LINEAS||'').split(/[,;\s]+/).map(num).filter(Boolean))if(!s.lines.includes(l))s.lines.push(l);}M.stations=by;{const seg=new Map();for(let f of b.features||[]){const pr=f.properties||{},l=num(pr.NUMEROLINEAUSUARIO),p=flat(f.geometry);if(!l||p.length<2)continue;
   const mm=/^\d+_(\d+)_(\d+)__/.exec(String(pr.IDTRAMO||'')),sd=+pr.SENTIDO||1;
@@ -817,7 +825,7 @@ function frame(ts){
     const a=point(m.p,cl(S-t.dir*30)),b=point(m.p,cl(S+t.dir*70)),pos=point(m.p,S);
     const th=(Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])>1e-9)?bear(a,b):(t.th??0);
     if(t.th===undefined||snap)t.th=th;else t.th+=(((th-t.th+540)%360)-180)*(1-Math.exp(-dt/.2));
-    t.S=S;
+    t.S=S;t.ll=pos;
     if(!t.mk&&map.hasLayer(TL)){
       t.mk=L.marker(pos,{icon:L.divIcon({className:'',html:'<div class="tr"><div style="background:'+col(m.line)+'"><span>L'+m.line+'</span></div></div>',iconSize:[40,24],iconAnchor:[20,12]}),zIndexOffset:600,keyboard:false}).addTo(TL);
       t.mk.bindPopup('',{autoPan:false,offset:[0,-4]});
@@ -843,7 +851,7 @@ const logOn=()=>store.get('metroLogOn')==='1';
 function saveLog(){try{let s=JSON.stringify(LOG);if(s.length>2.5e6){LOG.snaps.splice(0,Math.floor(LOG.snaps.length/2));s=JSON.stringify(LOG)}store.set('metroLog',s)}catch(e){}}
 function logInfo(){const el=$('metro-log-info');if(!el)return;const n=LOG.snaps.length;el.textContent=n?n+' capturas · de '+new Date(LOG.snaps[0].t).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})+' a '+new Date(LOG.snaps[n-1].t).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'Sin capturas todavía'}
 function logSnap(m,boards,t0,line){
-  if(!LOG.lines[line])LOG.lines[line]={names:m.sts.map(s=>s.name),S:m.sts.map(s=>Math.round(s.S)),Lp:Math.round(m.Lp),circ:m.circ};
+  if(!LOG.lines[line])LOG.lines[line]={names:m.sts.map(s=>s.name),S:m.sts.map(s=>Math.round(s.S)),Lp:Math.round(m.Lp),circ:m.circ,drop:m.p.dropped||0,np:m.p.length};
   LOG.snaps.push({t:t0,t1:Date.now(),l:line,b:boards.map(b=>b?b.map(r=>r.raw):null),tr:[...M.tracks.values()].filter(t=>t.line===line&&t.miss<3).map(t=>[t.id,t.dir,t.c.ord[t.j],+t.e.toFixed(2),Math.round(t.u)])});
   if(LOG.snaps.length>LOGMAX)LOG.snaps.splice(0,LOG.snaps.length-LOGMAX);
   if(++logSince>=10){logSince=0;saveLog()}
