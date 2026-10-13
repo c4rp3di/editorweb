@@ -1,3 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Trasporte directo</string>
+    <string name="app_name">Vigía</string>
+    <string name="subtitulo">Lupa de defensa personal · Fase 1: esqueleto</string>
+    <string name="estado_inactiva">Inactivo</string>
+    <string name="estado_activa">Sesión activa</string>
+    <string name="estado_pausada">Sesión en pausa</string>
+    <string name="nueva_sesion">Nueva sesión</string>
+    <string name="pausar">Pausar</string>
+    <string name="reanudar">Reanudar</string>
+    <string name="detener">Detener</string>
+    <string name="sin_sesiones">Todavía no hay sesiones cerradas.</string>
+    <string name="aviso_fase1">Esta versión no recoge ningún dato del dispositivo. Solo comprueba que las sesiones, el almacén cifrado y el indicador de actividad funcionan.</string>
+    <string name="canal_nombre">Sesión de Vigía</string>
+    <string name="notif_titulo">Vigía activo</string>
+    <string name="notif_texto_activa">Sesión en curso desde las %1$s</string>
+    <string name="notif_texto_pausada">Sesión en pausa</string>
 </resources>
