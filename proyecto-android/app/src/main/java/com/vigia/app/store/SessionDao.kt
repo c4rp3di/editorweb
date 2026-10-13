@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SessionDao {
@@ -21,4 +22,10 @@ interface SessionDao {
 
     @Query("SELECT * FROM sessions WHERE fin IS NOT NULL ORDER BY inicio DESC LIMIT 1")
     suspend fun ultimaCerrada(): SessionEntity?
+
+    @Query("SELECT * FROM sessions ORDER BY inicio DESC")
+    fun observarTodas(): Flow<List<SessionEntity>>
+
+    @Query("DELETE FROM sessions WHERE id = :id")
+    suspend fun borrar(id: Long)
 }
