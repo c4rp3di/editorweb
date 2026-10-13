@@ -473,7 +473,7 @@ function start(){
 
 /* ---------- Ubicación ---------- */
 let me;
-$('locate-btn').onclick=()=>{
+let watchId = null;$('locate-btn').onclick=()=>{
   if(!navigator.geolocation)return toast('Geolocalización no disponible');
   navigator.geolocation.getCurrentPosition(p=>{
     const ll=[p.coords.latitude,p.coords.longitude];
