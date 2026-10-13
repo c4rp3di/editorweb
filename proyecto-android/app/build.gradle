@@ -1,7 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    // [PLUGINS:FUNCIONALIDADES]
+    id 'com.google.devtools.ksp'
 }
 
 android {
@@ -19,15 +19,15 @@ android {
         }
     }
 
-    namespace 'com.ejemplo.trasportedirecto'
+    namespace 'com.vigia.app'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.ejemplo.trasportedirecto"
+        applicationId "com.vigia.app"
         minSdk 24
         targetSdk 34
-        versionCode 12
-        versionName "v21.0"
+        versionCode 1
+        versionName "v1.0"
     }
 
     buildFeatures {
@@ -47,6 +47,13 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
-    implementation 'androidx.fragment:fragment-ktx:1.8.4'
-    // [DEPENDENCIAS:FUNCIONALIDADES]
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+
+    // Almacén local cifrado (Room + SQLCipher)
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    ksp 'androidx.room:room-compiler:2.6.1'
+    implementation 'net.zetetic:sqlcipher-android:4.5.4@aar'
+    implementation 'androidx.sqlite:sqlite:2.4.0'
 }
