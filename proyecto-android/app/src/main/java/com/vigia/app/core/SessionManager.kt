@@ -2,17 +2,24 @@ package com.vigia.app.core
 
 import android.content.Context
 import com.vigia.app.store.AppDatabase
+import com.vigia.app.store.DnsDao
+import com.vigia.app.store.DnsEventEntity
 import com.vigia.app.store.SessionDao
 import com.vigia.app.store.SessionEntity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 /**
- * Gestor de sesiones. Fase 1: solo lleva el ciclo de vida (nueva, pausa, detener) y lo guarda
- * en la base cifrada. Todavía no hay módulos de recolección.
+ * Gestor de sesiones: ciclo de vida (nueva, pausa, detener), consultas para la interfaz
+ * y borrado. Los módulos de recolección observan [estado] para saber cuándo trabajar.
  */
 class SessionManager private constructor(private val app: Context) {
 
@@ -21,6 +28,10 @@ class SessionManager private constructor(private val app: Context) {
 
     private suspend fun dao(): SessionDao = withContext(Dispatchers.IO) {
         AppDatabase.obtener(app).sessionDao()
+    }
+
+    private suspend fun dnsDao(): DnsDao = withContext(Dispatchers.IO) {
+        AppDatabase.obtener(app).dnsDao()
     }
 
     suspend fun cargarSiHaceFalta() {
@@ -39,6 +50,7 @@ class SessionManager private constructor(private val app: Context) {
                 estado = estadoActual,
                 sesionId = abierta?.id,
                 inicio = abierta?.inicio,
+                vpn = if (abierta != null) vpnDe(abierta.configuracion) else false,
                 ultimaInicio = ultima?.inicio,
                 ultimaFin = ultima?.fin
             )
@@ -47,17 +59,21 @@ class SessionManager private constructor(private val app: Context) {
         }
     }
 
-    suspend fun iniciar() {
+    suspend fun iniciar(vpn: Boolean) {
         cargarSiHaceFalta()
         val actual = _estado.value
         if (actual.estado != Estado.INACTIVA) return
         try {
             val ahora = System.currentTimeMillis()
-            val id = dao().insertar(SessionEntity(inicio = ahora, estado = ESTADO_ACTIVA))
+            val config = "{\"vpn\":" + vpn + "}"
+            val id = dao().insertar(
+                SessionEntity(inicio = ahora, estado = ESTADO_ACTIVA, configuracion = config)
+            )
             _estado.value = actual.copy(
                 estado = Estado.ACTIVA,
                 sesionId = id,
                 inicio = ahora,
+                vpn = vpn,
                 error = null
             )
         } catch (e: Exception) {
@@ -108,6 +124,48 @@ class SessionManager private constructor(private val app: Context) {
         }
     }
 
+    // ---- Consultas para la interfaz ----
+
+    fun sesiones(): Flow<List<SessionEntity>> = flow {
+        emitAll(AppDatabase.obtener(app).sessionDao().observarTodas())
+    }.flowOn(Dispatchers.IO)
+
+    fun eventos(sesionId: Long): Flow<List<DnsEventEntity>> = flow {
+        emitAll(AppDatabase.obtener(app).dnsDao().observar(sesionId, 1000))
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun sesion(id: Long): SessionEntity? {
+        return try {
+            dao().obtener(id)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun contadores(sesionId: Long): Contadores {
+        return try {
+            val d = dnsDao()
+            Contadores(
+                consultas = d.contar(sesionId),
+                dominios = d.contarDominios(sesionId),
+                apps = d.contarApps(sesionId)
+            )
+        } catch (e: Exception) {
+            Contadores()
+        }
+    }
+
+    /** Borra una sesión cerrada y todos sus eventos. La sesión abierta no se puede borrar. */
+    suspend fun borrarSesion(id: Long) {
+        if (_estado.value.sesionId == id) return
+        try {
+            dnsDao().borrarDeSesion(id)
+            dao().borrar(id)
+        } catch (e: Exception) {
+            _estado.value = _estado.value.copy(error = describir(e))
+        }
+    }
+
     private fun describir(e: Exception): String {
         return (e.javaClass.simpleName + ": " + (e.message ?: "sin detalle"))
     }
@@ -116,6 +174,14 @@ class SessionManager private constructor(private val app: Context) {
         const val ESTADO_ACTIVA = "activa"
         const val ESTADO_PAUSADA = "pausada"
         const val ESTADO_CERRADA = "cerrada"
+
+        fun vpnDe(configuracion: String): Boolean {
+            return try {
+                JSONObject(configuracion).optBoolean("vpn", false)
+            } catch (e: Exception) {
+                false
+            }
+        }
 
         @Volatile
         private var instancia: SessionManager? = null
