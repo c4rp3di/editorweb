@@ -559,7 +559,7 @@ const api=async c=>{c=num(c);const h=cache.get(c);if(h&&Date.now()-h.t<15000)ret
 const mins=v=>{if(v==null)return NaN;const t=String(v).trim();if(!t||/^null$/i.test(t))return NaN;const n=Number(t);return Number.isFinite(n)&&n>=0?n:NaN};
 const fmin=m=>m<0.5?'Llegando':Math.max(1,Math.round(m))+' min';
 const nice=x=>{x=String(x||'').trim();if(x!==x.toUpperCase())return x;return x.toLowerCase().replace(/(^|[\s\-(])([a-záéíóúñü])/g,(m,a,b)=>a+b.toUpperCase()).replace(/(\s)(De|Del|La|Las|Los|El|Y|A|En)(?=\s)/g,(m,a,b)=>a+b.toLowerCase())};
-const sbg=s=>{const L=s.lines.slice().sort((a,b)=>a-b);if(L.length<2)return col(L[0]||'');const n=L.length;return 'conic-gradient('+L.map((l,i)=>col(l)+' '+(i*100/n).toFixed(1)+'% '+((i+1)*100/n).toFixed(1)+'%').join(',')+')'};
+const sbg=s=>{const L=s.lines.slice().sort((a,b)=>(+a||99)-(+b||99));if(L.length<2)return col(L[0]||'');const n=L.length;return 'conic-gradient('+L.map((l,i)=>col(l)+' '+(i*100/n).toFixed(1)+'% '+((i+1)*100/n).toFixed(1)+'%').join(',')+')'};
 // El servicio de Metro responde por ESTACIÓN FÍSICA: el código de una línea (p. ej. 112 = Sol por la L1) devuelve
 // las llegadas de todas las líneas de esa estación, y los códigos de las otras líneas (208, 306) vienen vacíos.
 // Se prueban los códigos de menor a mayor y se para en el primero que devuelve datos.
@@ -582,7 +582,7 @@ async function rowsOf(s,only){
       const t=Date.parse(v.fechaHoraEmisionPrevision),age=Number.isFinite(t)?Math.max(0,(now-t)/1000):0;
       const p=mins(v.proximo),q=mins(v.siguiente),etas=[];
       const etasE=[];
-      if(age<=CADUCA)for(const m of [p,q]){if(!Number.isFinite(m))continue;const rem=m*60-age;if(rem<-GRACIA)continue;etas.push(rem/60);
+      if(age<=CADUCA)for(const m of [p,q]){if(!Number.isFinite(m))continue;const rem=m*60-age;if(rem<-GRACIA)continue;etas.push(((m>0?m-.5:0)*60-age)/60);
         // la pantalla redondea HACIA ARRIBA (el 3 es "entre 2 y 3 min"): para colocar trenes se usa el punto medio
         etasE.push(((m>0?m-.5:0)*60-age)/60)}
       // proximo vacío + siguiente con dato = hay un tren parado en el andén (las pantallas no lo muestran)
@@ -597,7 +597,7 @@ async function rowsOf(s,only){
   return out;
 }
 // Sin línea elegida solo se consultan las estaciones visibles (máx. 40); con línea, las de esa línea.
-const num=x=>(String(x??'').match(/\d+/)||[''])[0],norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),D=(a,b)=>Math.hypot((a[0]-b[0])*111000,(a[1]-b[1])*85000),C={1:'#0055A4',2:'#E30613',3:'#FFD100',4:'#8B5A2B',5:'#2F8A2F',6:'#777',7:'#F28C28',8:'#F28AA6',9:'#7B3F98',10:'#005CA9',11:'#6B8E23',12:'#6B5B2B'},col=l=>C[l]||'#555';
+const num=x=>(String(x??'').match(/\d+/)||[/^\s*(R|RAMAL)\s*$/i.test(String(x??''))?'R':''])[0],LB=l=>l==='R'?'R':'L'+l,norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),D=(a,b)=>Math.hypot((a[0]-b[0])*111000,(a[1]-b[1])*85000),C={1:'#0055A4',2:'#E30613',3:'#FFD100',4:'#8B5A2B',5:'#2F8A2F',6:'#777',7:'#F28C28',8:'#F28AA6',9:'#7B3F98',10:'#005CA9',11:'#6B8E23',12:'#6B5B2B',R:'#8FB8DE'},col=l=>C[l]||'#555';
 const SU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/0/query?where=1%3D1&outFields=CODIGOESTACION,DENOMINACION,CODIGOEMPRESA,LINEAS&returnGeometry=true&outSR=4326&f=geojson',LU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/4/query?where=1%3D1&outFields=NUMEROLINEAUSUARIO,SENTIDO,IDTRAMO&returnGeometry=true&outSR=4326&f=geojson';
 const LL=L.layerGroup().addTo(layers.tren),SL=L.layerGroup().addTo(layers.tren),TL=L.layerGroup().addTo(layers.tren),RL=L.layerGroup().addTo(layers.tren),M={stations:[],parts:new Map(),paths:new Map(),markers:new Map(),focus:new Set(),selected:null,ready:false};
 const flat=g=>(g?.type==='MultiLineString'?g.coordinates:[g?.coordinates]).flatMap(p=>(p||[]).map(c=>[+c[1],+c[0]]));
@@ -618,7 +618,7 @@ const order=l=>M.stations.filter(s=>s.lines.includes(l)).sort((a,b)=>along(M.pat
 let gp;function geometry(){return gp||(gp=geometry0().catch(e=>{gp=null;throw e}))}async function geometry0(){if(M.ready)return;let[a,b]=await Promise.all([apiGet(SU),apiGet(LU)]),by=[];for(let f of a.features||[]){let p=f.properties||{},c=f.geometry?.coordinates;if(!c||c.length<2)continue;let la=+c[1],ln=+c[0],nk=norm(p.DENOMINACION).replace(/\s+/g,' ').trim(),s=by.find(g=>g.nk===nk&&D([g.lat,g.lng],[la,ln])<400);if(!s){s={id:'s'+by.length,nk,name:nice(p.DENOMINACION),codes:[],lat:la,lng:ln,n:0,lines:[]};by.push(s)}s.lat=(s.lat*s.n+la)/(s.n+1);s.lng=(s.lng*s.n+ln)/(s.n+1);s.n++;let ec=String(p.CODIGOEMPRESA||'').trim();if(ec&&!s.codes.includes(ec))s.codes.push(ec);for(let l of String(p.LINEAS||'').split(/[,;\s]+/).map(num).filter(Boolean))if(!s.lines.includes(l))s.lines.push(l);}M.stations=by;{const seg=new Map();for(let f of b.features||[]){const pr=f.properties||{},l=num(pr.NUMEROLINEAUSUARIO),p=flat(f.geometry);if(!l||p.length<2)continue;
   const mm=/^\d+_(\d+)_(\d+)__/.exec(String(pr.IDTRAMO||'')),sd=+pr.SENTIDO||1;
   if(!mm){(M.parts.get(l)||M.parts.set(l,[]).get(l)).push(p);continue}
-  const key=l+'|'+mm[2],o=seg.get(key);if(!o||sd<o.sd)seg.set(key,{l,p,sd})} // un tramo por sentido: solo uno (el sentido 1 si existe)
+  const key=l+'|'+mm[2],o=seg.get(key),raw=String(pr.NUMEROLINEAUSUARIO);if(!o||sd<o.sd||(sd===o.sd&&raw<o.raw))seg.set(key,{l,p,sd,raw})} // un tramo por sentido: solo uno (el sentido 1 si existe)
   for(const{l,p}of seg.values())(M.parts.get(l)||M.parts.set(l,[]).get(l)).push(p)}for(let[l,ps]of M.parts)M.paths.set(l,join(ps,M.stations.filter(s=>s.lines.includes(l))));lines();stations();M.ready=true}
 function lines(){LL.clearLayers();for(let[l,ps]of M.parts)if(!M.focus.size||M.focus.has(l))for(let p of ps){L.polyline(p,{color:'#fff',weight:8,opacity:.9}).addTo(LL);L.polyline(p,{color:col(l),weight:5}).addTo(LL)}$('q-clear').hidden=!M.focus.size&&!lineMode}
 function stations(){SL.clearLayers();if(map.getZoom()<14)return;for(let s of M.stations){if(M.focus.size&&!s.lines.some(l=>M.focus.has(l)))continue;let ic=L.divIcon({className:'',html:'<div class="ms'+(s.lines.length>1?' multi':'')+'" style="background:'+sbg(s)+'"></div>',iconSize:[18,18],iconAnchor:[9,9]});L.marker([s.lat,s.lng],{icon:ic,zIndexOffset:300}).bindTooltip(s.name,{direction:'top'}).on('click',()=>station(s)).addTo(SL)}}map.on('zoomend',stations);
@@ -767,9 +767,9 @@ const cdist=(a,b,m)=>{let d=Math.abs(a-b);if(m.circ){d%=m.Lp;d=Math.min(d,m.Lp-d
 function dedupe(est,m){
   const nu=x=>m.circ?((x.u%m.Lp)+m.Lp)%m.Lp:x.u;
   est.sort((a,b)=>a.dir-b.dir||nu(a)-nu(b));const out=[];
-  for(const x of est){const q=out[out.length-1];if(q&&q.dir===x.dir&&cdist(q.u,x.u,m)<600){if(x.e<q.e)out[out.length-1]=x;continue}out.push(x)}
+  for(const x of est){const q=out[out.length-1];if(q&&q.dir===x.dir&&cdist(q.u,x.u,m)<900){if(x.e<q.e)out[out.length-1]=x;continue}out.push(x)}
   if(m.circ)for(const dir of [1,-1]){ // en una circular el último y el primero también son vecinos
-    const g=out.filter(x=>x.dir===dir);if(g.length>2){const f=g[0],l=g[g.length-1];if(cdist(f.u,l.u,m)<600)out.splice(out.indexOf(f.e<l.e?l:f),1)}}
+    const g=out.filter(x=>x.dir===dir);if(g.length>2){const f=g[0],l=g[g.length-1];if(cdist(f.u,l.u,m)<900)out.splice(out.indexOf(f.e<l.e?l:f),1)}}
   return out}
 // Casa las estimaciones nuevas con los trenes que ya se están siguiendo (así no hay saltos ni parpadeos).
 let tid=0;
@@ -788,7 +788,7 @@ function track(est,m,now){
   // Barrera: dos trenes del mismo sentido no pueden estar a <400 m (ahí hay un duplicado): se retira el menos fiable
   const ts=[...M.tracks.values()].filter(t=>t.line===m.line&&t.miss<3);ts.forEach(t=>t.pp=posU(t.c,t.j,t.e,t.t0,now));
   for(let a=0;a<ts.length;a++)for(let b=a+1;b<ts.length;b++){
-    const x=ts[a],y=ts[b];if(x.dir!==y.dir||x.miss>=3||y.miss>=3||cdist(x.pp,y.pp,m)>=600)continue;
+    const x=ts[a],y=ts[b];if(x.dir!==y.dir||x.miss>=3||y.miss>=3||cdist(x.pp,y.pp,m)>=900)continue;
     const lo=x.miss!==y.miss?(x.miss>y.miss?x:y):(x.al<y.al?x:y);lo.miss=9;
   }
 }
@@ -802,7 +802,7 @@ function nextStop(t){ // primera estación por delante de la posición actual y 
   if(dj>=0&&dj<=Math.min(8,n-1)){r=rem;for(let q=1;q<=dj;q++)r-=c.T[(k+q)%n]}else r=((c.U[k]-u+(k===0&&c.circ?c.Lp:0))/RUN);
   return{name:t.m.sts[c.ord[k]].name,rem:Math.max(0,r)};
 }
-const popTxt=t=>{const x=nextStop(t);return'<b>Metro L'+t.m.line+'</b> → '+String(t.dest||'').replace(/[<>]/g,'')+'<br><small>Próxima: '+x.name.replace(/[<>]/g,'')+' · '+fmin(x.rem)+'</small>'};
+const popTxt=t=>{const x=nextStop(t);return'<b>Metro '+LB(t.m.line)+'</b> → '+String(t.dest||'').replace(/[<>]/g,'')+'<br><small>Próxima: '+x.name.replace(/[<>]/g,'')+' · '+fmin(x.rem)+'</small>'};
 function route(t){RL.clearLayers();if(!t||t.m.circ)return;const Lp=t.m.Lp,S=t.dir>0?t.u:Lp-t.u,pts=subpath(t.m.p,S,t.dir>0?Lp:0);if(pts.length>1)L.polyline(pts,{color:col(t.m.line),weight:5,dashArray:'7 8',opacity:.95,lineCap:'butt',lineJoin:'round',interactive:false}).addTo(RL)}
 function deselect(){M.selTrack=null;M.selected=null;RL.clearLayers()}
 function select(t){M.selTrack=t;M.selected=t.id;route(t);if(t.mk){t.mk.setPopupContent(popTxt(t));t.mk.openPopup()}}
@@ -827,7 +827,7 @@ function frame(ts){
     if(t.th===undefined||snap)t.th=th;else t.th+=(((th-t.th+540)%360)-180)*(1-Math.exp(-dt/.2));
     t.S=S;t.ll=pos;
     if(!t.mk&&map.hasLayer(TL)){
-      t.mk=L.marker(pos,{icon:L.divIcon({className:'',html:'<div class="tr"><div style="background:'+col(m.line)+'"><span>L'+m.line+'</span></div></div>',iconSize:[40,24],iconAnchor:[20,12]}),zIndexOffset:600,keyboard:false}).addTo(TL);
+      t.mk=L.marker(pos,{icon:L.divIcon({className:'',html:'<div class="tr"><div style="background:'+col(m.line)+'"><span>'+LB(m.line)+'</span></div></div>',iconSize:[40,24],iconAnchor:[20,12]}),zIndexOffset:600,keyboard:false}).addTo(TL);
       t.mk.bindPopup('',{autoPan:false,offset:[0,-4]});
       t.mk.on('click',e=>{L.DomEvent.stopPropagation(e);select(t)});
       t.shown=true;
@@ -955,8 +955,8 @@ async function station(s){
   const nm=s.name.replace(/[<>]/g,''),p=L.popup({maxWidth:300}).setLatLng([s.lat,s.lng]),show=h=>p.setContent('<b>'+nm+'</b><div id="eta" style="margin-top:8px;color:#667">'+h+'</div>');
   show('Consultando tiempos…');p.openOn(map);
   try{
-    const all=await rowsOf(s),rows=all.filter(r=>r.etas.length).sort((a,b)=>(+a.line)-(+b.line)||a.etas[0]-b.etas[0]);
-    if(rows.length)show(rows.map(r=>'<div class="arr" data-pl="'+r.line+'" data-pd="'+encodeURIComponent(r.dest)+'" data-ps="'+s.id+'" style="cursor:pointer" title="Ver esta línea"><span class="v" style="background:'+col(r.line)+'">L'+r.line+'</span><span>'+r.dest.replace(/[<>]/g,'')+'</span><b>'+r.etas.map(fmin).join(' · ')+'</b></div>').join('')+'<div style="margin-top:6px;font-size:11px;color:#889">Toca una línea para elegirla</div>');
+    const all=await rowsOf(s),rows=all.filter(r=>r.etas.length).sort((a,b)=>((+a.line)||99)-((+b.line)||99)||a.etas[0]-b.etas[0]);
+    if(rows.length)show(rows.map(r=>'<div class="arr" data-pl="'+r.line+'" data-pd="'+encodeURIComponent(r.dest)+'" data-ps="'+s.id+'" style="cursor:pointer" title="Ver esta línea"><span class="v" style="background:'+col(r.line)+'">'+LB(r.line)+'</span><span>'+r.dest.replace(/[<>]/g,'')+'</span><b>'+r.etas.map(fmin).join(' · ')+'</b></div>').join('')+'<div style="margin-top:6px;font-size:11px;color:#889">Toca una línea para elegirla</div>');
     else if(all.length){const a=Math.round(Math.min(...all.map(r=>r.age))/60);show('Sin trenes previstos ahora<br><small>Último aviso de Metro hace '+(a>=60?Math.floor(a/60)+' h '+(a%60)+' min':a+' min')+'</small>')}
     else show('Sin tiempos disponibles');
   }catch(e){show('No se pudo consultar los tiempos.')}
@@ -966,7 +966,7 @@ function sugg(raw){
   const ls=/^l\d*$/.test(q)?[...M.paths.keys()].sort((a,b)=>a-b).filter(l=>('l'+l).startsWith(q)):[];
   const ss=t.length>=3?M.stations.filter(s=>norm(s.name).includes(t)).slice(0,5):[];
   return ls.map(l=>`<div class="sg" data-mline="${l}"><span class="v" style="background:${col(l)}">L${l}</span><span>Metro · mostrar solo esta línea</span></div>`).join('')
-    +ss.map(s=>`<div class="sg" data-mst="${s.id}"><span class="v" style="background:${col(s.lines[0]||'')}">M</span><span>${s.name.replace(/[<>&]/g,'')} · ${s.lines.map(l=>'L'+l).join(', ')}</span></div>`).join('');
+    +ss.map(s=>`<div class="sg" data-mst="${s.id}"><span class="v" style="background:${col(s.lines[0]||'')}">M</span><span>${s.name.replace(/[<>&]/g,'')} · ${s.lines.map(LB).join(', ')}</span></div>`).join('');
 }
 const prep=()=>{if(lineMode)exitLine();clearRoute();$('q-clear').hidden=false};
 document.addEventListener('click',e=>{
