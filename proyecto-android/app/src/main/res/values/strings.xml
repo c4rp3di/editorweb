@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Vigía</string>
-    <string name="subtitulo">Lupa de defensa personal · Fase 1: esqueleto</string>
+    <string name="subtitulo">Lupa de defensa personal · Fase 2: captura DNS</string>
     <string name="estado_inactiva">Inactivo</string>
     <string name="estado_activa">Sesión activa</string>
     <string name="estado_pausada">Sesión en pausa</string>
@@ -10,9 +10,25 @@
     <string name="reanudar">Reanudar</string>
     <string name="detener">Detener</string>
     <string name="sin_sesiones">Todavía no hay sesiones cerradas.</string>
-    <string name="aviso_fase1">Esta versión no recoge ningún dato del dispositivo. Solo comprueba que las sesiones, el almacén cifrado y el indicador de actividad funcionan.</string>
+    <string name="aviso_fase2">La captura DNS registra qué dominios consulta cada app (no el contenido de nada). Las apps que usan DNS cifrado propio (DNS sobre HTTPS) no pasan por aquí. Los datos se quedan cifrados en este teléfono.</string>
     <string name="canal_nombre">Sesión de Vigía</string>
     <string name="notif_titulo">Vigía activo</string>
     <string name="notif_texto_activa">Sesión en curso desde las %1$s</string>
     <string name="notif_texto_pausada">Sesión en pausa</string>
+
+    <string name="menu_sesiones">☰ Sesiones</string>
+    <string name="titulo_sesiones">Sesiones</string>
+    <string name="sin_sesiones_lista">Aún no hay sesiones. Pulsa «Nueva sesión» para crear la primera.</string>
+    <string name="chk_vpn">Capturar consultas DNS (VPN local)</string>
+    <string name="vpn_activa">Captura DNS: activa</string>
+    <string name="vpn_inactiva">Captura DNS: iniciando o parada</string>
+    <string name="vpn_denegada">Sin permiso de VPN: la sesión empieza sin captura DNS.</string>
+    <string name="contadores">Consultas DNS: %1$d · Dominios únicos: %2$d · Apps: %3$d</string>
+
+    <string name="volver">← Volver</string>
+    <string name="borrar">Borrar sesión</string>
+    <string name="borrar_titulo">¿Borrar esta sesión?</string>
+    <string name="borrar_mensaje">Se eliminarán la sesión y todos sus eventos de este teléfono. No se puede deshacer.</string>
+    <string name="cabecera_eventos">Consultas DNS (las más recientes primero)</string>
+    <string name="sin_eventos">Esta sesión no tiene consultas registradas.</string>
 </resources>
