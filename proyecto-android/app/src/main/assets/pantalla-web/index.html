@@ -280,8 +280,8 @@ async function emtToken(){
   if(!t)throw new Error(j.description||'login fallido');
   tok={v:t,t:Date.now()};return t;
 }
-async function emtStopsAround(c){
-  const r=await fetch(`${EMT}/v2/transport/busemtmad/stops/arroundxy/${c.lng}/${c.lat}/400/`,{headers:{accessToken:await emtToken()}});
+async function emtStopsAround(c,rad){
+  const r=await fetch(`${EMT}/v2/transport/busemtmad/stops/arroundxy/${c.lng}/${c.lat}/${rad||400}/`,{headers:{accessToken:await emtToken()}});
   return (await r.json()).data||[];
 }
 const natCmp=(a,b)=>String(a).localeCompare(String(b),'es',{numeric:true});
@@ -324,7 +324,7 @@ function addStop(s){
 async function loadStops(){
   if(lineMode||!store.get('emtMail')||map.getZoom()<15)return;
   try{
-    const list=await emtStopsAround(map.getCenter());if(lineMode)return;
+    const bb=map.getBounds(),list=await emtStopsAround(map.getCenter(),Math.round(Math.min(1500,Math.max(400,map.distance(bb.getCenter(),bb.getNorthEast())*.9))));if(lineMode)return;
     list.forEach(s=>{const c=s.geometry&&s.geometry.coordinates;
       if(c)addStop({id:String(s.stopId),name:s.stopName||s.name,lat:c[1],lng:c[0],lines:[...new Set((s.lines||[]).map(x=>String(x.label)))].sort(natCmp)})});
   }
@@ -337,6 +337,22 @@ map.on('moveend',loadStops);
 const st={},busLive=new Map();let lastPoll=0;
 const setStatus=(k,v)=>{st[k]=v;toast(Object.values(st).filter(Boolean).join(' · '))};
 const hue=l=>{let h=0;for(const c of String(l))h=(h*31+c.charCodeAt(0))%360;return `hsl(${h} 65% 42%)`};
+// Movimiento suave: el GPS llega cada ~20 s; el icono se desliza desde donde está hasta la nueva posición en lo que tarda la siguiente actualización
+const busAnim=new Set();let busRaf=0,busLast=0;
+function moveBus(o,ll,now){
+  if(o.tu===now)return; // el mismo autobús sale en varias paradas del mismo sondeo: se procesa una vez
+  const gap=o.tu?now-o.tu:20000;o.tu=now;
+  const cur=o.m.getLatLng(),d=map.distance(cur,L.latLng(ll));
+  if(d<4)return;
+  if(d>1500){o.m.setLatLng(ll);o.an=null;busAnim.delete(o);return}
+  o.an={a:[cur.lat,cur.lng],b:ll,t0:now,dur:Math.max(6000,Math.min(30000,gap))};busAnim.add(o);if(!busRaf)busRaf=requestAnimationFrame(busFrame);
+}
+function busFrame(ts){
+  busRaf=0;if(!busAnim.size)return;
+  if(ts-busLast>=90&&!document.hidden){busLast=ts;const now=Date.now();
+    busAnim.forEach(o=>{const a=o.an;if(!a||!o.m._map){busAnim.delete(o);return}const k=Math.min(1,(now-a.t0)/a.dur);o.m.setLatLng([a.a[0]+(a.b[0]-a.a[0])*k,a.a[1]+(a.b[1]-a.a[1])*k]);if(k>=1){o.an=null;busAnim.delete(o)}})}
+  if(busAnim.size)busRaf=requestAnimationFrame(busFrame);
+}
 function upsertBuses(list){
   const now=Date.now();
   list.forEach(a=>{
@@ -344,9 +360,9 @@ function upsertBuses(list){
     const ll=[g[1],g[0]],id=String(a.bus);
     let o=busLive.get(id);
     const pop=`Bus línea <b>${esc(a.line)}</b><br>→ ${esc(a.destination||'')}<br><small>Vehículo ${esc(a.bus)}</small><br><small>Punteado: recorrido · Continuo: por recorrer</small>`;
-    if(o){o.m.setLatLng(ll);o.m.setPopupContent(pop)}
+    if(o){moveBus(o,ll,now);o.m.setPopupContent(pop)}
     else{
-      o={m:L.marker(ll,{icon:icon('bus',a.line,hue(a.line)),zIndexOffset:500}).bindPopup(pop).addTo(layers.bus)};busLive.set(id,o);
+      o={m:L.marker(ll,{icon:icon('bus',a.line,hue(a.line)),zIndexOffset:500}).bindPopup(pop).addTo(layers.bus),tu:now};busLive.set(id,o);
       o.m.on('popupopen',()=>selectReal(id));o.m.on('popupclose',closeRoute(o.m));
     }
     o.line=a.line;o.dest=a.destination;o.color=hue(a.line);o.t=now;
@@ -358,12 +374,14 @@ async function pollBuses(){
   if(lineMode||!store.get('emtMail')||map.getZoom()<14||document.hidden)return;
   if(Date.now()-lastPoll<8000)return;lastPoll=Date.now();
   const c=map.getCenter();
-  const near=[...stopMarks.entries()].map(([id,o])=>({id,d:c.distanceTo([o.lat,o.lng])})).sort((a,b)=>a.d-b.d).slice(0,5);
+  const bd=map.getBounds().pad(.05),cand=[...stopMarks.entries()].filter(([id,o])=>bd.contains([o.lat,o.lng])).map(([id,o])=>({id,ll:[o.lat,o.lng],d:c.distanceTo([o.lat,o.lng])})).sort((a,b)=>a.d-b.d),near=[];
+  // muestreo de máxima dispersión: cada parada nueva es la más alejada de las ya elegidas, así se cubre toda la pantalla y no solo el centro
+  if(cand.length){near.push(cand.shift());while(near.length<10&&cand.length){let bi=0,bv=-1;cand.forEach((x,i)=>{const m=Math.min(...near.map(y=>map.distance(x.ll,y.ll)));if(m>bv){bv=m;bi=i}});if(bv<120)break;near.push(cand.splice(bi,1)[0])}}
   if(!near.length)return;
   try{
     const res=await Promise.all(near.map(n=>emtArrivalsRaw(n.id)));
     if(lineMode)return;
-    upsertBuses(res.flat());sweepBuses(45000);updateRoute();
+    upsertBuses(res.flat());sweepBuses(60000);updateRoute();
     setStatus('bus',`${busLive.size} autobuses EMT`);
   }catch(e){setStatus('bus','EMT: '+e.message)}
 }
@@ -597,7 +615,7 @@ async function rowsOf(s,only){
   return out;
 }
 // Sin línea elegida solo se consultan las estaciones visibles (máx. 40); con línea, las de esa línea.
-const num=x=>(String(x??'').match(/\d+/)||[/^\s*(R|RAMAL)\s*$/i.test(String(x??''))?'R':''])[0],LB=l=>l==='R'?'R':'L'+l,norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),D=(a,b)=>Math.hypot((a[0]-b[0])*111000,(a[1]-b[1])*85000),C={1:'#0055A4',2:'#E30613',3:'#FFD100',4:'#8B5A2B',5:'#2F8A2F',6:'#777',7:'#F28C28',8:'#F28AA6',9:'#7B3F98',10:'#005CA9',11:'#6B8E23',12:'#6B5B2B',R:'#8FB8DE'},col=l=>C[l]||'#555';
+const num=x=>(String(x??'').match(/\d+/)||[/^\s*(R|RAMAL)\s*$/i.test(String(x??''))?'R':''])[0],LB=l=>l==='R'?'R':'L'+l,LQ=l=>l==='R'?'Ramal':'L'+l,norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),D=(a,b)=>Math.hypot((a[0]-b[0])*111000,(a[1]-b[1])*85000),C={1:'#0055A4',2:'#E30613',3:'#FFD100',4:'#8B5A2B',5:'#2F8A2F',6:'#777',7:'#F28C28',8:'#F28AA6',9:'#7B3F98',10:'#005CA9',11:'#6B8E23',12:'#6B5B2B',R:'#8FB8DE'},col=l=>C[l]||'#555';
 const SU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/0/query?where=1%3D1&outFields=CODIGOESTACION,DENOMINACION,CODIGOEMPRESA,LINEAS&returnGeometry=true&outSR=4326&f=geojson',LU='https://services5.arcgis.com/UxADft6QPcvFyDU1/ArcGIS/rest/services/M4_Red/FeatureServer/4/query?where=1%3D1&outFields=NUMEROLINEAUSUARIO,SENTIDO,IDTRAMO&returnGeometry=true&outSR=4326&f=geojson';
 const LL=L.layerGroup().addTo(layers.tren),SL=L.layerGroup().addTo(layers.tren),TL=L.layerGroup().addTo(layers.tren),RL=L.layerGroup().addTo(layers.tren),M={stations:[],parts:new Map(),paths:new Map(),markers:new Map(),focus:new Set(),selected:null,ready:false};
 const flat=g=>(g?.type==='MultiLineString'?g.coordinates:[g?.coordinates]).flatMap(p=>(p||[]).map(c=>[+c[1],+c[0]]));
@@ -642,7 +660,7 @@ function lineModel(l){
     if(q&&norm(q.name)===norm(x.name)&&x.S-q.S<2500){q.s={...q.s,codes:[...new Set([...q.s.codes,...s.codes])]};continue}
     sts.push(x)}
   const n=sts.length;
-  if(n<3)return null;
+  if(n<2)return null;
   const seg=[];for(let i=0;i<n-1;i++)seg.push(Math.max(50,sts[i+1].S-sts[i].S));
   if(circ)seg.push(Math.max(50,Lp-sts[n-1].S+sts[0].S));
   const m={line:l,p,Lp,circ,sts,n,seg};models.set(l,m);return m;
@@ -702,7 +720,9 @@ function resolveDirs(m,boards){
     let d=0;
     if(!m.circ){
       const ds=m.sts.find(x=>norm(x.name)===key)||(key.length>=5?m.sts.find(x=>{const a=norm(x.name);return a.includes(key)||key.includes(a)}):null);
-      if(ds){let vote=0;for(const[k]of at){const dv=ds.S-m.sts[k].S;if(Math.abs(dv)>150)vote+=dv>0?1:-1}d=vote>0?1:vote<0?-1:0}
+      if(ds){let vote=0;for(const[k]of at){const dv=ds.S-m.sts[k].S;if(Math.abs(dv)>150)vote+=dv>0?1:-1}d=vote>0?1:vote<0?-1:0;
+        // solo hay pantallas en la propia estación destino (extremo de línea): son trenes que llegan a ese extremo
+        if(!d&&at.every(([k])=>Math.abs(ds.S-m.sts[k].S)<=150)){const ix=m.sts.indexOf(ds);d=ix===m.n-1?1:ix===0?-1:0}}
     }
     if(d)conf.set(key,1e6);
     else{const[a,b]=scoreDir(m,at);d=a>b?1:b>a?-1:0;conf.set(key,Math.abs(a-b))}
@@ -892,7 +912,7 @@ async function trains(){
   const line=[...M.focus][0];busy=true;
   try{
     await geometry();const m=lineModel(line);
-    if(!m){clearConvoys();setStatus('metro','Metro: sin trazado para L'+line);return}
+    if(!m){clearConvoys();setStatus('metro','Metro: sin trazado para '+LB(line));return}
     const boards=await fetchBoards(m);
     if(M.focus.size!==1||!M.focus.has(line)||!convoysOn())return;
     const now=Date.now();let est=reconstruct(m,boards,resolveDirs(m,boards),now);
@@ -936,7 +956,7 @@ document.addEventListener('click',e=>{
   e.preventDefault();
   const line=x.dataset.pl,dest=decodeURIComponent(x.dataset.pd||''),st=M.stations.find(s=>s.id===x.dataset.ps);
   const ya=M.focus.size===1&&M.focus.has(line);
-  $('q').value='L'+line;prep();
+  $('q').value=LQ(line);prep();
   if(!ya)focus([line]); // ya estaba elegida: se conservan los convoyes que hay
   if(convoysOn()&&st){M.want={line,dest,st,until:Date.now()+25000};wantTry()}
 },true);
@@ -963,16 +983,16 @@ async function station(s){
 }
 function sugg(raw){
   const q=norm(raw).replace(/\s+/g,''),t=norm(raw).trim();if(!q||!M.ready)return'';
-  const ls=/^l\d*$/.test(q)?[...M.paths.keys()].sort((a,b)=>a-b).filter(l=>('l'+l).startsWith(q)):[];
+  const ls=(/^l\d*$/.test(q)||/^r/.test(q))?[...M.paths.keys()].sort((a,b)=>(+a||99)-(+b||99)).filter(l=>('l'+l).startsWith(q)||(l==='R'&&'ramal'.startsWith(q))):[];
   const ss=t.length>=3?M.stations.filter(s=>norm(s.name).includes(t)).slice(0,5):[];
-  return ls.map(l=>`<div class="sg" data-mline="${l}"><span class="v" style="background:${col(l)}">L${l}</span><span>Metro · mostrar solo esta línea</span></div>`).join('')
+  return ls.map(l=>`<div class="sg" data-mline="${l}"><span class="v" style="background:${col(l)}">${LB(l)}</span><span>Metro · mostrar solo esta línea</span></div>`).join('')
     +ss.map(s=>`<div class="sg" data-mst="${s.id}"><span class="v" style="background:${col(s.lines[0]||'')}">M</span><span>${s.name.replace(/[<>&]/g,'')} · ${s.lines.map(LB).join(', ')}</span></div>`).join('');
 }
 const prep=()=>{if(lineMode)exitLine();clearRoute();$('q-clear').hidden=false};
 document.addEventListener('click',e=>{
   const x=e.target.closest('[data-mline],[data-mst]');if(!x)return;
   e.preventDefault();hideSugg();$('q').blur();
-  if(x.dataset.mline){$('q').value='L'+x.dataset.mline;prep();focus([x.dataset.mline])}
+  if(x.dataset.mline){$('q').value=LQ(x.dataset.mline);prep();focus([x.dataset.mline])}
   else{const s=M.stations.find(s=>s.id===x.dataset.mst);if(s){$('q').value=s.name;prep();station(s)}}
 },true);
 geometry().catch(e=>setStatus('metro','Metro: '+e.message));
