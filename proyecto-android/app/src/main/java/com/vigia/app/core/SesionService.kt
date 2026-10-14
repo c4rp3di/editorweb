@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.vigia.app.MainActivity
 import com.vigia.app.R
+import com.vigia.app.collect.GestorModulos
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -25,19 +26,22 @@ import java.util.Date
 
 /**
  * Servicio en primer plano: mantiene la notificación persistente «Vigía activo» mientras hay
- * sesión abierta y ofrece el botón de parada inmediata. En la Fase 2 alojará la VPN local.
+ * sesión abierta, ofrece el botón de parada inmediata y aloja los módulos de recolección
+ * (eventos, sensores, inventario). La VPN DNS y la accesibilidad son componentes aparte.
  */
 class SesionService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var observador: Job? = null
     private lateinit var gestor: SessionManager
+    private lateinit var modulos: GestorModulos
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         gestor = SessionManager.obtener(applicationContext)
+        modulos = GestorModulos(applicationContext, scope)
         crearCanal()
     }
 
@@ -58,9 +62,11 @@ class SesionService : Service() {
                 gestor.estado.collect { ui ->
                     if (ui.cargado) {
                         if (ui.estado == Estado.INACTIVA) {
+                            modulos.detener()
                             stopForeground(STOP_FOREGROUND_REMOVE)
                             stopSelf()
                         } else {
+                            modulos.sincronizar(ui)
                             publicar(ui.estado, ui.inicio)
                         }
                     }
@@ -71,6 +77,7 @@ class SesionService : Service() {
     }
 
     override fun onDestroy() {
+        modulos.liberar()
         scope.cancel()
         super.onDestroy()
     }
