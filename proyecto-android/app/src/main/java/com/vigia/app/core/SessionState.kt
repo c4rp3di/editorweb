@@ -8,6 +8,7 @@ data class SesionUi(
     val sesionId: Long? = null,
     val inicio: Long? = null,
     val vpn: Boolean = false,
+    val dns: String = "sistema",
     val ultimaInicio: Long? = null,
     val ultimaFin: Long? = null,
     val error: String? = null
