@@ -2,6 +2,16 @@ package com.vigia.app.core
 
 enum class Estado { INACTIVA, ACTIVA, PAUSADA }
 
+/** Módulos de recolección elegidos para una sesión (la VPN/DNS va aparte). */
+data class Modulos(
+    val eventos: Boolean = false,
+    val inventario: Boolean = false,
+    val sensores: Boolean = false,
+    val a11y: Boolean = false
+) {
+    fun alguno(): Boolean = eventos || inventario || sensores || a11y
+}
+
 data class SesionUi(
     val cargado: Boolean = false,
     val estado: Estado = Estado.INACTIVA,
@@ -9,6 +19,7 @@ data class SesionUi(
     val inicio: Long? = null,
     val vpn: Boolean = false,
     val dns: String = "sistema",
+    val modulos: Modulos = Modulos(),
     val ultimaInicio: Long? = null,
     val ultimaFin: Long? = null,
     val error: String? = null
@@ -17,5 +28,17 @@ data class SesionUi(
 data class Contadores(
     val consultas: Int = 0,
     val dominios: Int = 0,
-    val apps: Int = 0
+    val apps: Int = 0,
+    val sistema: Int = 0,
+    val sensores: Int = 0,
+    val pantalla: Int = 0
+)
+
+/** Fila de la línea de tiempo unificada (DNS + sistema + sensores + pantalla). */
+data class FilaLinea(
+    val ts: Long,
+    val cat: String,
+    val tipo: String,
+    val app: String,
+    val texto: String
 )
