@@ -1,12 +1,14 @@
 package com.vigia.app
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.GradientDrawable
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.ListView
@@ -15,6 +17,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
@@ -24,9 +27,11 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.checkbox.MaterialCheckBox
+import com.vigia.app.collect.a11y.VigiaAccesibilidadService
 import com.vigia.app.collect.vpn.VigiaVpnService
 import com.vigia.app.collect.vpn.VpnEstado
 import com.vigia.app.core.Estado
+import com.vigia.app.core.Modulos
 import com.vigia.app.core.SesionService
 import com.vigia.app.core.SesionUi
 import com.vigia.app.core.SessionManager
@@ -49,6 +54,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var txtError: TextView
     private lateinit var txtUltima: TextView
     private lateinit var chkVpn: MaterialCheckBox
+    private lateinit var chkEventos: MaterialCheckBox
+    private lateinit var chkInventario: MaterialCheckBox
+    private lateinit var chkSensores: MaterialCheckBox
+    private lateinit var chkA11y: MaterialCheckBox
     private lateinit var spDns: Spinner
     private lateinit var btnNueva: MaterialButton
     private lateinit var btnPausa: MaterialButton
@@ -57,6 +66,7 @@ class MainActivity : AppCompatActivity() {
     private var ui: SesionUi = SesionUi()
     private var servicioIniciado = false
     private var vpnIniciada = false
+    private var avisoA11yMostrado = false
     private val valoresDns = arrayOf("sistema", "1.1.1.1", "8.8.8.8", "9.9.9.9")
 
     private val lanzadorVpn = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { resultado ->
@@ -82,6 +92,10 @@ class MainActivity : AppCompatActivity() {
         txtError = findViewById(R.id.txtError)
         txtUltima = findViewById(R.id.txtUltima)
         chkVpn = findViewById(R.id.chkVpn)
+        chkEventos = findViewById(R.id.chkEventos)
+        chkInventario = findViewById(R.id.chkInventario)
+        chkSensores = findViewById(R.id.chkSensores)
+        chkA11y = findViewById(R.id.chkA11y)
         spDns = findViewById(R.id.spDns)
         btnNueva = findViewById(R.id.btnNueva)
         btnPausa = findViewById(R.id.btnPausa)
@@ -166,7 +180,13 @@ class MainActivity : AppCompatActivity() {
     private fun comenzarSesion(conVpn: Boolean) {
         val posicion = spDns.selectedItemPosition
         val dns = if (posicion >= 0 && posicion < valoresDns.size) valoresDns[posicion] else "sistema"
-        lifecycleScope.launch { gestor.iniciar(conVpn, dns) }
+        val modulos = Modulos(
+            eventos = chkEventos.isChecked,
+            inventario = chkInventario.isChecked,
+            sensores = chkSensores.isChecked,
+            a11y = chkA11y.isChecked
+        )
+        lifecycleScope.launch { gestor.iniciar(conVpn, dns, modulos) }
     }
 
     private fun render(nuevo: SesionUi) {
@@ -187,6 +207,10 @@ class MainActivity : AppCompatActivity() {
         btnNueva.isEnabled = nuevo.cargado && !abierta
         chkVpn.isEnabled = !abierta
         spDns.isEnabled = !abierta
+        chkEventos.isEnabled = !abierta
+        chkInventario.isEnabled = !abierta
+        chkSensores.isEnabled = !abierta
+        chkA11y.isEnabled = !abierta
         btnPausa.isEnabled = abierta
         btnPausa.setText(if (pausada) R.string.reanudar else R.string.pausar)
         btnDetener.isEnabled = abierta
@@ -218,9 +242,14 @@ class MainActivity : AppCompatActivity() {
                 vpnIniciada = true
             }
         }
+        if (abierta && nuevo.modulos.a11y && !avisoA11yMostrado) {
+            avisoA11yMostrado = true
+            if (!accesibilidadActivadaEnAjustes()) mostrarAvisoA11y()
+        }
         if (!abierta) {
             servicioIniciado = false
             vpnIniciada = false
+            avisoA11yMostrado = false
         }
         renderVpn()
         actualizarTiempo()
@@ -241,6 +270,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun accesibilidadActivadaEnAjustes(): Boolean {
+        val actual = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+            ?: return false
+        val componente = ComponentName(this, VigiaAccesibilidadService::class.java)
+        val largo = componente.flattenToString()
+        val corto = componente.flattenToShortString()
+        for (parte in actual.split(':')) {
+            if (parte.equals(largo, ignoreCase = true) || parte.equals(corto, ignoreCase = true)) return true
+        }
+        return false
+    }
+
+    private fun mostrarAvisoA11y() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.a11y_aviso_titulo)
+            .setMessage(R.string.a11y_aviso_mensaje)
+            .setPositiveButton(R.string.abrir_ajustes) { _, _ ->
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+            .setNegativeButton(R.string.ahora_no, null)
+            .show()
+    }
+
     private fun actualizarTiempo() {
         val inicio = ui.inicio
         if (inicio != null && ui.estado != Estado.INACTIVA) {
@@ -252,9 +304,13 @@ class MainActivity : AppCompatActivity() {
 
     private suspend fun actualizarContadores() {
         val id = ui.sesionId
-        if (id != null && ui.estado != Estado.INACTIVA && ui.vpn) {
+        val hayAlgo = ui.vpn || ui.modulos.alguno()
+        if (id != null && ui.estado != Estado.INACTIVA && hayAlgo) {
             val c = gestor.contadores(id)
-            txtContadores.text = getString(R.string.contadores, c.consultas, c.dominios, c.apps)
+            val lineas = ArrayList<String>()
+            if (ui.vpn) lineas.add(getString(R.string.contadores, c.consultas, c.dominios, c.apps))
+            if (ui.modulos.alguno()) lineas.add(getString(R.string.contadores_otros, c.sistema, c.sensores, c.pantalla))
+            txtContadores.text = lineas.joinToString("\n")
             txtContadores.visibility = View.VISIBLE
         } else {
             txtContadores.visibility = View.GONE
