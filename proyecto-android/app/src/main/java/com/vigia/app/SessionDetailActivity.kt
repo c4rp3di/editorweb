@@ -1,5 +1,6 @@
 package com.vigia.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.EditText
@@ -66,6 +67,8 @@ class SessionDetailActivity : AppCompatActivity() {
 
         btnVolver.setOnClickListener { finish() }
         btnBorrar.setOnClickListener { confirmarBorrado() }
+        findViewById<MaterialButton>(R.id.btnLinea).setOnClickListener { abrir(LineaTiempoActivity::class.java) }
+        findViewById<MaterialButton>(R.id.btnInventario).setOnClickListener { abrir(InventarioActivity::class.java) }
         btnApps.setOnClickListener { elegirApp() }
         btnDominios.setOnClickListener { elegirDominio() }
         btnLimpiar.setOnClickListener { quitarFiltros() }
@@ -92,6 +95,12 @@ class SessionDetailActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun abrir(destino: Class<*>) {
+        val intent = Intent(this, destino)
+        intent.putExtra(EXTRA_SESION, sesionId)
+        startActivity(intent)
     }
 
     private fun esFallida(e: DnsEventEntity): Boolean {
@@ -219,7 +228,8 @@ class SessionDetailActivity : AppCompatActivity() {
         detResumen.text = "Inicio: " + Formato.fecha(sesion.inicio) +
             "\nEstado: " + estado + " · duración " + duracion +
             "\nCaptura DNS: " + captura +
-            "\nConsultas: " + c.consultas + " · dominios únicos: " + c.dominios + " · apps: " + c.apps
+            "\nConsultas DNS: " + c.consultas + " · dominios únicos: " + c.dominios + " · apps: " + c.apps +
+            "\nOtros eventos: sistema " + c.sistema + " · cámara/micrófono " + c.sensores + " · pantalla " + c.pantalla
         btnBorrar.isEnabled = fin != null
     }
 
