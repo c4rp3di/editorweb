@@ -51,6 +51,7 @@ class SessionManager private constructor(private val app: Context) {
                 sesionId = abierta?.id,
                 inicio = abierta?.inicio,
                 vpn = if (abierta != null) vpnDe(abierta.configuracion) else false,
+                dns = if (abierta != null) dnsDe(abierta.configuracion) else "sistema",
                 ultimaInicio = ultima?.inicio,
                 ultimaFin = ultima?.fin
             )
@@ -59,13 +60,13 @@ class SessionManager private constructor(private val app: Context) {
         }
     }
 
-    suspend fun iniciar(vpn: Boolean) {
+    suspend fun iniciar(vpn: Boolean, dns: String) {
         cargarSiHaceFalta()
         val actual = _estado.value
         if (actual.estado != Estado.INACTIVA) return
         try {
             val ahora = System.currentTimeMillis()
-            val config = "{\"vpn\":" + vpn + "}"
+            val config = JSONObject().put("vpn", vpn).put("dns", dns).toString()
             val id = dao().insertar(
                 SessionEntity(inicio = ahora, estado = ESTADO_ACTIVA, configuracion = config)
             )
@@ -74,6 +75,7 @@ class SessionManager private constructor(private val app: Context) {
                 sesionId = id,
                 inicio = ahora,
                 vpn = vpn,
+                dns = dns,
                 error = null
             )
         } catch (e: Exception) {
@@ -131,7 +133,7 @@ class SessionManager private constructor(private val app: Context) {
     }.flowOn(Dispatchers.IO)
 
     fun eventos(sesionId: Long): Flow<List<DnsEventEntity>> = flow {
-        emitAll(AppDatabase.obtener(app).dnsDao().observar(sesionId, 1000))
+        emitAll(AppDatabase.obtener(app).dnsDao().observar(sesionId, 5000))
     }.flowOn(Dispatchers.IO)
 
     suspend fun sesion(id: Long): SessionEntity? {
@@ -180,6 +182,17 @@ class SessionManager private constructor(private val app: Context) {
                 JSONObject(configuracion).optBoolean("vpn", false)
             } catch (e: Exception) {
                 false
+            }
+        }
+
+        private val DNS_VALIDOS = listOf("sistema", "1.1.1.1", "8.8.8.8", "9.9.9.9")
+
+        fun dnsDe(configuracion: String): String {
+            return try {
+                val valor = JSONObject(configuracion).optString("dns", "sistema")
+                if (DNS_VALIDOS.contains(valor)) valor else "sistema"
+            } catch (e: Exception) {
+                "sistema"
             }
         }
 
