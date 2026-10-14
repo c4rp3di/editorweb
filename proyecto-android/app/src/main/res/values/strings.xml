@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Vigía</string>
-    <string name="subtitulo">Lupa de defensa personal · Fase 2: captura DNS</string>
+    <string name="subtitulo">Lupa de defensa personal · Fase 3: recolección de eventos</string>
     <string name="estado_inactiva">Inactivo</string>
     <string name="estado_activa">Sesión activa</string>
     <string name="estado_pausada">Sesión en pausa</string>
@@ -46,4 +46,34 @@
     <string name="elegir_app">Elige una app</string>
     <string name="elegir_dominio">Elige un dominio</string>
     <string name="sin_resultados">Ninguna consulta coincide con los filtros.</string>
+
+    <string name="modulos_titulo">Qué registrar en esta sesión</string>
+    <string name="chk_eventos">Eventos del sistema</string>
+    <string name="cap_eventos">Registra: apps instaladas o borradas, pantalla, desbloqueo, cambios de red, hora e idioma y certificados. No registra: mensajes, contenido ni lo que haces dentro de las apps.</string>
+    <string name="chk_inventario">Inventario de apps y permisos</string>
+    <string name="cap_inventario">Registra: lista de apps con versión y firma, permisos sensibles, accesibilidad activa, administradores y certificados; y los cambios entre fotos. No registra: datos dentro de las apps.</string>
+    <string name="chk_sensores">Cámara y micrófono</string>
+    <string name="cap_sensores">Registra: cuándo se usan y si la pantalla estaba encendida. No registra: imágenes ni audio. Android no dice qué app los usa (si activas «Actividad en pantalla», anota la app que estaba delante). La ubicación no se puede observar.</string>
+    <string name="chk_a11y">Actividad en pantalla (accesibilidad)</string>
+    <string name="cap_a11y">Registra: qué app está en pantalla y cuándo se toca algo. No lee textos, contraseñas ni contenido. Tienes que activarlo tú en Ajustes y se apaga solo al terminar la sesión.</string>
+    <string name="a11y_nombre">Vigía · actividad en pantalla</string>
+    <string name="a11y_descripcion">Anota qué app está en pantalla y cuándo se toca algo, solo durante una sesión de Vigía. No lee el contenido de la pantalla.</string>
+    <string name="a11y_aviso_titulo">Activa «Actividad en pantalla»</string>
+    <string name="a11y_aviso_mensaje">Para registrar qué app está en pantalla, activa «Vigía · actividad en pantalla» en Ajustes › Accesibilidad. Android mostrará una advertencia genérica: Vigía no puede leer el contenido de la pantalla y el servicio se apaga solo al terminar la sesión.</string>
+    <string name="abrir_ajustes">Abrir ajustes</string>
+    <string name="ahora_no">Ahora no</string>
+    <string name="contadores_otros">Sistema: %1$d · Cámara/micrófono: %2$d · Pantalla: %3$d</string>
+    <string name="btn_linea">Línea de tiempo</string>
+    <string name="btn_inventario">Inventario</string>
+    <string name="titulo_linea">Línea de tiempo</string>
+    <string name="titulo_inventario">Inventario</string>
+    <string name="btn_categorias">Categorías</string>
+    <string name="btn_por_tipo">Por tipo</string>
+    <string name="btn_por_app">Por app</string>
+    <string name="btn_limpiar">Limpiar</string>
+    <string name="elegir_tipo">Elige un tipo de evento</string>
+    <string name="elegir_categorias">Categorías a mostrar</string>
+    <string name="aplicar">Aplicar</string>
+    <string name="sin_linea">Esta sesión no tiene eventos registrados.</string>
+    <string name="sin_inventario">Esta sesión no tiene ninguna foto del inventario (el módulo no estaba activado).</string>
 </resources>
