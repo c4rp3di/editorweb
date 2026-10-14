@@ -2,6 +2,7 @@ package com.vigia.app.collect.vpn
 
 import android.content.Intent
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
@@ -11,6 +12,7 @@ import com.vigia.app.core.Estado
 import com.vigia.app.core.SessionManager
 import com.vigia.app.store.AppDatabase
 import com.vigia.app.store.DnsEventEntity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,25 +30,34 @@ import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.SocketTimeoutException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
-/** Estado visible para la interfaz: ¿está la VPN local capturando? */
+/** Estado visible para la interfaz. */
 object VpnEstado {
+    /** ¿Está la VPN local capturando ahora mismo? */
     val activa = MutableStateFlow(false)
+
+    /** Motivo legible si la captura no pudo arrancar o se detuvo sola. */
+    val mensaje = MutableStateFlow<String?>(null)
 }
 
 /**
- * VPN local en modo DNS (Fase 2A).
+ * VPN local en modo DNS.
  *
  * Solo se enruta hacia el túnel UNA dirección falsa (el servidor DNS 10.77.0.2). Todo el
- * tráfico restante sigue su camino normal, por lo que internet no depende de este código.
- * Cada consulta DNS que llega se registra (dominio, tipo, app de origen, respuesta) y se
- * reenvía al servidor DNS real de la red mediante un socket protegido.
- * No se lee ni se guarda contenido de ninguna comunicación.
+ * tráfico restante sigue su camino normal. Cada consulta DNS que llega se registra (dominio,
+ * tipo, app de origen, respuesta) y se reenvía al servidor DNS real. No se lee ni se guarda
+ * contenido de ninguna comunicación.
+ *
+ * Cada consulta se envía con un socket ligado a una red concreta (wifi, datos...) junto con
+ * el DNS de ESA red, para no mezclar redes. Si el reenvío falla de forma repetida, la VPN se
+ * apaga sola para devolver internet al teléfono (modo a prueba de fallos).
  */
 class VigiaVpnService : VpnService() {
 
@@ -63,9 +74,14 @@ class VigiaVpnService : VpnService() {
         var escritor: Job? = null
     }
 
+    private class Candidato(val red: Network?, val servidor: InetAddress)
+
+    private class Resultado(val datos: ByteArray?, val detalle: String)
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val bloqueoEscritura = Any()
     private val cacheApps = ConcurrentHashMap<Int, String>()
+    private val fallosSeguidos = AtomicInteger(0)
 
     @Volatile
     private var ejecucion: Ejecucion? = null
@@ -77,10 +93,16 @@ class VigiaVpnService : VpnService() {
     private var capturando = true
 
     @Volatile
-    private var upstream: InetAddress? = null
+    private var modoDns = "sistema"
 
     @Volatile
-    private var upstreamTs = 0L
+    private var candidatos: List<Candidato> = emptyList()
+
+    @Volatile
+    private var candidatosTs = 0L
+
+    @Volatile
+    private var preferido: InetAddress? = null
 
     @Volatile
     private var ultimoStartId = 0
@@ -125,6 +147,8 @@ class VigiaVpnService : VpnService() {
 
     private fun arrancar() {
         arrancando = true
+        VpnEstado.mensaje.value = null
+        fallosSeguidos.set(0)
         jobControl = scope.launch {
             try {
                 val gestor = SessionManager.obtener(applicationContext)
@@ -136,15 +160,16 @@ class VigiaVpnService : VpnService() {
                     return@launch
                 }
                 capturando = ui.estado == Estado.ACTIVA
+                modoDns = ui.dns
                 val ej = abrirTunel(id)
                 if (ej == null) {
+                    VpnEstado.mensaje.value = "No se pudo crear la VPN. Comprueba que Vigía tiene permiso de VPN."
                     stopSelf(ultimoStartId)
                     return@launch
                 }
                 ejecucion = ej
                 VpnEstado.activa.value = true
-                upstream = buscarUpstream()
-                upstreamTs = System.currentTimeMillis()
+                refrescarCandidatos()
                 arrancando = false
 
                 ej.escritor = launch(Dispatchers.IO) { escribirEventos(ej) }
@@ -164,6 +189,13 @@ class VigiaVpnService : VpnService() {
                 gestor.estado.first { it.cargado && it.estado == Estado.INACTIVA }
                 observador.cancel()
                 limpiar(ej)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                VpnEstado.mensaje.value = "No se pudo iniciar la captura DNS: " +
+                    e.javaClass.simpleName + " " + (e.message ?: "")
+                val actual = ejecucion
+                if (actual != null) limpiar(actual) else stopSelf(ultimoStartId)
             } finally {
                 arrancando = false
             }
@@ -178,12 +210,7 @@ class VigiaVpnService : VpnService() {
             .addDnsServer(IP_DNS)
             .addRoute(IP_DNS, 32)
             .setBlocking(true)
-        val pfd = try {
-            builder.establish()
-        } catch (e: Exception) {
-            null
-        }
-        if (pfd == null) return null
+        val pfd = builder.establish() ?: return null
         val salida = FileOutputStream(pfd.fileDescriptor)
         val pool = Executors.newFixedThreadPool(6)
         val cola = Channel<DnsEventEntity>(Channel.UNLIMITED)
@@ -296,37 +323,23 @@ class VigiaVpnService : VpnService() {
         val q = DnsParser.parseConsulta(consulta)
         val uid = resolverUid(origenIp, puertoOrigen)
 
-        var respuesta: ByteArray? = null
-        try {
-            val servidor = servidorUpstream()
-            val socket = DatagramSocket()
-            try {
-                protect(socket)
-                socket.soTimeout = 4000
-                socket.send(DatagramPacket(consulta, consulta.size, servidor, 53))
-                val recibido = ByteArray(4096)
-                val paquete = DatagramPacket(recibido, recibido.size)
-                socket.receive(paquete)
-                respuesta = recibido.copyOf(paquete.length)
-            } finally {
-                socket.close()
+        val resultado = reenviar(consulta)
+        val datos = resultado.datos
+        if (datos != null) {
+            fallosSeguidos.set(0)
+            escribirTunel(ej, Paquetes.construirUdp(IP_DNS_INT, origenIp, 53, puertoOrigen, datos))
+        } else {
+            val fallos = fallosSeguidos.incrementAndGet()
+            if (fallos >= MAX_FALLOS && ej.activa) {
+                // Modo a prueba de fallos: si el DNS real no contesta, se apaga la VPN para no dejar
+                // al teléfono sin internet.
+                VpnEstado.mensaje.value = "Captura DNS detenida: " + resultado.detalle
+                limpiar(ej)
             }
-        } catch (e: Exception) {
-            respuesta = null
-            upstreamTs = 0L
-        }
-
-        if (respuesta != null) {
-            val paquete = Paquetes.construirUdp(IP_DNS_INT, origenIp, 53, puertoOrigen, respuesta)
-            escribirTunel(ej, paquete)
         }
 
         if (capturando && q != null) {
-            val texto = if (respuesta != null) {
-                DnsParser.resumenRespuesta(respuesta)
-            } else {
-                "sin respuesta (tiempo agotado)"
-            }
+            val texto = if (datos != null) DnsParser.resumenRespuesta(datos) else resultado.detalle
             ej.cola.trySend(
                 DnsEventEntity(
                     sessionId = ej.sesionId,
@@ -339,6 +352,102 @@ class VigiaVpnService : VpnService() {
                 )
             )
         }
+    }
+
+    /** Envía la consulta a los DNS candidatos, uno tras otro, hasta que alguno responda. */
+    private fun reenviar(consulta: ByteArray): Resultado {
+        var lista = candidatosVigentes()
+        var ultimoError = "no hay servidores DNS disponibles"
+        var pasada = 0
+        while (pasada < 2) {
+            val pref = preferido
+            val ordenada = if (pref == null) lista else lista.sortedBy { if (it.servidor == pref) 0 else 1 }
+            for (c in ordenada) {
+                val host = c.servidor.hostAddress ?: "?"
+                try {
+                    val socket = DatagramSocket()
+                    try {
+                        val red = c.red
+                        if (red != null) red.bindSocket(socket) else protect(socket)
+                        socket.soTimeout = 2000
+                        socket.send(DatagramPacket(consulta, consulta.size, c.servidor, 53))
+                        val recibido = ByteArray(4096)
+                        val paquete = DatagramPacket(recibido, recibido.size)
+                        socket.receive(paquete)
+                        preferido = c.servidor
+                        return Resultado(recibido.copyOf(paquete.length), "")
+                    } finally {
+                        socket.close()
+                    }
+                } catch (e: SocketTimeoutException) {
+                    ultimoError = "sin respuesta de " + host + " (tiempo agotado)"
+                } catch (e: Exception) {
+                    ultimoError = "error de red con " + host + ": " + e.javaClass.simpleName + " " + (e.message ?: "")
+                }
+            }
+            pasada++
+            if (pasada == 1) {
+                // Puede que la red haya cambiado: se vuelve a mirar y solo se reintenta si hay otros servidores.
+                val antes = lista.map { it.servidor }
+                lista = refrescarCandidatos()
+                if (lista.map { it.servidor } == antes) break
+            }
+        }
+        return Resultado(null, ultimoError)
+    }
+
+    private fun candidatosVigentes(): List<Candidato> {
+        val ahora = System.currentTimeMillis()
+        val actual = candidatos
+        if (actual.isEmpty() || ahora - candidatosTs > 15000L) {
+            return refrescarCandidatos()
+        }
+        return actual
+    }
+
+    private fun refrescarCandidatos(): List<Candidato> {
+        val ahora = System.currentTimeMillis()
+        if (candidatos.isNotEmpty() && ahora - candidatosTs < 3000L) return candidatos
+        val nueva = construirCandidatos()
+        candidatos = nueva
+        candidatosTs = ahora
+        return nueva
+    }
+
+    /**
+     * Lista ordenada de (red, servidor DNS de esa red). Con un servidor fijo elegido por el
+     * usuario solo hay un candidato. Con «sistema», primero las redes validadas y rápidas
+     * (wifi/ethernet), luego las de datos móviles.
+     */
+    private fun construirCandidatos(): List<Candidato> {
+        if (modoDns != "sistema") {
+            return try {
+                listOf(Candidato(null, InetAddress.getByName(modoDns)))
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+        val puntuados = ArrayList<Pair<Int, Candidato>>()
+        try {
+            val cm = getSystemService(ConnectivityManager::class.java)
+            for (red in cm.allNetworks) {
+                val caps = cm.getNetworkCapabilities(red) ?: continue
+                if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) continue
+                if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) continue
+                val lp = cm.getLinkProperties(red) ?: continue
+                var puntos = 0
+                if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) puntos += 10
+                val rapida = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+                if (!rapida) puntos += 1
+                for (d in lp.dnsServers) {
+                    val familia = if (d is Inet4Address) 0 else 1
+                    puntuados.add(Pair(puntos * 2 + familia, Candidato(red, d)))
+                }
+            }
+        } catch (e: Exception) {
+        }
+        return puntuados.sortedBy { it.first }.map { it.second }.take(4)
     }
 
     private suspend fun escribirEventos(ej: Ejecucion) {
@@ -359,40 +468,6 @@ class VigiaVpnService : VpnService() {
     }
 
     // ------------------------------------------------------------------ ayudas
-
-    private fun servidorUpstream(): InetAddress {
-        val ahora = System.currentTimeMillis()
-        val actual = upstream
-        if (actual == null || ahora - upstreamTs > 30000L) {
-            val nuevo = buscarUpstream()
-            upstream = nuevo
-            upstreamTs = ahora
-            return nuevo
-        }
-        return actual
-    }
-
-    /** Servidor DNS IPv4 de la red real (no de la VPN). Si no se encuentra, usa 9.9.9.9. */
-    private fun buscarUpstream(): InetAddress {
-        var primero: InetAddress? = null
-        try {
-            val cm = getSystemService(ConnectivityManager::class.java)
-            for (red in cm.allNetworks) {
-                val caps = cm.getNetworkCapabilities(red) ?: continue
-                if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) continue
-                if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) continue
-                val lp = cm.getLinkProperties(red) ?: continue
-                for (d in lp.dnsServers) {
-                    if (d is Inet4Address) {
-                        if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) return d
-                        if (primero == null) primero = d
-                    }
-                }
-            }
-        } catch (e: Exception) {
-        }
-        return primero ?: InetAddress.getByName("9.9.9.9")
-    }
 
     private fun resolverUid(origenIp: Int, puertoOrigen: Int): Int {
         if (Build.VERSION.SDK_INT < 29) return -1
@@ -423,6 +498,7 @@ class VigiaVpnService : VpnService() {
     companion object {
         const val IP_CLIENTE = "10.77.0.1"
         const val IP_DNS = "10.77.0.2"
+        const val MAX_FALLOS = 8
         val IP_DNS_INT: Int = Paquetes.ip4(byteArrayOf(10, 77, 0, 2), 0)
     }
 }
