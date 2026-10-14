@@ -1,6 +1,7 @@
 package com.vigia.app.util
 
 import android.text.format.DateFormat
+import org.json.JSONObject
 import java.util.Date
 
 object Formato {
@@ -15,5 +16,21 @@ object Formato {
 
     fun hora(ms: Long): String {
         return DateFormat.format("HH:mm:ss", Date(ms)).toString()
+    }
+
+    /** Convierte un JSON de evento en «clave=valor · clave=valor». Si no es JSON, lo devuelve tal cual. */
+    fun payload(json: String): String {
+        return try {
+            val o = JSONObject(json)
+            val partes = ArrayList<String>()
+            val claves = o.keys()
+            while (claves.hasNext()) {
+                val k = claves.next()
+                partes.add(k + "=" + o.opt(k))
+            }
+            if (partes.isEmpty()) "" else partes.joinToString(" · ")
+        } catch (e: Exception) {
+            json
+        }
     }
 }
