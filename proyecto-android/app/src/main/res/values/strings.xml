@@ -22,6 +22,13 @@
     <string name="chk_vpn">Capturar consultas DNS (VPN local)</string>
     <string name="vpn_activa">Captura DNS: activa</string>
     <string name="vpn_inactiva">Captura DNS: iniciando o parada</string>
+    <string name="dns_servidor">Servidor DNS al que se reenvían las consultas</string>
+    <string-array name="dns_opciones">
+        <item>DNS de la red (recomendado)</item>
+        <item>Cloudflare 1.1.1.1</item>
+        <item>Google 8.8.8.8</item>
+        <item>Quad9 9.9.9.9</item>
+    </string-array>
     <string name="vpn_denegada">Sin permiso de VPN: la sesión empieza sin captura DNS.</string>
     <string name="contadores">Consultas DNS: %1$d · Dominios únicos: %2$d · Apps: %3$d</string>
 
@@ -31,4 +38,12 @@
     <string name="borrar_mensaje">Se eliminarán la sesión y todos sus eventos de este teléfono. No se puede deshacer.</string>
     <string name="cabecera_eventos">Consultas DNS (las más recientes primero)</string>
     <string name="sin_eventos">Esta sesión no tiene consultas registradas.</string>
+    <string name="buscar_hint">Buscar dominio o app</string>
+    <string name="solo_fallidas">Solo sin respuesta o con error</string>
+    <string name="btn_apps">Apps</string>
+    <string name="btn_dominios">Dominios</string>
+    <string name="quitar_filtros">Quitar filtros</string>
+    <string name="elegir_app">Elige una app</string>
+    <string name="elegir_dominio">Elige un dominio</string>
+    <string name="sin_resultados">Ninguna consulta coincide con los filtros.</string>
 </resources>
