@@ -29,6 +29,14 @@
             android:name=".SessionDetailActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".LineaTiempoActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".InventarioActivity"
+            android:exported="false" />
+
         <service
             android:name=".core.SesionService"
             android:exported="false"
@@ -41,6 +49,19 @@
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
+        </service>
+
+        <service
+            android:name=".collect.a11y.VigiaAccesibilidadService"
+            android:exported="true"
+            android:label="@string/a11y_nombre"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/servicio_accesibilidad" />
         </service>
 
     </application>
