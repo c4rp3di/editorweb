@@ -8,7 +8,9 @@ import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.ListView
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -47,6 +49,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var txtError: TextView
     private lateinit var txtUltima: TextView
     private lateinit var chkVpn: MaterialCheckBox
+    private lateinit var spDns: Spinner
     private lateinit var btnNueva: MaterialButton
     private lateinit var btnPausa: MaterialButton
     private lateinit var btnDetener: MaterialButton
@@ -54,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private var ui: SesionUi = SesionUi()
     private var servicioIniciado = false
     private var vpnIniciada = false
+    private val valoresDns = arrayOf("sistema", "1.1.1.1", "8.8.8.8", "9.9.9.9")
 
     private val lanzadorVpn = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { resultado ->
         val concedido = resultado.resultCode == RESULT_OK
@@ -78,11 +82,18 @@ class MainActivity : AppCompatActivity() {
         txtError = findViewById(R.id.txtError)
         txtUltima = findViewById(R.id.txtUltima)
         chkVpn = findViewById(R.id.chkVpn)
+        spDns = findViewById(R.id.spDns)
         btnNueva = findViewById(R.id.btnNueva)
         btnPausa = findViewById(R.id.btnPausa)
         btnDetener = findViewById(R.id.btnDetener)
         val btnSesiones = findViewById<MaterialButton>(R.id.btnSesiones)
         val txtVacio = findViewById<TextView>(R.id.txtVacio)
+
+        val adaptadorDns = ArrayAdapter.createFromResource(
+            this, R.array.dns_opciones, android.R.layout.simple_spinner_item
+        )
+        adaptadorDns.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spDns.adapter = adaptadorDns
 
         adaptador = SesionesAdapter(this)
         listaSesiones.adapter = adaptador
@@ -124,6 +135,7 @@ class MainActivity : AppCompatActivity() {
                 launch { gestor.estado.collect { render(it) } }
                 launch { gestor.sesiones().collect { adaptador.actualizar(it) } }
                 launch { VpnEstado.activa.collect { renderVpn() } }
+                launch { VpnEstado.mensaje.collect { renderVpn() } }
                 launch {
                     var vuelta = 0
                     while (true) {
@@ -152,7 +164,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun comenzarSesion(conVpn: Boolean) {
-        lifecycleScope.launch { gestor.iniciar(conVpn) }
+        val posicion = spDns.selectedItemPosition
+        val dns = if (posicion >= 0 && posicion < valoresDns.size) valoresDns[posicion] else "sistema"
+        lifecycleScope.launch { gestor.iniciar(conVpn, dns) }
     }
 
     private fun render(nuevo: SesionUi) {
@@ -172,6 +186,7 @@ class MainActivity : AppCompatActivity() {
 
         btnNueva.isEnabled = nuevo.cargado && !abierta
         chkVpn.isEnabled = !abierta
+        spDns.isEnabled = !abierta
         btnPausa.isEnabled = abierta
         btnPausa.setText(if (pausada) R.string.reanudar else R.string.pausar)
         btnDetener.isEnabled = abierta
@@ -215,7 +230,12 @@ class MainActivity : AppCompatActivity() {
         val abierta = ui.estado != Estado.INACTIVA
         if (abierta && ui.vpn) {
             txtVpn.visibility = View.VISIBLE
-            txtVpn.setText(if (VpnEstado.activa.value) R.string.vpn_activa else R.string.vpn_inactiva)
+            val mensaje = VpnEstado.mensaje.value
+            if (mensaje != null) {
+                txtVpn.text = mensaje
+            } else {
+                txtVpn.setText(if (VpnEstado.activa.value) R.string.vpn_activa else R.string.vpn_inactiva)
+            }
         } else {
             txtVpn.visibility = View.GONE
         }
