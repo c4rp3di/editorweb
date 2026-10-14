@@ -101,6 +101,18 @@
                 android:checked="true"
                 android:text="@string/chk_vpn" />
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/dns_servidor"
+                android:textSize="12sp" />
+
+            <Spinner
+                android:id="@+id/spDns"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnNueva"
                 android:layout_width="match_parent"
