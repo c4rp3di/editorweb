@@ -20,6 +20,7 @@ data class SesionUi(
     val vpn: Boolean = false,
     val dns: String = "sistema",
     val modulos: Modulos = Modulos(),
+    val ultimaId: Long? = null,
     val ultimaInicio: Long? = null,
     val ultimaFin: Long? = null,
     val error: String? = null
@@ -31,7 +32,9 @@ data class Contadores(
     val apps: Int = 0,
     val sistema: Int = 0,
     val sensores: Int = 0,
-    val pantalla: Int = 0
+    val pantalla: Int = 0,
+    val hallazgos: Int = 0,
+    val hallazgosAltos: Int = 0
 )
 
 /** Fila de la línea de tiempo unificada (DNS + sistema + sensores + pantalla). */
