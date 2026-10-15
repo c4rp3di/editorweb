@@ -13,6 +13,9 @@ interface DnsDao {
     @Query("SELECT * FROM dns_events WHERE session_id = :sesion ORDER BY ts DESC, id DESC LIMIT :limite")
     fun observar(sesion: Long, limite: Int): Flow<List<DnsEventEntity>>
 
+    @Query("SELECT * FROM dns_events WHERE session_id = :sesion ORDER BY ts ASC, id ASC")
+    suspend fun todos(sesion: Long): List<DnsEventEntity>
+
     @Query("SELECT COUNT(*) FROM dns_events WHERE session_id = :sesion")
     suspend fun contar(sesion: Long): Int
 
