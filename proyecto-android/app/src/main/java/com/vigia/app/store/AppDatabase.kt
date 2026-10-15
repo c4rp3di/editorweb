@@ -16,9 +16,14 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         SysEventEntity::class,
         SensorEventEntity::class,
         A11yEventEntity::class,
-        InventarioSnapshotEntity::class
+        InventarioSnapshotEntity::class,
+        IocEntity::class,
+        FindingEntity::class,
+        BaselineSampleEntity::class,
+        BaselineEntity::class,
+        DominioVistoEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +35,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun eventosDao(): EventosDao
 
     abstract fun inventarioDao(): InventarioDao
+
+    abstract fun analisisDao(): AnalisisDao
 
     companion object {
         @Volatile
@@ -71,6 +78,54 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Fase 4: indicadores, hallazgos y línea base. */
+        private val MIGRACION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `iocs` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`tipo` TEXT NOT NULL, `valor` TEXT NOT NULL, `fuente` TEXT NOT NULL, " +
+                        "`fecha_alta` INTEGER NOT NULL, `fecha_baja` INTEGER)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_iocs_tipo_valor` ON `iocs` (`tipo`, `valor`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_iocs_fuente` ON `iocs` (`fuente`)")
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `findings` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`session_id` INTEGER NOT NULL, `ts` INTEGER NOT NULL, `severidad` TEXT NOT NULL, " +
+                        "`modulo` TEXT NOT NULL, `regla` TEXT NOT NULL, `app` TEXT NOT NULL, `titulo` TEXT NOT NULL, " +
+                        "`descripcion` TEXT NOT NULL, `evidencia_ids` TEXT NOT NULL, `confianza` INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_findings_session_id` ON `findings` (`session_id`)")
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `baseline_samples` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`session_id` INTEGER NOT NULL, `metrica` TEXT NOT NULL, `dia` INTEGER NOT NULL, " +
+                        "`hora` INTEGER NOT NULL, `valor` INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_baseline_samples_session_id` ON `baseline_samples` (`session_id`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_baseline_samples_metrica_hora` ON `baseline_samples` (`metrica`, `hora`)"
+                )
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `baseline` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`metrica` TEXT NOT NULL, `ventana` TEXT NOT NULL, `media` REAL NOT NULL, " +
+                        "`desviacion` REAL NOT NULL, `p5` REAL NOT NULL, `p50` REAL NOT NULL, `p95` REAL NOT NULL, " +
+                        "`muestras` INTEGER NOT NULL, `actualizado_ts` INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_baseline_metrica_ventana` ON `baseline` (`metrica`, `ventana`)"
+                )
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `dominios_vistos` (`dominio` TEXT NOT NULL, " +
+                        "`primera_vez` INTEGER NOT NULL, PRIMARY KEY(`dominio`))"
+                )
+            }
+        }
+
         fun obtener(context: Context): AppDatabase {
             val actual = instancia
             if (actual != null) return actual
@@ -92,7 +147,7 @@ abstract class AppDatabase : RoomDatabase() {
             val fabrica = SupportOpenHelperFactory(clave)
             return Room.databaseBuilder(contexto, AppDatabase::class.java, "vigia.db")
                 .openHelperFactory(fabrica)
-                .addMigrations(MIGRACION_2_3)
+                .addMigrations(MIGRACION_2_3, MIGRACION_3_4)
                 // La versión 1 solo guardaba sesiones de prueba: se recrea el esquema sin migrar.
                 .fallbackToDestructiveMigrationFrom(1)
                 .build()
