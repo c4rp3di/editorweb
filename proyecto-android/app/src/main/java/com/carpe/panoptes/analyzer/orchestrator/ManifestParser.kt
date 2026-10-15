@@ -67,10 +67,10 @@ class ManifestParser(private val context: Context) {
         )
 
     private fun toComponent(analysisId: String, info: android.content.pm.ServiceInfo, type: ComponentType) =
-        ComponentEntity(analysisId, type, info.name, info.exported)
+        ComponentEntity(analysisId = analysisId, type = type, name = info.name, exported = info.exported)
 
     private fun toComponent(analysisId: String, info: android.content.pm.ProviderInfo, type: ComponentType) =
-        ComponentEntity(analysisId, type, info.name, info.exported)
+        ComponentEntity(analysisId = analysisId, type = type, name = info.name, exported = info.exported)
 
     private fun protectionLevelToString(info: PermissionInfo): String {
         val base = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
