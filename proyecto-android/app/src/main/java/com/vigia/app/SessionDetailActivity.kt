@@ -69,6 +69,8 @@ class SessionDetailActivity : AppCompatActivity() {
         btnBorrar.setOnClickListener { confirmarBorrado() }
         findViewById<MaterialButton>(R.id.btnLinea).setOnClickListener { abrir(LineaTiempoActivity::class.java) }
         findViewById<MaterialButton>(R.id.btnInventario).setOnClickListener { abrir(InventarioActivity::class.java) }
+        findViewById<MaterialButton>(R.id.btnHallazgos).setOnClickListener { abrir(HallazgosActivity::class.java) }
+        findViewById<MaterialButton>(R.id.btnAnalizarSesion).setOnClickListener { analizarAhora(it as MaterialButton) }
         btnApps.setOnClickListener { elegirApp() }
         btnDominios.setOnClickListener { elegirDominio() }
         btnLimpiar.setOnClickListener { quitarFiltros() }
@@ -94,6 +96,17 @@ class SessionDetailActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+    }
+
+    private fun analizarAhora(boton: MaterialButton) {
+        boton.isEnabled = false
+        boton.setText(R.string.analizando)
+        lifecycleScope.launch {
+            gestor.analizar(sesionId)
+            boton.isEnabled = true
+            boton.setText(R.string.btn_analizar)
+            abrir(HallazgosActivity::class.java)
         }
     }
 
@@ -229,7 +242,8 @@ class SessionDetailActivity : AppCompatActivity() {
             "\nEstado: " + estado + " · duración " + duracion +
             "\nCaptura DNS: " + captura +
             "\nConsultas DNS: " + c.consultas + " · dominios únicos: " + c.dominios + " · apps: " + c.apps +
-            "\nOtros eventos: sistema " + c.sistema + " · cámara/micrófono " + c.sensores + " · pantalla " + c.pantalla
+            "\nOtros eventos: sistema " + c.sistema + " · cámara/micrófono " + c.sensores + " · pantalla " + c.pantalla +
+            "\nHallazgos: " + c.hallazgos + " (altos o críticos: " + c.hallazgosAltos + ")"
         btnBorrar.isEnabled = fin != null
     }
 
