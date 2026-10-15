@@ -12,6 +12,9 @@ interface InventarioDao {
     @Query("SELECT * FROM inventory_snapshots WHERE session_id = :sesion ORDER BY ts DESC LIMIT 1")
     suspend fun ultimo(sesion: Long): InventarioSnapshotEntity?
 
+    @Query("SELECT * FROM inventory_snapshots WHERE session_id = :sesion ORDER BY ts ASC LIMIT 1")
+    suspend fun primero(sesion: Long): InventarioSnapshotEntity?
+
     @Query("SELECT COUNT(*) FROM inventory_snapshots WHERE session_id = :sesion")
     suspend fun contar(sesion: Long): Int
 
