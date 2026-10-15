@@ -28,7 +28,7 @@ android {
         minSdk 26
         targetSdk 34
         versionCode 1
-        versionName "v1.0"
+        versionName "v2.0"
 
         ndk {
             abiFilters 'arm64-v8a' // solo arm64: -50% de tamaño (§3.3 del plan)
@@ -42,15 +42,15 @@ android {
             pip {
                 install "androguard==4.1.2"
                 install "quark-engine==23.9.1"
-                install "cryptography==42.0.5"
-                install "pyyaml==6.0.1"
+                install "cryptography==42.0.8" // 42.0.5 no tiene wheel en Chaquopy (compilaba Rust/OpenSSL y fallaba)
+                install "pyyaml==6.0.3" // 6.0.1 no tiene wheel en Chaquopy para cp311
                 // F6: intento de control de frida-server on-device. Altamente
                 // incierto que Chaquopy tenga wheel para esto en Android/arm64
                 // — ver el aviso grande en python/panoptes/frida_runner.py
                 // antes de asumir que esta línea resuelve. Si falla la build,
                 // coméntala: FridaController.kt sigue funcionando igual para
                 // arrancar/parar frida-server, solo pierdes el control on-device.
-                install "frida==16.1.4"
+                // install "frida==16.1.4" // sin wheel en Chaquopy: desactivado; frida_runner.py tolera su ausencia
             }
         }
     }
