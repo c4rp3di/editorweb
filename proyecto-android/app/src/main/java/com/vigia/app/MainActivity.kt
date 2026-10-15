@@ -122,6 +122,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
         btnSesiones.setOnClickListener { drawer.openDrawer(GravityCompat.START) }
+        findViewById<MaterialButton>(R.id.btnAjustes).setOnClickListener {
+            startActivity(Intent(this, AjustesActivity::class.java))
+        }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
