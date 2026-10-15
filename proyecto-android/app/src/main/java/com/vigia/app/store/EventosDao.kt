@@ -25,6 +25,15 @@ interface EventosDao {
     @Query("SELECT * FROM a11y_events WHERE session_id = :sesion ORDER BY ts DESC, id DESC LIMIT :limite")
     fun observarA11y(sesion: Long, limite: Int): Flow<List<A11yEventEntity>>
 
+    @Query("SELECT * FROM sys_events WHERE session_id = :sesion ORDER BY ts ASC, id ASC")
+    suspend fun todosSys(sesion: Long): List<SysEventEntity>
+
+    @Query("SELECT * FROM sensor_events WHERE session_id = :sesion ORDER BY ts ASC, id ASC")
+    suspend fun todosSensor(sesion: Long): List<SensorEventEntity>
+
+    @Query("SELECT * FROM a11y_events WHERE session_id = :sesion ORDER BY ts ASC, id ASC")
+    suspend fun todosA11y(sesion: Long): List<A11yEventEntity>
+
     @Query("SELECT COUNT(*) FROM sys_events WHERE session_id = :sesion")
     suspend fun contarSys(sesion: Long): Int
 
