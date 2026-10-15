@@ -14,6 +14,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.vigia.app.MainActivity
 import com.vigia.app.R
+import com.vigia.app.analyze.AjustesAnalisis
+import com.vigia.app.analyze.sig.IocManager
 import com.vigia.app.collect.GestorModulos
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +37,7 @@ class SesionService : Service() {
     private var observador: Job? = null
     private lateinit var gestor: SessionManager
     private lateinit var modulos: GestorModulos
+    private var vistoAbierta = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -63,9 +66,24 @@ class SesionService : Service() {
                     if (ui.cargado) {
                         if (ui.estado == Estado.INACTIVA) {
                             modulos.detener()
-                            stopForeground(STOP_FOREGROUND_REMOVE)
-                            stopSelf()
+                            if (vistoAbierta) {
+                                vistoAbierta = false
+                                val cerrada = ui.ultimaId
+                                if (cerrada != null) {
+                                    publicar(Estado.ACTIVA, null, getString(R.string.notif_analizando))
+                                    gestor.analizar(cerrada)
+                                }
+                            }
+                            // Si mientras se analizaba empezó otra sesión, el servicio sigue.
+                            if (gestor.estado.value.estado == Estado.INACTIVA) {
+                                stopForeground(STOP_FOREGROUND_REMOVE)
+                                stopSelf()
+                            }
                         } else {
+                            if (!vistoAbierta) {
+                                vistoAbierta = true
+                                actualizarIndicadoresSiToca()
+                            }
                             modulos.sincronizar(ui)
                             publicar(ui.estado, ui.inicio)
                         }
@@ -82,8 +100,22 @@ class SesionService : Service() {
         super.onDestroy()
     }
 
-    private fun publicar(estado: Estado, inicio: Long?) {
-        val notificacion = construirNotificacion(estado, inicio)
+    /** Descarga los indicadores al empezar la sesión, solo si el usuario lo activó y han pasado 12 horas. */
+    private fun actualizarIndicadoresSiToca() {
+        val ajustes = AjustesAnalisis(applicationContext)
+        if (!ajustes.actualizarAlIniciar) return
+        val hace = System.currentTimeMillis() - ajustes.ultimaActualizacionIoc
+        if (hace < 12L * 3_600_000L) return
+        scope.launch(Dispatchers.IO) {
+            try {
+                IocManager.actualizar(applicationContext)
+            } catch (e: Exception) {
+            }
+        }
+    }
+
+    private fun publicar(estado: Estado, inicio: Long?, textoFijo: String? = null) {
+        val notificacion = construirNotificacion(estado, inicio, textoFijo)
         if (Build.VERSION.SDK_INT >= 29) {
             startForeground(ID_NOTIF, notificacion, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
@@ -91,8 +123,10 @@ class SesionService : Service() {
         }
     }
 
-    private fun construirNotificacion(estado: Estado, inicio: Long?): Notification {
-        val texto = if (estado == Estado.PAUSADA) {
+    private fun construirNotificacion(estado: Estado, inicio: Long?, textoFijo: String?): Notification {
+        val texto = if (textoFijo != null) {
+            textoFijo
+        } else if (estado == Estado.PAUSADA) {
             getString(R.string.notif_texto_pausada)
         } else if (inicio != null) {
             val hora = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(inicio))
