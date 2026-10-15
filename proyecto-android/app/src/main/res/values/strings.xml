@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Vigía</string>
-    <string name="subtitulo">Lupa de defensa personal · Fase 3: recolección de eventos</string>
+    <string name="subtitulo">Lupa de defensa personal · Fase 4: análisis</string>
     <string name="estado_inactiva">Inactivo</string>
     <string name="estado_activa">Sesión activa</string>
     <string name="estado_pausada">Sesión en pausa</string>
@@ -76,4 +76,45 @@
     <string name="aplicar">Aplicar</string>
     <string name="sin_linea">Esta sesión no tiene eventos registrados.</string>
     <string name="sin_inventario">Esta sesión no tiene ninguna foto del inventario (el módulo no estaba activado).</string>
+
+    <string name="menu_ajustes">⚙ Ajustes</string>
+    <string name="notif_analizando">Analizando la sesión…</string>
+    <string name="titulo_hallazgos">Hallazgos</string>
+    <string name="aviso_hallazgos">Un hallazgo es algo anómalo que merece revisión, no una prueba de infección. Cada uno explica qué es, por qué importa y qué hacer.</string>
+    <string name="analizar_de_nuevo">Analizar de nuevo</string>
+    <string name="analizando">Analizando…</string>
+    <string name="analisis_listo">Análisis terminado: %1$d hallazgo(s).</string>
+    <string name="sin_hallazgos">Sin hallazgos. Si no has analizado esta sesión, pulsa «Analizar de nuevo».</string>
+    <string name="ver_en_linea">Ver en la línea de tiempo</string>
+    <string name="cerrar">Cerrar</string>
+    <string name="btn_hallazgos">Hallazgos</string>
+    <string name="btn_analizar">Analizar</string>
+
+    <string name="titulo_ajustes">Ajustes</string>
+    <string name="ajustes_ioc">Indicadores de compromiso</string>
+    <string name="ajustes_ioc_aviso">Son listas públicas de dominios, IPs y apps asociadas a spyware (MVT, Amnistía Internacional, investigadores). Descargarlas usa internet pero no envía ningún dato tuyo: solo se piden los archivos. Solo se descargan cuando pulsas «Actualizar ahora» o si activas la opción de abajo.</string>
+    <string name="chk_indice_mvt">Usar el índice público de MVT (mvt-indicators)</string>
+    <string name="chk_auto_ioc">Actualizar al empezar cada sesión (usa internet, máx. cada 12 h)</string>
+    <string name="hint_fuente">Añadir fuente: https://… .stix2</string>
+    <string name="anadir_fuente">Añadir fuente</string>
+    <string name="actualizar_ahora">Actualizar ahora</string>
+    <string name="importar_archivo">Importar archivo</string>
+    <string name="borrar_indicadores">Borrar indicadores</string>
+    <string name="descargando">Descargando indicadores…</string>
+    <string name="importando">Importando archivo…</string>
+    <string name="fuente_invalida">Solo se admiten direcciones que empiecen por https://</string>
+    <string name="confirmar_borrar_ioc">Se borrarán todos los indicadores cargados. Podrás volver a descargarlos.</string>
+    <string name="ajustes_reglas">Reglas de detección</string>
+    <string name="ajustes_reglas_aviso">Todas las reglas son visibles y se activan o desactivan una a una. Las que ya vienen desactivadas dan muchos falsos avisos.</string>
+    <string name="ajustes_parametros">Parámetros</string>
+    <string name="par_h1_inicio">H1: hora de inicio de la franja nocturna (0-23)</string>
+    <string name="par_h1_fin">H1: hora de fin de la franja nocturna (0-23)</string>
+    <string name="par_h8_min">H8: consultas mínimas para considerar una baliza</string>
+    <string name="par_corr_ventana">Correlación: ventana de tiempo en segundos</string>
+    <string name="par_base_min">Línea base: muestras mínimas por franja antes de avisar</string>
+    <string name="guardar_parametros">Guardar parámetros</string>
+    <string name="parametros_guardados">Parámetros guardados</string>
+    <string name="ajustes_base">Línea base</string>
+    <string name="reiniciar_base">Reiniciar línea base</string>
+    <string name="confirmar_reiniciar_base">Se borrarán las estadísticas de los últimos 14 días y la lista de dominios ya vistos. Vigía volverá al modo aprendizaje.</string>
 </resources>
