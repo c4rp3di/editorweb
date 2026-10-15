@@ -37,6 +37,14 @@
             android:name=".InventarioActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".HallazgosActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".AjustesActivity"
+            android:exported="false" />
+
         <service
             android:name=".core.SesionService"
             android:exported="false"
