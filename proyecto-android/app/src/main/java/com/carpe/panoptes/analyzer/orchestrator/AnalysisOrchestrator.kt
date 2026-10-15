@@ -336,7 +336,7 @@ class AnalysisOrchestrator(
      * API incompatible, lo que sea) el resto del pipeline sigue sin él.
      * Devuelve el ModuleResult si tuvo éxito, o null si falló.
      */
-    private fun runModuleSafely(
+    private suspend fun runModuleSafely(
         id: String,
         apkFile: File,
         workDir: File,
@@ -364,6 +364,8 @@ class AnalysisOrchestrator(
             } else {
                 null
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // no tragarse la cancelación de la corrutina
         } catch (e: Exception) {
             null
         } finally {
