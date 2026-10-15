@@ -1,11 +1,14 @@
 package com.vigia.app.core
 
 import android.content.Context
+import com.vigia.app.analyze.Analizador
 import com.vigia.app.store.A11yEventEntity
+import com.vigia.app.store.AnalisisDao
 import com.vigia.app.store.AppDatabase
 import com.vigia.app.store.DnsDao
 import com.vigia.app.store.DnsEventEntity
 import com.vigia.app.store.EventosDao
+import com.vigia.app.store.FindingEntity
 import com.vigia.app.store.InventarioSnapshotEntity
 import com.vigia.app.store.SensorEventEntity
 import com.vigia.app.store.SessionDao
@@ -40,6 +43,10 @@ class SessionManager private constructor(private val app: Context) {
         AppDatabase.obtener(app).dnsDao()
     }
 
+    private suspend fun analisisDao(): AnalisisDao = withContext(Dispatchers.IO) {
+        AppDatabase.obtener(app).analisisDao()
+    }
+
     private suspend fun eventosDao(): EventosDao = withContext(Dispatchers.IO) {
         AppDatabase.obtener(app).eventosDao()
     }
@@ -63,6 +70,7 @@ class SessionManager private constructor(private val app: Context) {
                 vpn = if (abierta != null) vpnDe(abierta.configuracion) else false,
                 dns = if (abierta != null) dnsDe(abierta.configuracion) else "sistema",
                 modulos = if (abierta != null) modulosDe(abierta.configuracion) else Modulos(),
+                ultimaId = ultima?.id,
                 ultimaInicio = ultima?.inicio,
                 ultimaFin = ultima?.fin
             )
@@ -137,6 +145,7 @@ class SessionManager private constructor(private val app: Context) {
             _estado.value = SesionUi(
                 cargado = true,
                 estado = Estado.INACTIVA,
+                ultimaId = id,
                 ultimaInicio = actual.inicio,
                 ultimaFin = ahora
             )
@@ -210,16 +219,41 @@ class SessionManager private constructor(private val app: Context) {
         return try {
             val d = dnsDao()
             val ev = eventosDao()
+            val an = analisisDao()
             Contadores(
                 consultas = d.contar(sesionId),
                 dominios = d.contarDominios(sesionId),
                 apps = d.contarApps(sesionId),
                 sistema = ev.contarSys(sesionId),
                 sensores = ev.contarSensor(sesionId),
-                pantalla = ev.contarA11y(sesionId)
+                pantalla = ev.contarA11y(sesionId),
+                hallazgos = an.contarFindings(sesionId),
+                hallazgosAltos = an.contarFindingsAltos(sesionId)
             )
         } catch (e: Exception) {
             Contadores()
+        }
+    }
+
+    fun hallazgos(sesionId: Long): Flow<List<FindingEntity>> = flow {
+        emitAll(AppDatabase.obtener(app).analisisDao().observarFindings(sesionId))
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun hallazgo(id: Long): FindingEntity? {
+        return try {
+            analisisDao().finding(id)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** Ejecuta el análisis completo (firmas, línea base, heurísticas y correlación) sobre una sesión. */
+    suspend fun analizar(sesionId: Long): Int {
+        return try {
+            Analizador.ejecutar(app, sesionId)
+        } catch (e: Exception) {
+            _estado.value = _estado.value.copy(error = "Análisis: " + describir(e))
+            0
         }
     }
 
@@ -242,6 +276,9 @@ class SessionManager private constructor(private val app: Context) {
             ev.borrarSys(id)
             ev.borrarSensor(id)
             ev.borrarA11y(id)
+            val an = analisisDao()
+            an.borrarFindings(id)
+            an.borrarMuestrasDeSesion(id)
             withContext(Dispatchers.IO) { AppDatabase.obtener(app).inventarioDao() }.borrar(id)
             dao().borrar(id)
         } catch (e: Exception) {
