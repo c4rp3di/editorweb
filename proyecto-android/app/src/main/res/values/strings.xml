@@ -1,120 +1,17 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Vigía</string>
-    <string name="subtitulo">Lupa de defensa personal · Fase 4: análisis</string>
-    <string name="estado_inactiva">Inactivo</string>
-    <string name="estado_activa">Sesión activa</string>
-    <string name="estado_pausada">Sesión en pausa</string>
-    <string name="nueva_sesion">Nueva sesión</string>
-    <string name="pausar">Pausar</string>
-    <string name="reanudar">Reanudar</string>
-    <string name="detener">Detener</string>
-    <string name="sin_sesiones">Todavía no hay sesiones cerradas.</string>
-    <string name="aviso_fase2">La captura DNS registra qué dominios consulta cada app (no el contenido de nada). Las apps que usan DNS cifrado propio (DNS sobre HTTPS) no pasan por aquí. Los datos se quedan cifrados en este teléfono.</string>
-    <string name="canal_nombre">Sesión de Vigía</string>
-    <string name="notif_titulo">Vigía activo</string>
-    <string name="notif_texto_activa">Sesión en curso desde las %1$s</string>
-    <string name="notif_texto_pausada">Sesión en pausa</string>
-
-    <string name="menu_sesiones">☰ Sesiones</string>
-    <string name="titulo_sesiones">Sesiones</string>
-    <string name="sin_sesiones_lista">Aún no hay sesiones. Pulsa «Nueva sesión» para crear la primera.</string>
-    <string name="chk_vpn">Capturar consultas DNS (VPN local)</string>
-    <string name="vpn_activa">Captura DNS: activa</string>
-    <string name="vpn_inactiva">Captura DNS: iniciando o parada</string>
-    <string name="dns_servidor">Servidor DNS al que se reenvían las consultas</string>
-    <string-array name="dns_opciones">
-        <item>DNS de la red (recomendado)</item>
-        <item>Cloudflare 1.1.1.1</item>
-        <item>Google 8.8.8.8</item>
-        <item>Quad9 9.9.9.9</item>
-    </string-array>
-    <string name="vpn_denegada">Sin permiso de VPN: la sesión empieza sin captura DNS.</string>
-    <string name="contadores">Consultas DNS: %1$d · Dominios únicos: %2$d · Apps: %3$d</string>
-
-    <string name="volver">← Volver</string>
-    <string name="borrar">Borrar sesión</string>
-    <string name="borrar_titulo">¿Borrar esta sesión?</string>
-    <string name="borrar_mensaje">Se eliminarán la sesión y todos sus eventos de este teléfono. No se puede deshacer.</string>
-    <string name="cabecera_eventos">Consultas DNS (las más recientes primero)</string>
-    <string name="sin_eventos">Esta sesión no tiene consultas registradas.</string>
-    <string name="buscar_hint">Buscar dominio o app</string>
-    <string name="solo_fallidas">Solo sin respuesta o con error</string>
-    <string name="btn_apps">Apps</string>
-    <string name="btn_dominios">Dominios</string>
-    <string name="quitar_filtros">Quitar filtros</string>
-    <string name="elegir_app">Elige una app</string>
-    <string name="elegir_dominio">Elige un dominio</string>
-    <string name="sin_resultados">Ninguna consulta coincide con los filtros.</string>
-
-    <string name="modulos_titulo">Qué registrar en esta sesión</string>
-    <string name="chk_eventos">Eventos del sistema</string>
-    <string name="cap_eventos">Registra: apps instaladas o borradas, pantalla, desbloqueo, cambios de red, hora e idioma y certificados. No registra: mensajes, contenido ni lo que haces dentro de las apps.</string>
-    <string name="chk_inventario">Inventario de apps y permisos</string>
-    <string name="cap_inventario">Registra: lista de apps con versión y firma, permisos sensibles, accesibilidad activa, administradores y certificados; y los cambios entre fotos. No registra: datos dentro de las apps.</string>
-    <string name="chk_sensores">Cámara y micrófono</string>
-    <string name="cap_sensores">Registra: cuándo se usan y si la pantalla estaba encendida. No registra: imágenes ni audio. Android no dice qué app los usa (si activas «Actividad en pantalla», anota la app que estaba delante). La ubicación no se puede observar.</string>
-    <string name="chk_a11y">Actividad en pantalla (accesibilidad)</string>
-    <string name="cap_a11y">Registra: qué app está en pantalla y cuándo se toca algo. No lee textos, contraseñas ni contenido. Tienes que activarlo tú en Ajustes y se apaga solo al terminar la sesión.</string>
-    <string name="a11y_nombre">Vigía · actividad en pantalla</string>
-    <string name="a11y_descripcion">Anota qué app está en pantalla y cuándo se toca algo, solo durante una sesión de Vigía. No lee el contenido de la pantalla.</string>
-    <string name="a11y_aviso_titulo">Activa «Actividad en pantalla»</string>
-    <string name="a11y_aviso_mensaje">Para registrar qué app está en pantalla, activa «Vigía · actividad en pantalla» en Ajustes › Accesibilidad. Android mostrará una advertencia genérica: Vigía no puede leer el contenido de la pantalla y el servicio se apaga solo al terminar la sesión.</string>
-    <string name="abrir_ajustes">Abrir ajustes</string>
-    <string name="ahora_no">Ahora no</string>
-    <string name="contadores_otros">Sistema: %1$d · Cámara/micrófono: %2$d · Pantalla: %3$d</string>
-    <string name="btn_linea">Línea de tiempo</string>
-    <string name="btn_inventario">Inventario</string>
-    <string name="titulo_linea">Línea de tiempo</string>
-    <string name="titulo_inventario">Inventario</string>
-    <string name="btn_categorias">Categorías</string>
-    <string name="btn_por_tipo">Por tipo</string>
-    <string name="btn_por_app">Por app</string>
-    <string name="btn_limpiar">Limpiar</string>
-    <string name="elegir_tipo">Elige un tipo de evento</string>
-    <string name="elegir_categorias">Categorías a mostrar</string>
-    <string name="aplicar">Aplicar</string>
-    <string name="sin_linea">Esta sesión no tiene eventos registrados.</string>
-    <string name="sin_inventario">Esta sesión no tiene ninguna foto del inventario (el módulo no estaba activado).</string>
-
-    <string name="menu_ajustes">⚙ Ajustes</string>
-    <string name="notif_analizando">Analizando la sesión…</string>
-    <string name="titulo_hallazgos">Hallazgos</string>
-    <string name="aviso_hallazgos">Un hallazgo es algo anómalo que merece revisión, no una prueba de infección. Cada uno explica qué es, por qué importa y qué hacer.</string>
-    <string name="analizar_de_nuevo">Analizar de nuevo</string>
-    <string name="analizando">Analizando…</string>
-    <string name="analisis_listo">Análisis terminado: %1$d hallazgo(s).</string>
-    <string name="sin_hallazgos">Sin hallazgos. Si no has analizado esta sesión, pulsa «Analizar de nuevo».</string>
-    <string name="ver_en_linea">Ver en la línea de tiempo</string>
-    <string name="cerrar">Cerrar</string>
-    <string name="btn_hallazgos">Hallazgos</string>
-    <string name="btn_analizar">Analizar</string>
-
-    <string name="titulo_ajustes">Ajustes</string>
-    <string name="ajustes_ioc">Indicadores de compromiso</string>
-    <string name="ajustes_ioc_aviso">Son listas públicas de dominios, IPs y apps asociadas a spyware (MVT, Amnistía Internacional, investigadores). Descargarlas usa internet pero no envía ningún dato tuyo: solo se piden los archivos. Solo se descargan cuando pulsas «Actualizar ahora» o si activas la opción de abajo.</string>
-    <string name="chk_indice_mvt">Usar el índice público de MVT (mvt-indicators)</string>
-    <string name="chk_auto_ioc">Actualizar al empezar cada sesión (usa internet, máx. cada 12 h)</string>
-    <string name="hint_fuente">Añadir fuente: https://… .stix2</string>
-    <string name="anadir_fuente">Añadir fuente</string>
-    <string name="actualizar_ahora">Actualizar ahora</string>
-    <string name="importar_archivo">Importar archivo</string>
-    <string name="borrar_indicadores">Borrar indicadores</string>
-    <string name="descargando">Descargando indicadores…</string>
-    <string name="importando">Importando archivo…</string>
-    <string name="fuente_invalida">Solo se admiten direcciones que empiecen por https://</string>
-    <string name="confirmar_borrar_ioc">Se borrarán todos los indicadores cargados. Podrás volver a descargarlos.</string>
-    <string name="ajustes_reglas">Reglas de detección</string>
-    <string name="ajustes_reglas_aviso">Todas las reglas son visibles y se activan o desactivan una a una. Las que ya vienen desactivadas dan muchos falsos avisos.</string>
-    <string name="ajustes_parametros">Parámetros</string>
-    <string name="par_h1_inicio">H1: hora de inicio de la franja nocturna (0-23)</string>
-    <string name="par_h1_fin">H1: hora de fin de la franja nocturna (0-23)</string>
-    <string name="par_h8_min">H8: consultas mínimas para considerar una baliza</string>
-    <string name="par_corr_ventana">Correlación: ventana de tiempo en segundos</string>
-    <string name="par_base_min">Línea base: muestras mínimas por franja antes de avisar</string>
-    <string name="guardar_parametros">Guardar parámetros</string>
-    <string name="parametros_guardados">Parámetros guardados</string>
-    <string name="ajustes_base">Línea base</string>
-    <string name="reiniciar_base">Reiniciar línea base</string>
-    <string name="confirmar_reiniciar_base">Se borrarán las estadísticas de los últimos 14 días y la lista de dominios ya vistos. Vigía volverá al modo aprendizaje.</string>
+    <string name="app_name">APK Panoptes</string>
+    <string name="app_titulo">APK Panoptes — Apps instaladas</string>
+    <string name="toca_para_analizar">toca para analizar</string>
+    <string name="compartir_apk">Compartir / guardar APK</string>
+    <string name="extraccion_ok">APK extraído:</string>
+    <string name="extraccion_error">Error:</string>
+    <string name="analisis_iniciado">Análisis iniciado</string>
+    <string name="ver_analisis">Ver análisis</string>
+    <string name="modulos_titulo">Módulos</string>
+    <string name="modulo_instalar">Instalar</string>
+    <string name="modulo_desinstalar">Desinstalar</string>
+    <string name="modulo_instalado">instalado</string>
+    <string name="modulo_error">Error instalando módulo:</string>
+    <string name="modulo_no_publicado">Este módulo aún no está publicado en el catálogo (CI pendiente)</string>
+    <string name="sin_analisis_todavia">Todavía no hay ningún análisis. Vuelve a la lista de apps y toca una para extraerla.</string>
 </resources>
