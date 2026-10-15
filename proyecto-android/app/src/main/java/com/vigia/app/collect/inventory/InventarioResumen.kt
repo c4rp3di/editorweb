@@ -7,7 +7,7 @@ import org.json.JSONObject
 /** Convierte la última foto del inventario en un texto claro para la pantalla. */
 object InventarioResumen {
 
-    private val TIENDAS = setOf(
+    val TIENDAS = setOf(
         "com.android.vending", "com.sec.android.app.samsungapps", "com.amazon.venezia",
         "com.huawei.appmarket", "com.xiaomi.mipicks", "com.xiaomi.market",
         "org.fdroid.fdroid", "org.fdroid.basic", "com.aurora.store"
