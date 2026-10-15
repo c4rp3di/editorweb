@@ -50,6 +50,8 @@ class LineaTiempoActivity : AppCompatActivity() {
             return
         }
         gestor = SessionManager.obtener(applicationContext)
+        val centroInicial = intent.getLongExtra(EXTRA_CENTRO, -1L)
+        if (centroInicial > 0L) centro = centroInicial
 
         etBuscar = findViewById(R.id.etBuscar)
         lineaResumen = findViewById(R.id.lineaResumen)
@@ -184,5 +186,9 @@ class LineaTiempoActivity : AppCompatActivity() {
                 aplicar()
             }
             .show()
+    }
+
+    companion object {
+        const val EXTRA_CENTRO = "centro_ts"
     }
 }
