@@ -28,7 +28,7 @@ android {
         minSdk 26
         targetSdk 34
         versionCode 1
-        versionName "v2.0"
+        versionName "v3.0"
 
         ndk {
             abiFilters 'arm64-v8a' // solo arm64: -50% de tamaño (§3.3 del plan)
@@ -40,17 +40,84 @@ android {
         python {
             version "3.11"
             pip {
+                // F5 · IMPORTANTE (v1.0.3): androguard 4.1.2 exige 'frida' sin versión, y Chaquopy
+                // no tiene wheel de frida para Android (pip intenta compilar el sdist y falla).
+                // Solución: instalar con --no-deps y listar a mano el cierre de dependencias que
+                // pip resolvió en el log de CI (todo lo que había, MENOS frida). androguard.core.apk
+                // y quark.core.quark no importan frida; solo lo usa androguard.pentest / quark.script.
+                // Si actualizas versiones de androguard o quark-engine, revisa esta lista.
+                options "--no-deps"
+
                 install "androguard==4.1.2"
                 install "quark-engine==23.9.1"
-                install "cryptography==42.0.8" // 42.0.5 no tiene wheel en Chaquopy (compilaba Rust/OpenSSL y fallaba)
-                install "pyyaml==6.0.3" // 6.0.1 no tiene wheel en Chaquopy para cp311
-                // F6: intento de control de frida-server on-device. Altamente
-                // incierto que Chaquopy tenga wheel para esto en Android/arm64
-                // — ver el aviso grande en python/panoptes/frida_runner.py
-                // antes de asumir que esta línea resuelve. Si falla la build,
-                // coméntala: FridaController.kt sigue funcionando igual para
-                // arrancar/parar frida-server, solo pierdes el control on-device.
-                // install "frida==16.1.4" // sin wheel en Chaquopy: desactivado; frida_runner.py tolera su ausencia
+                install "cryptography==42.0.8" // 42.0.5 no tiene wheel en Chaquopy (compilaba Rust/OpenSSL)
+                install "pyyaml==6.0.3"        // 6.0.1 no tiene wheel en Chaquopy para cp311
+                // install "frida" // sin wheel en Chaquopy: desactivado a propósito
+
+                // --- dependencias de androguard ---
+                install "pygments"
+                install "lxml"
+                install "colorama"
+                install "asn1crypto"
+                install "click"
+                install "pydot"
+                install "ipython"
+                install "mutf8"
+                install "dataset"
+                install "loguru"
+                install "apkInspector"
+                install "matplotlib"
+                install "networkx"
+                install "oscrypto"
+                // --- dependencias de quark-engine ---
+                install "rzpipe"
+                install "tqdm"
+                install "graphviz"
+                install "plotly"
+                install "prompt-toolkit"
+                install "prettytable"
+                // --- transitivas (cffi/cryptography, matplotlib, lxml, dataset, ipython...) ---
+                install "cffi"
+                install "pycparser"
+                install "chaquopy-libffi"
+                install "chaquopy-libyaml"
+                install "chaquopy-libxml2"
+                install "chaquopy-libxslt"
+                install "chaquopy-freetype"
+                install "chaquopy-libpng"
+                install "chaquopy-libjpeg"
+                install "chaquopy-libcxx"
+                install "chaquopy-openblas"
+                install "chaquopy-libgfortran"
+                install "numpy"
+                install "pillow"
+                install "kiwisolver"
+                install "contourpy"
+                install "fonttools"
+                install "cycler"
+                install "pyparsing"
+                install "packaging"
+                install "python-dateutil"
+                install "six"
+                install "sqlalchemy<3"
+                install "alembic"
+                install "Mako"
+                install "MarkupSafe"
+                install "typing_extensions"
+                install "stack_data"
+                install "asttokens"
+                install "executing"
+                install "pure-eval"
+                install "pexpect"
+                install "ptyprocess"
+                install "matplotlib-inline"
+                install "jedi"
+                install "parso<0.9"
+                install "traitlets"
+                install "ipython-pygments-lexers"
+                install "psutil"
+                install "narwhals"
+                install "wcwidth"
             }
         }
     }
