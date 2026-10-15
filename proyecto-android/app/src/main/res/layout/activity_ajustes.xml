@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnVolver"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/volver" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/titulo_ajustes"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/ajustes_ioc"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/ajustes_ioc_aviso"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/txtIoc"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textSize="14sp" />
+
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/chkIndiceMvt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/chk_indice_mvt" />
+
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/chkAutoIoc"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/chk_auto_ioc" />
+
+        <EditText
+            android:id="@+id/etFuente"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/hint_fuente"
+            android:importantForAutofill="no"
+            android:inputType="textUri"
+            android:maxLines="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAnadirFuente"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/anadir_fuente" />
+
+        <TextView
+            android:id="@+id/txtFuentes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnActualizarIoc"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:text="@string/actualizar_ahora"
+                android:textSize="12sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnImportarIoc"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:text="@string/importar_archivo"
+                android:textSize="12sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnBorrarIoc"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:text="@string/borrar_indicadores"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/ajustes_reglas"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/ajustes_reglas_aviso"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            android:id="@+id/contenedorReglas"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/ajustes_parametros"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/etH1Inicio"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/par_h1_inicio"
+            android:importantForAutofill="no"
+            android:inputType="number"
+            android:maxLines="1" />
+
+        <EditText
+            android:id="@+id/etH1Fin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/par_h1_fin"
+            android:importantForAutofill="no"
+            android:inputType="number"
+            android:maxLines="1" />
+
+        <EditText
+            android:id="@+id/etH8Min"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/par_h8_min"
+            android:importantForAutofill="no"
+            android:inputType="number"
+            android:maxLines="1" />
+
+        <EditText
+            android:id="@+id/etCorrVentana"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/par_corr_ventana"
+            android:importantForAutofill="no"
+            android:inputType="number"
+            android:maxLines="1" />
+
+        <EditText
+            android:id="@+id/etBaseMin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/par_base_min"
+            android:importantForAutofill="no"
+            android:inputType="number"
+            android:maxLines="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnGuardarParametros"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/guardar_parametros" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/ajustes_base"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txtBase"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="13sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnReiniciarBase"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/reiniciar_base" />
+    </LinearLayout>
+</ScrollView>
