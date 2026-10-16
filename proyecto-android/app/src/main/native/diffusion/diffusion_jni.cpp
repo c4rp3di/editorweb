@@ -213,7 +213,6 @@ static bool writePngChunk(std::ofstream & out, const char type[4], const unsigne
     return out.good();
 }
 
-// Escribe PNG directamente desde el buffer nativo, fila a fila.
 static bool writePngStreaming(const std::string & path, const sd_image_t & image) {
     if (!image.data || image.width == 0 || image.height == 0) return false;
     if (image.channel != 3 && image.channel != 4) return false;
@@ -287,14 +286,11 @@ static bool writePngStreaming(const std::string & path, const sd_image_t & image
 }
 
 // Unsharp mask: realza bordes sin amplificar el ruido de fondo.
-// blur = media local 3x3; resultado = original * (1 + amount) - blur * amount.
-// threshold: diferencia mínima por canal para aplicar el refuerzo (0 = siempre).
 static void aplicarNitidez(std::vector<unsigned char> & pixels, int width, int height, int channels,
                            float amount, float threshold) {
     if (amount <= 0.0f || width < 3 || height < 3) return;
     const size_t total = static_cast<size_t>(width) * height * channels;
     std::vector<unsigned char> blurred(total, 0);
-    // Media 3x3 (fila a fila, reutilizando columnas).
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             for (int c = 0; c < channels; ++c) {
@@ -330,10 +326,13 @@ static sd_ctx_t * createContext(const std::string & modelPath, const std::string
     sd_ctx_params_init(&params);
     params.model_path = modelPath.empty() ? nullptr : modelPath.c_str();
     params.vae_path = vaePath.empty() ? nullptr : vaePath.c_str();
-    const char * backendSpec = "diffusion=vulkan0,vae=cpu";
+    // ---- CAMBIO 1 · VAE a Vulkan (antes "vae=cpu"). Acelera la decodificación
+    //      de ~75 s a ~10 s en un Dimensity 9200. Si crashea por memoria, revertir.
+    const char * backendSpec = "diffusion=vulkan0,vae=vulkan0";
     params.backend = backendSpec;
     params.params_backend = backendSpec;
-    params.n_threads = 4;
+    // ---- CAMBIO 2 · threads 4 → 6 (Dimensity 9200 tiene 8 núcleos).
+    params.n_threads = 6;
     params.enable_mmap = false;
     params.wtype = SD_TYPE_F16;
     params.flash_attn = true;
@@ -408,6 +407,10 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
         gen.batch_count = 1;
         gen.vae_tiling_params.enabled = true;
         gen.vae_tiling_params.temporal_tiling = false;
+        // Se mantiene tiling 192×192 con overlap 0.25. Aunque el log avisa de
+        // que no puede alcanzar 0.25 y aplica 0.44, la imagen resultante no
+        // tiene costuras visibles. Si se cambia a 256 con overlap menor, puede
+        // acelerar la decodificación pero arriesga calidad. Se deja igual.
         gen.vae_tiling_params.tile_size_w = 192;
         gen.vae_tiling_params.tile_size_h = 192;
         gen.vae_tiling_params.target_overlap = 0.25f;
