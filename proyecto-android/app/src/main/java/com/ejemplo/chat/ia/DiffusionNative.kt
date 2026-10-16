@@ -24,10 +24,11 @@ object DiffusionNative {
         }
     }
 
+    /** Genera una imagen. negativePrompt no vacío → CFG 7.0 (el modelo sigue el prompt). */
     fun generarImagen(
         modelPath: String,
         prompt: String,
-        negativePrompt: String = "",
+        negativePrompt: String = "borroso, baja calidad, ruido, deforme, abstracto",
         outputPath: String,
         width: Int = 512,
         height: Int = 512,
