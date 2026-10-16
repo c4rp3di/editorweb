@@ -128,7 +128,7 @@ class ImageGenerationActivity : AppCompatActivity() {
                     progressBar.max = 100
                     progressBar.progress = e.porcentaje
                 }
-                if (s % 5 == 0) DebugLog.log("GEN", "t=${s}s · ${e.texto} · fase=${p.fase} paso=${p.paso}/${p.pasos} · RSS gen ${GenClient.rssGenMb()} MB")
+                if (s % 5 == 0) DebugLog.log("GEN", "t=${s}s · ${e.texto} · fase=${p.fase} paso=${p.paso}/${p.pasos}")
             }
         }
 
