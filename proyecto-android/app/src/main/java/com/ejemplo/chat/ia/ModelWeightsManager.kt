@@ -7,6 +7,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
+/** Gestión común de pesos: descarga explícita, tamaño y SHA-256 antes de activar. */
 class ModelWeightsManager(private val context: Context) {
     data class Artifact(
         val fileName: String,
@@ -17,11 +18,14 @@ class ModelWeightsManager(private val context: Context) {
     )
     data class Result(val ok: Boolean, val message: String, val file: File? = null)
 
+    // SHA-256 ya comprobado: se guarda tamaño + fecha de modificación + hash esperado por ruta.
+    // Si el archivo cambia (tamaño o fecha), la huella no coincide y se vuelve a calcular.
     private val prefs = context.getSharedPreferences("weights_verified", Context.MODE_PRIVATE)
     private fun huella(file: File, a: Artifact) = "${file.length()}:${file.lastModified()}:${a.sha256}"
     private fun verificadoEnCache(file: File, a: Artifact) = prefs.getString(file.absolutePath, null) == huella(file, a)
     private fun marcarVerificado(file: File, a: Artifact) { prefs.edit().putString(file.absolutePath, huella(file, a)).apply() }
 
+    /** Comprobación rápida y sin hash para la interfaz: todos los archivos existen y tienen el tamaño esperado. */
     fun presentAll(dir: File, artifacts: List<Artifact>): Boolean =
         artifacts.isNotEmpty() && artifacts.all { a ->
             val f = File(dir, a.fileName)
