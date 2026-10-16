@@ -27,7 +27,7 @@ android {
         minSdk 28
         targetSdk 34
         versionCode 1
-        versionName "v1.0"
+        versionName "v2.0"
 
         ndk {
             abiFilters 'arm64-v8a'
@@ -73,8 +73,31 @@ tasks.register('prepareNativeEngines') {
             logger.lifecycle('Chat Imagen: CHATPRO_SKIP_NATIVE=1; se omite la preparación nativa.')
             return
         }
+        // El editor de Fusion publica el módulo 'app' en 'proyecto-android/app/'
+        // y las rutas internas que no reconoce van a 'app/src/main/<ruta>'.
+        // Se prueban varias rutas posibles para que funcione sin depender de
+        // la convención exacta que use el editor en cada momento.
+        def candidatos = [
+            // Lo más probable según la lógica actual del editor:
+            // 'native/...' se sube como 'app/src/main/native/...'
+            rootProject.file('proyecto-android/app/src/main/native/prepare_native_engines.sh'),
+            // Variantes por si cambia la convención del editor
+            rootProject.file('proyecto-android/app/native/prepare_native_engines.sh'),
+            rootProject.file('app/src/main/native/prepare_native_engines.sh'),
+            rootProject.file('app/native/prepare_native_engines.sh'),
+            // Último recurso: ruta relativa al propio módulo
+            file('native/prepare_native_engines.sh')
+        ]
+        def scriptFile = candidatos.find { it.exists() }
+        if (scriptFile == null) {
+            throw new GradleException(
+                "No se encontró prepare_native_engines.sh. Rutas probadas:\n" +
+                candidatos.collect { "  - ${it.absolutePath}" }.join("\n")
+            )
+        }
+        logger.lifecycle("Chat Imagen: script nativo encontrado en ${scriptFile.absolutePath}")
         exec {
-            commandLine 'bash', file('native/prepare_native_engines.sh').absolutePath
+            commandLine 'bash', scriptFile.absolutePath
         }
     }
 }
