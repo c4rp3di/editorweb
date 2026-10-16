@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOLCHAIN_DIR="$ROOT_DIR/native/.toolchains"
 BUILD_DIR="$ROOT_DIR/native/.build"
-JNI_DIR="$ROOT_DIR/native/jniLibs/arm64-v8a"
 SD_REF="${STABLE_DIFFUSION_CPP_REF:-3f8527a}"
 NDK_VERSION="${ANDROID_NDK_VERSION:-29.0.13113456}"
 CMAKE_VERSION="${ANDROID_CMAKE_VERSION:-3.31.6}"
@@ -20,6 +19,36 @@ fi
 command -v git >/dev/null 2>&1 || fail "git no está disponible en el runner."
 command -v cmake >/dev/null 2>&1 || fail "cmake no está disponible en el runner."
 
+# ---------------------------------------------------------------------------
+# Detección robusta de la raíz del módulo app.
+# El editor puede subir este script a distintas rutas; subimos por el árbol
+# hasta encontrar el build.gradle del módulo app para copiar el .so donde
+# Gradle realmente lo busca al empaquetar el APK.
+# ---------------------------------------------------------------------------
+detectar_raiz_app() {
+    local d="$ROOT_DIR"
+    while [[ "$d" != "/" && -n "$d" ]]; do
+        if [[ -f "$d/build.gradle" || -f "$d/build.gradle.kts" ]]; then
+            # El módulo app contiene 'src' o al menos una carpeta 'native'.
+            if [[ -d "$d/src" || -d "$d/native" ]]; then
+                echo "$d"
+                return 0
+            fi
+        fi
+        local padre
+        padre="$(dirname "$d")"
+        [[ "$padre" == "$d" ]] && break
+        d="$padre"
+    done
+    echo ""
+}
+
+APP_ROOT="$(detectar_raiz_app)"
+if [[ -z "$APP_ROOT" ]]; then
+    fail "No se pudo detectar la raíz del módulo app subiendo desde $ROOT_DIR"
+fi
+log "Raíz del módulo app detectada: $APP_ROOT"
+
 if command -v apt-get >/dev/null 2>&1; then
     log "Instalando dependencias Vulkan/SPIR-V del runner"
     sudo apt-get update
@@ -31,7 +60,7 @@ if command -v apt-get >/dev/null 2>&1; then
         spirv-headers
 fi
 
-command -v glslc >/dev/null 2>&1 || fail "No se encontró glslc después de instalar las dependencias Vulkan."
+command -v glslc >/dev/null 2>&1 || fail "No se encontró glslc."
 command -v glslangValidator >/dev/null 2>&1 || fail "No se encontró glslangValidator."
 
 SPIRV_PREFIX="$TOOLCHAIN_DIR/spirv-headers-install"
@@ -78,16 +107,16 @@ done
 if [[ -z "$SPIRV_INCLUDE_DIR" && -f "$SPIRV_SRC/include/spirv/unified1/spirv.hpp" ]]; then
     SPIRV_INCLUDE_DIR="$SPIRV_SRC/include"
 fi
-[[ -n "$SPIRV_INCLUDE_DIR" ]] || fail "No se encontró spirv/unified1/spirv.hpp en el runner."
+[[ -n "$SPIRV_INCLUDE_DIR" ]] || fail "No se encontró spirv/unified1/spirv.hpp."
 SPIRV_LOCAL_INCLUDE="$TOOLCHAIN_DIR/spirv-include"
 rm -rf "$SPIRV_LOCAL_INCLUDE"
 mkdir -p "$SPIRV_LOCAL_INCLUDE"
 cp -r "$SPIRV_INCLUDE_DIR/spirv" "$SPIRV_LOCAL_INCLUDE/spirv"
-[[ -f "$SPIRV_LOCAL_INCLUDE/spirv/unified1/spirv.hpp" ]] || fail "No se pudo copiar spirv/unified1/spirv.hpp"
+[[ -f "$SPIRV_LOCAL_INCLUDE/spirv/unified1/spirv.hpp" ]] || fail "No se pudo copiar spirv.hpp"
 SPIRV_INCLUDE_DIR="$SPIRV_LOCAL_INCLUDE"
 log "SPIRV include dir (local): $SPIRV_INCLUDE_DIR"
 
-[[ -f "$SPIRV_HEADERS_DIR/SPIRV-HeadersConfig.cmake" ]] || fail "No se encontró SPIRV-HeadersConfig.cmake"
+[[ -f "$SPIRV_HEADERS_DIR/SPIRV-HeadersConfig.cmake" ]] || fail "Falta SPIRV-HeadersConfig.cmake"
 log "SPIRV-Headers CMake: $SPIRV_HEADERS_DIR"
 
 SDKMANAGER="$(command -v sdkmanager || true)"
@@ -119,7 +148,7 @@ VK_HEADER_VERSION_COMPLETE="$(awk '/^[[:space:]]*#define[[:space:]]+VK_HEADER_VE
 
 VK_MAJOR="$(printf '%s\n' "$VK_HEADER_VERSION_COMPLETE" | sed -n 's/.*VK_MAKE_API_VERSION([^,]*,[[:space:]]*\([0-9][0-9]*\),[[:space:]]*\([0-9][0-9]*\),.*/\1/p')"
 VK_MINOR="$(printf '%s\n' "$VK_HEADER_VERSION_COMPLETE" | sed -n 's/.*VK_MAKE_API_VERSION([^,]*,[[:space:]]*\([0-9][0-9]*\),[[:space:]]*\([0-9][0-9]*\),.*/\2/p')"
-[[ -n "$VK_MAJOR" && -n "$VK_MINOR" ]] || fail "No se pudo extraer la versión Vulkan mayor/menor"
+[[ -n "$VK_MAJOR" && -n "$VK_MINOR" ]] || fail "No se pudo extraer la versión Vulkan"
 
 VULKAN_HEADERS_VERSION="${VK_MAJOR}.${VK_MINOR}.${VK_HEADER_VERSION}"
 VULKAN_HEADERS_TAG="v${VULKAN_HEADERS_VERSION}"
@@ -138,8 +167,8 @@ if [[ ! -f "$VULKAN_HEADERS_INCLUDE_DIR/vulkan/vulkan.hpp" ]]; then
     git clone --depth 1 --branch "$VULKAN_HEADERS_TAG" https://github.com/KhronosGroup/Vulkan-Headers.git "$VULKAN_HEADERS_SRC"
 fi
 
-[[ -f "$VULKAN_HEADERS_INCLUDE_DIR/vulkan/vulkan.hpp" ]] || fail "Vulkan-Headers no contiene vulkan.hpp"
-[[ -f "$VULKAN_HEADERS_INCLUDE_DIR/vulkan/vulkan_core.h" ]] || fail "Vulkan-Headers no contiene vulkan_core.h"
+[[ -f "$VULKAN_HEADERS_INCLUDE_DIR/vulkan/vulkan.hpp" ]] || fail "Falta vulkan.hpp"
+[[ -f "$VULKAN_HEADERS_INCLUDE_DIR/vulkan/vulkan_core.h" ]] || fail "Falta vulkan_core.h"
 
 VULKAN_FETCHED_VERSION="$(awk '/^[[:space:]]*#define[[:space:]]+VK_HEADER_VERSION[[:space:]]+[0-9]+/{print $3; exit}' "$VULKAN_HEADERS_INCLUDE_DIR/vulkan/vulkan_core.h")"
 [[ "$VULKAN_FETCHED_VERSION" == "$VK_HEADER_VERSION" ]] || fail "Mismatch Vulkan-Headers"
@@ -152,7 +181,7 @@ for shader_dir in \
     if [[ -d "$shader_dir" ]]; then export PATH="$shader_dir:$PATH"; fi
 done
 
-mkdir -p "$TOOLCHAIN_DIR" "$BUILD_DIR" "$JNI_DIR"
+mkdir -p "$TOOLCHAIN_DIR" "$BUILD_DIR"
 
 clone_repo() {
     local url="$1" dest="$2" ref="$3"
@@ -168,6 +197,15 @@ clone_repo() {
 }
 
 clone_repo "https://github.com/leejet/stable-diffusion.cpp.git" "$TOOLCHAIN_DIR/stable-diffusion.cpp" "$SD_REF"
+
+# El CMakeLists vive junto a este script (mismo directorio que prepare_...).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIFFUSION_CMAKE_DIR="$SCRIPT_DIR/diffusion"
+if [[ ! -f "$DIFFUSION_CMAKE_DIR/CMakeLists.txt" ]]; then
+    # Fallback: por si el editor separa el CMake del script
+    DIFFUSION_CMAKE_DIR="$ROOT_DIR/native/diffusion"
+fi
+[[ -f "$DIFFUSION_CMAKE_DIR/CMakeLists.txt" ]] || fail "No se encontró native/diffusion/CMakeLists.txt"
 
 build_diffusion() {
     local source="$1" build="$2" cmake_list="$3"
@@ -196,14 +234,28 @@ build_diffusion() {
     cmake --build "$build" --config Release -j "${CMAKE_BUILD_JOBS:-$(nproc)}"
 }
 
-build_diffusion "$TOOLCHAIN_DIR/stable-diffusion.cpp" "$BUILD_DIR/diffusion" "$ROOT_DIR/native/diffusion"
+build_diffusion "$TOOLCHAIN_DIR/stable-diffusion.cpp" "$BUILD_DIR/diffusion" "$DIFFUSION_CMAKE_DIR"
 
 DIFFUSION_SO="$(find "$BUILD_DIR/diffusion" -type f -name 'libchatpro-diffusion.so' -print -quit)"
-[[ -n "$DIFFUSION_SO" ]] || fail "No se encontró libchatpro-diffusion.so"
+[[ -n "$DIFFUSION_SO" ]] || fail "No se encontró libchatpro-diffusion.so tras compilar"
 
-cp -f "$DIFFUSION_SO" "$JNI_DIR/libchatpro-diffusion.so"
+# ---------------------------------------------------------------------------
+# Copiar el .so a TODAS las ubicaciones plausibles donde Gradle puede buscarlo.
+# Gradle toma los jniLibs de app/native/jniLibs (según sourceSets del build.gradle),
+# pero el editor puede haber subido el script a otra ruta; se cubren las variantes.
+# ---------------------------------------------------------------------------
+DESTINOS=(
+    "$APP_ROOT/native/jniLibs/arm64-v8a"
+    "$APP_ROOT/src/main/jniLibs/arm64-v8a"
+    "$APP_ROOT/jniLibs/arm64-v8a"
+)
+for dir in "${DESTINOS[@]}"; do
+    mkdir -p "$dir"
+    cp -f "$DIFFUSION_SO" "$dir/libchatpro-diffusion.so"
+    log "Copiado .so a: $dir/libchatpro-diffusion.so"
+done
 
-cat > "$JNI_DIR/build-info.txt" <<INFO
+cat > "$APP_ROOT/native/jniLibs/arm64-v8a/build-info.txt" <<INFO
 stable_diffusion_cpp_ref=$SD_REF
 android_ndk=$NDK_VERSION
 android_cmake=$CMAKE_VERSION
@@ -217,4 +269,4 @@ spirv_headers_include_dir=$SPIRV_INCLUDE_DIR
 INFO
 
 log "Motor nativo preparado:"
-ls -lh "$JNI_DIR/libchatpro-diffusion.so"
+ls -lh "$APP_ROOT/native/jniLibs/arm64-v8a/libchatpro-diffusion.so"
