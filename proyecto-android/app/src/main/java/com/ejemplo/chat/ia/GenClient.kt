@@ -11,6 +11,7 @@ import android.os.Looper
 import android.os.Message
 import android.os.Messenger
 import android.os.Process
+import java.io.File
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -27,9 +28,16 @@ object GenClient {
     fun progreso(): DiffusionNative.Progreso = ultimo
     fun enCurso(): Boolean = sesion != null
 
+    fun rssGenMb(): Long = try {
+        val p = pid
+        if (p <= 0) -1L else File("/proc/$p/status").useLines { l ->
+            l.firstOrNull { it.startsWith("VmRSS") }?.filter { it.isDigit() }?.toLongOrNull()?.div(1024) ?: -1L
+        }
+    } catch (_: Exception) { -1L }
+
     fun detener() {
         val s = sesion ?: return
-        DebugLog.log("GEN", "detener solicitado · pid gen=$pid")
+        DebugLog.log("GEN", "detener solicitado por el usuario · pid gen=$pid")
         s.terminar(GenDetenida())
     }
 
@@ -65,7 +73,8 @@ object GenClient {
 
         private fun murio() {
             if (terminado) return
-            terminar(GenFallo("El motor de generación se cerró inesperadamente"))
+            DebugLog.log("GEN", "⚠ el proceso de generación terminó sin avisar (abort nativo, GPU perdida o memoria)")
+            terminar(GenFallo("El motor de generación se cerró inesperadamente (abort nativo, GPU o memoria). Detalle en el log, líneas [NATIVE]."))
         }
 
         private fun recibir(m: Message) {
@@ -91,6 +100,7 @@ object GenClient {
             if (error != null || !resumir) {
                 if (p > 0) try { Process.killProcess(p) } catch (_: Exception) {}
             }
+            if (error != null && error !is GenDetenida) DebugLog.volcarNativoReciente()
             if (resumir && cont.isActive) {
                 if (error == null) cont.resume(Unit) else cont.resumeWithException(error)
             }
