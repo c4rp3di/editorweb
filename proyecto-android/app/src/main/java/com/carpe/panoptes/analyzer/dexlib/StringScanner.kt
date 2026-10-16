@@ -14,7 +14,6 @@ import kotlin.math.ln
  */
 class StringScanner {
 
-    private val printableRun = Regex("[\\x20-\\x7E]{5,}")
     private val urlPattern = Regex("https?://[\\w.\\-]+(?::\\d+)?(?:/[\\w\\-./%?&=+#]*)?")
     private val patterns = mapOf(
         "aws_key" to Regex("AKIA[0-9A-Z]{16}"),
@@ -22,9 +21,38 @@ class StringScanner {
         "generic_api_key_assignment" to Regex("(?i)(api[_-]?key|secret|token|password)\\s*[:=]\\s*[\"']([A-Za-z0-9_\\-]{12,})[\"']")
     )
 
+    /**
+     * Cadenas ASCII imprimibles (>= 5 caracteres), leyendo el DEX por bloques
+     * (auditoría H-09: antes se cargaba el archivo entero en memoria como String).
+     * Una racha muy larga se parte en trozos de [MAX_RACHA] caracteres, y el
+     * conjunto devuelto se acota a [MAX_STRINGS] cadenas distintas.
+     */
     fun extractStrings(dexFile: File): List<String> {
-        val texto = dexFile.readBytes().toString(Charsets.ISO_8859_1)
-        return printableRun.findAll(texto).map { it.value }.distinct().toList()
+        val resultado = LinkedHashSet<String>()
+        val actual = StringBuilder()
+        dexFile.inputStream().buffered(BLOQUE).use { input ->
+            val buf = ByteArray(BLOQUE)
+            var n: Int
+            while (input.read(buf).also { n = it } > 0) {
+                for (i in 0 until n) {
+                    val b = buf[i].toInt() and 0xFF
+                    if (b in 0x20..0x7E) {
+                        actual.append(b.toChar())
+                        if (actual.length >= MAX_RACHA) volcar(actual, resultado)
+                    } else {
+                        volcar(actual, resultado)
+                    }
+                }
+                if (resultado.size >= MAX_STRINGS) break
+            }
+        }
+        volcar(actual, resultado)
+        return resultado.toList()
+    }
+
+    private fun volcar(actual: StringBuilder, destino: MutableSet<String>) {
+        if (actual.length >= MIN_RACHA && destino.size < MAX_STRINGS) destino.add(actual.toString())
+        actual.setLength(0)
     }
 
     fun findEndpoints(strings: List<String>, analysisId: String, source: String): List<EndpointEntity> =
@@ -39,13 +67,20 @@ class StringScanner {
                 )
             }
 
+    /**
+     * Candidatos a secreto. [sourceFile] identifica el DEX concreto de donde salen las
+     * cadenas (p.ej. "base/classes2.dex"); la deduplicación es por tipo + valor + origen,
+     * así que el mismo valor en DEX distintos se conserva como hallazgos separados.
+     * Para "generic_api_key_assignment" el valor guardado es el SECRETO capturado (grupo 2),
+     * no toda la asignación.
+     */
     fun findSecrets(strings: List<String>, analysisId: String, sourceFile: String): List<SecretEntity> {
         val encontrados = mutableListOf<SecretEntity>()
 
         for (s in strings) {
             patterns.forEach { (tipo, regex) ->
                 regex.findAll(s).forEach { m ->
-                    val valor = m.value
+                    val valor = if (m.groupValues.size > 2 && m.groupValues[2].isNotEmpty()) m.groupValues[2] else m.value
                     encontrados.add(
                         SecretEntity(
                             analysisId = analysisId,
@@ -77,7 +112,7 @@ class StringScanner {
                 }
             }
 
-        return encontrados.distinctBy { it.value }
+        return encontrados.distinctBy { Triple(it.type, it.value, it.sourceFile) }
     }
 
     private fun shannonEntropy(s: String): Float {
@@ -89,5 +124,12 @@ class StringScanner {
             -p * ln(p) / ln(2.0)
         }
         return entropia.toFloat()
+    }
+
+    private companion object {
+        const val BLOQUE = 64 * 1024
+        const val MIN_RACHA = 5
+        const val MAX_RACHA = 8192
+        const val MAX_STRINGS = 400_000
     }
 }
