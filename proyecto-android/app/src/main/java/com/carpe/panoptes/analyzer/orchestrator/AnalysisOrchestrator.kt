@@ -4,9 +4,11 @@ import android.content.Context
 import com.carpe.panoptes.analyzer.dexlib.DexParser
 import com.carpe.panoptes.analyzer.dexlib.StringScanner
 import com.carpe.panoptes.core.db.ComponentType
+import com.carpe.panoptes.core.db.EndpointEntity
 import com.carpe.panoptes.core.db.FindingEntity
 import com.carpe.panoptes.core.db.NativeLibEntity
 import com.carpe.panoptes.core.db.PanoptesDatabase
+import com.carpe.panoptes.core.db.SecretEntity
 import com.carpe.panoptes.core.db.Severity
 import com.carpe.panoptes.modules.ModuleManager
 import com.carpe.panoptes.modules.spi.AnalyzerModule
@@ -42,17 +44,43 @@ class AnalysisOrchestrator(
     private val manifestParser = ManifestParser(context)
     private val pythonBridge = PythonBridge(context)
 
-    suspend fun run(analysisId: String, apkPath: String) {
+    /**
+     * [apkPath] es el APK base; [extraApkPaths] son los splits de una instalación dividida
+     * (auditoría H-06). Los DEX, las strings y las librerías nativas se analizan en TODOS
+     * ellos; el manifest, androguard/quark y los módulos (jadx/apktool/radare2) siguen
+     * trabajando solo sobre el APK base.
+     */
+    suspend fun run(analysisId: String, apkPath: String, extraApkPaths: List<String> = emptyList()) {
         val apkFile = File(apkPath)
         val workDir = File(context.filesDir, "analysis/$analysisId").apply { mkdirs() }
+        val extras = extraApkPaths.map { File(it) }.filter { it.isFile }
+        val todosLosApks = listOf(apkFile) + extras
 
-        // [2] + strings
-        val dexResumenes = dexParser.parseApk(apkFile, workDir)
-        val dexDir = File(workDir, "dex")
-        val todasLasStrings = dexDir.listFiles()?.flatMap { stringScanner.extractStrings(it) } ?: emptyList()
+        // [2] + strings: cada APK en su propio subdirectorio (base, split1, ...)
+        val dexResumenes = mutableListOf<DexParser.DexSummary>()
+        todosLosApks.forEachIndexed { idx, f ->
+            val etiqueta = if (idx == 0) "base" else "split$idx"
+            if (idx == 0) {
+                dexResumenes.addAll(dexParser.parseApk(f, workDir, etiqueta))
+            } else {
+                // Un split ilegible no debe tumbar todo el análisis: se anota como parcial.
+                try {
+                    dexResumenes.addAll(dexParser.parseApk(f, workDir, etiqueta))
+                } catch (e: Exception) {
+                    dexParser.omitidos.add("$etiqueta (${f.name}): no se pudo leer (${e.message})")
+                }
+            }
+        }
 
-        val endpoints = stringScanner.findEndpoints(todasLasStrings, analysisId, source = "dex")
-        val secretos = stringScanner.findSecrets(todasLasStrings, analysisId, sourceFile = "classes.dex")
+        val endpointsAcumulados = mutableListOf<EndpointEntity>()
+        val secretosAcumulados = mutableListOf<SecretEntity>()
+        for (resumen in dexResumenes) {
+            val strings = stringScanner.extractStrings(resumen.file)
+            endpointsAcumulados.addAll(stringScanner.findEndpoints(strings, analysisId, source = "dex"))
+            secretosAcumulados.addAll(stringScanner.findSecrets(strings, analysisId, sourceFile = resumen.dexName))
+        }
+        val endpoints = endpointsAcumulados.distinctBy { it.url }
+        val secretos = secretosAcumulados
 
         // [3] Manifest
         val manifest = manifestParser.parse(apkPath, analysisId)
@@ -74,7 +102,9 @@ class AnalysisOrchestrator(
         // [5] Nativo: el listado de .so presentes no necesita ningún módulo
         // (es solo mirar dentro del ZIP del APK); el análisis profundo de
         // cada uno (imports/exports/strings) sí necesita "radare2".
-        val nativeLibs = listarLibsNativas(apkFile, analysisId)
+        val nativeLibs = todosLosApks
+            .flatMap { listarLibsNativas(it, analysisId) }
+            .distinctBy { Pair(it.name, it.arch) }
         if (nativeLibs.isNotEmpty()) db.resultsDao().insertNativeLibs(nativeLibs)
 
         if (moduleManager.isInstalled("radare2") && nativeLibs.isNotEmpty()) {
@@ -90,6 +120,35 @@ class AnalysisOrchestrator(
         // [7] Correlación mínima -> Findings
         val findings = mutableListOf<FindingEntity>()
         findings.addAll(findingsPython)
+
+        if (extras.isNotEmpty()) {
+            val hashes = todosLosApks.map { Pair(it.name, sha256(it)) }
+            val hashConjunto = sha256Texto(hashes.map { it.second }.sorted().joinToString(""))
+            val lista = hashes.joinToString(",") { "{\"file\":\"${it.first}\",\"sha256\":\"${it.second}\"}" }
+            findings.add(
+                FindingEntity(
+                    analysisId = analysisId,
+                    category = "apk_set",
+                    severity = Severity.INFO,
+                    description = "Instalación dividida: ${todosLosApks.size} APK analizados (DEX, strings y librerías nativas de todos; " +
+                        "manifest, androguard y módulos solo del base). El hash guardado en el análisis es el del APK base.",
+                    evidence = "{\"set_sha256\":\"$hashConjunto\",\"files\":[$lista]}"
+                )
+            )
+        }
+
+        if (dexParser.omitidos.isNotEmpty()) {
+            val motivos = dexParser.omitidos.joinToString("; ")
+            findings.add(
+                FindingEntity(
+                    analysisId = analysisId,
+                    category = "analysis_limit",
+                    severity = Severity.INFO,
+                    description = "Análisis parcial: ${dexParser.omitidos.size} DEX omitido(s) por superar límites de tamaño o cantidad ($motivos)",
+                    evidence = "{\"omitted\":${dexParser.omitidos.size}}"
+                )
+            )
+        }
 
         if (secretos.isNotEmpty()) {
             findings.add(
@@ -316,6 +375,21 @@ class AnalysisOrchestrator(
      * el shell"). El análisis real de imports/exports/strings de cada una
      * es lo que añade el módulo radare2, vía runModuleSafely más arriba.
      */
+    private fun sha256(file: File): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buf = ByteArray(8192)
+            var n: Int
+            while (input.read(buf).also { n = it } > 0) md.update(buf, 0, n)
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun sha256Texto(texto: String): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(texto.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+
     private fun listarLibsNativas(apkFile: File, analysisId: String): List<NativeLibEntity> {
         val libs = mutableListOf<NativeLibEntity>()
         ZipFile(apkFile).use { zip ->
