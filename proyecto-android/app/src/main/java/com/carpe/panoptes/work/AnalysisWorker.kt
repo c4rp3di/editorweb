@@ -3,6 +3,7 @@ package com.carpe.panoptes.work
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.ServiceInfo
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
@@ -60,7 +61,15 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
             .setSmallIcon(android.R.drawable.ic_popup_sync)
             .setOngoing(true)
             .build()
-        return ForegroundInfo(NOTIF_ID, notif)
+        // Android 14 (targetSdk 34) prohíbe iniciar un servicio en primer plano "sin tipo"
+        // (InvalidForegroundServiceTypeException). El tipo debe coincidir con el declarado
+        // en el manifest para SystemForegroundService (dataSync) y con el permiso
+        // FOREGROUND_SERVICE_DATA_SYNC.
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ForegroundInfo(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            ForegroundInfo(NOTIF_ID, notif)
+        }
     }
 
     private fun crearCanalSiHaceFalta() {
