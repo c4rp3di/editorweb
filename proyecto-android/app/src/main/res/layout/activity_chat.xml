@@ -23,6 +23,15 @@
             android:orientation="horizontal">
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDepuracion"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:text="🐞"
+                android:textSize="18sp"
+                android:contentDescription="Depuración"/>
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnArchivos"
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="wrap_content"
