@@ -18,25 +18,46 @@ object GenProtocolo {
     const val MSG_PROGRESO = 3  // servicio -> app: fase|paso|pasos|ultimoPasoMs
     const val MSG_FIN = 4       // servicio -> app: ok + error
 
-    fun imagen(modelPath: String, prompt: String, outputPath: String, width: Int, height: Int, steps: Int): Bundle =
+    fun imagen(
+        modelPath: String,
+        prompt: String,
+        negativePrompt: String,
+        outputPath: String,
+        width: Int,
+        height: Int,
+        steps: Int
+    ): Bundle =
         Bundle().apply {
             putString("tipo", "imagen")
             putString("modelPath", modelPath)
             putString("prompt", prompt)
+            putString("negativePrompt", negativePrompt)
             putString("outputPath", outputPath)
             putInt("width", width)
             putInt("height", height)
             putInt("steps", steps)
         }
 
-    fun video(diffusionPath: String, vaePath: String, t5Path: String, prompt: String, outputPath: String,
-              width: Int, height: Int, frames: Int, fps: Int, steps: Int): Bundle =
+    fun video(
+        diffusionPath: String,
+        vaePath: String,
+        t5Path: String,
+        prompt: String,
+        negativePrompt: String,
+        outputPath: String,
+        width: Int,
+        height: Int,
+        frames: Int,
+        fps: Int,
+        steps: Int
+    ): Bundle =
         Bundle().apply {
             putString("tipo", "video")
             putString("diffusionPath", diffusionPath)
             putString("vaePath", vaePath)
             putString("t5Path", t5Path)
             putString("prompt", prompt)
+            putString("negativePrompt", negativePrompt)
             putString("outputPath", outputPath)
             putInt("width", width)
             putInt("height", height)
@@ -105,6 +126,7 @@ class GenService : Service() {
                         vaePath = datos.getString("vaePath") ?: "",
                         t5xxlPath = datos.getString("t5Path") ?: "",
                         prompt = datos.getString("prompt") ?: "",
+                        negativePrompt = datos.getString("negativePrompt") ?: "",
                         outputPath = datos.getString("outputPath") ?: "",
                         width = datos.getInt("width"), height = datos.getInt("height"),
                         frames = datos.getInt("frames"), fps = datos.getInt("fps"), steps = datos.getInt("steps")
@@ -113,6 +135,7 @@ class GenService : Service() {
                     DiffusionNative.generarImagen(
                         modelPath = datos.getString("modelPath") ?: "",
                         prompt = datos.getString("prompt") ?: "",
+                        negativePrompt = datos.getString("negativePrompt") ?: "",
                         outputPath = datos.getString("outputPath") ?: "",
                         width = datos.getInt("width"), height = datos.getInt("height"), steps = datos.getInt("steps")
                     )
