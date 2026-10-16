@@ -77,7 +77,7 @@ class GenService : Service() {
 
     private fun terminar(ok: Boolean, error: String) {
         ocupado = false
-        DebugLog.log("GEN-PROC", "trabajo terminado · ok=$ok${if (error.isNotEmpty()) " · $error" else ""}")
+        DebugLog.log("GEN-PROC", "trabajo terminado · ok=$ok${if (error.isNotEmpty()) " · $error" else ""} · ${DebugLog.mem()}")
         enviar(GenProtocolo.MSG_FIN) { putBoolean("ok", ok); putString("error", error) }
         principal.postDelayed({ Process.killProcess(Process.myPid()) }, 600)
     }
