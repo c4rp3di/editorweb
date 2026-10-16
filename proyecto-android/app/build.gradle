@@ -2,7 +2,6 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'com.google.devtools.ksp'
-    id 'com.chaquo.python' // F5
 }
 
 android {
@@ -20,122 +19,19 @@ android {
         }
     }
 
-    namespace 'com.carpe.panoptes'
+    namespace 'com.vigia.app'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.carpe.panoptes"
-        minSdk 26
+        applicationId "com.vigia.app"
+        minSdk 24
         targetSdk 34
-        versionCode 2
-        versionName "v6.0"
-
-        ndk {
-            abiFilters 'arm64-v8a' // solo arm64: -50% de tamaño (§3.3 del plan)
-        }
-
-        // F5: Chaquopy (Python embebido). androguard/quark-engine vienen de
-        // wheels precompilados que mantiene Chaquopy, no de PyPI directo —
-        // ver el aviso grande sobre esto en README.md antes de tocar versiones.
-        python {
-            version "3.11"
-            pip {
-                // F5 · IMPORTANTE (v1.0.3): androguard 4.1.2 exige 'frida' sin versión, y Chaquopy
-                // no tiene wheel de frida para Android (pip intenta compilar el sdist y falla).
-                // Solución: instalar con --no-deps y listar a mano el cierre de dependencias que
-                // pip resolvió en el log de CI (todo lo que había, MENOS frida). androguard.core.apk
-                // y quark.core.quark no importan frida; solo lo usa androguard.pentest / quark.script.
-                // Si actualizas versiones de androguard o quark-engine, revisa esta lista.
-                options "--no-deps"
-
-                install "androguard==4.1.2"
-                install "quark-engine==23.9.1"
-                install "cryptography==42.0.8" // 42.0.5 no tiene wheel en Chaquopy (compilaba Rust/OpenSSL)
-                install "pyyaml==6.0.3"        // 6.0.1 no tiene wheel en Chaquopy para cp311
-                // install "frida" // sin wheel en Chaquopy: desactivado a propósito
-
-                // --- dependencias de androguard ---
-                install "pygments"
-                install "lxml"
-                install "colorama"
-                install "asn1crypto"
-                install "click"
-                install "pydot"
-                install "ipython"
-                install "mutf8"
-                install "dataset"
-                install "loguru"
-                install "apkInspector"
-                install "matplotlib"
-                install "networkx"
-                install "oscrypto"
-                // --- dependencias de quark-engine ---
-                install "rzpipe"
-                install "tqdm"
-                install "graphviz"
-                install "plotly"
-                install "prompt-toolkit"
-                install "prettytable"
-                // --- transitivas (cffi/cryptography, matplotlib, lxml, dataset, ipython...) ---
-                install "cffi"
-                install "pycparser"
-                install "chaquopy-libffi"
-                install "chaquopy-libyaml"
-                install "chaquopy-libxml2"
-                install "chaquopy-libxslt"
-                install "chaquopy-freetype"
-                install "chaquopy-libpng"
-                install "chaquopy-libjpeg"
-                install "chaquopy-libcxx"
-                install "chaquopy-openblas"
-                install "chaquopy-libgfortran"
-                install "numpy"
-                install "pillow"
-                install "kiwisolver"
-                install "contourpy"
-                install "fonttools"
-                install "cycler"
-                install "pyparsing"
-                install "packaging"
-                install "python-dateutil"
-                install "six"
-                install "sqlalchemy<3"
-                install "alembic"
-                install "Mako"
-                install "MarkupSafe"
-                install "typing_extensions"
-                install "stack_data"
-                install "asttokens"
-                install "executing"
-                install "pure-eval"
-                install "pexpect"
-                install "ptyprocess"
-                install "matplotlib-inline"
-                install "jedi"
-                install "parso<0.9"
-                install "traitlets"
-                install "ipython-pygments-lexers"
-                install "psutil"
-                install "narwhals"
-                install "wcwidth"
-            }
-        }
-    }
-
-    externalNativeBuild {
-        cmake {
-            path "src/main/jni/CMakeLists.txt"
-            version "3.22.1"
-        }
+        versionCode 3
+        versionName "v7.0"
     }
 
     buildFeatures {
-        compose true
-        // viewBinding ya no hace falta: la UI es 100% Compose desde F3.
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion "1.5.14"
+        viewBinding true
     }
 
     compileOptions {
@@ -145,49 +41,20 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    packaging {
-        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
-    }
 }
 
 dependencies {
-    // Compose
-    implementation platform('androidx.compose:compose-bom:2024.09.00')
-    implementation 'androidx.compose.ui:ui'
-    implementation 'androidx.compose.ui:ui-tooling-preview'
-    debugImplementation 'androidx.compose.ui:ui-tooling'
-    implementation 'androidx.compose.material3:material3'
-    implementation 'androidx.compose.material:material-icons-extended'
-    implementation 'androidx.activity:activity-compose:1.9.2'
-    implementation 'androidx.navigation:navigation-compose:2.8.1'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6'
-    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.6'
-
-    // Core Android
     implementation 'androidx.core:core-ktx:1.13.1'
-    implementation 'androidx.appcompat:appcompat:1.7.0' // AppCompatActivity ya no hace falta, pero algunos recursos de tema lo asumen
-
-    // Ciclo de vida + WorkManager
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.6'
-    implementation 'androidx.work:work-runtime-ktx:2.9.1'
-
-    // Room + FTS4
-    implementation 'androidx.room:room-runtime:2.6.1'
-    implementation 'androidx.room:room-ktx:2.6.1'
-    implementation 'androidx.sqlite:sqlite-framework:2.4.0'
-    ksp 'androidx.room:room-compiler:2.6.1'
-
-    // Coroutines
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
 
-    // dexlib2 — parsing DEX en el shell (F1, §6.2 del plan)
-    implementation 'org.smali:dexlib2:2.5.2'
-    implementation 'org.smali:util:2.5.2'
-
-    // F2: descarga de módulos desde GitHub Releases
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-
-    // F3: preferencia "legal aceptado" (diálogo de primer uso, §11 del plan)
-    implementation 'androidx.datastore:datastore-preferences:1.1.1'
+    // Almacén local cifrado (Room + SQLCipher)
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    ksp 'androidx.room:room-compiler:2.6.1'
+    implementation 'net.zetetic:sqlcipher-android:4.5.4@aar'
+    implementation 'androidx.sqlite:sqlite:2.4.0'
 }
