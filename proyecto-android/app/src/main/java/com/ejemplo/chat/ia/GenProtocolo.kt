@@ -8,8 +8,15 @@ object GenProtocolo {
     const val MSG_PROGRESO = 3
     const val MSG_FIN = 4
 
-    fun imagen(modelPath: String, prompt: String, negativePrompt: String, outputPath: String,
-              width: Int, height: Int, steps: Int): Bundle =
+    fun imagen(
+        modelPath: String,
+        prompt: String,
+        negativePrompt: String,
+        outputPath: String,
+        width: Int,
+        height: Int,
+        steps: Int
+    ): Bundle =
         Bundle().apply {
             putString("tipo", "imagen")
             putString("modelPath", modelPath)
