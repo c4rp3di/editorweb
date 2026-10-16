@@ -25,5 +25,8 @@ class ModelosImagen(private val context: Context) {
     fun carpeta(m: ModeloImagen) = File(root, m.id).apply { mkdirs() }
     fun verificacion(m: ModeloImagen) = weights.verifyAll(carpeta(m), m.artefactos)
     fun descargado(m: ModeloImagen): Boolean = weights.presentAll(carpeta(m), m.artefactos)
-    fun descargar(m: ModeloImagen, onProgress: (Int) -> Unit = {}) { m.artefactos.forEach { weights.download(carpeta(m), it, onProgress) }; verificacion(m) }
+    fun descargar(m: ModeloImagen, onProgress: (Int) -> Unit = {}) {
+        m.artefactos.forEach { weights.download(carpeta(m), it, onProgress) }
+        verificacion(m)
+    }
 }
