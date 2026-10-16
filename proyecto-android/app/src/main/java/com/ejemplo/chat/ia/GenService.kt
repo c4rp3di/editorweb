@@ -11,11 +11,12 @@ import android.os.Messenger
 import android.os.Process
 import kotlin.concurrent.thread
 
+/** Mensajes entre la app (proceso principal) y GenService (proceso ":gen"). */
 object GenProtocolo {
-    const val MSG_INICIAR = 1
-    const val MSG_PID = 2
-    const val MSG_PROGRESO = 3
-    const val MSG_FIN = 4
+    const val MSG_INICIAR = 1   // app -> servicio: datos del trabajo en msg.data, replyTo = cliente
+    const val MSG_PID = 2       // servicio -> app: pid del proceso :gen (para poder detenerlo)
+    const val MSG_PROGRESO = 3  // servicio -> app: fase|paso|pasos|ultimoPasoMs
+    const val MSG_FIN = 4       // servicio -> app: ok + error
 
     fun imagen(
         modelPath: String,
@@ -66,6 +67,12 @@ object GenProtocolo {
         }
 }
 
+/**
+ * Ejecuta stable-diffusion.cpp en un proceso propio (":gen").
+ *  - "Detener" = matar este proceso: es la única forma fiable de parar una llamada nativa/GPU atascada.
+ *  - Un ggml_abort, un "device lost" de Vulkan o un OOM solo matan este proceso, no la app.
+ *  - Al terminar, el proceso se cierra solo: libera la RAM de los pesos y deja Vulkan limpio para la siguiente vez.
+ */
 class GenService : Service() {
     private val principal = Handler(Looper.getMainLooper())
     @Volatile private var cliente: Messenger? = null
@@ -88,7 +95,7 @@ class GenService : Service() {
     private fun enviar(que: Int, relleno: Bundle.() -> Unit = {}) {
         val m = Message.obtain(null, que)
         m.data = Bundle().apply(relleno)
-        try { cliente?.send(m) } catch (_: Exception) { }
+        try { cliente?.send(m) } catch (_: Exception) { /* el cliente ya no está */ }
     }
 
     private val sondeo = object : Runnable {
@@ -106,7 +113,8 @@ class GenService : Service() {
         cliente = msg.replyTo
         if (ocupado) { enviar(GenProtocolo.MSG_FIN) { putBoolean("ok", false); putString("error", "Ya hay una generación en curso") }; return }
         val datos = Bundle(msg.data)
-        ocupado = true        enviar(GenProtocolo.MSG_PID) { putInt("pid", Process.myPid()) }
+        ocupado = true
+        enviar(GenProtocolo.MSG_PID) { putInt("pid", Process.myPid()) }
         principal.post(sondeo)
         thread(name = "gen-nativo") {
             var ok = false
@@ -144,6 +152,7 @@ class GenService : Service() {
         ocupado = false
         DebugLog.log("GEN-PROC", "trabajo terminado · ok=$ok${if (error.isNotEmpty()) " · $error" else ""} · ${DebugLog.mem()}")
         enviar(GenProtocolo.MSG_FIN) { putBoolean("ok", ok); putString("error", error) }
+        // Cerrar el proceso: libera pesos/mmap/Vulkan. El pequeño retraso deja salir el mensaje de fin.
         principal.postDelayed({ Process.killProcess(Process.myPid()) }, 600)
     }
 }
