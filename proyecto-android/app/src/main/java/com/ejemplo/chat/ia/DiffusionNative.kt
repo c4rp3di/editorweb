@@ -8,8 +8,7 @@ package com.ejemplo.chat.ia
  */
 object DiffusionNative {
     private const val LIBRARY_NAME = "chatpro-diffusion"
-    @Volatile private var cargaIntentada = false
-    @Volatile private var disponible = false
+    @Volatile private var cargaIntentada = false    @Volatile private var disponible = false
 
     fun estaDisponible(): Boolean {
         if (cargaIntentada) return disponible
@@ -47,7 +46,7 @@ object DiffusionNative {
         outputPath: String,
         width: Int = 512,
         height: Int = 512,
-        steps: Int = 4,
+        steps: Int = 25,
         seed: Long = -1L
     ): Boolean {
         check(estaDisponible()) { "La biblioteca de difusión nativa no está incluida en este APK." }
