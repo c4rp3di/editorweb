@@ -28,7 +28,14 @@ android {
         targetSdk 34
         versionCode 1
         versionName "v1.0"
-        ndk { abiFilters 'arm64-v8a' }
+
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    buildFeatures {
+        viewBinding true
     }
 
     sourceSets {
@@ -56,14 +63,16 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.4'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0'
+    implementation 'com.google.ai.edge.litert:litert:2.2.0'
+    implementation 'com.google.ai.edge.litertlm:litertlm-android:0.16.1'
 }
 
 tasks.register('prepareNativeEngines') {
     group = 'chatpro'
-    description = 'Descarga y compila stable-diffusion.cpp durante el build.'
+    description = 'Descarga y compila llama.cpp + stable-diffusion.cpp durante el build de Android.'
     doLast {
         if ((System.getenv('CHATPRO_SKIP_NATIVE') ?: '0') == '1') {
-            logger.lifecycle('CHATPRO_SKIP_NATIVE=1; se omite la preparación nativa.')
+            logger.lifecycle('Chat Pro: CHATPRO_SKIP_NATIVE=1; se omite la preparación nativa.')
             return
         }
         exec {
