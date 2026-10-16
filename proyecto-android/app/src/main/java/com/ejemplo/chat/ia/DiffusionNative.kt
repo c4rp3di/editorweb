@@ -8,8 +8,7 @@ package com.ejemplo.chat.ia
  */
 object DiffusionNative {
     private const val LIBRARY_NAME = "chatpro-diffusion"
-    @Volatile private var cargaIntentada = false
-    @Volatile private var disponible = false
+    @Volatile private var cargaIntentada = false    @Volatile private var disponible = false
 
     fun estaDisponible(): Boolean {
         if (cargaIntentada) return disponible
@@ -103,6 +102,7 @@ object DiffusionNative {
 
     data class Progreso(val fase: Int, val paso: Int, val pasos: Int, val ultimoPasoMs: Long)
 
+    /** fase: 0 inactivo · 1 cargando modelo · 2 muestreando · 3 decodificando/guardando. */
     fun progreso(): Progreso {
         if (!estaDisponible()) return Progreso(0, 0, 0, 0)
         return try {
