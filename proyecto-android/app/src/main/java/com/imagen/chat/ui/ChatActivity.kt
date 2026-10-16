@@ -56,16 +56,16 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var tvEstado: TextView
     private lateinit var tvSemilla: TextView
     private lateinit var btnArchivos: MaterialButton
+    private lateinit var btnDepuracion: MaterialButton
 
     private var modeloActual: ModelosImagen.ModeloImagen? = null
     private var generando = false
     private var sesionId = "actual"
 
-    // Parámetros de generación
     private var steps = 30
     private var cfg = 7.5f
     private var sharpness = 0.8f
-    private var sampler = 0 // 0 = EULER_A + KARRAS, 1 = EULER + DISCRETE
+    private var sampler = 0
     private var semilla = -1L
     private var ancho = 512
     private var alto = 512
@@ -104,6 +104,7 @@ class ChatActivity : AppCompatActivity() {
         tvEstado = findViewById(R.id.tvEstado)
         tvSemilla = findViewById(R.id.tvSemilla)
         btnArchivos = findViewById(R.id.btnArchivos)
+        btnDepuracion = findViewById(R.id.btnDepuracion)
 
         etNegativo.setText(NEGATIVO_POR_DEFECTO)
 
@@ -115,6 +116,7 @@ class ChatActivity : AppCompatActivity() {
         btnArchivos.setOnClickListener {
             startActivity(Intent(this, CreatedFilesActivity::class.java))
         }
+        btnDepuracion.setOnClickListener { mostrarDepuracion() }
         tvSemilla.setOnClickListener {
             val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
             cm.setPrimaryClip(ClipData.newPlainText("semilla", tvSemilla.text))
@@ -187,6 +189,48 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun mostrarDepuracion() {
+        val tv = TextView(this).apply {
+            typeface = Typeface.MONOSPACE
+            textSize = 11f
+            setTextIsSelectable(true)
+            setTextColor(resolveTextColor())
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+        }
+        val sv = ScrollView(this).apply { addView(tv) }
+        fun refrescar() {
+            tv.text = DebugLog.resumen() + "\n\n" + DebugLog.read().ifBlank { "(sin registros)" }
+            sv.post { sv.fullScroll(View.FOCUS_DOWN) }
+        }
+        fun boton(texto: String, accion: () -> Unit) = MaterialButton(this).apply {
+            text = texto
+            setAllCaps(false)
+            textSize = 12f
+            setOnClickListener { accion() }
+        }
+        val fila = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(boton("Actualizar") { refrescar() }, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(boton("Copiar") {
+                val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("depuracion", tv.text))
+                Toast.makeText(this@ChatActivity, "Registro copiado", Toast.LENGTH_SHORT).show()
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(boton("Borrar") { DebugLog.clear(); refrescar() }, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        val raiz = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(fila)
+            addView(sv, LinearLayout.LayoutParams(-1, dp(420)))
+        }
+        refrescar()
+        AlertDialog.Builder(this)
+            .setTitle("Depuración")
+            .setView(raiz)
+            .setPositiveButton("Cerrar", null)
+            .show()
+    }
+
     private fun mostrarAvanzado() {
         val hoja = BottomSheetDialog(this)
         val colorPrincipal = colorAtributo(android.R.attr.textColorPrimary, Color.WHITE)
@@ -254,7 +298,6 @@ class ChatActivity : AppCompatActivity() {
             alto = it.toInt()
         }
 
-        // Sampler
         val samplerGrupo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(8)) }
         samplerGrupo.addView(TextView(this).apply {
             text = "Muestreador"; textSize = 14f; setTextColor(colorPrincipal)
@@ -270,7 +313,6 @@ class ChatActivity : AppCompatActivity() {
         samplerGrupo.addView(radios)
         raiz.addView(samplerGrupo)
 
-        // Semilla
         val semGrupo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(8)) }
         semGrupo.addView(TextView(this).apply {
             text = "Semilla (−1 = aleatoria)"; textSize = 14f; setTextColor(colorPrincipal)
@@ -493,7 +535,6 @@ class ChatActivity : AppCompatActivity() {
             "imagen-${System.currentTimeMillis()}.png"
         )
 
-        // Ticker de progreso en primer plano
         ticker = lifecycleScope.launch {
             val seguimiento = SeguimientoProgreso(steps)
             progreso.visibility = View.VISIBLE
@@ -597,14 +638,12 @@ class ChatActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(10), 0, dp(6))
         }
-        // Prompt
         fila.addView(TextView(this).apply {
             text = "📝 $prompt"
             textSize = 13f
             setTextColor(resolveTextColor())
             setPadding(0, 0, 0, dp(6))
         })
-        // Imagen
         val imageView = ImageView(this).apply {
             setImageURI(Uri.fromFile(File(item.path)))
             adjustViewBounds = true
@@ -616,7 +655,6 @@ class ChatActivity : AppCompatActivity() {
             }
         }
         fila.addView(imageView)
-        // Metadatos
         val meta = "🌱 ${item.seed ?: "?"} · ⚙ ${item.steps ?: "?"} pasos · 🎯 CFG ${item.cfg ?: "?"} · ${item.width}x${item.height}"
         fila.addView(TextView(this).apply {
             text = meta
@@ -624,7 +662,6 @@ class ChatActivity : AppCompatActivity() {
             setTextColor(Color.GRAY)
             setPadding(0, dp(6), 0, 0)
         })
-        // Acciones
         val acciones = LinearLayout(this).apply { gravity = Gravity.START }
         acciones.addView(MaterialButton(this).apply {
             text = "Compartir"
@@ -659,9 +696,7 @@ class ChatActivity : AppCompatActivity() {
         })
         fila.addView(acciones)
 
-        // Insertar al principio (más reciente arriba)
         if (contenedor.childCount == 1 && contenedor.getChildAt(0) is LinearLayout) {
-            // Era el estado vacío
             contenedor.removeAllViews()
         }
         contenedor.addView(fila, 0)
