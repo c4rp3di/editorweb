@@ -30,19 +30,43 @@ class ModuleManager(private val context: Context) {
     )
 
     fun scanInstalled() {
+        recuperarRespaldosHuerfanos()
         installed.clear()
         modulesDir.listFiles()?.forEach { dir ->
+            // Los directorios ocultos (respaldos ".<id>.bak-<op>") nunca se tratan como módulos.
+            if (!dir.isDirectory || dir.name.startsWith(".")) return@forEach
             val manifestFile = File(dir, "module.json")
-            if (!manifestFile.exists()) return@forEach
+            if (!manifestFile.isFile) return@forEach
             val info = ModuleManifest.parse(manifestFile.readText()) ?: return@forEach
+            // H-04: la identidad la fija el directorio; un module.json que diga otro id se ignora.
+            if (info.id != dir.name) return@forEach
+            val dexFile = File(dir, info.dexName)
+            // H-04: el DEX debe ser un archivo regular dentro del directorio del módulo.
+            if (!dexFile.isFile) return@forEach
+            if (!dexFile.canonicalPath.startsWith(dir.canonicalPath + File.separator)) return@forEach
             installed[info.id] = InstalledModule(
                 id = info.id,
                 version = info.version,
                 dir = dir,
                 entryClass = info.entryClass,
-                dexFile = File(dir, info.dexName),
+                dexFile = dexFile,
                 nativeDir = File(dir, "lib").takeIf { it.exists() }
             )
+        }
+    }
+
+    /**
+     * Si la app se cerró entre apartar la versión anterior y mover la nueva
+     * (ver ModuleDownloader), queda un ".<id>.bak-<op>" sin su "<id>": se
+     * restaura. Si "<id>" existe, el respaldo ya no hace falta y se borra.
+     */
+    private fun recuperarRespaldosHuerfanos() {
+        modulesDir.listFiles()?.forEach { dir ->
+            val nombre = dir.name
+            if (!dir.isDirectory || !nombre.startsWith(".") || !nombre.contains(ModuleDownloader.BACKUP_MARK)) return@forEach
+            val id = nombre.substring(1).substringBefore(ModuleDownloader.BACKUP_MARK)
+            val destino = File(modulesDir, id)
+            if (destino.exists()) dir.deleteRecursively() else dir.renameTo(destino)
         }
     }
 
