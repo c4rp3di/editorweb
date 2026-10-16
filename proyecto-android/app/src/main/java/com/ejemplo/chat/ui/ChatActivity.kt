@@ -83,6 +83,7 @@ class ChatActivity : AppCompatActivity() {
     private var modeloVideoActual: ModelosVideo.ModeloVideo? = null
     private var sesionId = "actual"
 
+    // Caja de progreso que se muestra bajo el prompt mientras se genera una imagen.
     private var imagenEnCurso = false
     private var inicioImagen = 0L
     private var ultimoEstado = ""
@@ -100,7 +101,7 @@ class ChatActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_chat)
         DebugLog.init(this)
-        DiffusionNative.estaDisponible()
+        DiffusionNative.estaDisponible() // activa pronto el registro nativo (stdout/stderr + crashes)
         motor = MotorIA(this)
         imagenes = ModelosImagen(this)
         videos = ModelosVideo(this)
@@ -144,6 +145,7 @@ class ChatActivity : AppCompatActivity() {
         etMensaje.setOnEditorActionListener { _, actionId, _ -> if (actionId != 0) enviar() else false }
         btnEnviar.isEnabled = false
 
+        // Restoring a previous image-model selection is local state only: it never downloads anything.
         val prefsIniciales = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
         val imageId = prefsIniciales.getString("modelo_imagen", null)
         val videoId = prefsIniciales.getString("modelo_video", null)
@@ -177,6 +179,7 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
+    /** Historial para el modelo de texto: sin respuestas de imagen ni los prompts que las originaron. */
     private fun historialTexto(): List<Pair<String, String>> {
         val out = mutableListOf<Pair<String, String>>()
         for (msg in mensajes) {
@@ -194,7 +197,9 @@ class ChatActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
         sesionId = prefs.getString("sesion", null) ?: "actual"
         if (!archivoSesion(sesionId).exists() && File(filesDir, "chat_historial.json").exists()) {
-            try { archivoSesion(sesionId).writeText(File(filesDir, "chat_historial.json").readText()) } catch (_: Exception) {}
+            try {
+                archivoSesion(sesionId).writeText(File(filesDir, "chat_historial.json").readText())
+            } catch (_: Exception) {}
         }
         cargarSesion(sesionId)
     }
@@ -223,8 +228,10 @@ class ChatActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
+    /** Título personalizado guardado en el archivo paralelo <id>.title (null si no existe). */
     private fun tituloGuardado(id: String): String? =
-        File(carpetaChats(), "$id.title").takeIf { it.exists() }?.readText()?.trim()?.takeIf { it.isNotEmpty() }
+        File(carpetaChats(), "$id.title").takeIf { it.exists() }
+            ?.readText()?.trim()?.takeIf { it.isNotEmpty() }
 
     private fun renderSidebar() {
         listaConversaciones.removeAllViews()
@@ -235,7 +242,8 @@ class ChatActivity : AppCompatActivity() {
             val id = file.nameWithoutExtension
             val (title, count) = try {
                 val arr = JSONArray(file.readText())
-                val t = if (arr.length() > 0) arr.getJSONObject(0).getString("t").replace(Regex("\\s+"), " ").take(34) else "Nueva conversación"
+                val t = if (arr.length() > 0) arr.getJSONObject(0).getString("t").replace(Regex("\\s+"), " ").take(34)
+                        else "Nueva conversación"
                 t to arr.length()
             } catch (_: Exception) { "Nueva conversación" to 0 }
             val nombre = tituloGuardado(id) ?: title
@@ -296,8 +304,13 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
+    /** Pulsación larga sobre un chat del historial: permite ponerle un nombre personalizado. */
     private fun renombrarChat(id: String, nombreActual: String) {
-        val input = EditText(this).apply { setText(nombreActual); setSelectAllOnFocus(true); setSingleLine() }
+        val input = EditText(this).apply {
+            setText(nombreActual)
+            setSelectAllOnFocus(true)
+            setSingleLine()
+        }
         AlertDialog.Builder(this)
             .setTitle("Renombrar conversación")
             .setView(LinearLayout(this).apply {
@@ -317,6 +330,7 @@ class ChatActivity : AppCompatActivity() {
             .show()
     }
 
+    /** La ✕ de cada fila: pide confirmación y, si borra la sesión activa, abre una nueva vacía. */
     private fun confirmarBorrarChat(id: String, nombre: String) {
         AlertDialog.Builder(this)
             .setTitle("Borrar conversación")
@@ -375,6 +389,11 @@ class ChatActivity : AppCompatActivity() {
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
+    private fun textoCaja(): String {
+        val s = (System.currentTimeMillis() - inicioImagen) / 1000
+        return "$ultimoEstado\n⏱ ${s / 60}:${(s % 60).toString().padStart(2, '0')}"
+    }
+
     private fun mostrarDepuracion() {
         val tv = TextView(this).apply {
             typeface = Typeface.MONOSPACE
@@ -389,7 +408,10 @@ class ChatActivity : AppCompatActivity() {
             sv.post { sv.fullScroll(View.FOCUS_DOWN) }
         }
         fun boton(texto: String, accion: () -> Unit) = MaterialButton(this).apply {
-            text = texto; setAllCaps(false); textSize = 12f; setOnClickListener { accion() }
+            text = texto
+            setAllCaps(false)
+            textSize = 12f
+            setOnClickListener { accion() }
         }
         val fila = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -407,7 +429,11 @@ class ChatActivity : AppCompatActivity() {
             addView(sv, LinearLayout.LayoutParams(-1, dp(420)))
         }
         refrescar()
-        AlertDialog.Builder(this).setTitle("Depuración").setView(raiz).setPositiveButton("Cerrar", null).show()
+        AlertDialog.Builder(this)
+            .setTitle("Depuración")
+            .setView(raiz)
+            .setPositiveButton("Cerrar", null)
+            .show()
     }
 
     override fun onTrimMemory(level: Int) {
@@ -430,7 +456,9 @@ class ChatActivity : AppCompatActivity() {
                 maxWidth = (resources.displayMetrics.widthPixels * 0.86f).toInt()
                 setPadding(4, 4, 4, 4)
                 contentDescription = "Imagen generada localmente"
-                setOnClickListener { Toast.makeText(this@ChatActivity, "Imagen: $path", Toast.LENGTH_SHORT).show() }
+                setOnClickListener {
+                    Toast.makeText(this@ChatActivity, "Imagen: $path", Toast.LENGTH_SHORT).show()
+                }
             }
             fila.addView(image)
         } else if (rol == "m" && texto.startsWith("[[VIDEO]]")) {
@@ -460,15 +488,20 @@ class ChatActivity : AppCompatActivity() {
             val actions = LinearLayout(this).apply { gravity = Gravity.START }
             if (!esImagen) {
                 val copy = MaterialButton(this).apply {
-                    text = "Copiar"; setAllCaps(false); minHeight = 34
+                    text = "Copiar"
+                    setAllCaps(false)
+                    minHeight = 34
                     setOnClickListener { copiar(visibleDeRespuesta(texto, true)) }
                 }
                 actions.addView(copy)
             }
-            val puedeRegenerar = index == mensajes.lastIndex && (if (esImagen) modeloImagenActual != null else modeloActual != null)
+            val puedeRegenerar = index == mensajes.lastIndex &&
+                (if (esImagen) modeloImagenActual != null else modeloActual != null)
             if (puedeRegenerar) {
                 val regen = MaterialButton(this).apply {
-                    text = "Regenerar"; setAllCaps(false); minHeight = 34
+                    text = "Regenerar"
+                    setAllCaps(false)
+                    minHeight = 34
                     setOnClickListener { regenerarUltima() }
                 }
                 actions.addView(regen)
@@ -480,7 +513,9 @@ class ChatActivity : AppCompatActivity() {
 
     private fun markdownBasico(texto: String): SpannableString {
         val s = SpannableString(texto)
-        Regex("\\*\\*(.+?)\\*\\*").findAll(texto).forEach { s.setSpan(StyleSpan(Typeface.BOLD), it.range.first, it.range.last + 1, 0) }
+        Regex("\\*\\*(.+?)\\*\\*").findAll(texto).forEach {
+            s.setSpan(StyleSpan(Typeface.BOLD), it.range.first, it.range.last + 1, 0)
+        }
         return s
     }
 
@@ -494,13 +529,21 @@ class ChatActivity : AppCompatActivity() {
         if (generando || mensajes.size < 2) return
         val ultimoUsuario = mensajes.indexOfLast { it.first == "u" }
         if (ultimoUsuario < 0) return
+        val ultima = mensajes.last()
         if (modeloActual == null && modeloLlamaActual == null && modeloImagenActual == null && modeloVideoActual == null) return
         while (mensajes.size > ultimoUsuario + 1) mensajes.removeAt(mensajes.lastIndex)
         val prompt = mensajes[ultimoUsuario].second.removePrefix("📷 ").trim()
-        if (modeloLlamaActual != null) lifecycleScope.launch { restaurarContextoLlama(); generarDesde(prompt, null, guardar = true) }
-        else generarDesde(prompt, null, guardar = true)
+        if (modeloLlamaActual != null) {
+            lifecycleScope.launch {
+                restaurarContextoLlama()
+                generarDesde(prompt, null, guardar = true)
+            }
+        } else {
+            generarDesde(prompt, null, guardar = true)
+        }
     }
 
+    /** Entrada del selector unificado: modelo de texto o de imagen. */
     private sealed class Entrada {
         abstract val id: String
         data class Texto(val m: MotorIA.Modelo) : Entrada() { override val id get() = m.id }
@@ -534,8 +577,16 @@ class ChatActivity : AppCompatActivity() {
     }
 
     private fun detalleDe(e: Entrada): String = when (e) {
-        is Entrada.Texto -> when { estaActiva(e) -> "✓ activo"; estaDescargada(e) -> "✓ descargado"; else -> "${e.m.tamanoMb} MB · descarga manual" }
-        is Entrada.Llama -> when { estaActiva(e) -> "✓ seleccionado"; estaDescargada(e) -> "✓ GGUF verificado"; else -> "${e.m.tamanoAproximadoMb} MB · descarga manual" }
+        is Entrada.Texto -> when {
+            estaActiva(e) -> "✓ activo"
+            estaDescargada(e) -> "✓ descargado"
+            else -> "${e.m.tamanoMb} MB · descarga manual"
+        }
+        is Entrada.Llama -> when {
+            estaActiva(e) -> "✓ seleccionado"
+            estaDescargada(e) -> "✓ GGUF verificado"
+            else -> "${e.m.tamanoAproximadoMb} MB · descarga manual"
+        }
         is Entrada.Imagen -> when { estaDescargada(e) && DiffusionNative.estaDisponible() && estaActiva(e) -> "✓ listo · Vulkan"; estaDescargada(e) -> "✓ pesos verificados"; else -> "${e.m.artefactos.sumOf { it.expectedBytes } / 1_000_000} MB · descarga manual" }
         is Entrada.Video -> when { estaDescargada(e) && DiffusionNative.estaDisponible() && estaActiva(e) -> "✓ listo · Vulkan"; estaDescargada(e) -> "✓ 3 pesos verificados"; else -> "3 artefactos · descarga manual" }
     }
@@ -545,6 +596,7 @@ class ChatActivity : AppCompatActivity() {
         return try { ta.getColor(0, defecto) } finally { ta.recycle() }
     }
 
+    /** Selector unificado en hoja inferior, con secciones Texto / Imagen / Vídeo. */
     private fun elegirModelo(preseleccion: String? = null) {
         if (generando) return
         val lista = entradas()
@@ -552,12 +604,33 @@ class ChatActivity : AppCompatActivity() {
         val colorPrincipal = colorAtributo(android.R.attr.textColorPrimary, Color.WHITE)
         val colorSecundario = colorAtributo(android.R.attr.textColorSecondary, Color.GRAY)
         val acento = Color.parseColor("#6366F1")
-        val raiz = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(24)) }
-        raiz.addView(TextView(this).apply { text = "Modelos"; textSize = 20f; typeface = Typeface.DEFAULT_BOLD; setTextColor(colorPrincipal); setPadding(dp(4), 0, 0, dp(4)) })
-        val secciones = listOf("Texto" to lista.filter { it is Entrada.Texto || it is Entrada.Llama }, "Imagen" to lista.filter { it is Entrada.Imagen }, "Vídeo" to lista.filter { it is Entrada.Video })
+
+        val raiz = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(24))
+        }
+        raiz.addView(TextView(this).apply {
+            text = "Modelos"
+            textSize = 20f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(colorPrincipal)
+            setPadding(dp(4), 0, 0, dp(4))
+        })
+
+        val secciones = listOf(
+            "Texto" to lista.filter { it is Entrada.Texto || it is Entrada.Llama },
+            "Imagen" to lista.filter { it is Entrada.Imagen },
+            "Vídeo" to lista.filter { it is Entrada.Video }
+        )
         for ((nombreSeccion, items) in secciones) {
             if (items.isEmpty()) continue
-            raiz.addView(TextView(this).apply { text = nombreSeccion.uppercase(Locale.getDefault()); textSize = 12f; letterSpacing = 0.08f; setTextColor(colorSecundario); setPadding(dp(4), dp(14), 0, dp(6)) })
+            raiz.addView(TextView(this).apply {
+                text = nombreSeccion.uppercase(Locale.getDefault())
+                textSize = 12f
+                letterSpacing = 0.08f
+                setTextColor(colorSecundario)
+                setPadding(dp(4), dp(14), 0, dp(6))
+            })
             for (e in items) {
                 val activa = estaActiva(e)
                 val sugerida = !activa && e.id == preseleccion
@@ -570,18 +643,39 @@ class ChatActivity : AppCompatActivity() {
                         setColor(Color.parseColor(if (activa || sugerida) "#226366F1" else "#14808080"))
                         if (activa || sugerida) setStroke(dp(1), acento)
                     }
-                    isClickable = true; isFocusable = true
-                    setOnClickListener { hoja.dismiss(); if (estaDescargada(e)) usar(e) else confirmarDescarga(e) }
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener {
+                        hoja.dismiss()
+                        if (estaDescargada(e)) usar(e) else confirmarDescarga(e)
+                    }
                 }
                 val columna = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                columna.addView(TextView(this).apply { text = tituloDe(e); textSize = 16f; setTextColor(colorPrincipal) })
-                columna.addView(TextView(this).apply { text = if (sugerida) "Descargado · toca para usar" else detalleDe(e); textSize = 13f; setTextColor(colorSecundario); setPadding(0, dp(2), 0, 0) })
+                columna.addView(TextView(this).apply {
+                    text = tituloDe(e)
+                    textSize = 16f
+                    setTextColor(colorPrincipal)
+                })
+                columna.addView(TextView(this).apply {
+                    text = if (sugerida) "Descargado · toca para usar" else detalleDe(e)
+                    textSize = 13f
+                    setTextColor(colorSecundario)
+                    setPadding(0, dp(2), 0, 0)
+                })
                 fila.addView(columna, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-                if (activa) fila.addView(TextView(this).apply { text = "✓"; textSize = 18f; setTextColor(acento) })
+                if (activa) {
+                    fila.addView(TextView(this).apply {
+                        text = "✓"
+                        textSize = 18f
+                        setTextColor(acento)
+                    })
+                }
                 raiz.addView(fila, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
             }
         }
-        val sv = ScrollView(this).apply { addView(raiz) }
+
+        val sv = ScrollView(this)
+        sv.addView(raiz)
         hoja.setContentView(sv)
         hoja.setOnShowListener { hoja.behavior.state = BottomSheetBehavior.STATE_EXPANDED }
         hoja.show()
@@ -590,36 +684,68 @@ class ChatActivity : AppCompatActivity() {
     private fun confirmarDescarga(e: Entrada) {
         when (e) {
             is Entrada.Llama -> {
-                AlertDialog.Builder(this).setTitle("Descargar ${e.m.nombre}")
+                AlertDialog.Builder(this)
+                    .setTitle("Descargar ${e.m.nombre}")
                     .setMessage("Se descargará manualmente el GGUF (${e.m.tamanoAproximadoMb} MB). Solo se activará después de comprobar la cabecera GGUF y el SHA-256. ¿Continuar?")
                     .setNegativeButton("Cancelar", null)
-                    .setPositiveButton("Descargar") { _, _ -> lifecycleScope.launch {
-                        try {
-                            progreso.visibility = View.VISIBLE; progreso.isIndeterminate = false; progreso.progress = 0
-                            tvEstado.text = "Descargando ${e.m.nombre}…"
-                            llamaManager.descargarModelo(e.m) { p -> if (p.porcentaje >= 0) progreso.progress = p.porcentaje }
-                            progreso.visibility = View.GONE; tvEstado.text = "GGUF verificado · ${e.m.nombre}"
-                            Toast.makeText(this@ChatActivity, "GGUF descargado y verificado", Toast.LENGTH_SHORT).show(); elegirModelo(e.m.id)
-                        } catch (ce: CancellationException) { progreso.visibility = View.GONE; throw ce
-                        } catch (ex: Exception) { progreso.visibility = View.GONE; tvEstado.text = "Error verificando el GGUF"; Toast.makeText(this@ChatActivity, ex.message ?: "No se pudo descargar/verificar el GGUF", Toast.LENGTH_LONG).show() }
-                    }}.show()
+                    .setPositiveButton("Descargar") { _, _ ->
+                        lifecycleScope.launch {
+                            try {
+                                progreso.visibility = View.VISIBLE
+                                progreso.isIndeterminate = false
+                                progreso.progress = 0
+                                tvEstado.text = "Descargando ${e.m.nombre}…"
+                                llamaManager.descargarModelo(e.m) { p ->
+                                    if (p.porcentaje >= 0) progreso.progress = p.porcentaje
+                                }
+                                progreso.visibility = View.GONE
+                                tvEstado.text = "GGUF verificado · ${e.m.nombre}"
+                                Toast.makeText(this@ChatActivity, "GGUF descargado y verificado", Toast.LENGTH_SHORT).show()
+                                elegirModelo(e.m.id)
+                            } catch (ce: CancellationException) {
+                                progreso.visibility = View.GONE
+                                throw ce
+                            } catch (ex: Exception) {
+                                progreso.visibility = View.GONE
+                                tvEstado.text = "Error verificando el GGUF"
+                                Toast.makeText(this@ChatActivity, ex.message ?: "No se pudo descargar/verificar el GGUF", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    .show()
             }
             is Entrada.Imagen -> descargarImagen(e)
             is Entrada.Video -> descargarVideo(e)
             is Entrada.Texto -> {
-                AlertDialog.Builder(this).setTitle("Descargar ${e.m.nombre}")
+                AlertDialog.Builder(this)
+                    .setTitle("Descargar ${e.m.nombre}")
                     .setMessage("Se descargará manualmente el modelo (${e.m.tamanoMb} MB) y quedará guardado solo en el dispositivo. ¿Continuar?")
                     .setNegativeButton("Cancelar", null)
-                    .setPositiveButton("Descargar") { _, _ -> lifecycleScope.launch {
-                        try {
-                            progreso.visibility = View.VISIBLE; progreso.isIndeterminate = false; progreso.progress = 0
-                            tvEstado.text = "Descargando ${e.m.nombre}…"
-                            motor.descargarModelo(e.m) { p -> progreso.progress = p }
-                            progreso.visibility = View.GONE; tvEstado.text = "Descarga verificada localmente · ${e.m.nombre}"
-                            Toast.makeText(this@ChatActivity, "Descarga completada", Toast.LENGTH_SHORT).show(); elegirModelo(e.m.id)
-                        } catch (ce: CancellationException) { progreso.visibility = View.GONE; throw ce
-                        } catch (ex: Exception) { progreso.visibility = View.GONE; tvEstado.text = "Error al descargar el modelo"; Toast.makeText(this@ChatActivity, ex.message ?: "No se pudo descargar el modelo", Toast.LENGTH_LONG).show() }
-                    }}.show()
+                    .setPositiveButton("Descargar") { _, _ ->
+                        lifecycleScope.launch {
+                            try {
+                                progreso.visibility = View.VISIBLE
+                                progreso.isIndeterminate = false
+                                progreso.progress = 0
+                                tvEstado.text = "Descargando ${e.m.nombre}…"
+                                motor.descargarModelo(e.m) { p ->
+                                    progreso.progress = p
+                                }
+                                progreso.visibility = View.GONE
+                                tvEstado.text = "Descarga verificada localmente · ${e.m.nombre}"
+                                Toast.makeText(this@ChatActivity, "Descarga completada", Toast.LENGTH_SHORT).show()
+                                elegirModelo(e.m.id)
+                            } catch (ce: CancellationException) {
+                                progreso.visibility = View.GONE
+                                throw ce
+                            } catch (ex: Exception) {
+                                progreso.visibility = View.GONE
+                                tvEstado.text = "Error al descargar el modelo"
+                                Toast.makeText(this@ChatActivity, ex.message ?: "No se pudo descargar el modelo", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    .show()
             }
         }
     }
@@ -648,8 +774,14 @@ class ChatActivity : AppCompatActivity() {
 
     private fun usar(e: Entrada) {
         when (e) {
-            is Entrada.Texto -> { getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo_llama").putString("modelo", e.m.id).apply(); preparar(e.m) }
-            is Entrada.Llama -> { getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo").putString("modelo_llama", e.m.id).apply(); prepararLlama(e.m) }
+            is Entrada.Texto -> {
+                getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo_llama").putString("modelo", e.m.id).apply()
+                preparar(e.m)
+            }
+            is Entrada.Llama -> {
+                getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo").putString("modelo_llama", e.m.id).apply()
+                prepararLlama(e.m)
+            }
             is Entrada.Imagen -> activarModeloImagen(e.m)
             is Entrada.Video -> activarModeloVideo(e.m)
         }
@@ -658,11 +790,15 @@ class ChatActivity : AppCompatActivity() {
     private fun activarModeloImagen(m: ModelosImagen.ModeloImagen) {
         if (!imagenes.descargado(m)) { Toast.makeText(this, "Verifica primero los pesos de ${m.nombre}", Toast.LENGTH_LONG).show(); return }
         if (!DiffusionNative.estaDisponible()) { Toast.makeText(this, "libchatpro-diffusion.so no está disponible en este APK/dispositivo", Toast.LENGTH_LONG).show(); return }
-        modeloImagenActual = m; modeloVideoActual = null; modeloActual = null; modeloLlamaActual = null
+        modeloImagenActual = m
+        modeloVideoActual = null
+        modeloActual = null
+        modeloLlamaActual = null
         DebugLog.log("DIFFUSION", "modelo IMAGEN activado · ${m.id} · ${imagenes.carpeta(m).absolutePath}")
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo_llama").apply()
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("modelo_imagen", m.id).apply()
-        btnModelo.text = m.nombre; btnImagen.visibility = View.GONE
+        btnModelo.text = m.nombre
+        btnImagen.visibility = View.GONE
         tvEstado.text = "Imagen · ${m.nombre} · lista para generar"
         actualizarBotonEnvio()
     }
@@ -682,45 +818,87 @@ class ChatActivity : AppCompatActivity() {
         try {
             val ok = llamaEngine.restaurarHistorial(historial)
             if (!ok) DebugLog.log("LLAMA", "⚠ no se pudo restaurar el contexto de la sesión actual · mensajes=${historial.size}")
-        } catch (e: Exception) { DebugLog.log("LLAMA", "⚠ excepción restaurando contexto: ${e.javaClass.simpleName}: ${e.message}") }
+        } catch (e: Exception) {
+            DebugLog.log("LLAMA", "⚠ excepción restaurando contexto: ${e.javaClass.simpleName}: ${e.message}")
+        }
     }
 
     private fun prepararLlama(m: LlamaCppModel) {
-        modeloLlamaActual = m; modeloActual = null; modeloImagenActual = null; modeloVideoActual = null
-        btnModelo.text = m.nombre; btnImagen.visibility = View.GONE; btnEnviar.isEnabled = false
-        if (!llamaManager.modeloListo(m)) { tvEstado.text = "GGUF no descargado"; Toast.makeText(this, "Descarga primero este modelo desde el selector", Toast.LENGTH_LONG).show(); return }
+        modeloLlamaActual = m
+        modeloActual = null
+        modeloImagenActual = null
+        modeloVideoActual = null
+        btnModelo.text = m.nombre
+        btnImagen.visibility = View.GONE
+        btnEnviar.isEnabled = false
+        if (!llamaManager.modeloListo(m)) {
+            tvEstado.text = "GGUF no descargado"
+            Toast.makeText(this, "Descarga primero este modelo desde el selector", Toast.LENGTH_LONG).show()
+            return
+        }
         lifecycleScope.launch {
             DebugLog.log("LLAMA", "preparando ${m.nombre} · archivo=${llamaManager.archivoDe(m).name}")
             val verificacion = llamaManager.verificarModelo(m)
             DebugLog.log("LLAMA", "verificación GGUF: válido=${verificacion.valido} · ${verificacion.mensaje}")
-            if (!verificacion.valido) { tvEstado.text = "GGUF no válido"; Toast.makeText(this@ChatActivity, verificacion.mensaje, Toast.LENGTH_LONG).show(); return@launch }
-            if (!LlamaCppNative.estaDisponible()) { tvEstado.text = "GGUF verificado · runtime nativo no disponible"; Toast.makeText(this@ChatActivity, "La biblioteca nativa llama.cpp no se pudo cargar.", Toast.LENGTH_LONG).show(); return@launch }
+            if (!verificacion.valido) {
+                tvEstado.text = "GGUF no válido"
+                Toast.makeText(this@ChatActivity, verificacion.mensaje, Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            if (!LlamaCppNative.estaDisponible()) {
+                tvEstado.text = "GGUF verificado · runtime nativo no disponible"
+                Toast.makeText(this@ChatActivity, "La biblioteca nativa llama.cpp no se pudo cargar.", Toast.LENGTH_LONG).show()
+                return@launch
+            }
             try {
-                motor.liberar(); progreso.visibility = View.VISIBLE; progreso.isIndeterminate = true
+                motor.liberar()
+                progreso.visibility = View.VISIBLE
+                progreso.isIndeterminate = true
                 tvEstado.text = "Cargando ${m.nombre} · llama.cpp…"
                 llamaEngine.cargar(llamaManager.archivoDe(m), contexto = 8192, hilos = 4)
                 restaurarContextoLlama()
-                progreso.visibility = View.GONE; tvEstado.text = "Listo · ${m.nombre} · llama.cpp CPU"; actualizarBotonEnvio()
+                progreso.visibility = View.GONE
+                tvEstado.text = "Listo · ${m.nombre} · llama.cpp CPU"
+                actualizarBotonEnvio()
             } catch (e: Exception) {
                 DebugLog.log("LLAMA", "⚠ error al preparar ${m.nombre}: ${e.javaClass.simpleName}: ${e.message}")
-                progreso.visibility = View.GONE; tvEstado.text = "No se pudo cargar ${m.nombre}"; Toast.makeText(this@ChatActivity, e.message ?: "Error al cargar llama.cpp", Toast.LENGTH_LONG).show()
+                progreso.visibility = View.GONE
+                tvEstado.text = "No se pudo cargar ${m.nombre}"
+                Toast.makeText(this@ChatActivity, e.message ?: "Error al cargar llama.cpp", Toast.LENGTH_LONG).show()
             }
         }
     }
 
     private fun preparar(m: MotorIA.Modelo) {
-        llamaEngine.liberar(); modeloActual = m; modeloImagenActual = null; modeloVideoActual = null
+        llamaEngine.liberar()
+        modeloActual = m
+        modeloImagenActual = null
+        modeloVideoActual = null
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().remove("modelo_imagen").apply()
-        btnModelo.text = m.nombre; btnImagen.visibility = if (m.vision) View.VISIBLE else View.GONE; btnEnviar.isEnabled = false
+        btnModelo.text = m.nombre
+        btnImagen.visibility = if (m.vision) View.VISIBLE else View.GONE
+        btnEnviar.isEnabled = false
         lifecycleScope.launch {
             try {
-                if (!motor.modeloDescargado(m)) { progreso.visibility = View.GONE; tvEstado.text = "Modelo no descargado"; Toast.makeText(this@ChatActivity, "Descarga primero este modelo desde el selector", Toast.LENGTH_LONG).show(); return@launch }
-                progreso.visibility = View.VISIBLE; progreso.isIndeterminate = true
+                if (!motor.modeloDescargado(m)) {
+                    progreso.visibility = View.GONE
+                    tvEstado.text = "Modelo no descargado"
+                    Toast.makeText(this@ChatActivity, "Descarga primero este modelo desde el selector", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                progreso.visibility = View.VISIBLE
+                progreso.isIndeterminate = true
                 tvEstado.text = "Cargando ${m.nombre}…"
                 motor.inicializar(m, historialTexto())
-                progreso.visibility = View.GONE; tvEstado.text = "Listo · privado y sin conexión"; actualizarBotonEnvio()
-            } catch (e: CancellationException) { throw e
-            } catch (e: Exception) { progreso.visibility = View.GONE; tvEstado.text = "No se pudo cargar el modelo"; Toast.makeText(this@ChatActivity, e.message ?: "Error desconocido", Toast.LENGTH_LONG).show() }
+                progreso.visibility = View.GONE
+                tvEstado.text = "Listo · privado y sin conexión"
+                actualizarBotonEnvio()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                progreso.visibility = View.GONE
+                tvEstado.text = "No se pudo cargar el modelo"
+                Toast.makeText(this@ChatActivity, e.message ?: "Error desconocido", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -728,7 +906,9 @@ class ChatActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val ruta = withContext(Dispatchers.IO) { try { reducirImagen(uri) } catch (_: Exception) { null } }
             if (ruta == null) { tvEstado.text = "No se pudo leer la imagen"; return@launch }
-            imagenRuta = ruta; tvAdjunto.text = "📎 Imagen adjunta · toca para quitar"; tvAdjunto.visibility = View.VISIBLE
+            imagenRuta = ruta
+            tvAdjunto.text = "📎 Imagen adjunta · toca para quitar"
+            tvAdjunto.visibility = View.VISIBLE
         }
     }
 
@@ -749,27 +929,36 @@ class ChatActivity : AppCompatActivity() {
     private fun nueva() {
         if (generando) return
         if (mensajes.isNotEmpty()) guardarSesion()
-        sesionId = UUID.randomUUID().toString(); mensajes.clear(); tituloSesion = "Nueva conversación"
+        sesionId = UUID.randomUUID().toString()
+        mensajes.clear()
+        tituloSesion = "Nueva conversación"
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().putString("sesion", sesionId).apply()
-        quitarImagen(); motor.nuevaConversacion()
+        quitarImagen()
+        motor.nuevaConversacion()
         if (modeloLlamaActual != null) lifecycleScope.launch { restaurarContextoLlama() }
-        render(null); renderSidebar(); drawer.closeDrawer(GravityCompat.START)
-        tvEstado.text = "Nueva conversación"; etMensaje.requestFocus()
+        render(null)
+        renderSidebar()
+        drawer.closeDrawer(GravityCompat.START)
+        tvEstado.text = "Nueva conversación"
+        etMensaje.requestFocus()
     }
 
     private fun enviar(): Boolean {
         val texto = etMensaje.text.toString().trim()
         val ruta = imagenRuta
         if ((texto.isEmpty() && ruta == null) || generando) return false
+
         if (modeloImagenActual == null && modeloVideoActual == null && modeloActual == null && modeloLlamaActual == null) return false
         val prompt = if (texto.isEmpty()) "Describe esta imagen." else texto
-        etMensaje.setText(""); quitarImagen()
+        etMensaje.setText("")
+        quitarImagen()
         mensajes.add("u" to (if (ruta != null) "📷 $prompt" else prompt))
         render(null)
         generarDesde(prompt, ruta, guardar = true)
         return true
     }
 
+    /** Imagen o vídeo local: corren en el proceso :gen y se pueden detener. */
     private fun esGeneracionLocalPesada(): Boolean = modeloImagenActual != null || modeloVideoActual != null || modeloLlamaActual != null
 
     private fun detenerGeneracion() {
@@ -777,8 +966,10 @@ class ChatActivity : AppCompatActivity() {
         if (modeloLlamaActual != null) llamaEngine.detener() else GenClient.detener()
     }
 
+    /** Burbuja de la respuesta que se está escribiendo (DeepSeek): se actualiza en sitio, sin reconstruir toda la lista. */
     private var burbujaStreaming: TextView? = null
 
+    /** DeepSeek-R1 escribe su razonamiento entre <think>…</think>: en pantalla se muestra solo la respuesta. */
     private fun visibleDeRespuesta(texto: String, finalizado: Boolean): String {
         val cierre = texto.lastIndexOf("</think>")
         if (cierre >= 0) {
@@ -791,20 +982,22 @@ class ChatActivity : AppCompatActivity() {
         }
         if (texto.contains("<think>")) {
             val palabras = texto.substringAfter("<think>").trim().split(Regex("\\s+")).count { it.isNotEmpty() }
-            return if (finalizado) "💭 Se cortó mientras pensaba ($palabras palabras) y no llegó a responder. Prueba a repetir la pregunta." else "💭 Pensando… ($palabras palabras)"
+            return if (finalizado) "💭 Se cortó mientras pensaba ($palabras palabras) y no llegó a responder. Prueba a repetir la pregunta."
+                   else "💭 Pensando… ($palabras palabras)"
         }
         return texto
     }
 
     private suspend fun generarLlama(prompt: String) {
         val respuesta = StringBuilder()
-        render("")
+        render("")                       // crea la burbuja en streaming
         var ultimoRender = 0L
         var trozos = 0
         val inicio = System.currentTimeMillis()
         try {
             llamaEngine.generar(prompt, 2048).collect { trozo ->
-                respuesta.append(trozo); trozos++
+                respuesta.append(trozo)
+                trozos++
                 val ahora = System.currentTimeMillis()
                 if (ahora - ultimoRender >= 120) {
                     ultimoRender = ahora
@@ -815,7 +1008,7 @@ class ChatActivity : AppCompatActivity() {
                 }
             }
         } finally {
-            if (respuesta.isNotEmpty()) mensajes.add("m" to respuesta.toString())
+            if (respuesta.isNotEmpty()) mensajes.add("m" to respuesta.toString())   // se conserva aunque se detenga
             burbujaStreaming = null
         }
     }
@@ -835,9 +1028,7 @@ class ChatActivity : AppCompatActivity() {
         generando = true; actualizarBotonEnvio()
         val nombreModelo = modeloVideoActual?.nombre ?: modeloImagenActual?.nombre ?: modeloLlamaActual?.nombre ?: modeloActual?.nombre ?: ""
         val backend = when { modeloVideoActual != null -> "stable-diffusion.cpp/Vulkan vídeo"; modeloImagenActual != null -> "stable-diffusion.cpp/Vulkan imagen"; modeloLlamaActual != null -> "llama.cpp"; else -> "LiteRT" }
-        tvEstado.text = "Generando · $nombreModelo"
-        DebugLog.log("GEN", "inicio · $backend · $nombreModelo · prompt=${prompt.length} · ${DebugLog.mem()}")
-        DebugLog.markStart("$backend · $prompt")
+        tvEstado.text = "Generando · $nombreModelo"; DebugLog.log("GEN", "inicio · $backend · $nombreModelo · prompt=${prompt.length} · ${DebugLog.mem()}"); DebugLog.markStart("$backend · $prompt")
         val inicio = System.currentTimeMillis()
         val vigia: Job? = if (modeloImagenActual != null || modeloVideoActual != null) vigilarGeneracion(nombreModelo) else null
         lifecycleScope.launch {
@@ -857,42 +1048,78 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
+    /** Muestra etapa, porcentaje y tiempo mientras el proceso de generación trabaja, y lo vuelca al log cada 5 s. */
     private fun vigilarGeneracion(nombre: String): Job = lifecycleScope.launch {
-        val seguimiento = SeguimientoProgreso(if (modeloVideoActual != null) 8 else 25)
-        progreso.visibility = View.VISIBLE; progreso.isIndeterminate = true
+        val seguimiento = SeguimientoProgreso(if (modeloVideoActual != null) 8 else 4)
+        progreso.visibility = View.VISIBLE
+        progreso.isIndeterminate = true
         var seg = 0
         while (isActive) {
-            delay(1000); seg++
+            delay(1000)
+            seg++
             val p = GenClient.progreso()
             val e = seguimiento.actualizar(p, seg)
             tvEstado.text = "$nombre · ${e.texto}"
-            if (p.fase >= 2 || e.porcentaje > 5) { progreso.isIndeterminate = false; progreso.max = 100; progreso.progress = e.porcentaje }
-            else progreso.isIndeterminate = true
-            if (seg % 5 == 0) DebugLog.log("GEN", "t=${seg}s · ${e.texto} · fase=${p.fase} contador=${p.paso}/${p.pasos} · último paso ${p.ultimoPasoMs} ms · gen RSS ${GenClient.rssGenMb()} MB · app ${DebugLog.mem()}")
+            if (p.fase >= 2 || e.porcentaje > 5) {
+                progreso.isIndeterminate = false
+                progreso.max = 100
+                progreso.progress = e.porcentaje
+            } else {
+                progreso.isIndeterminate = true
+            }
+            if (seg % 5 == 0) {
+                DebugLog.log("GEN", "t=${seg}s · ${e.texto} · fase=${p.fase} contador=${p.paso}/${p.pasos} · último paso ${p.ultimoPasoMs} ms · gen RSS ${GenClient.rssGenMb()} MB · app ${DebugLog.mem()}")
+            }
         }
     }
 
-    private suspend fun generarImagenLocal(prompt:String, nombreModelo:String) {
-        val m=modeloImagenActual ?: error("No hay modelo de imagen")
-        val vr=withContext(Dispatchers.IO){imagenes.verificacion(m)}; DebugLog.log("DIFFUSION","imagen verificación antes de generar: ${vr.ok} · ${vr.message}"); if(!vr.ok) error(vr.message)
+    // ⬇⬇⬇ AQUÍ ESTÁ EL CAMBIO PRINCIPAL ⬇⬇⬇
+    private suspend fun generarImagenLocal(prompt: String, nombreModelo: String) {
+        val m = modeloImagenActual ?: error("No hay modelo de imagen")
+        val vr = withContext(Dispatchers.IO) { imagenes.verificacion(m) }
+        DebugLog.log("DIFFUSION", "imagen verificación antes de generar: ${vr.ok} · ${vr.message}")
+        if (!vr.ok) error(vr.message)
+
         val negativo = "borroso, desenfocado, baja calidad, ruido, mancha, deforme, abstracto, marca de agua, firma, texto"
-        val raw=File(cacheDir,"cpimg-${System.currentTimeMillis()}.cpimg")
-        val png=File(createdFiles.directory(CreatedFile.Kind.IMAGE),"imagen-${System.currentTimeMillis()}.png")
+        val png = File(createdFiles.directory(CreatedFile.Kind.IMAGE), "imagen-${System.currentTimeMillis()}.png")
+
         GenClient.ejecutar(this, GenProtocolo.imagen(
-            m.artefactos.first().let{File(imagenes.carpeta(m),it.fileName).absolutePath},
+            m.artefactos.first().let { File(imagenes.carpeta(m), it.fileName).absolutePath },
             prompt,
             negativo,
             png.absolutePath,
-            512, 512, 25
+            512, 512,
+            25
         ))
-        val item=createdFiles.register(png,"image/png",CreatedFile.Kind.IMAGE,sesionId,prompt,nombreModelo,512,512); raw.delete(); mensajes.add("m" to "[[IMAGE]]${item.path}"); DebugLog.log("FILES","imagen registrada · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
+        val item = createdFiles.register(png, "image/png", CreatedFile.Kind.IMAGE, sesionId, prompt, nombreModelo, 512, 512)
+        mensajes.add("m" to "[[IMAGE]]${item.path}")
+        DebugLog.log("FILES", "imagen registrada · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
     }
 
-    private suspend fun generarVideoLocal(prompt:String, nombreModelo:String) {
-        val m=modeloVideoActual ?: error("No hay modelo de vídeo"); val vr=withContext(Dispatchers.IO){videos.verificacion(m)}; DebugLog.log("DIFFUSION","vídeo verificación antes de generar: ${vr.ok} · ${vr.message}"); if(!vr.ok) error(vr.message)
-        val dir=videos.carpeta(m); val diff=File(dir,m.artefactos.first{it.role=="diffusion"}.fileName); val t5=File(dir,m.artefactos.first{it.role=="t5xxl"}.fileName); val vae=File(dir,m.artefactos.first{it.role=="vae"}.fileName); val raw=File(cacheDir,"cpvid-${System.currentTimeMillis()}.cpvid"); val mp4=File(createdFiles.directory(CreatedFile.Kind.VIDEO),"video-${System.currentTimeMillis()}.mp4")
-        DebugLog.log("DIFFUSION","video generateVideo inicio · 416x240 · 17 frames · 8fps · 8 steps"); GenClient.ejecutar(this, GenProtocolo.video(diff.absolutePath,vae.absolutePath,t5.absolutePath,prompt,"borroso, baja calidad, ruido, deforme",raw.absolutePath,416,240,17,8,8)); withContext(Dispatchers.IO){ DiffusionOutput.videoToMp4(raw,mp4) }
-        val item=createdFiles.register(mp4,"video/mp4",CreatedFile.Kind.VIDEO,sesionId,prompt,nombreModelo,416,240,17*1000L/8,17); raw.delete(); mensajes.add("m" to "[[VIDEO]]${item.path}"); DebugLog.log("FILES","vídeo registrado · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
+    private suspend fun generarVideoLocal(prompt: String, nombreModelo: String) {
+        val m = modeloVideoActual ?: error("No hay modelo de vídeo")
+        val vr = withContext(Dispatchers.IO) { videos.verificacion(m) }
+        DebugLog.log("DIFFUSION", "vídeo verificación antes de generar: ${vr.ok} · ${vr.message}")
+        if (!vr.ok) error(vr.message)
+        val dir = videos.carpeta(m)
+        val diff = File(dir, m.artefactos.first { it.role == "diffusion" }.fileName)
+        val t5 = File(dir, m.artefactos.first { it.role == "t5xxl" }.fileName)
+        val vae = File(dir, m.artefactos.first { it.role == "vae" }.fileName)
+        val raw = File(cacheDir, "cpvid-${System.currentTimeMillis()}.cpvid")
+        val mp4 = File(createdFiles.directory(CreatedFile.Kind.VIDEO), "video-${System.currentTimeMillis()}.mp4")
+        DebugLog.log("DIFFUSION", "video generateVideo inicio · 416x240 · 17 frames · 8fps · 8 steps")
+        GenClient.ejecutar(this, GenProtocolo.video(
+            diff.absolutePath, vae.absolutePath, t5.absolutePath,
+            prompt,
+            "borroso, baja calidad, ruido, deforme",
+            raw.absolutePath,
+            416, 240, 17, 8, 8
+        ))
+        withContext(Dispatchers.IO) { DiffusionOutput.videoToMp4(raw, mp4) }
+        val item = createdFiles.register(mp4, "video/mp4", CreatedFile.Kind.VIDEO, sesionId, prompt, nombreModelo, 416, 240, 17 * 1000L / 8, 17)
+        raw.delete()
+        mensajes.add("m" to "[[VIDEO]]${item.path}")
+        DebugLog.log("FILES", "vídeo registrado · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
     }
 
     override fun onDestroy() {
