@@ -24,25 +24,6 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Restaurar caché de Gradle (dependencias + wrapper)
-        id: cache-gradle
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('proyecto-android/build.gradle', 'proyecto-android/settings.gradle', 'proyecto-android/gradle.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
-      - name: Restaurar caché del build de la app (por paquete)
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            proyecto-android/app/build
-            proyecto-android/.gradle
-          key: appbuild-${{ runner.os }}-${{ github.event.inputs.app_package }}-${{ github.run_id }}
-          restore-keys: |
-            appbuild-${{ runner.os }}-${{ github.event.inputs.app_package }}-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -57,16 +38,10 @@ jobs:
             exit 1
           fi
           echo "$CMDLINE_TOOLS_BIN" >> "$GITHUB_PATH"
-      - name: Aceptar licencias e instalar plataforma y build-tools (solo si faltan)
+      - name: Aceptar licencias e instalar plataforma y build-tools
         run: |
-          SDK="$ANDROID_HOME"
-          if [ -z "$SDK" ]; then SDK=/usr/local/lib/android/sdk; fi
-          if [ -d "$SDK/platforms/android-34" ] && [ -d "$SDK/build-tools/34.0.0" ]; then
-            echo "SDK android-34 ya presente, se omite la descarga."
-          else
-            yes | sdkmanager --licenses > /dev/null || true
-            sdkmanager "platforms;android-34" "build-tools;34.0.0"
-          fi
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
       - name: Generar keystore debug si no existe
         working-directory: proyecto-android
         run: |
@@ -91,19 +66,7 @@ jobs:
       - name: Compilar APK
         working-directory: proyecto-android
         run: |
-          set -e
-          # v10.1 · El gradle preinstalado en el runner ya es 9.x: si se ejecuta dentro del
-          # proyecto, evalúa los plugins (Kotlin 1.9, AGP 8.x) con Gradle 9 y falla
-          # ("org/gradle/util/VersionNumber"). El wrapper se genera en una carpeta con un
-          # settings.gradle vacío (Gradle exige una raíz de build) y se copia al proyecto;
-          # la compilación la hace ya el Gradle fijado por el wrapper.
-          WRAP_TMP="$(mktemp -d)"
-          touch "$WRAP_TMP/settings.gradle"
-          (cd "$WRAP_TMP" && gradle wrapper --gradle-version 8.7 --no-daemon)
-          mkdir -p gradle
-          cp -r "$WRAP_TMP/gradle/." gradle/
-          cp "$WRAP_TMP/gradlew" "$WRAP_TMP/gradlew.bat" .
-          chmod +x gradlew
+          gradle wrapper --gradle-version 8.7
           ./gradlew assembleDebug --no-daemon
       - name: Crear release con el APK
         env:
@@ -123,19 +86,3 @@ jobs:
           fi
           cp "$APK_PATH" "$APK_FINAL"
           gh release create "$TAG" "$APK_FINAL" --title "APK nativo: $APP_NAME" --notes "Paquete: $APP_PACKAGE. Compilado desde el código Kotlin/XML/Gradle generado por el editor."
-      - name: Guardar caché de Gradle
-        if: always() && steps.cache-gradle.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('proyecto-android/build.gradle', 'proyecto-android/settings.gradle', 'proyecto-android/gradle.properties') }}
-      - name: Guardar caché del build de la app
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            proyecto-android/app/build
-            proyecto-android/.gradle
-          key: appbuild-${{ runner.os }}-${{ github.event.inputs.app_package }}-${{ github.run_id }}
