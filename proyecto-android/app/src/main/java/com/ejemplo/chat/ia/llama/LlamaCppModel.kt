@@ -1,5 +1,11 @@
 package com.ejemplo.chat.ia.llama
 
+/**
+ * Modelo GGUF destinado al runtime nativo de llama.cpp.
+ *
+ * Esta capa describe y verifica el modelo, pero no lo conecta al chat hasta que
+ * la biblioteca nativa llama.cpp esté realmente incluida en el APK.
+ */
 data class LlamaCppModel(
     val id: String,
     val nombre: String,
@@ -11,6 +17,10 @@ data class LlamaCppModel(
     val cuantizacion: String
 ) {
     companion object {
+        /**
+         * DeepSeek-R1-Distill-Qwen-1.5B Q4_K_M de QuantFactory.
+         * SHA-256 verificado en la fuente del modelo consultada para esta fase.
+         */
         val DEEPSEEK_R1_DISTILL_QWEN_1_5B_Q4_K_M = LlamaCppModel(
             id = "deepseek-r1-distill-qwen-1.5b-q4_k_m",
             nombre = "DeepSeek-R1-Distill-Qwen-1.5B Q4_K_M",
