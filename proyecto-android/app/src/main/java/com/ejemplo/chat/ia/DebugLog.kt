@@ -10,6 +10,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Registro de depuración persistente. Cada línea se escribe y se sincroniza a disco al momento,
+ * así que sobrevive a un cierre brusco de la app (OOM / kill del sistema) y se puede leer al reabrirla.
+ */
 object DebugLog {
     private const val MAX_BYTES = 300_000L
     private var appContext: Context? = null
@@ -18,6 +22,7 @@ object DebugLog {
     private val fmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
     private val fmtFull = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
 
+    /** true si la app se cerró en mitad de una generación de imagen en la sesión anterior. */
     @Volatile var interruptedLast = false
         private set
 
@@ -47,6 +52,7 @@ object DebugLog {
         log("MEM", mem())
     }
 
+    /** Inicialización mínima para el proceso ":gen": solo habilita escribir en debug.log (sin absorber ni marcar nada). */
     @Synchronized
     fun initWorker(context: Context) {
         if (appContext != null) return
@@ -54,6 +60,7 @@ object DebugLog {
         file = File(context.filesDir, "debug.log")
     }
 
+    /** Vuelca al log principal las últimas líneas de native.log sin borrarlo (se usa cuando el proceso de generación muere). */
     fun volcarNativoReciente(maxLineas: Int = 60) {
         val f = appContext?.let { File(it.filesDir, "native.log") } ?: return
         try {
@@ -67,8 +74,10 @@ object DebugLog {
         }
     }
 
+    /** Archivo donde el código nativo vuelca stdout/stderr y los informes de señal (crash). */
     fun nativeLogPath(): String? = appContext?.let { File(it.filesDir, "native.log").absolutePath }
 
+    /** Pasa al log principal lo que dejó el código nativo en la sesión anterior (incluye el motivo de un crash). */
     private fun absorberRegistroNativo() {
         val f = appContext?.let { File(it.filesDir, "native.log") } ?: return
         try {
@@ -103,6 +112,7 @@ object DebugLog {
         try { marker?.delete() } catch (_: Exception) {}
     }
 
+    /** Memoria del proceso: RSS, heap nativo, heap Java y RAM libre del sistema. */
     fun mem(): String {
         val mb = 1024L * 1024L
         val rss = try {
