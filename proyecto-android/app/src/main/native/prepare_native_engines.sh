@@ -20,16 +20,14 @@ command -v git >/dev/null 2>&1 || fail "git no está disponible en el runner."
 command -v cmake >/dev/null 2>&1 || fail "cmake no está disponible en el runner."
 
 # ---------------------------------------------------------------------------
-# Detección robusta de la raíz del módulo app.
-# El editor puede subir este script a distintas rutas; subimos por el árbol
-# hasta encontrar el build.gradle del módulo app para copiar el .so donde
-# Gradle realmente lo busca al empaquetar el APK.
+# Detección de la raíz del módulo app.
+# El editor puede subir el script a distintas rutas; subimos por el árbol
+# hasta encontrar el build.gradle del módulo app.
 # ---------------------------------------------------------------------------
 detectar_raiz_app() {
     local d="$ROOT_DIR"
     while [[ "$d" != "/" && -n "$d" ]]; do
         if [[ -f "$d/build.gradle" || -f "$d/build.gradle.kts" ]]; then
-            # El módulo app contiene 'src' o al menos una carpeta 'native'.
             if [[ -d "$d/src" || -d "$d/native" ]]; then
                 echo "$d"
                 return 0
@@ -49,19 +47,23 @@ if [[ -z "$APP_ROOT" ]]; then
 fi
 log "Raíz del módulo app detectada: $APP_ROOT"
 
+# Instalación opcional de dependencias Vulkan/SPIR-V.
+# En runners de GitHub las herramientas suelen estar ya disponibles; si apt
+# falla (mirror caído, paquete ausente), no se aborta: se avisa y se sigue.
 if command -v apt-get >/dev/null 2>&1; then
-    log "Instalando dependencias Vulkan/SPIR-V del runner"
-    sudo apt-get update
-    sudo apt-get install -y --no-install-recommends \
-        build-essential \
-        libvulkan-dev \
-        glslc \
-        glslang-tools \
-        spirv-headers
+    log "Intentando instalar dependencias Vulkan/SPIR-V (opcional, no bloquea)"
+    export DEBIAN_FRONTEND=noninteractive
+    sudo -n apt-get update -qq 2>&1 | tail -5 || log "⚠ apt-get update falló (se continúa)"
+    sudo -n apt-get install -y --no-install-recommends \
+        build-essential libvulkan-dev glslc glslang-tools spirv-headers \
+        2>&1 | tail -10 || log "⚠ apt-get install falló (se continúa)"
+else
+    log "apt-get no disponible; se asume que las herramientas ya están instaladas"
 fi
 
-command -v glslc >/dev/null 2>&1 || fail "No se encontró glslc."
-command -v glslangValidator >/dev/null 2>&1 || fail "No se encontró glslangValidator."
+command -v glslc >/dev/null 2>&1 || fail "glslc no está disponible."
+command -v glslangValidator >/dev/null 2>&1 || fail "glslangValidator no está disponible."
+command -v ninja >/dev/null 2>&1 || fail "ninja no está disponible."
 
 SPIRV_PREFIX="$TOOLCHAIN_DIR/spirv-headers-install"
 SPIRV_HEADERS_DIR=""
@@ -198,11 +200,9 @@ clone_repo() {
 
 clone_repo "https://github.com/leejet/stable-diffusion.cpp.git" "$TOOLCHAIN_DIR/stable-diffusion.cpp" "$SD_REF"
 
-# El CMakeLists vive junto a este script (mismo directorio que prepare_...).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIFFUSION_CMAKE_DIR="$SCRIPT_DIR/diffusion"
 if [[ ! -f "$DIFFUSION_CMAKE_DIR/CMakeLists.txt" ]]; then
-    # Fallback: por si el editor separa el CMake del script
     DIFFUSION_CMAKE_DIR="$ROOT_DIR/native/diffusion"
 fi
 [[ -f "$DIFFUSION_CMAKE_DIR/CMakeLists.txt" ]] || fail "No se encontró native/diffusion/CMakeLists.txt"
@@ -240,22 +240,17 @@ DIFFUSION_SO="$(find "$BUILD_DIR/diffusion" -type f -name 'libchatpro-diffusion.
 [[ -n "$DIFFUSION_SO" ]] || fail "No se encontró libchatpro-diffusion.so tras compilar"
 
 # ---------------------------------------------------------------------------
-# Copiar el .so a TODAS las ubicaciones plausibles donde Gradle puede buscarlo.
-# Gradle toma los jniLibs de app/native/jniLibs (según sourceSets del build.gradle),
-# pero el editor puede haber subido el script a otra ruta; se cubren las variantes.
+# Copia a UNA sola ubicación: la convención estándar de Gradle Android.
+# Gradle busca jniLibs en src/main/jniLibs/ de cada módulo por defecto, así
+# que no hace falta configurar sourceSets ni copiar a más sitios (hacerlo
+# provocaba "Duplicate resources" al ver el .so tres veces).
 # ---------------------------------------------------------------------------
-DESTINOS=(
-    "$APP_ROOT/native/jniLibs/arm64-v8a"
-    "$APP_ROOT/src/main/jniLibs/arm64-v8a"
-    "$APP_ROOT/jniLibs/arm64-v8a"
-)
-for dir in "${DESTINOS[@]}"; do
-    mkdir -p "$dir"
-    cp -f "$DIFFUSION_SO" "$dir/libchatpro-diffusion.so"
-    log "Copiado .so a: $dir/libchatpro-diffusion.so"
-done
+JNI_DESTINO="$APP_ROOT/src/main/jniLibs/arm64-v8a"
+mkdir -p "$JNI_DESTINO"
+cp -f "$DIFFUSION_SO" "$JNI_DESTINO/libchatpro-diffusion.so"
+log "Copiado .so a: $JNI_DESTINO/libchatpro-diffusion.so"
 
-cat > "$APP_ROOT/native/jniLibs/arm64-v8a/build-info.txt" <<INFO
+cat > "$JNI_DESTINO/build-info.txt" <<INFO
 stable_diffusion_cpp_ref=$SD_REF
 android_ndk=$NDK_VERSION
 android_cmake=$CMAKE_VERSION
@@ -269,4 +264,4 @@ spirv_headers_include_dir=$SPIRV_INCLUDE_DIR
 INFO
 
 log "Motor nativo preparado:"
-ls -lh "$APP_ROOT/native/jniLibs/arm64-v8a/libchatpro-diffusion.so"
+ls -lh "$JNI_DESTINO/libchatpro-diffusion.so"
