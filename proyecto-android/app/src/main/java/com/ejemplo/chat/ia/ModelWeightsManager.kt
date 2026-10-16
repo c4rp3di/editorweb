@@ -30,12 +30,12 @@ class ModelWeightsManager(private val context: Context) {
 
     fun verify(file: File, artifact: Artifact): Result {
         if (!file.isFile) return Result(false, "falta ${artifact.fileName}")
-        if (artifact.expectedBytes > 0 && file.length() != artifact.expectedBytes) return Result(false, "tamaño incorrecto ${file.name}")
-        if (verificadoEnCache(file, artifact)) return Result(true, "OK (ya verificado) ${artifact.fileName}", file)
+        if (artifact.expectedBytes > 0 && file.length() != artifact.expectedBytes) return Result(false, "tamaño incorrecto ${file.name}: ${file.length()} != ${artifact.expectedBytes}")
+        if (verificadoEnCache(file, artifact)) return Result(true, "OK (SHA-256 ya verificado) ${artifact.fileName} · ${artifact.role}", file)
         val actual = sha256(file)
-        if (!actual.equals(artifact.sha256, ignoreCase = true)) return Result(false, "SHA-256 incorrecto ${file.name}")
+        if (!actual.equals(artifact.sha256, ignoreCase = true)) return Result(false, "SHA-256 incorrecto ${file.name}: $actual")
         if (!file.name.endsWith(".part")) marcarVerificado(file, artifact)
-        return Result(true, "OK ${artifact.fileName}", file)
+        return Result(true, "OK ${artifact.fileName} · ${artifact.role}", file)
     }
 
     fun verifyAll(dir: File, artifacts: List<Artifact>): Result {
@@ -53,7 +53,7 @@ class ModelWeightsManager(private val context: Context) {
         dir.mkdirs()
         val target = File(dir, artifact.fileName)
         val part = File(dir, artifact.fileName + ".part")
-        DebugLog.log("WEIGHTS", "descarga INICIO · ${artifact.role} · ${artifact.fileName}")
+        DebugLog.log("WEIGHTS", "descarga INICIO · ${artifact.role} · ${artifact.fileName} · ${artifact.expectedBytes} bytes")
         val c = (URL(artifact.url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 20_000
             readTimeout = 60_000
@@ -63,9 +63,9 @@ class ModelWeightsManager(private val context: Context) {
         }
         try {
             c.connect()
-            if (c.responseCode !in 200..299) throw IllegalStateException("HTTP ${c.responseCode}")
+            if (c.responseCode !in 200..299) throw IllegalStateException("HTTP ${c.responseCode} al descargar ${artifact.fileName}")
             val declared = c.contentLengthLong
-            if (artifact.expectedBytes > 0 && declared > 0 && declared != artifact.expectedBytes) throw IllegalStateException("tamaño servidor $declared != ${artifact.expectedBytes}")
+            if (artifact.expectedBytes > 0 && declared > 0 && declared != artifact.expectedBytes) throw IllegalStateException("El servidor anuncia $declared bytes; se esperaban ${artifact.expectedBytes}")
             FileOutputStreamCompat(part).use { out ->
                 c.inputStream.use { input ->
                     val buf = ByteArray(1024 * 1024)
@@ -80,7 +80,7 @@ class ModelWeightsManager(private val context: Context) {
                         if (p != last) { last = p; onProgress(p) }
                     }
                     out.flushAndSync()
-                    if (artifact.expectedBytes > 0 && total != artifact.expectedBytes) throw IllegalStateException("descarga incompleta")
+                    if (artifact.expectedBytes > 0 && total != artifact.expectedBytes) throw IllegalStateException("descarga incompleta: $total != ${artifact.expectedBytes}")
                 }
             }
             val verified = verify(part, artifact)
@@ -88,10 +88,10 @@ class ModelWeightsManager(private val context: Context) {
             if (target.exists()) target.delete()
             if (!part.renameTo(target)) throw IllegalStateException("No se pudo activar ${artifact.fileName}")
             marcarVerificado(target, artifact)
-            DebugLog.log("WEIGHTS", "descarga OK · ${artifact.role}")
+            DebugLog.log("WEIGHTS", "descarga OK · ${artifact.role} · SHA-256 ${artifact.sha256}")
             return target
         } catch (e: Exception) {
-            DebugLog.log("WEIGHTS", "⚠ descarga ERROR · ${artifact.fileName} · ${e.message}")
+            DebugLog.log("WEIGHTS", "⚠ descarga ERROR · ${artifact.fileName} · ${e.javaClass.simpleName}: ${e.message}")
             part.delete()
             throw e
         } finally { c.disconnect() }
