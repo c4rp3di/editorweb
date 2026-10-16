@@ -1073,19 +1073,53 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun generarImagenLocal(prompt:String, nombreModelo:String) {
-        val m=modeloImagenActual ?: error("No hay modelo de imagen")
-        val vr=withContext(Dispatchers.IO){imagenes.verificacion(m)}; DebugLog.log("DIFFUSION","imagen verificación antes de generar: ${vr.ok} · ${vr.message}"); if(!vr.ok) error(vr.message)
-        val raw=File(cacheDir,"cpimg-${System.currentTimeMillis()}.cpimg"); val png=File(createdFiles.directory(CreatedFile.Kind.IMAGE),"imagen-${System.currentTimeMillis()}.png")
-        GenClient.ejecutar(this, GenProtocolo.imagen(m.artefactos.first().let{File(imagenes.carpeta(m),it.fileName).absolutePath},prompt,png.absolutePath,512,512,25))
-        val item=createdFiles.register(png,"image/png",CreatedFile.Kind.IMAGE,sesionId,prompt,nombreModelo,512,512); raw.delete(); mensajes.add("m" to "[[IMAGE]]${item.path}"); DebugLog.log("FILES","imagen registrada · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
+    // ⬇⬇⬇ AQUÍ ESTÁ EL CAMBIO PRINCIPAL ⬇⬇⬇
+    private suspend fun generarImagenLocal(prompt: String, nombreModelo: String) {
+        val m = modeloImagenActual ?: error("No hay modelo de imagen")
+        val vr = withContext(Dispatchers.IO) { imagenes.verificacion(m) }
+        DebugLog.log("DIFFUSION", "imagen verificación antes de generar: ${vr.ok} · ${vr.message}")
+        if (!vr.ok) error(vr.message)
+
+        val negativo = "borroso, desenfocado, baja calidad, ruido, mancha, deforme, abstracto, marca de agua, firma, texto"
+        val png = File(createdFiles.directory(CreatedFile.Kind.IMAGE), "imagen-${System.currentTimeMillis()}.png")
+
+        GenClient.ejecutar(this, GenProtocolo.imagen(
+            m.artefactos.first().let { File(imagenes.carpeta(m), it.fileName).absolutePath },
+            prompt,
+            negativo,
+            png.absolutePath,
+            512, 512,
+            25
+        ))
+        val item = createdFiles.register(png, "image/png", CreatedFile.Kind.IMAGE, sesionId, prompt, nombreModelo, 512, 512)
+        mensajes.add("m" to "[[IMAGE]]${item.path}")
+        DebugLog.log("FILES", "imagen registrada · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
     }
 
-    private suspend fun generarVideoLocal(prompt:String, nombreModelo:String) {
-        val m=modeloVideoActual ?: error("No hay modelo de vídeo"); val vr=withContext(Dispatchers.IO){videos.verificacion(m)}; DebugLog.log("DIFFUSION","vídeo verificación antes de generar: ${vr.ok} · ${vr.message}"); if(!vr.ok) error(vr.message)
-        val dir=videos.carpeta(m); val diff=File(dir,m.artefactos.first{it.role=="diffusion"}.fileName); val t5=File(dir,m.artefactos.first{it.role=="t5xxl"}.fileName); val vae=File(dir,m.artefactos.first{it.role=="vae"}.fileName); val raw=File(cacheDir,"cpvid-${System.currentTimeMillis()}.cpvid"); val mp4=File(createdFiles.directory(CreatedFile.Kind.VIDEO),"video-${System.currentTimeMillis()}.mp4")
-        DebugLog.log("DIFFUSION","video generateVideo inicio · 416x240 · 17 frames · 8fps · 8 steps"); GenClient.ejecutar(this, GenProtocolo.video(diff.absolutePath,vae.absolutePath,t5.absolutePath,prompt,raw.absolutePath,416,240,17,8,8)); withContext(Dispatchers.IO){ DiffusionOutput.videoToMp4(raw,mp4) }
-        val item=createdFiles.register(mp4,"video/mp4",CreatedFile.Kind.VIDEO,sesionId,prompt,nombreModelo,416,240,17*1000L/8,17); raw.delete(); mensajes.add("m" to "[[VIDEO]]${item.path}"); DebugLog.log("FILES","vídeo registrado · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
+    private suspend fun generarVideoLocal(prompt: String, nombreModelo: String) {
+        val m = modeloVideoActual ?: error("No hay modelo de vídeo")
+        val vr = withContext(Dispatchers.IO) { videos.verificacion(m) }
+        DebugLog.log("DIFFUSION", "vídeo verificación antes de generar: ${vr.ok} · ${vr.message}")
+        if (!vr.ok) error(vr.message)
+        val dir = videos.carpeta(m)
+        val diff = File(dir, m.artefactos.first { it.role == "diffusion" }.fileName)
+        val t5 = File(dir, m.artefactos.first { it.role == "t5xxl" }.fileName)
+        val vae = File(dir, m.artefactos.first { it.role == "vae" }.fileName)
+        val raw = File(cacheDir, "cpvid-${System.currentTimeMillis()}.cpvid")
+        val mp4 = File(createdFiles.directory(CreatedFile.Kind.VIDEO), "video-${System.currentTimeMillis()}.mp4")
+        DebugLog.log("DIFFUSION", "video generateVideo inicio · 416x240 · 17 frames · 8fps · 8 steps")
+        GenClient.ejecutar(this, GenProtocolo.video(
+            diff.absolutePath, vae.absolutePath, t5.absolutePath,
+            prompt,
+            "borroso, baja calidad, ruido, deforme",
+            raw.absolutePath,
+            416, 240, 17, 8, 8
+        ))
+        withContext(Dispatchers.IO) { DiffusionOutput.videoToMp4(raw, mp4) }
+        val item = createdFiles.register(mp4, "video/mp4", CreatedFile.Kind.VIDEO, sesionId, prompt, nombreModelo, 416, 240, 17 * 1000L / 8, 17)
+        raw.delete()
+        mensajes.add("m" to "[[VIDEO]]${item.path}")
+        DebugLog.log("FILES", "vídeo registrado · id=${item.id} · ${item.path} · ${item.sizeBytes} bytes")
     }
 
     override fun onDestroy() {
