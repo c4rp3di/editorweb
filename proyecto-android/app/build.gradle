@@ -26,8 +26,8 @@ android {
         applicationId "com.imagen.chat"
         minSdk 28
         targetSdk 34
-        versionCode 2
-        versionName "v3.0"
+        versionCode 3
+        versionName "v4.0"
 
         ndk {
             abiFilters 'arm64-v8a'
@@ -38,9 +38,11 @@ android {
         viewBinding true
     }
 
+    // jniLibs ampliado: el .so puede acabar en cualquiera de estas rutas
+    // según dónde lo haya colocado el script nativo tras la compilación.
     sourceSets {
         main {
-            jniLibs.srcDirs = ['native/jniLibs']
+            jniLibs.srcDirs = ['native/jniLibs', 'src/main/jniLibs', 'jniLibs']
         }
     }
 
@@ -73,19 +75,11 @@ tasks.register('prepareNativeEngines') {
             logger.lifecycle('Chat Imagen: CHATPRO_SKIP_NATIVE=1; se omite la preparación nativa.')
             return
         }
-        // El editor de Fusion publica el módulo 'app' en 'proyecto-android/app/'
-        // y las rutas internas que no reconoce van a 'app/src/main/<ruta>'.
-        // Se prueban varias rutas posibles para que funcione sin depender de
-        // la convención exacta que use el editor en cada momento.
         def candidatos = [
-            // Lo más probable según la lógica actual del editor:
-            // 'native/...' se sube como 'app/src/main/native/...'
             rootProject.file('proyecto-android/app/src/main/native/prepare_native_engines.sh'),
-            // Variantes por si cambia la convención del editor
             rootProject.file('proyecto-android/app/native/prepare_native_engines.sh'),
             rootProject.file('app/src/main/native/prepare_native_engines.sh'),
             rootProject.file('app/native/prepare_native_engines.sh'),
-            // Último recurso: ruta relativa al propio módulo
             file('native/prepare_native_engines.sh')
         ]
         def scriptFile = candidatos.find { it.exists() }
