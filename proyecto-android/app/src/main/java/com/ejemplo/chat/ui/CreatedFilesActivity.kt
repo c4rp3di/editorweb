@@ -32,6 +32,7 @@ class CreatedFilesActivity : AppCompatActivity() {
         header.addView(TextView(this).apply { text = "Mis archivos"; textSize = 24f; setTypeface(null, 1) }, LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(Button(this).apply { text = "‹"; setOnClickListener { finish() } }, LinearLayout.LayoutParams(dp(52), dp(48)))
         root.addView(header)
+
         val filters = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         listOf("Todos" to Filter.ALL, "Imágenes" to Filter.IMAGE, "Vídeos" to Filter.VIDEO, "Otros" to Filter.OTHER).forEach { (label, value) ->
             filters.addView(Button(this).apply { text = label; setAllCaps(false); setOnClickListener { filter = value; render() } }, LinearLayout.LayoutParams(0, dp(46), 1f))
@@ -49,13 +50,17 @@ class CreatedFilesActivity : AppCompatActivity() {
     private fun render() {
         list.removeAllViews()
         val items = manager.read().filter { filter == Filter.ALL || it.kind.name == filter.name }
-        if (items.isEmpty()) { list.addView(TextView(this).apply { text = "No hay archivos todavía."; textSize = 15f; setTextColor(Color.GRAY); setPadding(8, 28, 8, 28) }); return }
+        if (items.isEmpty()) {
+            list.addView(TextView(this).apply { text = "No hay archivos todavía."; textSize = 15f; setTextColor(Color.GRAY); setPadding(8, 28, 8, 28) })
+            return
+        }
         val fmt = SimpleDateFormat("d MMM yyyy · HH:mm", Locale.getDefault())
         items.forEach { item ->
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(8, 8, 4, 8) }
             val info = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            info.addView(TextView(this).apply { text = File(item.path).name; textSize = 15f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
-            info.addView(TextView(this).apply { text = "${label(item.kind)} · ${formatSize(item.sizeBytes)} · ${fmt.format(Date(item.createdAt))}"; textSize = 11f; setTextColor(Color.GRAY) })
+            val name = TextView(this).apply { text = File(item.path).name; textSize = 15f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
+            val detail = TextView(this).apply { text = "${label(item.kind)} · ${formatSize(item.sizeBytes)} · ${fmt.format(Date(item.createdAt))}"; textSize = 11f; setTextColor(Color.GRAY) }
+            info.addView(name); info.addView(detail)
             row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(Button(this).apply { text = "Abrir"; setAllCaps(false); setOnClickListener { open(item) } })
             row.addView(Button(this).apply { text = "Compartir"; setAllCaps(false); setOnClickListener { share(item) } })
@@ -66,7 +71,11 @@ class CreatedFilesActivity : AppCompatActivity() {
     }
 
     private fun open(item: CreatedFile) {
-        startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uriFor(item), item.mimeType).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+        if (item.kind == CreatedFile.Kind.VIDEO) {
+            startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uriFor(item), item.mimeType).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+        } else {
+            startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uriFor(item), item.mimeType).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+        }
     }
 
     private fun share(item: CreatedFile) {
