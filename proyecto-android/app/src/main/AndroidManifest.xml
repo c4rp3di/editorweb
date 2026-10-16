@@ -32,6 +32,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Android 14: el servicio en primer plano de WorkManager necesita un tipo declarado;
+             debe coincidir con el que pasa AnalysisWorker en ForegroundInfo (dataSync). -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
