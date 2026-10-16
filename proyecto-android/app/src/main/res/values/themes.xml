@@ -1,4 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- F3: la UI es Compose; este tema solo decide la ventana base (sin ActionBar nativa). -->
-    <style name="Theme.Panoptes" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Vigia" parent="Theme.Material3.DayNight.NoActionBar" />
 </resources>
