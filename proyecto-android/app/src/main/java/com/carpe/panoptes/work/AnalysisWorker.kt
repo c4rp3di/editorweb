@@ -9,6 +9,9 @@ import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import com.carpe.panoptes.PanoptesApp
 import com.carpe.panoptes.R
 import com.carpe.panoptes.analyzer.orchestrator.AnalysisOrchestrator
@@ -23,6 +26,8 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
     companion object {
         const val KEY_ANALYSIS_ID = "analysisId"
         const val KEY_APK_PATH = "apkPath"
+        /** Rutas de los splits de una instalación dividida (el base va en KEY_APK_PATH). */
+        const val KEY_EXTRA_APKS = "extraApkPaths"
         private const val CHANNEL_ID = "panoptes_analysis"
         private const val NOTIF_ID = 1001
     }
@@ -30,13 +35,14 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
     override suspend fun doWork(): Result {
         val analysisId = inputData.getString(KEY_ANALYSIS_ID) ?: return Result.failure()
         val apkPath = inputData.getString(KEY_APK_PATH) ?: return Result.failure()
+        val extraApks = inputData.getStringArray(KEY_EXTRA_APKS)?.toList() ?: emptyList()
 
         setForeground(crearForegroundInfo())
 
         val app = applicationContext as PanoptesApp
         return try {
             val orquestador = AnalysisOrchestrator(applicationContext, app.database, app.moduleManager)
-            orquestador.run(analysisId, apkPath)
+            orquestador.run(analysisId, apkPath, extraApks)
 
             app.database.analysisDao().getById(analysisId)?.let { entidad ->
                 app.database.analysisDao().update(
@@ -44,11 +50,26 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 )
             }
             Result.success()
+        } catch (e: CancellationException) {
+            // Cancelación (el usuario o el sistema cancelan el trabajo): el registro no puede quedar
+            // "en curso" para siempre. Se marca ERROR con su finishedAt y se relanza la cancelación.
+            marcarTerminal(app, analysisId, AnalysisStatus.ERROR)
+            throw e
         } catch (e: Exception) {
-            app.database.analysisDao().getById(analysisId)?.let { entidad ->
-                app.database.analysisDao().update(entidad.copy(status = AnalysisStatus.ERROR))
-            }
+            marcarTerminal(app, analysisId, AnalysisStatus.ERROR)
             Result.failure()
+        }
+    }
+
+    /** Estado terminal + finishedAt siempre juntos (auditoría H-10); NonCancellable para que
+     *  la escritura se complete aunque la corrutina ya esté cancelada. */
+    private suspend fun marcarTerminal(app: PanoptesApp, analysisId: String, estado: AnalysisStatus) {
+        withContext(NonCancellable) {
+            app.database.analysisDao().getById(analysisId)?.let { entidad ->
+                app.database.analysisDao().update(
+                    entidad.copy(status = estado, finishedAt = System.currentTimeMillis())
+                )
+            }
         }
     }
 
