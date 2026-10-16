@@ -20,14 +20,21 @@ import kotlin.coroutines.resumeWithException
 class GenDetenida : Exception("Generación detenida")
 class GenFallo(mensaje: String) : Exception(mensaje)
 
+/**
+ * Lanza el trabajo en GenService (proceso ":gen") y espera el resultado.
+ * Solo se admite un trabajo a la vez.
+ */
 object GenClient {
     @Volatile private var ultimo = DiffusionNative.Progreso(0, 0, 0, 0)
     @Volatile private var pid = 0
     @Volatile private var sesion: Sesion? = null
 
+    /** Último progreso recibido del proceso de generación. */
     fun progreso(): DiffusionNative.Progreso = ultimo
+
     fun enCurso(): Boolean = sesion != null
 
+    /** RSS (MB) del proceso de generación, para el log; -1 si no se puede leer. */
     fun rssGenMb(): Long = try {
         val p = pid
         if (p <= 0) -1L else File("/proc/$p/status").useLines { l ->
@@ -35,6 +42,7 @@ object GenClient {
         }
     } catch (_: Exception) { -1L }
 
+    /** Detiene la generación: mata el proceso ":gen". La corrutina que espera recibe GenDetenida. */
     fun detener() {
         val s = sesion ?: return
         DebugLog.log("GEN", "detener solicitado por el usuario · pid gen=$pid")
@@ -91,12 +99,14 @@ object GenClient {
             }
         }
 
+        /** Cierra la sesión una sola vez: desvincula, mata el proceso si hace falta y reanuda la corrutina. */
         fun terminar(error: Throwable?, resumir: Boolean = true) {
             if (terminado) return
             terminado = true
             val p = pid
             try { app.unbindService(conexion) } catch (_: Exception) {}
             if (sesion === this) sesion = null
+            // Matar el proceso si el trabajo no acabó bien (detención, cancelación o fallo) y sigue vivo.
             if (error != null || !resumir) {
                 if (p > 0) try { Process.killProcess(p) } catch (_: Exception) {}
             }
@@ -108,6 +118,11 @@ object GenClient {
     }
 }
 
+/**
+ * Traduce el contador del motor a una etapa y un porcentaje global.
+ *  fase 1: cargando modelo y codificando el prompt · fase 2: muestreo · fase 3: decodificación VAE / guardado.
+ *  Pesos del porcentaje: preparación 0–5 % · muestreo 5–90 % · decodificación 90–99 %.
+ */
 class SeguimientoProgreso(private val pasosSolicitados: Int) {
     class Estado(val porcentaje: Int, val texto: String)
 
@@ -122,6 +137,7 @@ class SeguimientoProgreso(private val pasosSolicitados: Int) {
             muestreo && p.pasos > 0 -> {
                 if (p.paso != pasoVisto) { pasoVisto = p.paso; inicioPasoMs = ahora }
                 val hechos = p.paso.coerceIn(0, p.pasos)
+                // Interpola dentro del paso en curso con la duración del anterior (si se conoce).
                 val frac = if (hechos < p.pasos && p.ultimoPasoMs > 0 && hechos > 0)
                     ((ahora - inicioPasoMs).toFloat() / p.ultimoPasoMs).coerceIn(0f, 0.95f) else 0f
                 val pct = (5 + 85f * (hechos + frac) / p.pasos).toInt().coerceIn(5, 90)
@@ -133,6 +149,7 @@ class SeguimientoProgreso(private val pasosSolicitados: Int) {
                 Estado(pct, "$pct % · muestreo paso ${hechos + if (hechos < p.pasos) 1 else 0}/${p.pasos} · $tiempo$eta")
             }
             p.fase >= 3 -> {
+                // Con 1..64 el contador son los tiles del VAE; con valores mayores es la carga de tensores del VAE.
                 if (p.pasos in 1..64 && p.pasos != pasosSolicitados) {
                     val pct = (90 + 9f * p.paso.coerceIn(0, p.pasos) / p.pasos).toInt()
                     Estado(pct, "$pct % · decodificando imagen ${p.paso}/${p.pasos} · $tiempo")
