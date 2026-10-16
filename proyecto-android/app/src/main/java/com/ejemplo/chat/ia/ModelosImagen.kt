@@ -26,6 +26,7 @@ class ModelosImagen(private val context: Context) {
     private val weights = ModelWeightsManager(context)
     fun carpeta(m: ModeloImagen) = File(root, m.id).apply { mkdirs() }
     fun verificacion(m: ModeloImagen) = weights.verifyAll(carpeta(m), m.artefactos)
+    /** Rápido (sin hash): apto para el hilo principal. La verificación completa va en verificacion(). */
     fun descargado(m: ModeloImagen): Boolean = weights.presentAll(carpeta(m), m.artefactos)
     fun descargar(m: ModeloImagen, onProgress: (Int) -> Unit = {}) { m.artefactos.forEach { weights.download(carpeta(m), it, onProgress) }; verificacion(m) }
     fun espacioLibreBytes() = root.usableSpace
