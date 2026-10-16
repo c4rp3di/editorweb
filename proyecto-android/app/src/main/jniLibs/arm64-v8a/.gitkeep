@@ -1,5 +1,0 @@
-Aquí cae libexec-shim.so cuando build-shell-apk.yml lo descarga ya
-compilado desde el release deps-shim-latest (ver .github/workflows/
-build-shell-apk.yml). Si compilas en local sin ese paso, Gradle lo
-compilará desde fuente via externalNativeBuild/CMake (necesitas el NDK
-instalado) y este directorio se puede dejar vacío.
