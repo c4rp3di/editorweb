@@ -326,12 +326,13 @@ static void aplicarNitidez(std::vector<unsigned char> & pixels, int width, int h
     }
 }
 
-static sd_ctx_t * createContext(const std::string & modelPath, const std::string & vaePath, bool flashAttn) {
+static sd_ctx_t * createContext(const std::string & modelPath, const std::string & vaePath, bool flashAttn, bool vaeGpu) {
     sd_ctx_params_t params;
     sd_ctx_params_init(&params);
     params.model_path = modelPath.empty() ? nullptr : modelPath.c_str();
     params.vae_path = vaePath.empty() ? nullptr : vaePath.c_str();
-    const char * backendSpec = "diffusion=vulkan0,vae=cpu";
+    // VAE en CPU por defecto (estable); en GPU es opcional y experimental.
+    const char * backendSpec = vaeGpu ? "diffusion=vulkan0,vae=vulkan0" : "diffusion=vulkan0,vae=cpu";
     params.backend = backendSpec;
     params.params_backend = backendSpec;
     params.n_threads = 4;
@@ -389,7 +390,7 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
         jstring jmodel, jstring jvae,
         jstring jprompt, jstring jnegative, jstring jout,
         jint width, jint height, jint steps, jlong seed,
-        jfloat cfg, jfloat sharpness, jint sampler, jboolean keepLoaded, jboolean flashAttn, jint vaeTile) {
+        jfloat cfg, jfloat sharpness, jint sampler, jboolean keepLoaded, jboolean flashAttn, jint vaeTile, jboolean vaeGpu) {
     try {
         const std::string model = toString(env, jmodel);
         const std::string vae = toString(env, jvae);
@@ -402,7 +403,7 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
 
         PhaseGuard guard;
         const auto tTotal = std::chrono::steady_clock::now();
-        const std::string key = model + "|" + vae + (flashAttn ? "|fa1" : "|fa0");
+        const std::string key = model + "|" + vae + (flashAttn ? "|fa1" : "|fa0") + (vaeGpu ? "|vg1" : "|vg0");
         sd_ctx_t * ctx = nullptr;
         bool reutilizado = false;
         {
@@ -412,7 +413,7 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
                 reutilizado = true;
             } else {
                 releaseCachedCtx();   // otro modelo (o ninguno): libera lo anterior antes de cargar
-                ctx = createContext(model, vae, flashAttn == JNI_TRUE);
+                ctx = createContext(model, vae, flashAttn == JNI_TRUE, vaeGpu == JNI_TRUE);
                 if (ctx && keepLoaded) { g_ctx = ctx; g_ctxKey = key; }
             }
             if (!ctx) {
@@ -439,8 +440,9 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
             gen.sample_params.scheduler = DISCRETE_SCHEDULER;
         } else if (sampler == 2) {
             // LCM (modelos LCM): 4-8 pasos y CFG ~1-2. Con CFG 1.0 se salta la pasada del prompt negativo.
+            // El planificador LCM reproduce los timesteps de entrenamiento del modelo; con el discreto salía ruido.
             gen.sample_params.sample_method = LCM_SAMPLE_METHOD;
-            gen.sample_params.scheduler = DISCRETE_SCHEDULER;
+            gen.sample_params.scheduler = LCM_SCHEDULER;
         } else {
             gen.sample_params.sample_method = EULER_SAMPLE_METHOD;
             gen.sample_params.scheduler = DISCRETE_SCHEDULER;
@@ -457,9 +459,9 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
         gen.vae_tiling_params.tile_size_h = tile;
         gen.vae_tiling_params.target_overlap = 0.25f;
 
-        nlogf("IMG start model=%s size=%dx%d steps=%d seed=%lld cfg=%.2f sharp=%.2f sampler=%d flash=%d vaeTile=%d rss=%ldMB",
+        nlogf("IMG start model=%s size=%dx%d steps=%d seed=%lld cfg=%.2f sharp=%.2f sampler=%d flash=%d vaeTile=%d vaeGpu=%d rss=%ldMB",
               model.c_str(), width, height, steps, static_cast<long long>(seed),
-              cfg, sharpness, sampler, flashAttn ? 1 : 0, static_cast<int>(vaeTile), currentRssMb());
+              cfg, sharpness, sampler, flashAttn ? 1 : 0, static_cast<int>(vaeTile), vaeGpu ? 1 : 0, currentRssMb());
 
         sd_image_t * images = nullptr;
         int count = 0;
