@@ -43,7 +43,7 @@ object DiffusionNative {
      * Genera una imagen y la escribe directamente como PNG nativo.
      * @param cfg escala de guiado (guidance). 7.0 es el valor típico. Con prompt negativo vacío se fuerza 1.0.
      * @param sharpness 0.0 = sin post-proceso; 0.8 = nitidez alta. Se aplica unsharp mask en el pipeline nativo.
-     * @param sampler 0 = EULER_A + KARRAS (mejor calidad), 1 = EULER + DISCRETE, 2 = LCM (solo modelos LCM: 4-8 pasos, CFG 1-2).
+     * @param sampler 0 = EULER_A + KARRAS (mejor calidad), 1 = EULER + DISCRETE, 2 = LCM, 3 = EULER_A + DISCRETE (2 y 3: modelos LCM, 4-8 pasos, CFG 1-2).
      * @param vaeTile tamaño de mosaico del VAE en px (64-1024). Mayor = más RAM punta y menos tiempo; si cubre la imagen entera no hay mosaicos.
      * @param flashAttn atención flash de ggml; desactivarla puede ir mejor en algunas GPU móviles.
      * @param mantenerCargado true = conserva el modelo en memoria al terminar y lo reutiliza si la
