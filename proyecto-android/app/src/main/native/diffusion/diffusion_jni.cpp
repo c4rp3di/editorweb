@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <android/log.h>
 #include <atomic>
+#include <chrono>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -342,6 +343,23 @@ static sd_ctx_t * createContext(const std::string & modelPath, const std::string
     return new_sd_ctx(&params);
 }
 
+// ---- Modelo en memoria (opcional) ----
+// Con "mantener modelo" el contexto sobrevive entre imágenes del mismo proceso :gen.
+static sd_ctx_t * g_ctx = nullptr;
+static std::string g_ctxKey;
+
+static void releaseCachedCtx() {
+    if (g_ctx) {
+        free_sd_ctx(g_ctx);
+        g_ctx = nullptr;
+    }
+    g_ctxKey.clear();
+}
+
+static long long msSince(const std::chrono::steady_clock::time_point & t0) {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
+}
+
 static void logError(const char * message) {
     __android_log_print(ANDROID_LOG_ERROR, TAG, "%s", message);
     wrStr("[NATIVE] ERROR: ");
@@ -371,7 +389,7 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
         jstring jmodel, jstring jvae,
         jstring jprompt, jstring jnegative, jstring jout,
         jint width, jint height, jint steps, jlong seed,
-        jfloat cfg, jfloat sharpness, jint sampler) {
+        jfloat cfg, jfloat sharpness, jint sampler, jboolean keepLoaded) {
     try {
         const std::string model = toString(env, jmodel);
         const std::string vae = toString(env, jvae);
@@ -383,10 +401,26 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
         if (width <= 0 || height <= 0 || steps <= 0) return JNI_FALSE;
 
         PhaseGuard guard;
-        sd_ctx_t * ctx = createContext(model, vae);
-        if (!ctx) {
-            logError("No se pudo crear el contexto de stable-diffusion.cpp");
-            return JNI_FALSE;
+        const auto tTotal = std::chrono::steady_clock::now();
+        const std::string key = model + "|" + vae;
+        sd_ctx_t * ctx = nullptr;
+        bool reutilizado = false;
+        {
+            const auto tCtx = std::chrono::steady_clock::now();
+            if (g_ctx && g_ctxKey == key) {
+                ctx = g_ctx;
+                reutilizado = true;
+            } else {
+                releaseCachedCtx();   // otro modelo (o ninguno): libera lo anterior antes de cargar
+                ctx = createContext(model, vae);
+                if (ctx && keepLoaded) { g_ctx = ctx; g_ctxKey = key; }
+            }
+            if (!ctx) {
+                logError("No se pudo crear el contexto de stable-diffusion.cpp");
+                return JNI_FALSE;
+            }
+            nlogf("TIEMPO contexto=%lldms %s rss=%ldMB", msSince(tCtx),
+                  reutilizado ? "(modelo reutilizado en memoria)" : "(modelo cargado desde disco)", currentRssMb());
         }
 
         sd_img_gen_params_t gen;
@@ -418,8 +452,10 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
 
         sd_image_t * images = nullptr;
         int count = 0;
+        const auto tGen = std::chrono::steady_clock::now();
         const bool ok = generate_image(ctx, &gen, &images, &count);
         g_phase.store(3);
+        nlogf("TIEMPO generate_image=%lldms (texto + muestreo + VAE) · pasos=%d · %dx%d", msSince(tGen), steps, width, height);
         nlogf("IMG generate returned=%d count=%d rss=%ldMB", ok ? 1 : 0, count, currentRssMb());
 
         bool wrote = false;
@@ -429,6 +465,7 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
             const int c = static_cast<int>(images[0].channel);
             const size_t total = static_cast<size_t>(w) * h * c;
 
+            const auto tPost = std::chrono::steady_clock::now();
             if (sharpness > 0.0f && c >= 3) {
                 std::vector<unsigned char> copia(images[0].data, images[0].data + total);
                 aplicarNitidez(copia, w, h, c, sharpness, 0.0f);
@@ -440,18 +477,28 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
 
             wrote = writePngStreaming(outPath, images[0]);
             nlogf("IMG PNG directo terminado=%d rss=%ldMB", wrote ? 1 : 0, currentRssMb());
+            nlogf("TIEMPO nitidez+PNG=%lldms", msSince(tPost));
         } else {
             nlogf("IMG sin salida utilizable: ok=%d count=%d", ok ? 1 : 0, count);
         }
 
         if (images) { free_sd_images(images, count); images = nullptr; }
-        free_sd_ctx(ctx);
+        // Si algo falló, nunca se conserva el contexto: podría haber quedado en un estado dudoso.
+        if (keepLoaded && ok && wrote && ctx == g_ctx) {
+            nlogf("IMG modelo conservado en memoria para la siguiente imagen");
+        } else {
+            if (ctx == g_ctx) { g_ctx = nullptr; g_ctxKey.clear(); }
+            free_sd_ctx(ctx);
+        }
+        nlogf("TIEMPO total=%lldms", msSince(tTotal));
         nlogf("IMG end wrote=%d rss=%ldMB", wrote ? 1 : 0, currentRssMb());
         return wrote ? JNI_TRUE : JNI_FALSE;
     } catch (const std::exception & e) {
         nlogf("EXCEPCION C++ generando imagen: %s", e.what());
+        releaseCachedCtx();
     } catch (...) {
         nlogf("EXCEPCION C++ desconocida generando imagen");
+        releaseCachedCtx();
     }
     return JNI_FALSE;
 }
