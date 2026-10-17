@@ -33,8 +33,9 @@ object GenProtocolo {
         sampler: Int,
         mantener: Boolean = false,
         flashAttn: Boolean = true,
-        vaeTile: Int = 192,
-        vaeGpu: Boolean = false
+        vaeTile: Int = 256,
+        vaeGpu: Boolean = false,
+        difusionCpu: Boolean = false
     ): Bundle =
         Bundle().apply {
             putString("tipo", "imagen")
@@ -54,6 +55,7 @@ object GenProtocolo {
             putBoolean("flash", flashAttn)
             putInt("tile", vaeTile)
             putBoolean("vaeGpu", vaeGpu)
+            putBoolean("difCpu", difusionCpu)
         }
 }
 
@@ -142,7 +144,8 @@ class GenService : Service() {
                     mantenerCargado = mantener,
                     flashAttn = datos.getBoolean("flash", true),
                     vaeTile = datos.getInt("tile", 256),
-                    vaeGpu = datos.getBoolean("vaeGpu", false)
+                    vaeGpu = datos.getBoolean("vaeGpu", false),
+                    difusionCpu = datos.getBoolean("difCpu", false)
                 )
                 if (!ok) error = "stable-diffusion.cpp no generó el resultado (mira [NATIVE] en el log)"
             } catch (t: Throwable) {
