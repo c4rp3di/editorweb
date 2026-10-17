@@ -14,6 +14,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -62,7 +63,8 @@ class ChatActivity : AppCompatActivity() {
     private var generando = false
     private var sesionId = "actual"
 
-    private var steps = 30
+    private var steps = 20
+    private var mantenerModelo = false
     private var cfg = 7.5f
     private var sharpness = 0.8f
     private var sampler = 0
@@ -124,7 +126,8 @@ class ChatActivity : AppCompatActivity() {
         }
 
         val prefs = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
-        steps = prefs.getInt("steps", 30)
+        steps = prefs.getInt("steps", 20)
+        mantenerModelo = prefs.getBoolean("mantener_modelo", false)
         cfg = prefs.getFloat("cfg", 7.5f)
         sharpness = prefs.getFloat("sharpness", 0.8f)
         sampler = prefs.getInt("sampler", 0)
@@ -136,8 +139,9 @@ class ChatActivity : AppCompatActivity() {
         modeloActual = ModelosImagen.MODELOS.firstOrNull { it.id == idGuardado && imagenes.descargado(it) }
         actualizarBotonGenerar()
 
+        modeloActual?.let { btnModelo.text = it.nombre }
         if (modeloActual == null) {
-            tvEstado.text = "Elige y descarga el modelo SD 1.5"
+            tvEstado.text = "Elige y descarga un modelo"
             contenedor.postDelayed({ elegirModelo() }, 300)
         } else {
             tvEstado.text = "${modeloActual!!.nombre} · listo"
@@ -161,7 +165,7 @@ class ChatActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
         })
         empty.addView(TextView(this).apply {
-            text = "Stable Diffusion 1.5 · privado y sin conexión"
+            text = "Stable Diffusion 1.5 · DreamShaper · Realistic Vision · privado y sin conexión"
             textSize = 14f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -298,6 +302,23 @@ class ChatActivity : AppCompatActivity() {
             alto = it.toInt()
         }
 
+        val swMantener = SwitchCompat(this).apply {
+            text = "Mantener el modelo en memoria (2 min)"
+            textSize = 14f
+            setTextColor(colorPrincipal)
+            isChecked = mantenerModelo
+            setPadding(0, dp(8), 0, 0)
+            setOnCheckedChangeListener { _, marcado -> mantenerModelo = marcado }
+        }
+        raiz.addView(swMantener)
+        raiz.addView(TextView(this).apply {
+            text = "Evita recargar los pesos entre imágenes seguidas (la 2.ª y siguientes salen antes). " +
+                   "Ocupa más RAM mientras tanto; si notas cierres, desactívalo."
+            textSize = 12f
+            setTextColor(colorSecundario)
+            setPadding(0, dp(2), 0, dp(8))
+        })
+
         val samplerGrupo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(8)) }
         samplerGrupo.addView(TextView(this).apply {
             text = "Muestreador"; textSize = 14f; setTextColor(colorPrincipal)
@@ -346,6 +367,7 @@ class ChatActivity : AppCompatActivity() {
                 .putInt("steps", steps).putFloat("cfg", cfg).putFloat("sharpness", sharpness)
                 .putInt("sampler", sampler).putInt("ancho", ancho).putInt("alto", alto)
                 .putLong("semilla", semilla)
+                .putBoolean("mantener_modelo", mantenerModelo)
                 .apply()
             actualizarSemilla()
             Toast.makeText(this, "Parámetros guardados", Toast.LENGTH_SHORT).show()
@@ -374,6 +396,13 @@ class ChatActivity : AppCompatActivity() {
             textSize = 20f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(colorPrincipal)
+        })
+        raiz.addView(TextView(this).apply {
+            text = "Cada modelo se descarga y ocupa disco por separado · " +
+                   "en uso: ${imagenes.bytesEnDisco() / 1_000_000} MB · libre: ${imagenes.espacioLibreBytes() / 1_000_000} MB"
+            textSize = 12f
+            setTextColor(colorSecundario)
+            setPadding(0, dp(4), 0, 0)
         })
 
         ModelosImagen.MODELOS.forEach { m ->
@@ -566,13 +595,13 @@ class ChatActivity : AppCompatActivity() {
                 if (!verificacion.ok) {
                     throw IllegalStateException(verificacion.message)
                 }
-                val modelPath = File(imagenes.carpeta(m), m.artefactos.first().fileName).absolutePath
+                val modelPath = imagenes.rutaModelo(m)
 
                 GenClient.ejecutar(
                     this@ChatActivity,
                     GenProtocolo.imagen(
                         modelPath = modelPath,
-                        vaePath = "",
+                        vaePath = imagenes.rutaVae(m),
                         prompt = prompt,
                         negativePrompt = negativo,
                         outputPath = png.absolutePath,
@@ -582,7 +611,8 @@ class ChatActivity : AppCompatActivity() {
                         seed = semillaEfectiva,
                         cfg = cfg,
                         sharpness = sharpness,
-                        sampler = sampler
+                        sampler = sampler,
+                        mantener = mantenerModelo
                     )
                 )
 
