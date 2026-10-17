@@ -31,7 +31,9 @@ object GenProtocolo {
         cfg: Float,
         sharpness: Float,
         sampler: Int,
-        mantener: Boolean = false
+        mantener: Boolean = false,
+        flashAttn: Boolean = true,
+        vaeTile: Int = 192
     ): Bundle =
         Bundle().apply {
             putString("tipo", "imagen")
@@ -48,6 +50,8 @@ object GenProtocolo {
             putFloat("sharpness", sharpness)
             putInt("sampler", sampler)
             putBoolean("mantener", mantener)
+            putBoolean("flash", flashAttn)
+            putInt("tile", vaeTile)
         }
 }
 
@@ -133,7 +137,9 @@ class GenService : Service() {
                     cfg = datos.getFloat("cfg", 7.0f),
                     sharpness = datos.getFloat("sharpness", 0.8f),
                     sampler = datos.getInt("sampler", 0),
-                    mantenerCargado = mantener
+                    mantenerCargado = mantener,
+                    flashAttn = datos.getBoolean("flash", true),
+                    vaeTile = datos.getInt("tile", 192)
                 )
                 if (!ok) error = "stable-diffusion.cpp no generó el resultado (mira [NATIVE] en el log)"
             } catch (t: Throwable) {
