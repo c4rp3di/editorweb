@@ -62,7 +62,7 @@ class ChatActivity : AppCompatActivity() {
     private var generando = false
     private var sesionId = "actual"
 
-    private var steps = 20
+    private var steps = 30
     private var cfg = 7.5f
     private var sharpness = 0.8f
     private var sampler = 0
@@ -124,7 +124,7 @@ class ChatActivity : AppCompatActivity() {
         }
 
         val prefs = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
-        steps = prefs.getInt("steps", 20)
+        steps = prefs.getInt("steps", 30)
         cfg = prefs.getFloat("cfg", 7.5f)
         sharpness = prefs.getFloat("sharpness", 0.8f)
         sampler = prefs.getInt("sampler", 0)
