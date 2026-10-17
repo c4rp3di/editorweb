@@ -65,6 +65,8 @@ class ChatActivity : AppCompatActivity() {
 
     private var steps = 20
     private var mantenerModelo = false
+    private var flashAttn = true
+    private var vaeTile = 192
     private var cfg = 7.5f
     private var sharpness = 0.8f
     private var sampler = 0
@@ -126,11 +128,10 @@ class ChatActivity : AppCompatActivity() {
         }
 
         val prefs = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
-        steps = prefs.getInt("steps", 20)
         mantenerModelo = prefs.getBoolean("mantener_modelo", false)
-        cfg = prefs.getFloat("cfg", 7.5f)
+        flashAttn = prefs.getBoolean("flash_attn", true)
+        vaeTile = prefs.getInt("vae_tile", 192)
         sharpness = prefs.getFloat("sharpness", 0.8f)
-        sampler = prefs.getInt("sampler", 0)
         ancho = prefs.getInt("ancho", 512)
         alto = prefs.getInt("alto", 512)
         semilla = prefs.getLong("semilla", -1L)
@@ -139,6 +140,7 @@ class ChatActivity : AppCompatActivity() {
         modeloActual = ModelosImagen.MODELOS.firstOrNull { it.id == idGuardado && imagenes.descargado(it) }
         actualizarBotonGenerar()
 
+        cargarPerfil(modeloActual)
         modeloActual?.let { btnModelo.text = it.nombre }
         if (modeloActual == null) {
             tvEstado.text = "Elige y descarga un modelo"
@@ -148,6 +150,28 @@ class ChatActivity : AppCompatActivity() {
         }
         renderEstadoInicial()
         actualizarSemilla()
+    }
+
+    /** Pasos / CFG / muestreador se guardan por separado para modelos LCM y normales. */
+    private fun cargarPerfil(m: ModelosImagen.ModeloImagen?) {
+        val prefs = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
+        if (m?.lcm == true) {
+            steps = prefs.getInt("steps_lcm", 6)
+            cfg = prefs.getFloat("cfg_lcm", 1.0f)
+            sampler = 2
+        } else {
+            steps = prefs.getInt("steps", 20)
+            cfg = prefs.getFloat("cfg", 7.5f)
+            sampler = prefs.getInt("sampler", 0).let { if (it == 2) 0 else it }
+        }
+    }
+
+    private fun guardarPerfil(prefs: android.content.SharedPreferences.Editor) {
+        if (modeloActual?.lcm == true) {
+            prefs.putInt("steps_lcm", steps).putFloat("cfg_lcm", cfg)
+        } else {
+            prefs.putInt("steps", steps).putFloat("cfg", cfg).putInt("sampler", sampler)
+        }
     }
 
     private fun renderEstadoInicial() {
@@ -286,10 +310,21 @@ class ChatActivity : AppCompatActivity() {
             raiz.addView(grupo)
         }
 
-        filaDeslizante("Pasos de muestreo", steps.toFloat(), 10f, 60f, 1f, { "${it.toInt()}" }) {
+        val esLcm = modeloActual?.lcm == true
+        if (esLcm) {
+            raiz.addView(TextView(this).apply {
+                text = "Modelo LCM: usa 4-8 pasos y CFG 1,0-2,0. Con CFG 1,0 el prompt negativo se ignora y va el doble de rápido."
+                textSize = 12f
+                setTextColor(colorSecundario)
+                setPadding(0, 0, 0, dp(8))
+            })
+        }
+        filaDeslizante("Pasos de muestreo", steps.toFloat().coerceIn(if (esLcm) 2f else 10f, if (esLcm) 12f else 60f),
+            if (esLcm) 2f else 10f, if (esLcm) 12f else 60f, 1f, { "${it.toInt()}" }) {
             steps = it.toInt()
         }
-        filaDeslizante("CFG (guía del prompt)", cfg, 1.0f, 15.0f, 0.5f, { "%.1f".format(it) }) {
+        filaDeslizante("CFG (guía del prompt)", cfg.coerceIn(1.0f, if (esLcm) 4.0f else 15.0f),
+            1.0f, if (esLcm) 4.0f else 15.0f, 0.5f, { "%.1f".format(it) }) {
             cfg = it
         }
         filaDeslizante("Nitidez (unsharp mask)", sharpness, 0.0f, 2.0f, 0.1f, { "%.1f".format(it) }) {
@@ -319,6 +354,35 @@ class ChatActivity : AppCompatActivity() {
             setPadding(0, dp(2), 0, dp(8))
         })
 
+        val swFlash = SwitchCompat(this).apply {
+            text = "Atención flash (GPU)"
+            textSize = 14f
+            setTextColor(colorPrincipal)
+            isChecked = flashAttn
+            setPadding(0, dp(8), 0, 0)
+            setOnCheckedChangeListener { _, marcado -> flashAttn = marcado }
+        }
+        raiz.addView(swFlash)
+        raiz.addView(TextView(this).apply {
+            text = "Prueba a desactivarla si cada paso tarda muchísimo: en algunas GPU Mali el camino flash es lento. " +
+                   "Compara tiempos en Depuración (líneas TIEMPO)."
+            textSize = 12f
+            setTextColor(colorSecundario)
+            setPadding(0, dp(2), 0, dp(8))
+        })
+
+        filaDeslizante("Memoria del VAE (mosaico)", vaeTile.toFloat().coerceIn(128f, 768f), 128f, 768f, 64f,
+            { if (it.toInt() >= maxOf(ancho, alto)) "sin mosaicos" else "${it.toInt()} px" }) {
+            vaeTile = it.toInt()
+        }
+        raiz.addView(TextView(this).apply {
+            text = "Mosaico mayor = decodifica más rápido pero usa más RAM de golpe (los pesos ocupan ~2-2,5 GB aparte). " +
+                   "Si la app se cierra al final de la imagen, bájalo. 192 px es el valor prudente."
+            textSize = 12f
+            setTextColor(colorSecundario)
+            setPadding(0, 0, 0, dp(8))
+        })
+
         val samplerGrupo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(8)) }
         samplerGrupo.addView(TextView(this).apply {
             text = "Muestreador"; textSize = 14f; setTextColor(colorPrincipal)
@@ -332,7 +396,7 @@ class ChatActivity : AppCompatActivity() {
             sampler = if (id == rbKarras.id) 0 else 1
         }
         samplerGrupo.addView(radios)
-        raiz.addView(samplerGrupo)
+        if (!esLcm) raiz.addView(samplerGrupo)
 
         val semGrupo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(8)) }
         semGrupo.addView(TextView(this).apply {
@@ -363,11 +427,14 @@ class ChatActivity : AppCompatActivity() {
         hoja.setOnDismissListener {
             semilla = semInput.text.toString().toLongOrNull() ?: -1L
             val prefs = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
-            prefs.edit()
-                .putInt("steps", steps).putFloat("cfg", cfg).putFloat("sharpness", sharpness)
-                .putInt("sampler", sampler).putInt("ancho", ancho).putInt("alto", alto)
+            val ed = prefs.edit()
+            guardarPerfil(ed)
+            ed.putFloat("sharpness", sharpness)
+                .putInt("ancho", ancho).putInt("alto", alto)
                 .putLong("semilla", semilla)
                 .putBoolean("mantener_modelo", mantenerModelo)
+                .putBoolean("flash_attn", flashAttn)
+                .putInt("vae_tile", vaeTile)
                 .apply()
             actualizarSemilla()
             Toast.makeText(this, "Parámetros guardados", Toast.LENGTH_SHORT).show()
@@ -523,7 +590,10 @@ class ChatActivity : AppCompatActivity() {
             Toast.makeText(this, "libchatpro-diffusion.so no está disponible en este APK/dispositivo", Toast.LENGTH_LONG).show()
             return
         }
+        // Guarda el perfil del modelo anterior y carga el del nuevo (LCM y normales tienen valores distintos).
+        getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit().also { guardarPerfil(it) }.apply()
         modeloActual = m
+        cargarPerfil(m)
         DebugLog.log("DIFFUSION", "modelo activado · ${m.id} · ${imagenes.carpeta(m).absolutePath}")
         getSharedPreferences("chat_local", Context.MODE_PRIVATE).edit()
             .putString("modelo_imagen", m.id).apply()
@@ -611,8 +681,10 @@ class ChatActivity : AppCompatActivity() {
                         seed = semillaEfectiva,
                         cfg = cfg,
                         sharpness = sharpness,
-                        sampler = sampler,
-                        mantener = mantenerModelo
+                        sampler = if (m.lcm) 2 else sampler,
+                        mantener = mantenerModelo,
+                        flashAttn = flashAttn,
+                        vaeTile = vaeTile
                     )
                 )
 
@@ -707,8 +779,10 @@ class ChatActivity : AppCompatActivity() {
                 etPrompt.setText(prompt)
                 item.negativePrompt?.let { etNegativo.setText(it) }
                 item.seed?.let { semilla = it; actualizarSemilla() }
-                item.steps?.let { steps = it }
-                item.cfg?.let { cfg = it }
+                if (modeloActual?.lcm != true) {   // con un modelo LCM se conservan sus pasos/CFG propios
+                    item.steps?.let { steps = it }
+                    item.cfg?.let { cfg = it }
+                }
                 Toast.makeText(this@ChatActivity, "Parámetros cargados en el formulario", Toast.LENGTH_SHORT).show()
             }
         })
