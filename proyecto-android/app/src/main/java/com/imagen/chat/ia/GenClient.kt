@@ -105,7 +105,8 @@ object GenClient {
             if (error != null || !resumir) {
                 if (p > 0) try { Process.killProcess(p) } catch (_: Exception) {}
             }
-            if (error != null && error !is GenDetenida) DebugLog.volcarNativoReciente()
+            // También tras un trabajo "correcto": una imagen en ruido termina con ok=true y sin esto no quedaba rastro nativo.
+            if (error !is GenDetenida) DebugLog.volcarNativoReciente(if (error == null) 110 else 60)
             if (resumir && cont.isActive) {
                 if (error == null) cont.resume(Unit) else cont.resumeWithException(error)
             }
