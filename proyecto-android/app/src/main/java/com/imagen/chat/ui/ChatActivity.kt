@@ -158,7 +158,7 @@ class ChatActivity : AppCompatActivity() {
         if (m?.lcm == true) {
             steps = prefs.getInt("steps_lcm", 6)
             cfg = prefs.getFloat("cfg_lcm", 1.0f)
-            sampler = 2
+            sampler = prefs.getInt("sampler_lcm", 2).let { if (it == 3) 3 else 2 }
         } else {
             steps = prefs.getInt("steps", 20)
             cfg = prefs.getFloat("cfg", 7.5f)
@@ -168,7 +168,7 @@ class ChatActivity : AppCompatActivity() {
 
     private fun guardarPerfil(prefs: android.content.SharedPreferences.Editor) {
         if (modeloActual?.lcm == true) {
-            prefs.putInt("steps_lcm", steps).putFloat("cfg_lcm", cfg)
+            prefs.putInt("steps_lcm", steps).putFloat("cfg_lcm", cfg).putInt("sampler_lcm", sampler)
         } else {
             prefs.putInt("steps", steps).putFloat("cfg", cfg).putInt("sampler", sampler)
         }
@@ -396,7 +396,18 @@ class ChatActivity : AppCompatActivity() {
             sampler = if (id == rbKarras.id) 0 else 1
         }
         samplerGrupo.addView(radios)
-        if (!esLcm) raiz.addView(samplerGrupo)
+        if (esLcm) {
+            val grupoLcm = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(8)) }
+            grupoLcm.addView(TextView(this).apply { text = "Muestreador (modelo LCM)"; textSize = 14f; setTextColor(colorPrincipal) })
+            val radiosLcm = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+            val rbLcm = RadioButton(this).apply { text = "LCM (recomendado)"; textSize = 13f; setTextColor(colorPrincipal); id = View.generateViewId() }
+            val rbEa = RadioButton(this).apply { text = "Euler-A (prueba si LCM sale en ruido)"; textSize = 13f; setTextColor(colorPrincipal); id = View.generateViewId() }
+            if (sampler == 3) rbEa.isChecked = true else rbLcm.isChecked = true
+            radiosLcm.addView(rbLcm); radiosLcm.addView(rbEa)
+            radiosLcm.setOnCheckedChangeListener { _, id -> sampler = if (id == rbEa.id) 3 else 2 }
+            grupoLcm.addView(radiosLcm)
+            raiz.addView(grupoLcm)
+        } else raiz.addView(samplerGrupo)
 
         val semGrupo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(8)) }
         semGrupo.addView(TextView(this).apply {
@@ -681,7 +692,7 @@ class ChatActivity : AppCompatActivity() {
                         seed = semillaEfectiva,
                         cfg = cfg,
                         sharpness = sharpness,
-                        sampler = if (m.lcm) 2 else sampler,
+                        sampler = if (m.lcm) (if (sampler == 3) 3 else 2) else sampler,
                         mantener = mantenerModelo,
                         flashAttn = flashAttn,
                         vaeTile = vaeTile
