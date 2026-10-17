@@ -66,7 +66,8 @@ class ChatActivity : AppCompatActivity() {
     private var steps = 20
     private var mantenerModelo = false
     private var flashAttn = true
-    private var vaeTile = 192
+    private var vaeTile = 256
+    private var vaeGpu = false
     private var cfg = 7.5f
     private var sharpness = 0.8f
     private var sampler = 0
@@ -130,7 +131,8 @@ class ChatActivity : AppCompatActivity() {
         val prefs = getSharedPreferences("chat_local", Context.MODE_PRIVATE)
         mantenerModelo = prefs.getBoolean("mantener_modelo", false)
         flashAttn = prefs.getBoolean("flash_attn", true)
-        vaeTile = prefs.getInt("vae_tile", 192)
+        vaeTile = prefs.getInt("vae_tile", 256)
+        vaeGpu = prefs.getBoolean("vae_gpu", false)
         sharpness = prefs.getFloat("sharpness", 0.8f)
         ancho = prefs.getInt("ancho", 512)
         alto = prefs.getInt("alto", 512)
@@ -383,6 +385,23 @@ class ChatActivity : AppCompatActivity() {
             setPadding(0, 0, 0, dp(8))
         })
 
+        val swVaeGpu = SwitchCompat(this).apply {
+            text = "VAE en la GPU (experimental)"
+            textSize = 14f
+            setTextColor(colorPrincipal)
+            isChecked = vaeGpu
+            setPadding(0, dp(8), 0, 0)
+            setOnCheckedChangeListener { _, marcado -> vaeGpu = marcado }
+        }
+        raiz.addView(swVaeGpu)
+        raiz.addView(TextView(this).apply {
+            text = "Decodificar el VAE en la GPU puede ahorrar 25-100 s por imagen. " +
+                   "Si la imagen sale rota o la app se cierra, desactívalo."
+            textSize = 12f
+            setTextColor(colorSecundario)
+            setPadding(0, dp(2), 0, dp(8))
+        })
+
         val samplerGrupo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(8)) }
         samplerGrupo.addView(TextView(this).apply {
             text = "Muestreador"; textSize = 14f; setTextColor(colorPrincipal)
@@ -401,7 +420,7 @@ class ChatActivity : AppCompatActivity() {
             grupoLcm.addView(TextView(this).apply { text = "Muestreador (modelo LCM)"; textSize = 14f; setTextColor(colorPrincipal) })
             val radiosLcm = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
             val rbLcm = RadioButton(this).apply { text = "LCM (recomendado)"; textSize = 13f; setTextColor(colorPrincipal); id = View.generateViewId() }
-            val rbEa = RadioButton(this).apply { text = "Euler-A (prueba si LCM sale en ruido)"; textSize = 13f; setTextColor(colorPrincipal); id = View.generateViewId() }
+            val rbEa = RadioButton(this).apply { text = "Euler-A (alternativa si LCM falla)"; textSize = 13f; setTextColor(colorPrincipal); id = View.generateViewId() }
             if (sampler == 3) rbEa.isChecked = true else rbLcm.isChecked = true
             radiosLcm.addView(rbLcm); radiosLcm.addView(rbEa)
             radiosLcm.setOnCheckedChangeListener { _, id -> sampler = if (id == rbEa.id) 3 else 2 }
@@ -446,6 +465,7 @@ class ChatActivity : AppCompatActivity() {
                 .putBoolean("mantener_modelo", mantenerModelo)
                 .putBoolean("flash_attn", flashAttn)
                 .putInt("vae_tile", vaeTile)
+                .putBoolean("vae_gpu", vaeGpu)
                 .apply()
             actualizarSemilla()
             Toast.makeText(this, "Parámetros guardados", Toast.LENGTH_SHORT).show()
@@ -695,7 +715,8 @@ class ChatActivity : AppCompatActivity() {
                         sampler = if (m.lcm) (if (sampler == 3) 3 else 2) else sampler,
                         mantener = mantenerModelo,
                         flashAttn = flashAttn,
-                        vaeTile = vaeTile
+                        vaeTile = vaeTile,
+                        vaeGpu = vaeGpu
                     )
                 )
 
