@@ -16,7 +16,9 @@ class ModelosImagen(private val context: Context) {
         val nombre: String,
         val descripcion: String,
         val backend: String,
-        val artefactos: List<ModelWeightsManager.Artifact>
+        val artefactos: List<ModelWeightsManager.Artifact>,
+        /** Modelo LCM: se genera con 4-8 pasos, CFG 1-2 y muestreador LCM (≈10× más rápido). */
+        val lcm: Boolean = false
     )
 
     companion object {
@@ -30,6 +32,10 @@ class ModelosImagen(private val context: Context) {
         // Realistic Vision 5.1 (SG161222) · fp16 sin EMA · commit fijado.
         private const val REALISTIC_URL =
             "https://huggingface.co/SG161222/Realistic_Vision_V5.1_noVAE/resolve/305469dfd7d7410cff6299d34727e237374b5f36/Realistic_Vision_V5.1_fp16-no-ema.safetensors"
+
+        // DreamShaper 8 LCM (Lykon) · mismo estilo que DreamShaper 8 pero destilado para pocos pasos.
+        private const val DREAMSHAPER_LCM_URL =
+            "https://huggingface.co/Lykon/dreamshaper-8-lcm/resolve/9b718ce5fffa8f557c76bddfd7e525916615ba45/DreamShaper8_LCM.safetensors"
 
         val SD15 = ModeloImagen(
             id = "sd15",
@@ -79,7 +85,24 @@ class ModelosImagen(private val context: Context) {
             )
         )
 
-        val MODELOS = listOf(SD15, DREAMSHAPER, REALISTIC_VISION)
+        val DREAMSHAPER_LCM = ModeloImagen(
+            id = "dreamshaper8lcm",
+            nombre = "DreamShaper 8 LCM · rápido",
+            descripcion = "Como DreamShaper 8 pero en 4-8 pasos (≈10× más rápido) · LCM · Vulkan",
+            backend = "stable-diffusion.cpp + Vulkan",
+            lcm = true,
+            artefactos = listOf(
+                ModelWeightsManager.Artifact(
+                    fileName = "DreamShaper8_LCM.safetensors",
+                    url = DREAMSHAPER_LCM_URL,
+                    sha256 = "a4f3e1526c5dc4fcbe342f5c410d83ae202c7a415fcefcbb92e0f93fcd0a87c3",
+                    expectedBytes = 2_133_804_992L,
+                    role = "diffusion"
+                )
+            )
+        )
+
+        val MODELOS = listOf(SD15, DREAMSHAPER, REALISTIC_VISION, DREAMSHAPER_LCM)
     }
 
     private val root = File(context.filesDir, "modelos-imagen").apply { mkdirs() }
