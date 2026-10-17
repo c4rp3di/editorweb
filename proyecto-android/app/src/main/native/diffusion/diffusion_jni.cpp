@@ -326,7 +326,7 @@ static void aplicarNitidez(std::vector<unsigned char> & pixels, int width, int h
     }
 }
 
-static sd_ctx_t * createContext(const std::string & modelPath, const std::string & vaePath) {
+static sd_ctx_t * createContext(const std::string & modelPath, const std::string & vaePath, bool flashAttn) {
     sd_ctx_params_t params;
     sd_ctx_params_init(&params);
     params.model_path = modelPath.empty() ? nullptr : modelPath.c_str();
@@ -337,8 +337,8 @@ static sd_ctx_t * createContext(const std::string & modelPath, const std::string
     params.n_threads = 4;
     params.enable_mmap = false;
     params.wtype = SD_TYPE_F16;
-    params.flash_attn = true;
-    params.diffusion_flash_attn = true;
+    params.flash_attn = flashAttn;
+    params.diffusion_flash_attn = flashAttn;
     params.disable_prefetch = true;
     return new_sd_ctx(&params);
 }
@@ -389,7 +389,7 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
         jstring jmodel, jstring jvae,
         jstring jprompt, jstring jnegative, jstring jout,
         jint width, jint height, jint steps, jlong seed,
-        jfloat cfg, jfloat sharpness, jint sampler, jboolean keepLoaded) {
+        jfloat cfg, jfloat sharpness, jint sampler, jboolean keepLoaded, jboolean flashAttn, jint vaeTile) {
     try {
         const std::string model = toString(env, jmodel);
         const std::string vae = toString(env, jvae);
@@ -402,7 +402,7 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
 
         PhaseGuard guard;
         const auto tTotal = std::chrono::steady_clock::now();
-        const std::string key = model + "|" + vae;
+        const std::string key = model + "|" + vae + (flashAttn ? "|fa1" : "|fa0");
         sd_ctx_t * ctx = nullptr;
         bool reutilizado = false;
         {
@@ -412,7 +412,7 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
                 reutilizado = true;
             } else {
                 releaseCachedCtx();   // otro modelo (o ninguno): libera lo anterior antes de cargar
-                ctx = createContext(model, vae);
+                ctx = createContext(model, vae, flashAttn == JNI_TRUE);
                 if (ctx && keepLoaded) { g_ctx = ctx; g_ctxKey = key; }
             }
             if (!ctx) {
@@ -433,6 +433,10 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
         if (sampler == 0) {
             gen.sample_params.sample_method = EULER_A_SAMPLE_METHOD;
             gen.sample_params.scheduler = KARRAS_SCHEDULER;
+        } else if (sampler == 2) {
+            // LCM (modelos LCM): 4-8 pasos y CFG ~1-2. Con CFG 1.0 se salta la pasada del prompt negativo.
+            gen.sample_params.sample_method = LCM_SAMPLE_METHOD;
+            gen.sample_params.scheduler = DISCRETE_SCHEDULER;
         } else {
             gen.sample_params.sample_method = EULER_SAMPLE_METHOD;
             gen.sample_params.scheduler = DISCRETE_SCHEDULER;
@@ -440,15 +444,18 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
         gen.sample_params.guidance.txt_cfg = (negative.empty() ? 1.0f : cfg);
         gen.seed = seed;
         gen.batch_count = 1;
-        gen.vae_tiling_params.enabled = true;
+        // Tamaño de mosaico del VAE (editable en la app): más grande = menos pasadas pero más RAM punta.
+        // Si el mosaico cubre toda la imagen, se decodifica de una vez (sin mosaicos).
+        const int tile = std::min(1024, std::max(64, static_cast<int>(vaeTile)));
+        gen.vae_tiling_params.enabled = tile < std::max(width, height);
         gen.vae_tiling_params.temporal_tiling = false;
-        gen.vae_tiling_params.tile_size_w = 192;
-        gen.vae_tiling_params.tile_size_h = 192;
+        gen.vae_tiling_params.tile_size_w = tile;
+        gen.vae_tiling_params.tile_size_h = tile;
         gen.vae_tiling_params.target_overlap = 0.25f;
 
-        nlogf("IMG start model=%s size=%dx%d steps=%d seed=%lld cfg=%.2f sharp=%.2f sampler=%d rss=%ldMB",
+        nlogf("IMG start model=%s size=%dx%d steps=%d seed=%lld cfg=%.2f sharp=%.2f sampler=%d flash=%d vaeTile=%d rss=%ldMB",
               model.c_str(), width, height, steps, static_cast<long long>(seed),
-              cfg, sharpness, sampler, currentRssMb());
+              cfg, sharpness, sampler, flashAttn ? 1 : 0, static_cast<int>(vaeTile), currentRssMb());
 
         sd_image_t * images = nullptr;
         int count = 0;
