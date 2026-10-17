@@ -68,6 +68,7 @@ class ChatActivity : AppCompatActivity() {
     private var flashAttn = true
     private var vaeTile = 256
     private var vaeGpu = false
+    private var difusionCpu = false
     private var cfg = 7.5f
     private var sharpness = 0.8f
     private var sampler = 0
@@ -133,6 +134,7 @@ class ChatActivity : AppCompatActivity() {
         flashAttn = prefs.getBoolean("flash_attn", true)
         vaeTile = prefs.getInt("vae_tile", 256)
         vaeGpu = prefs.getBoolean("vae_gpu", false)
+        difusionCpu = prefs.getBoolean("difusion_cpu", false)
         sharpness = prefs.getFloat("sharpness", 0.8f)
         ancho = prefs.getInt("ancho", 512)
         alto = prefs.getInt("alto", 512)
@@ -164,7 +166,7 @@ class ChatActivity : AppCompatActivity() {
         } else {
             steps = prefs.getInt("steps", 20)
             cfg = prefs.getFloat("cfg", 7.5f)
-            sampler = prefs.getInt("sampler", 0).let { if (it == 2) 0 else it }
+            sampler = prefs.getInt("sampler", 0).let { if (it in 0..1) it else 0 }
         }
     }
 
@@ -402,6 +404,23 @@ class ChatActivity : AppCompatActivity() {
             setPadding(0, dp(2), 0, dp(8))
         })
 
+        val swCpu = SwitchCompat(this).apply {
+            text = "Difusión en CPU (diagnóstico)"
+            textSize = 14f
+            setTextColor(colorPrincipal)
+            isChecked = difusionCpu
+            setPadding(0, dp(8), 0, 0)
+            setOnCheckedChangeListener { _, marcado -> difusionCpu = marcado }
+        }
+        raiz.addView(swCpu)
+        raiz.addView(TextView(this).apply {
+            text = "Ejecuta la difusión sin GPU para comparar con la misma semilla. Si en CPU sale bien y en GPU sale ruido, " +
+                   "el fallo está en la GPU. Puede ser más lento o más rápido; no lo dejes activado si no lo necesitas."
+            textSize = 12f
+            setTextColor(colorSecundario)
+            setPadding(0, dp(2), 0, dp(8))
+        })
+
         val samplerGrupo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(8), 0, dp(8)) }
         samplerGrupo.addView(TextView(this).apply {
             text = "Muestreador"; textSize = 14f; setTextColor(colorPrincipal)
@@ -422,7 +441,7 @@ class ChatActivity : AppCompatActivity() {
             grupoLcm.addView(TextView(this).apply { text = "Muestreador (modelo LCM)"; textSize = 14f; setTextColor(colorPrincipal) })
             val radiosLcm = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
             val rbLcm = RadioButton(this).apply { text = "LCM (recomendado)"; textSize = 13f; setTextColor(colorPrincipal); id = View.generateViewId() }
-            val rbEa = RadioButton(this).apply { text = "Euler-A (alternativa si LCM falla)"; textSize = 13f; setTextColor(colorPrincipal); id = View.generateViewId() }
+            val rbEa = RadioButton(this).apply { text = "Euler-A · Karras (experimental)"; textSize = 13f; setTextColor(colorPrincipal); id = View.generateViewId() }
             if (sampler == 3) rbEa.isChecked = true else rbLcm.isChecked = true
             radiosLcm.addView(rbLcm); radiosLcm.addView(rbEa)
             radiosLcm.setOnCheckedChangeListener { _, id -> if (id == rbEa.id) sampler = 3 else if (id == rbLcm.id) sampler = 2 }
@@ -468,6 +487,7 @@ class ChatActivity : AppCompatActivity() {
                 .putBoolean("flash_attn", flashAttn)
                 .putInt("vae_tile", vaeTile)
                 .putBoolean("vae_gpu", vaeGpu)
+                .putBoolean("difusion_cpu", difusionCpu)
                 .apply()
             actualizarSemilla()
             Toast.makeText(this, "Parámetros guardados", Toast.LENGTH_SHORT).show()
@@ -718,7 +738,8 @@ class ChatActivity : AppCompatActivity() {
                         mantener = mantenerModelo,
                         flashAttn = flashAttn,
                         vaeTile = vaeTile,
-                        vaeGpu = vaeGpu
+                        vaeGpu = vaeGpu,
+                        difusionCpu = difusionCpu
                     )
                 )
 
