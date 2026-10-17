@@ -30,7 +30,8 @@ object GenProtocolo {
         seed: Long,
         cfg: Float,
         sharpness: Float,
-        sampler: Int
+        sampler: Int,
+        mantener: Boolean = false
     ): Bundle =
         Bundle().apply {
             putString("tipo", "imagen")
@@ -46,6 +47,7 @@ object GenProtocolo {
             putFloat("cfg", cfg)
             putFloat("sharpness", sharpness)
             putInt("sampler", sampler)
+            putBoolean("mantener", mantener)
         }
 }
 
@@ -54,11 +56,22 @@ object GenProtocolo {
  *  - "Detener" = matar este proceso: es la única forma fiable de parar una llamada nativa/GPU atascada.
  *  - Un ggml_abort, un "device lost" de Vulkan o un OOM solo matan este proceso, no la app.
  *  - Al terminar, el proceso se cierra solo: libera la RAM de los pesos y deja Vulkan limpio para la siguiente vez.
+ *  - Excepción (opcional): con "mantener modelo" el proceso espera IDLE_MS antes de cerrarse y el motor
+ *    nativo conserva el modelo cargado; si llega otro trabajo a tiempo se reutiliza sin releer los pesos.
  */
 class GenService : Service() {
+    companion object {
+        private const val IDLE_MS = 120_000L
+        private const val CIERRE_NORMAL_MS = 600L
+        // Estático a propósito: el servicio se destruye al desvincularse, pero el proceso (y este cierre pendiente) sigue vivo.
+        private val hiloPrincipal = Handler(Looper.getMainLooper())
+        private val cierre = Runnable { Process.killProcess(Process.myPid()) }
+    }
+
     private val principal = Handler(Looper.getMainLooper())
     @Volatile private var cliente: Messenger? = null
     @Volatile private var ocupado = false
+    @Volatile private var mantener = false
 
     private val entrante = Messenger(object : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
@@ -98,6 +111,8 @@ class GenService : Service() {
             return
         }
         val datos = Bundle(msg.data)
+        hiloPrincipal.removeCallbacks(cierre)   // cancela un cierre pendiente del trabajo anterior
+        mantener = datos.getBoolean("mantener", false)
         ocupado = true
         enviar(GenProtocolo.MSG_PID) { putInt("pid", Process.myPid()) }
         principal.post(sondeo)
@@ -117,7 +132,8 @@ class GenService : Service() {
                     seed = datos.getLong("seed", -1L),
                     cfg = datos.getFloat("cfg", 7.0f),
                     sharpness = datos.getFloat("sharpness", 0.8f),
-                    sampler = datos.getInt("sampler", 0)
+                    sampler = datos.getInt("sampler", 0),
+                    mantenerCargado = mantener
                 )
                 if (!ok) error = "stable-diffusion.cpp no generó el resultado (mira [NATIVE] en el log)"
             } catch (t: Throwable) {
@@ -131,6 +147,7 @@ class GenService : Service() {
         ocupado = false
         DebugLog.log("GEN-PROC", "trabajo terminado · ok=$ok${if (error.isNotEmpty()) " · $error" else ""} · ${DebugLog.mem()}")
         enviar(GenProtocolo.MSG_FIN) { putBoolean("ok", ok); putString("error", error) }
-        principal.postDelayed({ Process.killProcess(Process.myPid()) }, 600)
+        hiloPrincipal.removeCallbacks(cierre)
+        hiloPrincipal.postDelayed(cierre, if (ok && mantener) IDLE_MS else CIERRE_NORMAL_MS)
     }
 }
