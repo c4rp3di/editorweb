@@ -43,9 +43,10 @@ object DiffusionNative {
      * Genera una imagen y la escribe directamente como PNG nativo.
      * @param cfg escala de guiado (guidance). 7.0 es el valor típico. Con prompt negativo vacío se fuerza 1.0.
      * @param sharpness 0.0 = sin post-proceso; 0.8 = nitidez alta. Se aplica unsharp mask en el pipeline nativo.
-     * @param sampler 0 = EULER_A + KARRAS (mejor calidad), 1 = EULER + DISCRETE, 2 = LCM + planificador LCM, 3 = EULER_A + DISCRETE (2 y 3: modelos LCM, 4-8 pasos, CFG 1-2).
+     * @param sampler 0 = EULER_A + KARRAS, 1 = EULER + KARRAS, 2 = LCM + planificador LCM, 3 = EULER_A + KARRAS (alternativa experimental para LCM) (2 y 3: modelos LCM, 4-8 pasos, CFG 1-2).
      * @param vaeTile tamaño de mosaico del VAE en px (64-1024). Mayor = más RAM punta y menos tiempo; si cubre la imagen entera no hay mosaicos.
      * @param vaeGpu true = decodifica el VAE en la GPU (Vulkan) en vez de la CPU. Experimental.
+     * @param difusionCpu true = ejecuta la difusión en CPU en vez de Vulkan (diagnóstico: comparar con la GPU a igual semilla).
      * @param flashAttn atención flash de ggml; desactivarla puede ir mejor en algunas GPU móviles.
      * @param mantenerCargado true = conserva el modelo en memoria al terminar y lo reutiliza si la
      *        siguiente imagen usa el mismo modelo (evita releer y convertir ~2-4 GB de pesos cada vez).
@@ -65,8 +66,9 @@ object DiffusionNative {
         sampler: Int = 0,
         mantenerCargado: Boolean = false,
         flashAttn: Boolean = true,
-        vaeTile: Int = 192,
-        vaeGpu: Boolean = false
+        vaeTile: Int = 256,
+        vaeGpu: Boolean = false,
+        difusionCpu: Boolean = false
     ): Boolean {
         check(estaDisponible()) { "La biblioteca de difusión nativa no está incluida en este APK." }
         require(width > 0 && height > 0 && steps > 0)
@@ -89,7 +91,8 @@ object DiffusionNative {
             mantenerCargado,
             flashAttn,
             vaeTile,
-            vaeGpu
+            vaeGpu,
+            difusionCpu
         )
     }
 
@@ -125,6 +128,7 @@ object DiffusionNative {
         keepLoaded: Boolean,
         flashAttn: Boolean,
         vaeTile: Int,
-        vaeGpu: Boolean
+        vaeGpu: Boolean,
+        difusionCpu: Boolean
     ): Boolean
 }
