@@ -326,13 +326,15 @@ static void aplicarNitidez(std::vector<unsigned char> & pixels, int width, int h
     }
 }
 
-static sd_ctx_t * createContext(const std::string & modelPath, const std::string & vaePath, bool flashAttn, bool vaeGpu) {
+static sd_ctx_t * createContext(const std::string & modelPath, const std::string & vaePath, bool flashAttn, bool vaeGpu, bool diffCpu) {
     sd_ctx_params_t params;
     sd_ctx_params_init(&params);
     params.model_path = modelPath.empty() ? nullptr : modelPath.c_str();
     params.vae_path = vaePath.empty() ? nullptr : vaePath.c_str();
     // VAE en CPU por defecto (estable); en GPU es opcional y experimental.
-    const char * backendSpec = vaeGpu ? "diffusion=vulkan0,vae=vulkan0" : "diffusion=vulkan0,vae=cpu";
+    // Diagnóstico: "diffusion=cpu" ejecuta la difusión sin GPU para comparar con Vulkan usando la misma semilla.
+    const char * backendSpec = diffCpu ? (vaeGpu ? "diffusion=cpu,vae=vulkan0" : "diffusion=cpu,vae=cpu")
+                                       : (vaeGpu ? "diffusion=vulkan0,vae=vulkan0" : "diffusion=vulkan0,vae=cpu");
     params.backend = backendSpec;
     params.params_backend = backendSpec;
     params.n_threads = 4;
@@ -374,7 +376,10 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_com_imagen_chat_ia_DiffusionNative_nativeVersion(JNIEnv * env, jclass) {
     const char * v = sd_version();
     if (!v || !*v) v = sd_get_system_info();
-    return env->NewStringUTF(v ? v : "stable-diffusion.cpp");
+    // Identificador propio del puente JNI: cámbialo en cada edición de este archivo para poder
+    // comprobar en el log que el APK instalado lleva el código esperado.
+    const std::string s = std::string(v ? v : "stable-diffusion.cpp") + " · jni=v27";
+    return env->NewStringUTF(s.c_str());
 }
 
 extern "C" JNIEXPORT jstring JNICALL
@@ -390,7 +395,7 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
         jstring jmodel, jstring jvae,
         jstring jprompt, jstring jnegative, jstring jout,
         jint width, jint height, jint steps, jlong seed,
-        jfloat cfg, jfloat sharpness, jint sampler, jboolean keepLoaded, jboolean flashAttn, jint vaeTile, jboolean vaeGpu) {
+        jfloat cfg, jfloat sharpness, jint sampler, jboolean keepLoaded, jboolean flashAttn, jint vaeTile, jboolean vaeGpu, jboolean diffCpu) {
     try {
         const std::string model = toString(env, jmodel);
         const std::string vae = toString(env, jvae);
@@ -403,7 +408,7 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
 
         PhaseGuard guard;
         const auto tTotal = std::chrono::steady_clock::now();
-        const std::string key = model + "|" + vae + (flashAttn ? "|fa1" : "|fa0") + (vaeGpu ? "|vg1" : "|vg0");
+        const std::string key = model + "|" + vae + (flashAttn ? "|fa1" : "|fa0") + (vaeGpu ? "|vg1" : "|vg0") + (diffCpu ? "|dc1" : "|dc0");
         sd_ctx_t * ctx = nullptr;
         bool reutilizado = false;
         {
@@ -413,7 +418,7 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
                 reutilizado = true;
             } else {
                 releaseCachedCtx();   // otro modelo (o ninguno): libera lo anterior antes de cargar
-                ctx = createContext(model, vae, flashAttn == JNI_TRUE, vaeGpu == JNI_TRUE);
+                ctx = createContext(model, vae, flashAttn == JNI_TRUE, vaeGpu == JNI_TRUE, diffCpu == JNI_TRUE);
                 if (ctx && keepLoaded) { g_ctx = ctx; g_ctxKey = key; }
             }
             if (!ctx) {
@@ -462,9 +467,14 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
         gen.vae_tiling_params.tile_size_h = tile;
         gen.vae_tiling_params.target_overlap = 0.25f;
 
-        nlogf("IMG start model=%s size=%dx%d steps=%d seed=%lld cfg=%.2f sharp=%.2f sampler=%d flash=%d vaeTile=%d vaeGpu=%d rss=%ldMB",
+        const char * mName = gen.sample_params.sample_method == LCM_SAMPLE_METHOD ? "lcm"
+                           : gen.sample_params.sample_method == EULER_A_SAMPLE_METHOD ? "euler_a" : "euler";
+        const char * sName = gen.sample_params.scheduler == LCM_SCHEDULER ? "lcm"
+                           : gen.sample_params.scheduler == KARRAS_SCHEDULER ? "karras" : "discrete";
+        nlogf("IMG start model=%s size=%dx%d steps=%d seed=%lld cfg=%.2f(efectivo %.2f) sharp=%.2f sampler=%d -> metodo=%s scheduler=%s flash=%d vaeTile=%d vaeGpu=%d difusionCpu=%d rss=%ldMB",
               model.c_str(), width, height, steps, static_cast<long long>(seed),
-              cfg, sharpness, sampler, flashAttn ? 1 : 0, static_cast<int>(vaeTile), vaeGpu ? 1 : 0, currentRssMb());
+              cfg, gen.sample_params.guidance.txt_cfg, sharpness, sampler, mName, sName, flashAttn ? 1 : 0,
+              static_cast<int>(vaeTile), vaeGpu ? 1 : 0, diffCpu ? 1 : 0, currentRssMb());
 
         sd_image_t * images = nullptr;
         int count = 0;
@@ -481,6 +491,20 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
             const int c = static_cast<int>(images[0].channel);
             const size_t total = static_cast<size_t>(w) * h * c;
 
+            // Estadísticas de la salida del motor ANTES de la nitidez: un buffer de ruido satura muchísimos valores.
+            {
+                size_t saturados = 0;
+                unsigned long long suma = 0;
+                for (size_t i = 0; i < total; ++i) {
+                    const unsigned char b = images[0].data[i];
+                    suma += b;
+                    if (b == 0 || b == 255) ++saturados;
+                }
+                const double pctSat = total ? 100.0 * static_cast<double>(saturados) / static_cast<double>(total) : 0.0;
+                nlogf("STATS salida %dx%d canales=%d media=%.1f saturados=%.1f%% %s", w, h, c,
+                      total ? static_cast<double>(suma) / static_cast<double>(total) : 0.0, pctSat,
+                      pctSat > 35.0 ? "<- SOSPECHOSA (parece ruido)" : "(plausible)");
+            }
             const auto tPost = std::chrono::steady_clock::now();
             if (sharpness > 0.0f && c >= 3) {
                 std::vector<unsigned char> copia(images[0].data, images[0].data + total);
