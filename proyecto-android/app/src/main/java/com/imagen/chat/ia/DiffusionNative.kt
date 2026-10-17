@@ -44,6 +44,8 @@ object DiffusionNative {
      * @param cfg escala de guiado (guidance). 7.0 es el valor típico. Con prompt negativo vacío se fuerza 1.0.
      * @param sharpness 0.0 = sin post-proceso; 0.8 = nitidez alta. Se aplica unsharp mask en el pipeline nativo.
      * @param sampler 0 = EULER_A + KARRAS (mejor calidad), 1 = EULER + DISCRETE (más rápido).
+     * @param mantenerCargado true = conserva el modelo en memoria al terminar y lo reutiliza si la
+     *        siguiente imagen usa el mismo modelo (evita releer y convertir ~2-4 GB de pesos cada vez).
      */
     fun generarImagen(
         modelPath: String,
@@ -57,7 +59,8 @@ object DiffusionNative {
         seed: Long = -1L,
         cfg: Float = 7.0f,
         sharpness: Float = 0.8f,
-        sampler: Int = 0
+        sampler: Int = 0,
+        mantenerCargado: Boolean = false
     ): Boolean {
         check(estaDisponible()) { "La biblioteca de difusión nativa no está incluida en este APK." }
         require(width > 0 && height > 0 && steps > 0)
@@ -76,7 +79,8 @@ object DiffusionNative {
             seed,
             cfg,
             sharpness,
-            sampler
+            sampler,
+            mantenerCargado
         )
     }
 
@@ -108,6 +112,7 @@ object DiffusionNative {
         seed: Long,
         cfg: Float,
         sharpness: Float,
-        sampler: Int
+        sampler: Int,
+        keepLoaded: Boolean
     ): Boolean
 }
