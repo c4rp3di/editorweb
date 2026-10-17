@@ -435,17 +435,20 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
             gen.sample_params.sample_method = EULER_A_SAMPLE_METHOD;
             gen.sample_params.scheduler = KARRAS_SCHEDULER;
         } else if (sampler == 3) {
-            // Alternativa para modelos LCM: Euler-A con sigmas discretos (con pocos pasos y CFG 1).
+            // Alternativa para modelos LCM: Euler-A con planificador Karras (con pocos pasos y CFG 1).
+            // El planificador discreto de esta versión del motor daba ruido en las pruebas.
             gen.sample_params.sample_method = EULER_A_SAMPLE_METHOD;
-            gen.sample_params.scheduler = DISCRETE_SCHEDULER;
+            gen.sample_params.scheduler = KARRAS_SCHEDULER;
         } else if (sampler == 2) {
             // LCM (modelos LCM): 4-8 pasos y CFG ~1-2. Con CFG 1.0 se salta la pasada del prompt negativo.
             // El planificador LCM reproduce los timesteps de entrenamiento del modelo; con el discreto salía ruido.
             gen.sample_params.sample_method = LCM_SAMPLE_METHOD;
             gen.sample_params.scheduler = LCM_SCHEDULER;
         } else {
+            // Euler con planificador Karras. Con el planificador DISCRETO de esta versión del motor,
+            // las imágenes salían como ruido de colores (probado en Mali-G715 con DreamShaper 8).
             gen.sample_params.sample_method = EULER_SAMPLE_METHOD;
-            gen.sample_params.scheduler = DISCRETE_SCHEDULER;
+            gen.sample_params.scheduler = KARRAS_SCHEDULER;
         }
         gen.sample_params.guidance.txt_cfg = (negative.empty() ? 1.0f : cfg);
         gen.seed = seed;
