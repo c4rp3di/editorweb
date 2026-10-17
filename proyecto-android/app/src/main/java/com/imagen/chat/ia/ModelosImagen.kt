@@ -4,7 +4,9 @@ import android.content.Context
 import java.io.File
 
 /**
- * Catálogo de modelos de imagen. Solo Stable Diffusion 1.5.
+ * Catálogo de modelos de imagen: Stable Diffusion 1.5 (base), DreamShaper 8 y Realistic Vision 5.1.
+ * Los tres son arquitectura SD 1.5, así que comparten el mismo motor nativo.
+ * Cada modelo vive en su propia carpeta (modelos-imagen/<id>) y ocupa disco por separado.
  * Los pesos no se incluyen en el APK: se descargan tras confirmación del usuario
  * y se activan solo después de verificar SHA-256.
  */
@@ -20,6 +22,14 @@ class ModelosImagen(private val context: Context) {
     companion object {
         private const val SD_URL =
             "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/f03de327dd89b501a01da37fc5240cf4fdba85a1/v1-5-pruned-emaonly.safetensors"
+
+        // DreamShaper 8 (Lykon) · fp16 podado, VAE incluido · commit fijado.
+        private const val DREAMSHAPER_URL =
+            "https://huggingface.co/Lykon/DreamShaper/resolve/c6565f0dbcab40e8eb7be2d1e54f49cfc5415127/DreamShaper_8_pruned.safetensors"
+
+        // Realistic Vision 5.1 (SG161222) · fp16 sin EMA · commit fijado.
+        private const val REALISTIC_URL =
+            "https://huggingface.co/SG161222/Realistic_Vision_V5.1_noVAE/resolve/305469dfd7d7410cff6299d34727e237374b5f36/Realistic_Vision_V5.1_fp16-no-ema.safetensors"
 
         val SD15 = ModeloImagen(
             id = "sd15",
@@ -37,7 +47,39 @@ class ModelosImagen(private val context: Context) {
             )
         )
 
-        val MODELOS = listOf(SD15)
+        val DREAMSHAPER = ModeloImagen(
+            id = "dreamshaper8",
+            nombre = "DreamShaper 8",
+            descripcion = "Versátil: ilustración, fantasía y semirrealista · SD 1.5 · Vulkan",
+            backend = "stable-diffusion.cpp + Vulkan",
+            artefactos = listOf(
+                ModelWeightsManager.Artifact(
+                    fileName = "DreamShaper_8_pruned.safetensors",
+                    url = DREAMSHAPER_URL,
+                    sha256 = "879db523c30d3b9017143d56705015e15a2cb5628762c11d086fed9538abd7fd",
+                    expectedBytes = 2_132_625_894L,
+                    role = "diffusion"
+                )
+            )
+        )
+
+        val REALISTIC_VISION = ModeloImagen(
+            id = "realisticvision51",
+            nombre = "Realistic Vision 5.1",
+            descripcion = "Fotorrealismo (personas, retratos, escenas reales) · SD 1.5 · Vulkan",
+            backend = "stable-diffusion.cpp + Vulkan",
+            artefactos = listOf(
+                ModelWeightsManager.Artifact(
+                    fileName = "Realistic_Vision_V5.1_fp16-no-ema.safetensors",
+                    url = REALISTIC_URL,
+                    sha256 = "99a75a901f4fec732056930a89fa34cf360f6f72d75ce5bf333ddf82adf8dd2a",
+                    expectedBytes = 2_132_625_894L,
+                    role = "diffusion"
+                )
+            )
+        )
+
+        val MODELOS = listOf(SD15, DREAMSHAPER, REALISTIC_VISION)
     }
 
     private val root = File(context.filesDir, "modelos-imagen").apply { mkdirs() }
@@ -63,4 +105,15 @@ class ModelosImagen(private val context: Context) {
     }
 
     fun espacioLibreBytes(): Long = root.usableSpace
+
+    /** Ruta del checkpoint principal (rol "diffusion"). */
+    fun rutaModelo(m: ModeloImagen): String =
+        File(carpeta(m), (m.artefactos.firstOrNull { it.role == "diffusion" } ?: m.artefactos.first()).fileName).absolutePath
+
+    /** Ruta del VAE externo si el modelo lo declara; "" si el checkpoint ya lo lleva integrado. */
+    fun rutaVae(m: ModeloImagen): String =
+        m.artefactos.firstOrNull { it.role == "vae" }?.let { File(carpeta(m), it.fileName).absolutePath } ?: ""
+
+    /** Disco ocupado ahora mismo por los modelos descargados. */
+    fun bytesEnDisco(): Long = root.walkTopDown().filter { it.isFile }.sumOf { it.length() }
 }
