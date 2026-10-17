@@ -433,6 +433,10 @@ Java_com_imagen_chat_ia_DiffusionNative_nativeGenerateImage(
         if (sampler == 0) {
             gen.sample_params.sample_method = EULER_A_SAMPLE_METHOD;
             gen.sample_params.scheduler = KARRAS_SCHEDULER;
+        } else if (sampler == 3) {
+            // Alternativa para modelos LCM: Euler-A con sigmas discretos (con pocos pasos y CFG 1).
+            gen.sample_params.sample_method = EULER_A_SAMPLE_METHOD;
+            gen.sample_params.scheduler = DISCRETE_SCHEDULER;
         } else if (sampler == 2) {
             // LCM (modelos LCM): 4-8 pasos y CFG ~1-2. Con CFG 1.0 se salta la pasada del prompt negativo.
             gen.sample_params.sample_method = LCM_SAMPLE_METHOD;
