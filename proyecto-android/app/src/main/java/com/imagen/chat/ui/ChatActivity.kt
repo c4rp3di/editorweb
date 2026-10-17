@@ -366,8 +366,8 @@ class ChatActivity : AppCompatActivity() {
         }
         raiz.addView(swFlash)
         raiz.addView(TextView(this).apply {
-            text = "Prueba a desactivarla si cada paso tarda muchísimo: en algunas GPU Mali el camino flash es lento. " +
-                   "Compara tiempos en Depuración (líneas TIEMPO)."
+            text = "Déjala activada. En las pruebas con una Mali-G715 no cambió ni la velocidad ni el resultado; " +
+                   "solo desactívala si tu GPU da errores."
             textSize = 12f
             setTextColor(colorSecundario)
             setPadding(0, dp(2), 0, dp(8))
@@ -408,11 +408,13 @@ class ChatActivity : AppCompatActivity() {
         })
         val radios = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
         val rbKarras = RadioButton(this).apply { text = "Euler-A · Karras (mejor calidad)"; textSize = 13f; setTextColor(colorPrincipal); id = View.generateViewId() }
-        val rbDiscreto = RadioButton(this).apply { text = "Euler · Discreto (más rápido)"; textSize = 13f; setTextColor(colorPrincipal); id = View.generateViewId() }
+        val rbDiscreto = RadioButton(this).apply { text = "Euler · Karras (igual de rápido)"; textSize = 13f; setTextColor(colorPrincipal); id = View.generateViewId() }
         if (sampler == 0) rbKarras.isChecked = true else rbDiscreto.isChecked = true
         radios.addView(rbKarras); radios.addView(rbDiscreto)
         radios.setOnCheckedChangeListener { _, id ->
-            sampler = if (id == rbKarras.id) 0 else 1
+            // Solo reacciona a una selección real: al cerrar la hoja el grupo puede avisar con id -1
+            // y antes eso dejaba el muestreador siempre en "Discreto".
+            if (id == rbKarras.id) sampler = 0 else if (id == rbDiscreto.id) sampler = 1
         }
         samplerGrupo.addView(radios)
         if (esLcm) {
@@ -423,7 +425,7 @@ class ChatActivity : AppCompatActivity() {
             val rbEa = RadioButton(this).apply { text = "Euler-A (alternativa si LCM falla)"; textSize = 13f; setTextColor(colorPrincipal); id = View.generateViewId() }
             if (sampler == 3) rbEa.isChecked = true else rbLcm.isChecked = true
             radiosLcm.addView(rbLcm); radiosLcm.addView(rbEa)
-            radiosLcm.setOnCheckedChangeListener { _, id -> sampler = if (id == rbEa.id) 3 else 2 }
+            radiosLcm.setOnCheckedChangeListener { _, id -> if (id == rbEa.id) sampler = 3 else if (id == rbLcm.id) sampler = 2 }
             grupoLcm.addView(radiosLcm)
             raiz.addView(grupoLcm)
         } else raiz.addView(samplerGrupo)
