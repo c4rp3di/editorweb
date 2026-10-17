@@ -43,7 +43,9 @@ object DiffusionNative {
      * Genera una imagen y la escribe directamente como PNG nativo.
      * @param cfg escala de guiado (guidance). 7.0 es el valor típico. Con prompt negativo vacío se fuerza 1.0.
      * @param sharpness 0.0 = sin post-proceso; 0.8 = nitidez alta. Se aplica unsharp mask en el pipeline nativo.
-     * @param sampler 0 = EULER_A + KARRAS (mejor calidad), 1 = EULER + DISCRETE (más rápido).
+     * @param sampler 0 = EULER_A + KARRAS (mejor calidad), 1 = EULER + DISCRETE, 2 = LCM (solo modelos LCM: 4-8 pasos, CFG 1-2).
+     * @param vaeTile tamaño de mosaico del VAE en px (64-1024). Mayor = más RAM punta y menos tiempo; si cubre la imagen entera no hay mosaicos.
+     * @param flashAttn atención flash de ggml; desactivarla puede ir mejor en algunas GPU móviles.
      * @param mantenerCargado true = conserva el modelo en memoria al terminar y lo reutiliza si la
      *        siguiente imagen usa el mismo modelo (evita releer y convertir ~2-4 GB de pesos cada vez).
      */
@@ -60,7 +62,9 @@ object DiffusionNative {
         cfg: Float = 7.0f,
         sharpness: Float = 0.8f,
         sampler: Int = 0,
-        mantenerCargado: Boolean = false
+        mantenerCargado: Boolean = false,
+        flashAttn: Boolean = true,
+        vaeTile: Int = 192
     ): Boolean {
         check(estaDisponible()) { "La biblioteca de difusión nativa no está incluida en este APK." }
         require(width > 0 && height > 0 && steps > 0)
@@ -80,7 +84,9 @@ object DiffusionNative {
             cfg,
             sharpness,
             sampler,
-            mantenerCargado
+            mantenerCargado,
+            flashAttn,
+            vaeTile
         )
     }
 
@@ -113,6 +119,8 @@ object DiffusionNative {
         cfg: Float,
         sharpness: Float,
         sampler: Int,
-        keepLoaded: Boolean
+        keepLoaded: Boolean,
+        flashAttn: Boolean,
+        vaeTile: Int
     ): Boolean
 }
