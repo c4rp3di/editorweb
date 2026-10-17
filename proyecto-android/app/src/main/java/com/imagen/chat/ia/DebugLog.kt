@@ -62,7 +62,7 @@ object DebugLog {
         val f = appContext?.let { File(it.filesDir, "native.log") } ?: return
         try {
             if (!f.isFile || f.length() == 0L) return
-            val lineas = f.readText().takeLast(12_000).lines().filter { it.isNotBlank() }.takeLast(maxLineas)
+            val lineas = f.readText().takeLast(30_000).lines().filter { it.isNotBlank() }.takeLast(maxLineas)
             log("NATIVE", "--- salida nativa reciente (${lineas.size} líneas) ---")
             lineas.forEach { log("NATIVE", it.take(300)) }
             log("NATIVE", "--- fin ---")
