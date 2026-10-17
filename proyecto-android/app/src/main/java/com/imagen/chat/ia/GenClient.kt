@@ -115,21 +115,26 @@ object GenClient {
 
 /**
  * Traduce el contador del motor a una etapa y un porcentaje global.
- *  fase 1: cargando modelo y codificando el prompt · fase 2: muestreo · fase 3: decodificación VAE / guardado.
- *  Pesos del porcentaje: preparación 0–5 % · muestreo 5–90 % · decodificación 90–99 %.
+ * El contador nativo se reutiliza para varias cosas (tensores al cargar, pasos de muestreo, mosaicos del VAE),
+ * y la "fase" nativa no es fiable, así que aquí se distingue por el total:
+ *  - total == pasos solicitados → muestreo (5–90 %)
+ *  - tras haber visto muestreo, cualquier otro total → decodificación VAE (90–99 %)
+ *  - antes de ver muestreo → preparación (carga del modelo, texto, shaders de la GPU)
  */
 class SeguimientoProgreso(private val pasosSolicitados: Int) {
     class Estado(val porcentaje: Int, val texto: String)
 
     private var pasoVisto = -1
     private var inicioPasoMs = System.currentTimeMillis()
+    private var vistoMuestreo = false
 
     fun actualizar(p: DiffusionNative.Progreso, segundos: Int): Estado {
         val ahora = System.currentTimeMillis()
-        val muestreo = p.fase == 2 || (p.fase == 1 && p.pasos == pasosSolicitados)
         val tiempo = "%d:%02d".format(segundos / 60, segundos % 60)
+        val muestreo = p.fase >= 1 && p.pasos > 0 && p.pasos == pasosSolicitados
         return when {
-            muestreo && p.pasos > 0 -> {
+            muestreo -> {
+                vistoMuestreo = true
                 if (p.paso != pasoVisto) { pasoVisto = p.paso; inicioPasoMs = ahora }
                 val hechos = p.paso.coerceIn(0, p.pasos)
                 val frac = if (hechos < p.pasos && p.ultimoPasoMs > 0 && hechos > 0)
@@ -142,13 +147,13 @@ class SeguimientoProgreso(private val pasosSolicitados: Int) {
                 } else ""
                 Estado(pct, "$pct % · paso ${hechos + if (hechos < p.pasos) 1 else 0}/${p.pasos} · $tiempo$eta")
             }
-            p.fase >= 3 -> {
-                if (p.pasos in 1..64 && p.pasos != pasosSolicitados) {
-                    val pct = (90 + 9f * p.paso.coerceIn(0, p.pasos) / p.pasos).toInt()
+            vistoMuestreo -> {
+                if (p.pasos in 1..64) {
+                    val pct = (90 + 9f * p.paso.coerceIn(0, p.pasos) / p.pasos).toInt().coerceIn(90, 99)
                     Estado(pct, "$pct % · decodificando VAE ${p.paso}/${p.pasos} · $tiempo")
-                } else Estado(90, "90 % · preparando guardado PNG · $tiempo")
+                } else Estado(90, "90 % · preparando decodificación · $tiempo")
             }
-            else -> Estado(if (p.fase == 0) 0 else 2, "preparando (cargando modelo / codificando prompt) · $tiempo")
+            else -> Estado(if (p.fase == 0) 0 else 2, "preparando (cargando modelo · shaders GPU · prompt) · $tiempo")
         }
     }
 }
