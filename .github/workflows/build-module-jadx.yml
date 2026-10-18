@@ -29,6 +29,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Localizar el proyecto
+        run: |
+          # Fusion sube el proyecto a proyecto-android/; si lo subes a mano a la raíz del repo también vale.
+          if [ -d proyecto-android/modules-src/jadx-wrapper ]; then PROY=proyecto-android
+          elif [ -d modules-src/jadx-wrapper ]; then PROY=.
+          else
+            echo "::error::No encuentro modules-src/jadx-wrapper/ en el repo. Compila una vez el proyecto desde Fusion (v21 o posterior) para que se suba."
+            exit 1
+          fi
+          echo "PROY=$PROY" >> "$GITHUB_ENV"
+
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -50,7 +62,7 @@ jobs:
         run: |
           set -e
           D="$(mktemp -d)"
-          LIBS="$GITHUB_WORKSPACE/modules-src/jadx-wrapper/libs"
+          LIBS="$GITHUB_WORKSPACE/$PROY/modules-src/jadx-wrapper/libs"
           mkdir -p "$LIBS" "$GITHUB_WORKSPACE/_kt"
           touch "$D/settings.gradle"
           cat > "$D/build.gradle" <<'GRADLE'
@@ -72,7 +84,7 @@ jobs:
       - name: Compilar el wrapper
         run: |
           set -e
-          cd modules-src/jadx-wrapper
+          cd "$GITHUB_WORKSPACE/$PROY/modules-src/jadx-wrapper"
           gradle moduleJar --no-daemon
           ls -la build/libs
 
@@ -80,7 +92,7 @@ jobs:
         run: |
           set -e
           BT="$ANDROID_HOME/build-tools/34.0.0"
-          JAR="$GITHUB_WORKSPACE/modules-src/jadx-wrapper/build/libs/jadx-wrapper.jar"
+          JAR="$GITHUB_WORKSPACE/$PROY/modules-src/jadx-wrapper/build/libs/jadx-wrapper.jar"
           # El SPI lo aporta el shell en tiempo de ejecución: no se empaqueta aquí.
           zip -d "$JAR" 'com/carpe/panoptes/modules/spi/*' || true
           mkdir -p "$GITHUB_WORKSPACE/_dex"
@@ -89,7 +101,7 @@ jobs:
             --lib "$ANDROID_HOME/platforms/android-34/android.jar" \
             --classpath "$KT" \
             --output "$GITHUB_WORKSPACE/_dex" \
-            "$JAR" "$GITHUB_WORKSPACE"/modules-src/jadx-wrapper/libs/*.jar
+            "$JAR" "$GITHUB_WORKSPACE"/$PROY/modules-src/jadx-wrapper/libs/*.jar
           ls -la "$GITHUB_WORKSPACE/_dex"
           if [ -e "$GITHUB_WORKSPACE/_dex/classes2.dex" ]; then
             echo "::error::El módulo no cabe en un solo classes.dex (hay classes2.dex). Hay que quitar dependencias del módulo."
