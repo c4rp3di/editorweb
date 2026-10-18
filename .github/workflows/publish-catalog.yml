@@ -1,0 +1,69 @@
+name: Publish catalog
+
+# Regenera module_catalog.json desde los releases deps-*, lo FIRMA y lo publica en la
+# release 'catalog-latest'. Se lanza a mano desde el móvil: pestaña Actions → Publish catalog
+# → Run workflow. Necesita el secret CATALOG_SIGNING_KEY (la clave privada que genera la app
+# en Ajustes → Generar claves). Sin ese secret el workflow falla a propósito: un catálogo sin
+# firmar la app no lo aceptaría.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar cryptography
+        run: pip install cryptography
+
+      - name: Comprobar el secret
+        env:
+          CATALOG_SIGNING_KEY: ${{ secrets.CATALOG_SIGNING_KEY }}
+        run: |
+          if [ -z "$CATALOG_SIGNING_KEY" ]; then
+            echo "::error::Falta el secret CATALOG_SIGNING_KEY (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+
+      - name: Generar catálogo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p /tmp/catalog-dl
+          python3 scripts/generate-catalog.py "$GITHUB_REPOSITORY" > module_catalog.json
+          cat module_catalog.json
+
+      - name: Firmar catálogo
+        env:
+          CATALOG_SIGNING_KEY: ${{ secrets.CATALOG_SIGNING_KEY }}
+        run: |
+          set -e
+          python3 scripts/sign-catalog.py sign module_catalog.json env:CATALOG_SIGNING_KEY > module_catalog.json.sig
+          PUB="$(python3 scripts/sign-catalog.py pubkey env:CATALOG_SIGNING_KEY)"
+          python3 scripts/sign-catalog.py verify module_catalog.json module_catalog.json.sig "$PUB"
+          {
+            echo "### Clave pública de este catálogo"
+            echo "Debe coincidir con la de la app (Ajustes → Catálogo de módulos):"
+            echo
+            echo "$PUB"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publicar release catalog-latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          if ! gh release view catalog-latest >/dev/null 2>&1; then
+            gh release create catalog-latest --title "Catálogo de módulos" --notes "Catálogo firmado (generado por CI)."
+          fi
+          gh release upload catalog-latest module_catalog.json module_catalog.json.sig --clobber
