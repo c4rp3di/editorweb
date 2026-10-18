@@ -94,6 +94,24 @@ jobs:
           JAR="$GITHUB_WORKSPACE/$PROY/modules-src/apktool-wrapper/build/libs/apktool-wrapper.jar"
           # El SPI lo aporta el shell en tiempo de ejecución: no se empaqueta aquí.
           zip -d "$JAR" 'com/carpe/panoptes/modules/spi/*' || true
+          # d8 se cae (NullPointerException) con FileCleaningTracker$Reaper de commons-io; apktool no usa
+          # esa clase (solo sirve para borrar ficheros al recolectar basura), así que se quita del jar.
+          for J in "$GITHUB_WORKSPACE"/$PROY/modules-src/apktool-wrapper/libs/commons-io-*.jar; do
+            zip -d "$J" 'org/apache/commons/io/FileCleaningTracker*' || true
+          done
+          # d8 rechaza clases repetidas en dos jars (p. ej. antlr y antlr-runtime): se deja la primera y se quita de los demás.
+          python3 - "$GITHUB_WORKSPACE/$PROY/modules-src/apktool-wrapper/libs" <<'PY'
+          import glob, subprocess, sys, zipfile
+          vistas = set()
+          for jar in sorted(glob.glob(sys.argv[1] + "/*.jar")):
+              nombres = [n for n in zipfile.ZipFile(jar).namelist() if n.endswith(".class") and not n.startswith("META-INF/")]
+              repetidas = [n for n in nombres if n in vistas]
+              vistas.update(nombres)
+              if repetidas:
+                  print(jar.split("/")[-1], ": se quitan", len(repetidas), "clases repetidas")
+                  for i in range(0, len(repetidas), 200):
+                      subprocess.run(["zip", "-q", "-d", jar, *repetidas[i:i + 200]], check=False)
+          PY
           mkdir -p "$GITHUB_WORKSPACE/_dex"
           KT="$(ls "$GITHUB_WORKSPACE"/_kt/*.jar | head -1)"
           "$BT/d8" --release --min-api 26 \
