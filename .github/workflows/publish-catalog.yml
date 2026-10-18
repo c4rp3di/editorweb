@@ -18,6 +18,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Localizar el proyecto
+        run: |
+          # Fusion sube el proyecto a proyecto-android/; si lo subes a mano a la raíz del repo también vale.
+          if [ -d proyecto-android/scripts ]; then PROY=proyecto-android
+          elif [ -d scripts ]; then PROY=.
+          else
+            echo "::error::No encuentro scripts/ en el repo. Compila una vez el proyecto desde Fusion (v21 o posterior) para que se suba."
+            exit 1
+          fi
+          echo "PROY=$PROY" >> "$GITHUB_ENV"
+
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -40,7 +52,7 @@ jobs:
         run: |
           set -e
           mkdir -p /tmp/catalog-dl
-          python3 scripts/generate-catalog.py "$GITHUB_REPOSITORY" > module_catalog.json
+          python3 "$GITHUB_WORKSPACE/$PROY/scripts/generate-catalog.py" "$GITHUB_REPOSITORY" > module_catalog.json
           cat module_catalog.json
 
       - name: Firmar catálogo
@@ -48,9 +60,9 @@ jobs:
           CATALOG_SIGNING_KEY: ${{ secrets.CATALOG_SIGNING_KEY }}
         run: |
           set -e
-          python3 scripts/sign-catalog.py sign module_catalog.json env:CATALOG_SIGNING_KEY > module_catalog.json.sig
-          PUB="$(python3 scripts/sign-catalog.py pubkey env:CATALOG_SIGNING_KEY)"
-          python3 scripts/sign-catalog.py verify module_catalog.json module_catalog.json.sig "$PUB"
+          python3 "$GITHUB_WORKSPACE/$PROY/scripts/sign-catalog.py" sign module_catalog.json env:CATALOG_SIGNING_KEY > module_catalog.json.sig
+          PUB="$(python3 "$GITHUB_WORKSPACE/$PROY/scripts/sign-catalog.py" pubkey env:CATALOG_SIGNING_KEY)"
+          python3 "$GITHUB_WORKSPACE/$PROY/scripts/sign-catalog.py" verify module_catalog.json module_catalog.json.sig "$PUB"
           {
             echo "### Clave pública de este catálogo"
             echo "Debe coincidir con la de la app (Ajustes → Catálogo de módulos):"
