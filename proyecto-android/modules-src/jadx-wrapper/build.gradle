@@ -1,0 +1,37 @@
+// Build independiente del shell (ver nota en §2.2 del plan: settings.gradle
+// raíz solo incluye ":app"). La CI compila esto aparte y combina el jar
+// resultante con los jars de jadx-core en un único classes.dex (d8).
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.9.24'
+}
+
+repositories {
+    mavenCentral()
+    google()
+    flatDir { dirs 'libs' }
+}
+
+dependencies {
+    // Clases de Android (Context, File ya es de java.io) necesarias para
+    // implementar la interfaz AnalyzerModule. compileOnly: nunca se empaqueta,
+    // en tiempo de ejecución las provee el propio proceso de la app shell.
+    compileOnly files("${System.getenv('ANDROID_HOME')}/platforms/android-34/android.jar")
+
+    // jadx-core y sus dependencias: la CI las descarga del release de jadx
+    // y las copia a libs/ ANTES de este build (ver build-module-jadx.yml).
+    // compileOnly porque en tiempo de ejecución esos mismos jars se combinan
+    // en el mismo classes.dex que este wrapper — no hace falta reempaquetarlos.
+    compileOnly fileTree(dir: 'libs', include: ['*.jar'])
+}
+
+tasks.named('compileKotlin') {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+tasks.register('moduleJar', Jar) {
+    dependsOn 'classes'
+    from sourceSets.main.output
+    archiveFileName.set('jadx-wrapper.jar')
+}
