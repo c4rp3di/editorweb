@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'com.google.devtools.ksp'
 }
 
 android {
@@ -18,40 +19,27 @@ android {
         }
     }
 
-    namespace 'com.imagen.chat'
+    namespace 'com.vigia.app'
     compileSdk 34
-    ndkVersion '29.0.13113456'
 
     defaultConfig {
-        applicationId "com.imagen.chat"
-        minSdk 28
+        applicationId "com.vigia.app"
+        minSdk 24
         targetSdk 34
-        versionCode 2
-        versionName "v7.0"
-
-        ndk {
-            abiFilters 'arm64-v8a'
-        }
+        versionCode 4
+        versionName "v8.0"
     }
 
     buildFeatures {
         viewBinding true
     }
 
-    // Nota: NO se define sourceSets.main.jniLibs.srcDirs. Gradle busca
-    // src/main/jniLibs/ por defecto, que es exactamente donde el script
-    // nativo deja el .so. Configurarlo a mano con varias rutas provocaba
-    // "Duplicate resources" al encontrar el .so más de una vez.
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    kotlinOptions {
+        jvmTarget = '17'
     }
 }
 
@@ -59,40 +47,14 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.4'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0'
-}
+    implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
 
-tasks.register('prepareNativeEngines') {
-    group = 'chatpro'
-    description = 'Descarga y compila stable-diffusion.cpp durante el build de Android.'
-    doLast {
-        if ((System.getenv('CHATPRO_SKIP_NATIVE') ?: '0') == '1') {
-            logger.lifecycle('Chat Imagen: CHATPRO_SKIP_NATIVE=1; se omite la preparación nativa.')
-            return
-        }
-        def candidatos = [
-            rootProject.file('proyecto-android/app/src/main/native/prepare_native_engines.sh'),
-            rootProject.file('proyecto-android/app/native/prepare_native_engines.sh'),
-            rootProject.file('app/src/main/native/prepare_native_engines.sh'),
-            rootProject.file('app/native/prepare_native_engines.sh'),
-            file('native/prepare_native_engines.sh')
-        ]
-        def scriptFile = candidatos.find { it.exists() }
-        if (scriptFile == null) {
-            throw new GradleException(
-                "No se encontró prepare_native_engines.sh. Rutas probadas:\n" +
-                candidatos.collect { "  - ${it.absolutePath}" }.join("\n")
-            )
-        }
-        logger.lifecycle("Chat Imagen: script nativo encontrado en ${scriptFile.absolutePath}")
-        exec {
-            commandLine 'bash', scriptFile.absolutePath
-        }
-    }
-}
-
-tasks.named('preBuild') {
-    dependsOn(tasks.named('prepareNativeEngines'))
+    // Almacén local cifrado (Room + SQLCipher)
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    ksp 'androidx.room:room-compiler:2.6.1'
+    implementation 'net.zetetic:sqlcipher-android:4.5.4@aar'
+    implementation 'androidx.sqlite:sqlite:2.4.0'
 }
