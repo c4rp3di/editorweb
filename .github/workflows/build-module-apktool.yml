@@ -56,6 +56,8 @@ jobs:
           SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
           yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
           "$SDK/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0"
+          # d8 de build-tools 34 (R8 8.2) se cae con clases de commons-io; se usa el d8 más nuevo disponible.
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0" || "$SDK/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
 
       - name: Descargar apktool y sus dependencias (Maven Central)
@@ -69,7 +71,7 @@ jobs:
           plugins { id 'java' }
           def LIBV = System.getenv('LIB_VERSION')
           repositories { mavenCentral(); google() }
-          configurations { lib; kt }
+          configurations { lib { resolutionStrategy.force 'commons-io:commons-io:2.11.0' }; kt }
           dependencies {
             lib "org.apktool:apktool-lib:$LIBV"
             kt 'org.jetbrains.kotlin:kotlin-stdlib:1.9.24'
@@ -90,15 +92,11 @@ jobs:
       - name: Empaquetar classes.dex con d8
         run: |
           set -e
-          BT="$ANDROID_HOME/build-tools/34.0.0"
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          echo "d8 de: $BT"
           JAR="$GITHUB_WORKSPACE/$PROY/modules-src/apktool-wrapper/build/libs/apktool-wrapper.jar"
           # El SPI lo aporta el shell en tiempo de ejecución: no se empaqueta aquí.
           zip -d "$JAR" 'com/carpe/panoptes/modules/spi/*' || true
-          # d8 se cae (NullPointerException) con FileCleaningTracker$Reaper de commons-io; apktool no usa
-          # esa clase (solo sirve para borrar ficheros al recolectar basura), así que se quita del jar.
-          for J in "$GITHUB_WORKSPACE"/$PROY/modules-src/apktool-wrapper/libs/commons-io-*.jar; do
-            zip -d "$J" 'org/apache/commons/io/FileCleaningTracker*' || true
-          done
           # d8 rechaza clases repetidas en dos jars (p. ej. antlr y antlr-runtime): se deja la primera y se quita de los demás.
           python3 - "$GITHUB_WORKSPACE/$PROY/modules-src/apktool-wrapper/libs" <<'PY'
           import glob, subprocess, sys, zipfile
