@@ -209,16 +209,17 @@ class Reenviador(
         if (largoTcp < 20 || ini > total) return
         val carga = d.copyOfRange(ini, total)
         val clave = claveTcp(sp, dp, destino)
-        var t = sesionesTcp[clave]
+        val previa = sesionesTcp[clave]
+        var t: Tcp? = previa
 
-        if (t != null && (flags and SYN) != 0 && (flags and ACK) == 0) {
-            if (seq == t.isnCliente) {
-                t.cerrojo.withLock {
-                    if (t.estado == 1) enviar(t, t.isn, SYN or ACK, null, MSS_SALIDA)
+        if (previa != null && (flags and SYN) != 0 && (flags and ACK) == 0) {
+            if (seq == previa.isnCliente) {
+                previa.cerrojo.withLock {
+                    if (previa.estado == 1) enviar(previa, previa.isn, SYN or ACK, null, MSS_SALIDA)
                 }
                 return
             }
-            cerrar(t, false)
+            cerrar(previa, false)
             t = null
         }
         if (t == null) {
