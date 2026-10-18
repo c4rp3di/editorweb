@@ -225,10 +225,16 @@ class ModuleDownloader(private val context: Context) {
     }
 
     companion object {
-        /** Mismo principio que §5.4 del plan: solo GitHub y sus CDNs de releases. */
+        /**
+         * Mismo principio que §5.4 del plan: solo GitHub y sus CDNs de releases.
+         * Las descargas de assets de una release redirigen desde github.com a uno de estos hosts
+         * (GitHub ha cambiado de CDN con el tiempo, por eso se admiten los tres).
+         */
         val ALLOWED_HOSTS = setOf(
             "github.com",
             "objects.githubusercontent.com",
+            "release-assets.githubusercontent.com",
+            "github-releases.githubusercontent.com",
             "raw.githubusercontent.com"
         )
 
