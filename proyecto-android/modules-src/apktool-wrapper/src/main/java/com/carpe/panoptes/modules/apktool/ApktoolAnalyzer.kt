@@ -4,6 +4,7 @@ import android.content.Context
 import com.carpe.panoptes.modules.spi.AnalyzerModule
 import brut.androlib.ApkDecoder
 import brut.androlib.Config as AndrolibConfig
+import brut.directory.ExtFile
 import java.io.File
 
 /**
@@ -40,10 +41,9 @@ class ApktoolAnalyzer : AnalyzerModule {
                 // lo cubre dexlib2 (shell, F1) y jadx (módulo, F2) — pedir
                 // también smali aquí sería trabajo duplicado sin beneficio.
                 decodeSources = AndrolibConfig.DECODE_SOURCES_NONE
-                forced = true
             }
 
-            val decoder = ApkDecoder(File(apkPath), config)
+            val decoder = ApkDecoder(config, ExtFile(File(apkPath)))
             if (outputDir.exists()) outputDir.deleteRecursively()
             decoder.decode(outputDir)
 
