@@ -1,0 +1,131 @@
+name: Build module apktool
+
+# Compila el módulo apktool (wrapper + librerías apktool 2.9.3 en un único classes.dex) y lo publica
+# como release 'deps-apktool-<versión>'. Después lanza solo 'Publish catalog'.
+# Se ejecuta a mano: Actions → Build module apktool → Run workflow.
+#
+# ⚠️ Versión fijada a 2.9.3 porque el wrapper (apktool-wrapper) está escrito contra esa API.
+# Si la cambias y falla la compilación del wrapper, el único fichero a tocar es modules-src/apktool-wrapper/.../ApktoolAnalyzer.kt.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versión de apktool (debe coincidir con la API del wrapper)'
+        default: '2.9.3'
+        required: true
+
+permissions:
+  contents: write
+  actions: write
+
+env:
+  MODULE_ID: apktool
+  LIB_VERSION: ${{ inputs.version }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Android SDK (platform 34 + build-tools para d8)
+        run: |
+          set -e
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+
+      - name: Descargar apktool y sus dependencias (Maven Central)
+        run: |
+          set -e
+          D="$(mktemp -d)"
+          LIBS="$GITHUB_WORKSPACE/modules-src/apktool-wrapper/libs"
+          mkdir -p "$LIBS" "$GITHUB_WORKSPACE/_kt"
+          touch "$D/settings.gradle"
+          cat > "$D/build.gradle" <<'GRADLE'
+          plugins { id 'java' }
+          def LIBV = System.getenv('LIB_VERSION')
+          repositories { mavenCentral(); google() }
+          configurations { lib; kt }
+          dependencies {
+            lib "org.apktool:apktool-lib:$LIBV"
+            kt 'org.jetbrains.kotlin:kotlin-stdlib:1.9.24'
+          }
+          tasks.register('copiar', Copy) { from configurations.lib; into file(project.property('libsDir')) }
+          tasks.register('copiarKt', Copy) { from configurations.kt; into file(project.property('ktDir')) }
+          GRADLE
+          (cd "$D" && gradle copiar copiarKt --no-daemon -PlibsDir="$LIBS" -PktDir="$GITHUB_WORKSPACE/_kt")
+          ls -la "$LIBS"
+
+      - name: Compilar el wrapper
+        run: |
+          set -e
+          cd modules-src/apktool-wrapper
+          gradle moduleJar --no-daemon
+          ls -la build/libs
+
+      - name: Empaquetar classes.dex con d8
+        run: |
+          set -e
+          BT="$ANDROID_HOME/build-tools/34.0.0"
+          JAR="$GITHUB_WORKSPACE/modules-src/apktool-wrapper/build/libs/apktool-wrapper.jar"
+          # El SPI lo aporta el shell en tiempo de ejecución: no se empaqueta aquí.
+          zip -d "$JAR" 'com/carpe/panoptes/modules/spi/*' || true
+          mkdir -p "$GITHUB_WORKSPACE/_dex"
+          KT="$(ls "$GITHUB_WORKSPACE"/_kt/*.jar | head -1)"
+          "$BT/d8" --release --min-api 26 \
+            --lib "$ANDROID_HOME/platforms/android-34/android.jar" \
+            --classpath "$KT" \
+            --output "$GITHUB_WORKSPACE/_dex" \
+            "$JAR" "$GITHUB_WORKSPACE"/modules-src/apktool-wrapper/libs/*.jar
+          ls -la "$GITHUB_WORKSPACE/_dex"
+          if [ -e "$GITHUB_WORKSPACE/_dex/classes2.dex" ]; then
+            echo "::error::El módulo no cabe en un solo classes.dex (hay classes2.dex). Hay que quitar dependencias del módulo."
+            exit 1
+          fi
+
+      - name: Crear ZIP del módulo y hashes
+        run: |
+          set -e
+          OUT="$GITHUB_WORKSPACE/_out"
+          mkdir -p "$OUT/pack"
+          cp "$GITHUB_WORKSPACE/_dex/classes.dex" "$OUT/pack/classes.dex"
+          python3 - <<PY
+          import json
+          json.dump({"id": "apktool", "version": "$LIB_VERSION", "entryClass": "com.carpe.panoptes.modules.apktool.ApktoolAnalyzer", "dexName": "classes.dex"},
+                    open("$OUT/pack/module.json", "w"), indent=2)
+          PY
+          (cd "$OUT/pack" && zip -q -r "$OUT/apktool-$LIB_VERSION-module.zip" module.json classes.dex)
+          (cd "$OUT" && sha256sum "apktool-$LIB_VERSION-module.zip" | awk '{print $1"  module.zip"}' > module.zip.sha256)
+          (cd "$OUT/pack" && sha256sum classes.dex > "$OUT/classes.dex.sha256")
+          cat "$OUT/module.zip.sha256" "$OUT/classes.dex.sha256"
+          ls -la "$OUT"
+
+      - name: Publicar release deps-apktool-<versión>
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          OUT="$GITHUB_WORKSPACE/_out"
+          TAG="deps-apktool-$LIB_VERSION"
+          gh release delete "$TAG" --cleanup-tag -y 2>/dev/null || true
+          gh release create "$TAG" \
+            --title "Módulo apktool $LIB_VERSION" \
+            --notes "Módulo apktool para APK Panoptes (generado por CI)." \
+            "$OUT/apktool-$LIB_VERSION-module.zip" "$OUT/module.zip.sha256" "$OUT/classes.dex.sha256"
+
+      - name: Lanzar Publish catalog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run publish-catalog.yml || echo "No se pudo lanzar Publish catalog; lánzalo a mano."
