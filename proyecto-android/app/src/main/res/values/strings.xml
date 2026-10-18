@@ -1,3 +1,34 @@
 <resources>
-    <string name="app_name">Trasporte directo</string>
+    <string name="app_name">APK Panoptes</string>
+    <string name="app_titulo">APK Panoptes — Apps instaladas</string>
+    <string name="toca_para_analizar">toca para analizar</string>
+    <string name="compartir_apk">Compartir / guardar APK</string>
+    <string name="extraccion_ok">APK extraído:</string>
+    <string name="extraccion_error">Error:</string>
+    <string name="analisis_iniciado">Análisis iniciado</string>
+    <string name="ver_analisis">Ver análisis</string>
+    <string name="modulos_titulo">Módulos</string>
+    <string name="modulo_instalar">Instalar</string>
+    <string name="modulo_desinstalar">Desinstalar</string>
+    <string name="modulo_instalado">instalado</string>
+    <string name="modulo_error">Error instalando módulo:</string>
+    <string name="modulo_no_publicado">Este módulo aún no está publicado en el catálogo (CI pendiente)</string>
+    <string name="sin_analisis_todavia">Todavía no hay ningún análisis. Vuelve a la lista de apps y toca una para extraerla.</string>
+    <string name="ajustes_titulo">Ajustes</string>
+    <string name="ajustes_catalogo_titulo">Catálogo de módulos</string>
+    <string name="ajustes_catalogo_ayuda">Repositorio de GitHub que publica el catálogo firmado. Sin usuario o sin clave pública se usa solo el catálogo incluido en la app.</string>
+    <string name="ajustes_owner">Usuario u organización de GitHub</string>
+    <string name="ajustes_repo">Repositorio</string>
+    <string name="ajustes_clave">Clave pública del catálogo (Base64)</string>
+    <string name="ajustes_guardar">Guardar</string>
+    <string name="ajustes_guardado">Ajustes guardados</string>
+    <string name="ajustes_owner_invalido">Usuario no válido (letras, números y guiones)</string>
+    <string name="ajustes_repo_invalido">Nombre de repositorio no válido</string>
+    <string name="ajustes_clave_invalida">La clave pública no es válida (ECDSA P-256, X.509 en Base64)</string>
+    <string name="ajustes_generar">Generar par de claves</string>
+    <string name="ajustes_generar_titulo">Clave privada (cópiala ahora)</string>
+    <string name="ajustes_generar_texto">Esta clave privada NO se guarda en la app y no se vuelve a mostrar. Cópiala y pégala en GitHub: repositorio → Settings → Secrets and variables → Actions → New repository secret, con el nombre CATALOG_SIGNING_KEY. La clave pública ya está puesta en el campo de arriba; pulsa Guardar.</string>
+    <string name="ajustes_copiar">Copiar</string>
+    <string name="ajustes_cerrar">Cerrar</string>
+    <string name="ajustes_copiado">Copiada</string>
 </resources>
