@@ -8,19 +8,25 @@ import com.carpe.descompresor.apk.CambiosApk
 import com.carpe.descompresor.data.Contenedor
 import com.carpe.descompresor.data.Entrada
 import com.carpe.descompresor.motor.CatalogoMotores
+import com.carpe.descompresor.util.ContadorInput
+import com.carpe.descompresor.util.CopiaCancelada
 import com.carpe.descompresor.util.CopiaLocal
 import com.carpe.descompresor.util.Iconos
 import com.carpe.descompresor.util.PreferenciasApp
+import com.carpe.descompresor.util.Seguridad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.util.UUID
 
 class Nodo(val ruta: String, val nombre: String, val esDir: Boolean, val entrada: Entrada?, val nivel: Int) {
     val hijos = ArrayList<Nodo>()
     var tamano: Long = 0L
     var archivos: List<Nodo> = emptyList()
-    var nombreMostrado: String = nombre
 }
 
 object ArbolBuilder {
@@ -73,62 +79,225 @@ object ArbolBuilder {
     }
 }
 
+data class ProgresoApertura(
+    val activo: Boolean = false,
+    val hecho: Long = 0L,
+    val total: Long = -1L,
+    val texto: String = ""
+)
+
 class ContenedorViewModel : ViewModel() {
     var contenedor: Contenedor? = null
         private set
     var raiz: Nodo? = null
         private set
-    val expandidos = HashSet<String>()
-    val seleccion = HashSet<String>()
+    var expandidos: HashSet<String> = HashSet()
+        private set
+    var seleccion: HashSet<String> = HashSet()
+        private set
     var consulta: String = ""
     var filtro: Iconos.Categoria? = null
+    var cambiosApk: CambiosApk = CambiosApk()
+        private set
     var cargando: Boolean = false
         private set
     var error: String? = null
-    val cambiosApk = CambiosApk()
+
     val revision = MutableStateFlow(0)
+    val progreso = MutableStateFlow(ProgresoApertura())
+
+    @Volatile
+    private var cancelarFlag: Boolean = false
+
+    /** Contenedores "padre" cuando se abre un archivo dentro de otro. */
+    private class Guardado(
+        val c: Contenedor,
+        val raiz: Nodo?,
+        val expandidos: HashSet<String>,
+        val seleccion: HashSet<String>,
+        val consulta: String,
+        val filtro: Iconos.Categoria?,
+        val cambios: CambiosApk
+    )
+
+    private val pila = ArrayList<Guardado>()
+
+    val nivel: Int
+        get() = pila.size
+
+    fun rutaNavegacion(): String {
+        val partes = ArrayList<String>()
+        for (g in pila) partes.add(g.c.nombre)
+        contenedor?.let { partes.add(it.nombre) }
+        return partes.joinToString(" ▸ ")
+    }
 
     fun notificar() {
         revision.value = revision.value + 1
     }
 
-    fun abrir(ctx: Context, uri: Uri) {
+    fun cancelarApertura() {
+        cancelarFlag = true
+    }
+
+    /** Abre un archivo elegido en la app (externo=false) o recibido de otra app (externo=true). */
+    fun abrir(ctx: Context, uri: Uri, externo: Boolean) {
         val app = ctx.applicationContext
+        if (cargando) return
         viewModelScope.launch {
             cargando = true
             error = null
+            cancelarFlag = false
+            progreso.value = ProgresoApertura(true, 0L, -1L, "Copiando…")
             notificar()
             try {
-                val c = CatalogoMotores.abrir(app, uri)
+                val p = PreferenciasApp(app)
+                val max = if (externo) p.entero("max_recibido_mb").toLong() * 1024L * 1024L
+                else Seguridad.limites(p).maxContenedorBytes
+                val c = withContext(Dispatchers.IO) {
+                    CatalogoMotores.abrir(app, uri, max, { h, t ->
+                        progreso.value = ProgresoApertura(true, h, t, "Copiando…")
+                    }, { cancelarFlag })
+                }
                 val arbol = withContext(Dispatchers.Default) { ArbolBuilder.construir(c.entradas) }
-                cerrarInterno()
+                cerrarTodo()
                 contenedor = c
                 raiz = arbol
-                PreferenciasApp(app).sumar("stat_abiertos", 1L)
+                p.sumar("stat_abiertos", 1L)
+            } catch (t: CopiaCancelada) {
+                // cancelado por el usuario: sin mensaje
             } catch (t: Throwable) {
                 error = Ui.mensajeError(t)
             } finally {
                 cargando = false
+                progreso.value = ProgresoApertura()
                 notificar()
             }
         }
     }
 
-    private fun cerrarInterno() {
-        contenedor?.close()
-        contenedor?.archivo?.delete()
-        contenedor = null
-        raiz = null
-        expandidos.clear()
-        seleccion.clear()
-        consulta = ""
-        filtro = null
+    /** Abre como contenedor un archivo comprimido que está dentro del contenedor actual. */
+    fun abrirAnidado(ctx: Context, entrada: Entrada) {
+        val actual = contenedor ?: return
+        val app = ctx.applicationContext
+        if (cargando) return
+        viewModelScope.launch {
+            cargando = true
+            error = null
+            cancelarFlag = false
+            progreso.value = ProgresoApertura(true, 0L, entrada.tamano, "Extrayendo " + entrada.nombre + "…")
+            notificar()
+            try {
+                val lim = Seguridad.limites(PreferenciasApp(app))
+                if (entrada.tamano > lim.maxEntradaBytes) {
+                    throw IOException("La entrada supera el tamaño máximo por entrada (ajustable en Ajustes)")
+                }
+                val copia = withContext(Dispatchers.IO) {
+                    copiarEntrada(app, actual, entrada, lim.maxEntradaBytes)
+                }
+                val c = try {
+                    withContext(Dispatchers.IO) { CatalogoMotores.abrirArchivo(app, copia, entrada.nombre) }
+                } catch (t: Throwable) {
+                    copia.delete()
+                    throw t
+                }
+                val arbol = withContext(Dispatchers.Default) { ArbolBuilder.construir(c.entradas) }
+                pila.add(Guardado(actual, raiz, expandidos, seleccion, consulta, filtro, cambiosApk))
+                contenedor = c
+                raiz = arbol
+                expandidos = HashSet()
+                seleccion = HashSet()
+                consulta = ""
+                filtro = null
+                cambiosApk = CambiosApk()
+                PreferenciasApp(app).sumar("stat_abiertos", 1L)
+            } catch (t: CopiaCancelada) {
+                // cancelado
+            } catch (t: Throwable) {
+                error = Ui.mensajeError(t)
+            } finally {
+                cargando = false
+                progreso.value = ProgresoApertura()
+                notificar()
+            }
+        }
+    }
+
+    private fun copiarEntrada(app: Context, origen: Contenedor, entrada: Entrada, limite: Long): File {
+        val destino = File(CopiaLocal.carpetaAbiertos(app), UUID.randomUUID().toString() + ".tmp")
+        var ultimo = 0L
+        try {
+            origen.abrirEntrada(entrada).use { flujo ->
+                val contador = ContadorInput(flujo, limite) { _ ->
+                    val ahora = System.currentTimeMillis()
+                    if (ahora - ultimo > 150L) {
+                        ultimo = ahora
+                    }
+                }
+                FileOutputStream(destino).use { o ->
+                    val buf = ByteArray(PreferenciasApp(app).bufferBytes().coerceAtLeast(32 * 1024))
+                    while (true) {
+                        if (cancelarFlag) throw CopiaCancelada()
+                        val n = contador.read(buf)
+                        if (n < 0) break
+                        o.write(buf, 0, n)
+                        val ahora = System.currentTimeMillis()
+                        if (ahora - ultimo > 150L) {
+                            ultimo = ahora
+                            progreso.value = ProgresoApertura(true, contador.total, entrada.tamano, "Extrayendo " + entrada.nombre + "…")
+                        }
+                    }
+                }
+            }
+        } catch (t: Throwable) {
+            destino.delete()
+            throw t
+        }
+        return destino
+    }
+
+    private fun cerrarActual() {
+        val c = contenedor
+        if (c != null) {
+            try { c.close() } catch (e: Exception) { }
+            c.archivo.delete()
+        }
         cambiosApk.limpiar()
     }
 
+    private fun cerrarTodo() {
+        cerrarActual()
+        while (pila.isNotEmpty()) {
+            val g = pila.removeAt(pila.size - 1)
+            try { g.c.close() } catch (e: Exception) { }
+            g.c.archivo.delete()
+            g.cambios.limpiar()
+        }
+        contenedor = null
+        raiz = null
+        expandidos = HashSet()
+        seleccion = HashSet()
+        consulta = ""
+        filtro = null
+        cambiosApk = CambiosApk()
+    }
+
+    /** Si hay un contenedor padre, vuelve a él; si no, cierra todo. */
     fun cerrar() {
-        cerrarInterno()
-        error = null
+        if (pila.isEmpty()) {
+            cerrarTodo()
+            error = null
+        } else {
+            cerrarActual()
+            val g = pila.removeAt(pila.size - 1)
+            contenedor = g.c
+            raiz = g.raiz
+            expandidos = g.expandidos
+            seleccion = g.seleccion
+            consulta = g.consulta
+            filtro = g.filtro
+            cambiosApk = g.cambios
+        }
         notificar()
     }
 
@@ -149,7 +318,6 @@ class ContenedorViewModel : ViewModel() {
             for (h in r.archivos) {
                 if (f != null && h.entrada?.categoria != f) continue
                 if (q.isNotEmpty() && !h.ruta.lowercase().contains(q)) continue
-                h.nombreMostrado = h.ruta
                 salida.add(h)
             }
         }
@@ -203,7 +371,7 @@ class ContenedorViewModel : ViewModel() {
     fun totalArchivos(): Int = raiz?.archivos?.size ?: 0
 
     override fun onCleared() {
-        cerrarInterno()
+        cerrarTodo()
         super.onCleared()
     }
 }
