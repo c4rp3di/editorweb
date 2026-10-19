@@ -5,6 +5,7 @@ import android.widget.ScrollView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.carpe.descompresor.apk.EscritorAxml
 import com.carpe.descompresor.apk.ParserAxml
 import com.carpe.descompresor.data.Entrada
 import com.carpe.descompresor.extraer.OpcionesExtraccion
@@ -12,6 +13,7 @@ import com.carpe.descompresor.extraer.SiExiste
 import com.carpe.descompresor.extraer.SolicitudExtraccion
 import com.carpe.descompresor.previsualizacion.Temporales
 import com.carpe.descompresor.util.Formato
+import com.carpe.descompresor.util.Iconos
 import com.carpe.descompresor.util.PreferenciasApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -68,6 +70,13 @@ object PantallaDetalles {
             if (p.bool("modo_dev")) Ui.toast(activity, "Extrayendo ${e.ruta}")
         })
 
+        if (e.categoria == Iconos.Categoria.COMPRIMIDO || e.categoria == Iconos.Categoria.APK) {
+            raiz.addView(Ui.boton(activity, "Abrir como contenedor") {
+                dialogo.dismiss()
+                vm.abrirAnidado(activity, e)
+            }, Ui.anchoTotal(activity, 4))
+        }
+
         if (cont.esApk) {
             raiz.addView(Ui.botonSecundario(activity, "APK: reemplazar con archivo…") {
                 dialogo.dismiss()
@@ -96,7 +105,7 @@ object PantallaDetalles {
             })
             raiz.addView(Ui.botonSecundario(activity, "APK: editar como texto…") {
                 dialogo.dismiss()
-                editarTexto(activity, vm, e)
+                editar(activity, vm, e)
             })
             raiz.addView(Ui.botonSecundario(activity, if (e.ruta in vm.cambiosApk.eliminados) "APK: no eliminar" else "APK: eliminar del paquete") {
                 dialogo.dismiss()
@@ -119,7 +128,7 @@ object PantallaDetalles {
         dialogo.show()
     }
 
-    private fun editarTexto(activity: AppCompatActivity, vm: ContenedorViewModel, e: Entrada) {
+    fun editar(activity: AppCompatActivity, vm: ContenedorViewModel, e: Entrada) {
         val cont = vm.contenedor ?: return
         val limite = 512 * 1024
         if (e.tamano > limite) {
@@ -132,12 +141,19 @@ object PantallaDetalles {
                     val rep = vm.cambiosApk.reemplazos[e.ruta]
                     if (rep != null) rep.readBytes() else Temporales.leerPrimeros(cont, e, limite)
                 }
-                if (ParserAxml.esAxml(bytes)) {
-                    Ui.toast(activity, "Es XML binario compilado (AXML): no se puede editar como texto. Reemplázalo con un archivo.")
-                    return@launch
+                val esAxml = ParserAxml.esAxml(bytes)
+                val textoInicial: String = if (esAxml) {
+                    try {
+                        ParserAxml.parsear(bytes).xml
+                    } catch (t: Throwable) {
+                        Ui.toast(activity, "No se pudo decodificar el XML binario: " + Ui.mensajeError(t))
+                        return@launch
+                    }
+                } else {
+                    String(bytes, Charsets.UTF_8)
                 }
                 val campo = EditText(activity)
-                campo.setText(String(bytes, Charsets.UTF_8))
+                campo.setText(textoInicial)
                 campo.typeface = android.graphics.Typeface.MONOSPACE
                 campo.textSize = 12f * Ui.escala
                 campo.setHorizontallyScrolling(true)
@@ -146,7 +162,7 @@ object PantallaDetalles {
                 val sv = ScrollView(activity)
                 sv.addView(campo)
                 AlertDialog.Builder(activity)
-                    .setTitle("Editar " + e.nombre)
+                    .setTitle((if (esAxml) "Editar (XML binario) " else "Editar ") + e.nombre)
                     .setView(sv)
                     .setNegativeButton("Cancelar", null)
                     .setPositiveButton("Guardar cambio") { _, _ ->
@@ -154,14 +170,23 @@ object PantallaDetalles {
                             val d = File(activity.cacheDir, "cambios_apk")
                             d.mkdirs()
                             val f = File(d, "t_" + System.currentTimeMillis())
-                            f.writeBytes(campo.text.toString().toByteArray(Charsets.UTF_8))
+                            val textoNuevo = campo.text.toString()
+                            if (esAxml) {
+                                f.writeBytes(EscritorAxml.compilar(textoNuevo, bytes))
+                            } else {
+                                f.writeBytes(textoNuevo.toByteArray(Charsets.UTF_8))
+                            }
                             vm.cambiosApk.reemplazos[e.ruta]?.delete()
                             vm.cambiosApk.eliminados.remove(e.ruta)
                             vm.cambiosApk.reemplazos[e.ruta] = f
                             vm.notificar()
                             Ui.toast(activity, "Cambio registrado. Reempaqueta desde la pestaña APK.")
                         } catch (t: Throwable) {
-                            Ui.toast(activity, "Error: " + Ui.mensajeError(t))
+                            AlertDialog.Builder(activity)
+                                .setTitle("No se pudo guardar el cambio")
+                                .setMessage(Ui.mensajeError(t))
+                                .setPositiveButton("Cerrar", null)
+                                .show()
                         }
                     }
                     .show()
