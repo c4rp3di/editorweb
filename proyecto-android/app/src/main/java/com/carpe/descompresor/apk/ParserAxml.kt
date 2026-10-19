@@ -10,6 +10,11 @@ class NodoAxml(val tag: String, val atributos: LinkedHashMap<String, String>) {
 
 class ResultadoAxml(val raiz: NodoAxml?, val xml: String)
 
+/** Se invoca por cada atributo leído: sirve al escritor para conservar IDs de recurso y tipos originales. */
+fun interface ObservadorAtributo {
+    fun alAtributo(uri: String, nombre: String, idRecurso: Int, texto: String, tipo: Int, dato: Int)
+}
+
 /** Parser propio del XML binario de Android (AXML). Java/Kotlin puro, sin librerías externas. */
 object ParserAxml {
     private const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
@@ -32,7 +37,7 @@ object ParserAxml {
         return (datos[0].toInt() == 0x03 && datos[1].toInt() == 0x00 && datos[2].toInt() == 0x08 && datos[3].toInt() == 0x00)
     }
 
-    fun parsear(datos: ByteArray): ResultadoAxml {
+    fun parsear(datos: ByteArray, observador: ObservadorAtributo? = null): ResultadoAxml {
         if (!esAxml(datos)) throw IllegalArgumentException("No es un XML binario de Android (AXML)")
         val bb = ByteBuffer.wrap(datos).order(ByteOrder.LITTLE_ENDIAN)
         val declarado = bb.getInt(4)
@@ -98,6 +103,11 @@ object ParserAxml {
                         val claveXml = if (!prefijo.isNullOrEmpty()) "$prefijo:$nombreAttr" else nombreAttr
                         val claveMapa = if (uriAttr == ANDROID_NS) "android:$nombreAttr" else claveXml
                         val valor = valorTexto(cadenas, raw, dt, data)
+                        observador?.alAtributo(
+                            uriAttr, nombreAttr,
+                            if (an >= 0 && an < mapaRecursos.size) mapaRecursos[an] else 0,
+                            valor, dt, data
+                        )
                         sb.append(' ').append(claveXml).append("=\"").append(escapar(valor)).append('"')
                         mapa[claveMapa] = valor
                     }
