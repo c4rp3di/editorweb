@@ -1,5 +1,8 @@
 package com.carpe.descompresor
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
@@ -11,7 +14,7 @@ import com.carpe.descompresor.ui.PantallaAjustes
 import com.carpe.descompresor.ui.PantallaApk
 import com.carpe.descompresor.ui.PantallaLista
 import com.carpe.descompresor.ui.Ui
-import com.carpe.descompresor.util.CopiaLocal
+import com.carpe.descompresor.util.ArchivoInbox
 import com.carpe.descompresor.util.PreferenciasApp
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
@@ -32,7 +35,7 @@ object AppLogic {
         )
 
         val vm = ViewModelProvider(activity)[ContenedorViewModel::class.java]
-        if (vm.contenedor == null && !vm.cargando) CopiaLocal.limpiarAbiertos(activity)
+        if (vm.contenedor == null && !vm.cargando) ArchivoInbox.barrerTodo(activity) else ArchivoInbox.barrerAntiguos(activity)
 
         val lanz = Lanzadores(activity)
         val marco = activity.findViewById<FrameLayout>(R.id.contenedor_principal)
@@ -64,5 +67,29 @@ object AppLogic {
         }
 
         lanz.pedirNotificaciones()
+    }
+
+    /** Extrae la Uri de un intent VIEW (Abrir con) o SEND (Compartir con). */
+    private fun uriDe(intent: Intent): Uri? {
+        return when (intent.action) {
+            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_SEND -> if (Build.VERSION.SDK_INT >= 33) {
+                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+            }
+            else -> null
+        }
+    }
+
+    /** Si el intent trae un archivo de otra app, lo copia a caché y abre su árbol. Si no, no hace nada. */
+    fun manejarIntent(activity: MainActivity, intent: Intent?) {
+        if (intent == null) return
+        val uri = uriDe(intent) ?: return
+        Log.i("Descompresor", "Archivo recibido: $uri")
+        val vm = ViewModelProvider(activity)[ContenedorViewModel::class.java]
+        activity.findViewById<BottomNavigationView>(R.id.barra_inferior).selectedItemId = R.id.nav_contenedor
+        vm.abrir(activity, uri, true)
     }
 }
