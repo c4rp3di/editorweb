@@ -7,12 +7,16 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.UUID
+
+class CopiaCancelada : RuntimeException("Apertura cancelada")
 
 object CopiaLocal {
     class Resultado(val archivo: File, val nombre: String)
 
+    /** Carpeta privada y autolimpiable donde viven las copias de los archivos abiertos (cache/inbox). */
     fun carpetaAbiertos(ctx: Context): File {
-        val d = File(ctx.cacheDir, "abiertos")
+        val d = File(ctx.cacheDir, "inbox")
         if (!d.exists()) d.mkdirs()
         return d
     }
@@ -52,27 +56,50 @@ object CopiaLocal {
         return -1L
     }
 
-    fun copiar(ctx: Context, uri: Uri, maxBytes: Long): Resultado {
+    /**
+     * Copia en streaming la Uri a cache/inbox/<uuid>.tmp. El nombre real se devuelve aparte
+     * (el motor lo necesita para distinguir .apk, .tar.gz, etc.).
+     */
+    fun copiar(
+        ctx: Context,
+        uri: Uri,
+        maxBytes: Long,
+        progreso: ((Long, Long) -> Unit)? = null,
+        cancelado: (() -> Boolean)? = null
+    ): Resultado {
         val nombre = nombreDe(ctx, uri)
-        val seguro = nombre.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        val destino = File(carpetaAbiertos(ctx), "${System.currentTimeMillis()}_$seguro")
+        val total = tamanoDe(ctx, uri)
+        if (total > maxBytes) {
+            throw IOException("El archivo (${Formato.bytes(total)}) supera el límite de ${Formato.bytes(maxBytes)} (ajustable en Ajustes)")
+        }
+        val destino = File(carpetaAbiertos(ctx), UUID.randomUUID().toString() + ".tmp")
         val entrada = ctx.contentResolver.openInputStream(uri) ?: throw IOException("No se pudo abrir el archivo")
-        var total = 0L
+        var hecho = 0L
+        var ultimo = 0L
         try {
             entrada.use { i ->
                 FileOutputStream(destino).use { o ->
-                    val buf = ByteArray(64 * 1024)
+                    val buf = ByteArray(PreferenciasApp(ctx).bufferBytes().coerceAtLeast(32 * 1024))
                     while (true) {
+                        if (cancelado != null && cancelado()) throw CopiaCancelada()
                         val n = i.read(buf)
                         if (n < 0) break
-                        total += n.toLong()
-                        if (total > maxBytes) {
+                        hecho += n.toLong()
+                        if (hecho > maxBytes) {
                             throw IOException("El archivo supera el límite de ${Formato.bytes(maxBytes)} (ajustable en Ajustes)")
                         }
                         o.write(buf, 0, n)
+                        if (progreso != null) {
+                            val ahora = System.currentTimeMillis()
+                            if (ahora - ultimo > 150L) {
+                                ultimo = ahora
+                                progreso(hecho, total)
+                            }
+                        }
                     }
                 }
             }
+            if (progreso != null) progreso(hecho, if (total > 0L) total else hecho)
         } catch (t: Throwable) {
             destino.delete()
             throw t
