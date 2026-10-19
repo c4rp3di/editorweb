@@ -18,6 +18,7 @@ class PreferenciasApp(ctx: Context) {
             "verificar_crc" to true,
             "buffer_kb" to 64,
             "max_contenedor_mb" to 500,
+            "max_recibido_mb" to 2048,
             "max_entrada_mb" to 200,
             "max_total_mb" to 2048,
             "ratio_max" to 100,
