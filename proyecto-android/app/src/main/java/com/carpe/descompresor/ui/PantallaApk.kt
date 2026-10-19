@@ -93,6 +93,7 @@ class PantallaApk(
         }
 
         contenido.addView(Ui.boton(activity, "Ver Manifest (XML)") { verManifest() }, Ui.anchoTotal(activity, 8))
+        contenido.addView(Ui.botonSecundario(activity, "Editar Manifest…") { editarManifest(c) })
         contenido.addView(Ui.botonSecundario(activity, "Permisos y componentes") { verComponentes() })
         contenido.addView(Ui.botonSecundario(activity, "Ver firma") { verFirma(c) })
         contenido.addView(Ui.botonSecundario(activity, "Comprobar alineación (zipalign)") { verAlineacion(c) })
@@ -136,6 +137,15 @@ class PantallaApk(
             return
         }
         dialogoTexto("AndroidManifest.xml", m.xml)
+    }
+
+    private fun editarManifest(c: Contenedor) {
+        val e = c.entradas.firstOrNull { it.ruta == "AndroidManifest.xml" }
+        if (e == null) {
+            Ui.toast(activity, "Este APK no contiene AndroidManifest.xml")
+            return
+        }
+        PantallaDetalles.editar(activity, vm, e)
     }
 
     private fun verComponentes() {
