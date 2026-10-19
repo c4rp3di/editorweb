@@ -6,6 +6,7 @@ import android.os.Build
 import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.ViewModelProvider
 import com.carpe.descompresor.ui.ContenedorViewModel
@@ -55,16 +56,38 @@ object AppLogic {
             apk.vista.visibility = if (cual === apk.vista) View.VISIBLE else View.GONE
             ajustes.vista.visibility = if (cual === ajustes.vista) View.VISIBLE else View.GONE
         }
-        mostrar(lista.vista)
-
-        nav.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.nav_contenedor -> mostrar(lista.vista)
+        fun mostrarPorId(id: Int) {
+            when (id) {
                 R.id.nav_apk -> mostrar(apk.vista)
                 R.id.nav_ajustes -> mostrar(ajustes.vista)
+                else -> mostrar(lista.vista)
             }
+        }
+
+        nav.setOnItemSelectedListener { item ->
+            vm.pestana = item.itemId
+            mostrarPorId(item.itemId)
             true
         }
+        // Tras recrear la actividad (cambio de tema, giro) se vuelve a la pestaña en la que estabas.
+        val inicial = if (vm.pestana == 0) R.id.nav_contenedor else vm.pestana
+        nav.selectedItemId = inicial
+        mostrarPorId(inicial)
+
+        // Atrás: pestaña distinta de Contenedor -> vuelve a Contenedor; archivo anidado -> contenedor anterior; si no, sale.
+        activity.onBackPressedDispatcher.addCallback(activity, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (nav.selectedItemId != R.id.nav_contenedor) {
+                    nav.selectedItemId = R.id.nav_contenedor
+                } else if (vm.nivel > 0) {
+                    vm.cerrar()
+                } else {
+                    isEnabled = false
+                    activity.onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        })
 
         lanz.pedirNotificaciones()
     }
