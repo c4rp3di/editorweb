@@ -3,20 +3,13 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
-        maven { url 'https://chaquo.com/maven' } // F5: plugin + runtime de Chaquopy
     }
 }
-
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://chaquo.com/maven' } // F5: wheels de Python (androguard, quark-engine...)
-        // Fallback si 'org.smali:dexlib2' no resuelve en Maven Central en tu CI:
-        // usa en su lugar 'com.github.JesusFreke.smali:dexlib2:2.5.2' vía JitPack
-        // y descomenta la línea siguiente.
-        // maven { url 'https://jitpack.io' }
     }
 }
 
