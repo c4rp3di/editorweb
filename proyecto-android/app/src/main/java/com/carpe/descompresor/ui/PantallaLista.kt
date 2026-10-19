@@ -8,11 +8,14 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -34,12 +37,15 @@ class PantallaLista(
 
     private val info: TextView
     private val estado: TextView
-    private val botonCerrar: View
+    private val botonCerrar: com.google.android.material.button.MaterialButton
     private val botonExtraer: com.google.android.material.button.MaterialButton
     private val adapter: ArbolAdapter
     private val campoBusqueda: EditText
     private val spinner: Spinner
     private var ignorarSpinner = true
+    private var dialogoCarga: AlertDialog? = null
+    private var barraCarga: ProgressBar? = null
+    private var textoCarga: TextView? = null
 
     init {
         val raiz = LinearLayout(activity)
@@ -130,14 +136,78 @@ class PantallaLista(
                 vm.revision.collect { refrescar() }
             }
         }
+        activity.lifecycleScope.launch {
+            activity.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                vm.progreso.collect { actualizarCarga(it) }
+            }
+        }
+        activity.lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                dialogoCarga?.dismiss()
+                dialogoCarga = null
+            }
+        })
         refrescar()
+    }
+
+    private fun mostrarDialogoCarga() {
+        val cont = Ui.vertical(activity, 20)
+        val texto = Ui.texto(activity, "Preparando…", 14f)
+        val barra = ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal)
+        barra.isIndeterminate = true
+        cont.addView(texto)
+        cont.addView(barra, Ui.anchoTotal(activity, 12))
+        val d = AlertDialog.Builder(activity)
+            .setTitle("Abriendo archivo")
+            .setView(cont)
+            .setCancelable(false)
+            .setNegativeButton("Cancelar", null)
+            .create()
+        d.show()
+        d.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+            vm.cancelarApertura()
+            texto.text = "Cancelando…"
+        }
+        dialogoCarga = d
+        textoCarga = texto
+        barraCarga = barra
+        actualizarCarga(vm.progreso.value)
+    }
+
+    private fun actualizarCarga(p: ProgresoApertura) {
+        val t = textoCarga ?: return
+        val b = barraCarga ?: return
+        if (!p.activo) return
+        if (p.total > 0L && p.hecho >= p.total && p.texto.startsWith("Copiando")) {
+            t.text = "Analizando contenido…"
+            b.isIndeterminate = true
+        } else if (p.total > 0L) {
+            b.isIndeterminate = false
+            b.max = 1000
+            b.progress = ((p.hecho * 1000L) / p.total).toInt().coerceIn(0, 1000)
+            t.text = p.texto + " " + Formato.bytes(p.hecho) + " / " + Formato.bytes(p.total)
+        } else {
+            b.isIndeterminate = true
+            t.text = p.texto + (if (p.hecho > 0L) " " + Formato.bytes(p.hecho) else "")
+        }
+    }
+
+    private fun gestionarCarga() {
+        if (vm.cargando) {
+            if (dialogoCarga == null) mostrarDialogoCarga()
+        } else {
+            dialogoCarga?.dismiss()
+            dialogoCarga = null
+            textoCarga = null
+            barraCarga = null
+        }
     }
 
     private fun abrirArchivo() {
         lanz.abrirDocumento { uri ->
             if (uri != null) {
                 campoBusqueda.setText("")
-                vm.abrir(activity, uri)
+                vm.abrir(activity, uri, false)
             }
         }
     }
@@ -145,19 +215,28 @@ class PantallaLista(
     private fun refrescar() {
         val c = vm.contenedor
         info.text = if (c == null) "Abre un archivo comprimido (ZIP, 7z, RAR, TAR, GZ, APK…)"
-        else "${c.nombre}\n${c.formato} · ${Formato.bytes(c.tamanoArchivo)} · ${vm.totalArchivos()} archivos"
+        else vm.rutaNavegacion() + "\n${c.formato} · ${Formato.bytes(c.tamanoArchivo)} · ${vm.totalArchivos()} archivos"
         botonCerrar.visibility = if (c == null) View.GONE else View.VISIBLE
+        botonCerrar.text = if (vm.nivel > 0) "⬅ Volver al contenedor anterior" else "Cerrar contenedor"
         estado.text = when {
-            vm.cargando -> "⏳ Abriendo…"
             vm.error != null -> "⚠ " + vm.error
             else -> ""
         }
         estado.visibility = if (estado.text.isEmpty()) View.GONE else View.VISIBLE
+
+        if (campoBusqueda.text.toString() != vm.consulta) campoBusqueda.setText(vm.consulta)
+        val posFiltro = vm.filtro?.let { it.ordinal + 1 } ?: 0
+        if (spinner.selectedItemPosition != posFiltro) {
+            ignorarSpinner = true
+            spinner.setSelection(posFiltro)
+        }
+
         adapter.resaltar = vm.consulta
         adapter.modoPlano = vm.consulta.isNotBlank() || vm.filtro != null
         adapter.actualizar(vm.visibles())
         botonExtraer.text = if (vm.seleccion.isEmpty()) "Extraer todo" else "Extraer selección (${vm.seleccion.size})"
         botonExtraer.isEnabled = c != null
+        gestionarCarga()
     }
 
     private fun extraer() {
