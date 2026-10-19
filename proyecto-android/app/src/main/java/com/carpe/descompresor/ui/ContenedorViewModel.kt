@@ -103,6 +103,9 @@ class ContenedorViewModel : ViewModel() {
         private set
     var error: String? = null
 
+    /** Pestaña activa (id del menú); 0 = Contenedor. Sobrevive a recreaciones (cambio de tema, giro). */
+    var pestana: Int = 0
+
     val revision = MutableStateFlow(0)
     val progreso = MutableStateFlow(ProgresoApertura())
 
