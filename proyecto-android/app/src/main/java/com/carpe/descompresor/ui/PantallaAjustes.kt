@@ -177,6 +177,7 @@ class PantallaAjustes(
 
         seccion("Seguridad y límites")
         numero("Tamaño máx. del contenedor", "max_contenedor_mb", 50, 4096, "MB")
+        numero("Tamaño máx. de archivo recibido de otras apps", "max_recibido_mb", 50, 4096, "MB")
         numero("Tamaño máx. por entrada", "max_entrada_mb", 1, 2048, "MB")
         numero("Tamaño total máx. extraído", "max_total_mb", 1, 65536, "MB")
         numero("Ratio máx. descomprimido:comprimido", "ratio_max", 10, 1000, ":1")
