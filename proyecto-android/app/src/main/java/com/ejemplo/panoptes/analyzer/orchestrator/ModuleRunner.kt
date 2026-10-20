@@ -34,11 +34,22 @@ internal object ModuleRunner {
         val ejecutor = Executors.newSingleThreadExecutor()
         try {
             val modulo = cargar()
+
+            // Guardar la función externa para evitar llamar recursivamente al método del listener.
+            val reportProgress = onProgress
+
             val listener = object : AnalyzerModule.ProgressListener {
-                override fun onProgress(phase: String, percent: Int) = onProgress(phase, percent)
+                override fun onProgress(phase: String, percent: Int) {
+                    reportProgress(phase, percent)
+                }
+
                 override fun onLog(line: String) {}
             }
-            val futuro = ejecutor.submit<AnalyzerModule.ModuleResult> { modulo.analyze(apkPath, outputDir, listener) }
+
+            val futuro = ejecutor.submit<AnalyzerModule.ModuleResult> {
+                modulo.analyze(apkPath, outputDir, listener)
+            }
+
             val resultado = try {
                 runInterruptible(Dispatchers.IO) { futuro.get(limite, unidad) }
             } catch (e: TimeoutException) {
@@ -48,6 +59,7 @@ internal object ModuleRunner {
                 val causa = e.cause ?: e
                 return Salida(null, "${causa.javaClass.simpleName}: ${causa.message ?: "sin detalle"}")
             }
+
             return if (resultado.success) Salida(resultado, null)
             else Salida(null, resultado.error ?: "el módulo terminó sin éxito y sin detalle")
         } catch (e: CancellationException) {
@@ -56,7 +68,11 @@ internal object ModuleRunner {
             return Salida(null, "${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}")
         } finally {
             ejecutor.shutdownNow()
-            try { descargar() } catch (e: Throwable) { /* no debe tapar el resultado */ }
+            try {
+                descargar()
+            } catch (e: Throwable) {
+                /* no debe tapar el resultado */
+            }
         }
     }
 }
