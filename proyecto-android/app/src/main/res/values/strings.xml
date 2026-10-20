@@ -1,6 +1,10 @@
 <resources>
-    <string name="app_name">Descompresor</string>
-    <string name="tab_contenedor">Contenedor</string>
-    <string name="tab_apk">APK</string>
-    <string name="tab_ajustes">Ajustes</string>
+    <string name="app_name">Gestor de Archivos</string>
+    <string name="seleccionados">%d selec.</string>
+    <string name="sin_carpeta">Sin carpeta</string>
+    <string name="carpeta_vacia">Esta carpeta está vacía</string>
+    <string name="elige_carpeta">Toca el botón de almacenamiento para empezar</string>
+    <string name="etiqueta_guardar">Guardar en Gestor de Archivos</string>
+    <string name="etiqueta_elegir">Elegir con Gestor de Archivos</string>
+    <string name="etiqueta_abrir">Abrir con Gestor de Archivos</string>
 </resources>
