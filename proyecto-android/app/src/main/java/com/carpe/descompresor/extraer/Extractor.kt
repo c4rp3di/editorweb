@@ -57,6 +57,7 @@ class Extractor(
                 if (EstadoExtraccion.cancelar) throw CancelacionExtraccion()
                 actual = e.ruta
                 procesar(e, flujo, informe)
+                prefs.poner("pendiente_en_curso", "")
                 hechos++
                 emitir(true)
             }
@@ -91,17 +92,27 @@ class Extractor(
             return
         }
 
-        var destRuta = if (op.preservarEstructura) limpia else limpia.substringAfterLast('/')
+        val relativa = if (op.preservarEstructura) limpia else limpia.substringAfterLast('/')
+        var destRuta = if (op.prefijo.isEmpty()) relativa else op.prefijo + "/" + relativa
         if (destino.existe(app, destRuta)) {
-            when (op.siExiste) {
-                SiExiste.OMITIR -> {
-                    informe.omitidos.add(Pair(e.ruta, "ya existe"))
+            if (op.reanudar) {
+                if (destRuta != op.enCurso) {
+                    informe.yaExistian++
                     return
                 }
-                SiExiste.RENOMBRAR -> destRuta = nombreLibre(destRuta)
-                SiExiste.SOBRESCRIBIR -> {}
+                // era el archivo en curso al interrumpirse: se rehace (se sobrescribe)
+            } else {
+                when (op.siExiste) {
+                    SiExiste.OMITIR -> {
+                        informe.omitidos.add(Pair(e.ruta, "ya existe"))
+                        return
+                    }
+                    SiExiste.RENOMBRAR -> destRuta = nombreLibre(destRuta)
+                    SiExiste.SOBRESCRIBIR -> {}
+                }
             }
         }
+        prefs.poner("pendiente_en_curso", destRuta)
 
         val contador = ContadorInput(flujo, lim.maxEntradaBytes) { n ->
             bytesAcum += n
