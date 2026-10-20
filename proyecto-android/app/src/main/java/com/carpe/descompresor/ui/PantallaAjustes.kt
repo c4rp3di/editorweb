@@ -98,15 +98,12 @@ class PantallaAjustes(
         val sp = Spinner(activity)
         sp.adapter = ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, valores.map { it.first })
         val actual = prefs.cadena(clave)
-        sp.setSelection(valores.indexOfFirst { it.second == actual }.coerceAtLeast(0))
-        var primera = true
+        // Selección inicial sin disparar el listener; después se engancha el listener.
+        sp.setSelection(valores.indexOfFirst { it.second == actual }.coerceAtLeast(0), false)
         sp.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
-                if (primera) {
-                    primera = false
-                    return
-                }
                 val nuevo = valores[pos].second
+                if (nuevo == prefs.cadena(clave)) return   // no cambió nada
                 prefs.poner(clave, nuevo)
                 alCambiar?.invoke(nuevo)
             }
@@ -137,29 +134,27 @@ class PantallaAjustes(
 
         seccion("General")
         opciones("Tema", "tema", listOf("Sistema" to "sistema", "Claro" to "claro", "Oscuro" to "oscuro")) { v ->
-            AppCompatDelegate.setDefaultNightMode(
-                when (v) {
-                    "claro" -> AppCompatDelegate.MODE_NIGHT_NO
-                    "oscuro" -> AppCompatDelegate.MODE_NIGHT_YES
-                    else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-                }
-            )
+            val modo = when (v) {
+                "claro" -> AppCompatDelegate.MODE_NIGHT_NO
+                "oscuro" -> AppCompatDelegate.MODE_NIGHT_YES
+                else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            }
+            // Se aplica cuando el desplegable ya se ha cerrado (cambiar el tema recrea la pantalla).
+            scroll.post {
+                if (AppCompatDelegate.getDefaultNightMode() != modo) AppCompatDelegate.setDefaultNightMode(modo)
+            }
         }
         contenido.addView(Ui.texto(activity, "Tamaño de fuente de la app", 14f), Ui.anchoTotal(activity, 6))
         val spFuente = Spinner(activity)
         val escalas = listOf(85, 100, 115, 130)
         spFuente.adapter = ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, escalas.map { "$it %" })
-        spFuente.setSelection(escalas.indexOf(prefs.entero("escala_fuente")).coerceAtLeast(1))
-        var primeraFuente = true
+        spFuente.setSelection(escalas.indexOf(prefs.entero("escala_fuente")).coerceAtLeast(1), false)
         spFuente.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
-                if (primeraFuente) {
-                    primeraFuente = false
-                    return
-                }
+                if (escalas[pos] == prefs.entero("escala_fuente")) return   // no cambió nada
                 prefs.poner("escala_fuente", escalas[pos])
                 Ui.escala = escalas[pos] / 100f
-                activity.recreate()
+                spFuente.post { activity.recreate() }
             }
 
             override fun onNothingSelected(p: AdapterView<*>?) {}
