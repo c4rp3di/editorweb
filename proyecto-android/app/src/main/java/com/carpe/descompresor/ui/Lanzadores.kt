@@ -17,10 +17,13 @@ class Lanzadores(private val activity: ComponentActivity) {
     private var cbCrear: ((Uri?) -> Unit)? = null
 
     private val abrir = activity.registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) persistirLectura(uri)
         cbAbrir?.invoke(uri)
     }
     private val varios = activity.registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        cbVarios?.invoke(uris ?: emptyList())
+        val l: List<Uri> = uris ?: emptyList()
+        for (u in l) persistirLectura(u)
+        cbVarios?.invoke(l)
     }
     private val carpeta = activity.registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         cbCarpeta?.invoke(uri)
@@ -30,6 +33,15 @@ class Lanzadores(private val activity: ComponentActivity) {
     }
     private val permisoNotif = activity.registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     private val permisoEscritura = activity.registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** Permiso persistente de lectura: permite reabrir desde "Recientes" y reanudar extracciones. */
+    private fun persistirLectura(uri: Uri) {
+        try {
+            activity.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } catch (e: Exception) {
+            // algunos proveedores no lo permiten
+        }
+    }
 
     fun abrirDocumento(cb: (Uri?) -> Unit) {
         cbAbrir = cb
