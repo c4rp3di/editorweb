@@ -36,12 +36,14 @@ class PreferenciasApp(ctx: Context) {
             "modo_dev" to false,
             "saf_uri" to "",
             "ruta_almacenamiento" to "",
+            "recientes" to "",
+            "pendiente_en_curso" to "",
             "stat_abiertos" to 0L,
             "stat_extraidas" to 0L,
             "stat_bytes" to 0L
         )
 
-        private val NO_EXPORTAR = setOf("saf_uri", "stat_abiertos", "stat_extraidas", "stat_bytes")
+        private val NO_EXPORTAR = setOf("recientes", "pendiente_en_curso", "saf_uri", "stat_abiertos", "stat_extraidas", "stat_bytes")
     }
 
     fun cadena(k: String): String = sp.getString(k, null) ?: (BASE[k] as String)
