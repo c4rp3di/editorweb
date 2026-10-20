@@ -11,11 +11,14 @@ class InformeExtraccion {
     var bytes: Long = 0L
     var destino: String = ""
     var carpetaLocal: File? = null
+    var yaExistian: Int = 0
+    var permiteReintento: Boolean = true
 
     fun resumen(): String {
         val sb = StringBuilder()
         if (cancelado) sb.append("Cancelado. ")
         sb.append("${extraidos.size} extraídos, ${fallidos.size} fallidos, ${omitidos.size} omitidos")
+        if (yaExistian > 0) sb.append(", $yaExistian ya existían")
         sb.append(" · ${Formato.bytes(bytes)}")
         return sb.toString()
     }
