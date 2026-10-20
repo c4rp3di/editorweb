@@ -7,6 +7,7 @@ import com.carpe.descompresor.util.PreferenciasApp
 import com.carpe.descompresor.util.Seguridad
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipFile
+import org.apache.commons.compress.archivers.zip.ZipSplitReadOnlySeekableByteChannel
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.InputStream
@@ -15,10 +16,15 @@ open class ContenedorZip(
     nombre: String,
     formato: String,
     archivo: File,
-    maxEntradas: Int
+    maxEntradas: Int,
+    dividido: Boolean = false
 ) : Contenedor(nombre, formato, archivo) {
 
-    val zip: ZipFile = ZipFile(archivo)
+    val zip: ZipFile = if (dividido) {
+        ZipFile(ZipSplitReadOnlySeekableByteChannel.buildFromLastSplitSegment(archivo))
+    } else {
+        ZipFile(archivo)
+    }
     private val mapa = HashMap<String, ZipArchiveEntry>()
     override val entradas: List<Entrada>
 
