@@ -11,6 +11,7 @@ import com.carpe.descompresor.motor.CatalogoMotores
 import com.carpe.descompresor.util.ContadorInput
 import com.carpe.descompresor.util.CopiaCancelada
 import com.carpe.descompresor.util.CopiaLocal
+import com.carpe.descompresor.util.Historial
 import com.carpe.descompresor.util.Iconos
 import com.carpe.descompresor.util.PreferenciasApp
 import com.carpe.descompresor.util.Seguridad
@@ -143,30 +144,63 @@ class ContenedorViewModel : ViewModel() {
         cancelarFlag = true
     }
 
+    /** Uri original del contenedor de nivel 0 (para poder reanudar una extracción). */
+    var origenUri: String? = null
+        private set
+
+    /** Solo se pregunta una vez por sesión si hay una extracción interrumpida. */
+    var preguntoPendiente: Boolean = false
+
+    /** Origen reanudable: solo si el contenedor está en el nivel 0 y vino de una Uri. */
+    val origenReanudable: String?
+        get() = if (pila.isEmpty()) origenUri else null
+
     /** Abre un archivo elegido en la app (externo=false) o recibido de otra app (externo=true). */
-    fun abrir(ctx: Context, uri: Uri, externo: Boolean) {
+    fun abrir(ctx: Context, uri: Uri, externo: Boolean, alTerminar: ((Boolean) -> Unit)? = null) {
         val app = ctx.applicationContext
+        iniciarApertura(app, externo, uri.toString(), alTerminar) { max, prog, canc ->
+            CatalogoMotores.abrir(app, uri, max, prog, canc)
+        }
+    }
+
+    /** Abre un archivo dividido en volúmenes (varias partes elegidas a la vez). */
+    fun abrirVarios(ctx: Context, uris: List<Uri>, alTerminar: ((Boolean) -> Unit)? = null) {
+        val app = ctx.applicationContext
+        iniciarApertura(app, true, null, alTerminar) { max, prog, canc ->
+            CatalogoMotores.abrirVolumenes(app, uris, max, prog, canc)
+        }
+    }
+
+    private fun iniciarApertura(
+        app: Context,
+        usarLimiteRecibido: Boolean,
+        origen: String?,
+        alTerminar: ((Boolean) -> Unit)?,
+        abrirFn: suspend (Long, (Long, Long) -> Unit, () -> Boolean) -> Contenedor
+    ) {
         if (cargando) return
         viewModelScope.launch {
             cargando = true
             error = null
             cancelarFlag = false
+            var ok = false
             progreso.value = ProgresoApertura(true, 0L, -1L, "Copiando…")
             notificar()
             try {
                 val p = PreferenciasApp(app)
-                val max = if (externo) p.entero("max_recibido_mb").toLong() * 1024L * 1024L
+                val max = if (usarLimiteRecibido) p.entero("max_recibido_mb").toLong() * 1024L * 1024L
                 else Seguridad.limites(p).maxContenedorBytes
                 val c = withContext(Dispatchers.IO) {
-                    CatalogoMotores.abrir(app, uri, max, { h, t ->
-                        progreso.value = ProgresoApertura(true, h, t, "Copiando…")
-                    }, { cancelarFlag })
+                    abrirFn(max, { h, t -> progreso.value = ProgresoApertura(true, h, t, "Copiando…") }, { cancelarFlag })
                 }
                 val arbol = withContext(Dispatchers.Default) { ArbolBuilder.construir(c.entradas) }
                 cerrarTodo()
                 contenedor = c
                 raiz = arbol
+                origenUri = origen
                 p.sumar("stat_abiertos", 1L)
+                if (origen != null) Historial.agregar(app, origen, c.nombre, c.tamanoArchivo)
+                ok = true
             } catch (t: CopiaCancelada) {
                 // cancelado por el usuario: sin mensaje
             } catch (t: Throwable) {
@@ -176,6 +210,7 @@ class ContenedorViewModel : ViewModel() {
                 progreso.value = ProgresoApertura()
                 notificar()
             }
+            alTerminar?.invoke(ok)
         }
     }
 
@@ -263,7 +298,7 @@ class ContenedorViewModel : ViewModel() {
         val c = contenedor
         if (c != null) {
             try { c.close() } catch (e: Exception) { }
-            c.archivo.delete()
+            CopiaLocal.borrar(c.archivo)
         }
         cambiosApk.limpiar()
     }
@@ -273,11 +308,12 @@ class ContenedorViewModel : ViewModel() {
         while (pila.isNotEmpty()) {
             val g = pila.removeAt(pila.size - 1)
             try { g.c.close() } catch (e: Exception) { }
-            g.c.archivo.delete()
+            CopiaLocal.borrar(g.c.archivo)
             g.cambios.limpiar()
         }
         contenedor = null
         raiz = null
+        origenUri = null
         expandidos = HashSet()
         seleccion = HashSet()
         consulta = ""
