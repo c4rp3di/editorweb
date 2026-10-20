@@ -7,7 +7,9 @@ import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.ProgressBar
 import android.widget.Spinner
 import android.widget.TextView
@@ -20,9 +22,12 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import com.carpe.descompresor.crear.CreadorTar
 import com.carpe.descompresor.crear.CreadorZip
 import com.carpe.descompresor.util.Formato
+import com.carpe.descompresor.util.Historial
 import com.carpe.descompresor.util.Iconos
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -38,7 +43,11 @@ class PantallaLista(
     private val info: TextView
     private val estado: TextView
     private val botonCerrar: com.google.android.material.button.MaterialButton
+    private val botonVerificar: com.google.android.material.button.MaterialButton
     private val botonExtraer: com.google.android.material.button.MaterialButton
+    private val panelRecientes: ScrollView
+    private val contenidoRecientes: LinearLayout
+    private val lista: RecyclerView
     private val adapter: ArbolAdapter
     private val campoBusqueda: EditText
     private val spinner: Spinner
@@ -55,10 +64,13 @@ class PantallaLista(
 
         val fila1 = Ui.fila(activity)
         val bAbrir = Ui.boton(activity, "Abrir archivo") { abrirArchivo() }
+        val bLote = Ui.botonSecundario(activity, "Lote…") { dialogoLote() }
         val bCrear = Ui.botonSecundario(activity, "Crear…") { dialogoCrear() }
         bAbrir.layoutParams = Ui.pesoUno()
+        bLote.layoutParams = Ui.pesoUno()
         bCrear.layoutParams = Ui.pesoUno()
         fila1.addView(bAbrir)
+        fila1.addView(bLote)
         fila1.addView(bCrear)
         raiz.addView(fila1)
 
@@ -66,8 +78,14 @@ class PantallaLista(
         info.setPadding(Ui.dp(activity, 4), Ui.dp(activity, 6), 0, 0)
         raiz.addView(info)
 
+        val filaContenedor = Ui.fila(activity)
         botonCerrar = Ui.botonSecundario(activity, "Cerrar contenedor") { vm.cerrar() }
-        raiz.addView(botonCerrar)
+        botonVerificar = Ui.botonSecundario(activity, "Verificar integridad") { DialogoVerificacion.mostrar(activity, vm) }
+        botonCerrar.layoutParams = Ui.pesoUno()
+        botonVerificar.layoutParams = Ui.pesoUno()
+        filaContenedor.addView(botonCerrar)
+        filaContenedor.addView(botonVerificar)
+        raiz.addView(filaContenedor)
 
         estado = Ui.texto(activity, "", 13f)
         estado.setPadding(Ui.dp(activity, 4), Ui.dp(activity, 4), 0, 0)
@@ -119,12 +137,18 @@ class PantallaLista(
         filaSel.addView(bNada)
         raiz.addView(filaSel)
 
-        val lista = RecyclerView(activity)
+        lista = RecyclerView(activity)
         lista.layoutManager = LinearLayoutManager(activity)
         adapter = ArbolAdapter(activity, vm) { n -> PantallaDetalles.mostrar(activity, vm, lanz, n) }
         lista.adapter = adapter
-        lista.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
-        raiz.addView(lista)
+        panelRecientes = ScrollView(activity)
+        contenidoRecientes = Ui.vertical(activity, 4)
+        panelRecientes.addView(contenidoRecientes)
+        val marcoLista = FrameLayout(activity)
+        marcoLista.addView(lista, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        marcoLista.addView(panelRecientes, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        marcoLista.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+        raiz.addView(marcoLista)
 
         botonExtraer = Ui.boton(activity, "Extraer todo") { extraer() }
         raiz.addView(botonExtraer, Ui.anchoTotal(activity, 4))
@@ -204,12 +228,88 @@ class PantallaLista(
     }
 
     private fun abrirArchivo() {
-        lanz.abrirDocumento { uri ->
-            if (uri != null) {
-                campoBusqueda.setText("")
-                vm.abrir(activity, uri, false)
-            }
+        lanz.elegirVarios { uris ->
+            if (uris.isEmpty()) return@elegirVarios
+            campoBusqueda.setText("")
+            if (uris.size == 1) vm.abrir(activity, uris[0], false) else vm.abrirVarios(activity, uris)
         }
+    }
+
+    private val extensionesComprimidas = setOf("zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "tbz2", "xz", "txz", "apk", "cpio", "deb", "ar")
+
+    private fun dialogoLote() {
+        AlertDialog.Builder(activity)
+            .setTitle("Extraer en lote")
+            .setItems(arrayOf("Elegir archivos…", "Elegir una carpeta…")) { _, which ->
+                if (which == 0) {
+                    lanz.elegirVarios { uris ->
+                        if (uris.isNotEmpty()) DialogoExtraccion.mostrar(activity, vm, lanz, emptySet(), uris)
+                    }
+                } else {
+                    lanz.elegirCarpeta { carpeta -> if (carpeta != null) elegirDeCarpeta(carpeta) }
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun elegirDeCarpeta(carpeta: Uri) {
+        activity.lifecycleScope.launch {
+            val archivos = withContext(Dispatchers.IO) {
+                val d = DocumentFile.fromTreeUri(activity, carpeta)
+                val l = ArrayList<DocumentFile>()
+                d?.listFiles()?.forEach { f ->
+                    val n = f.name ?: ""
+                    if (f.isFile && Iconos.extension(n) in extensionesComprimidas) l.add(f)
+                }
+                l.sortBy { (it.name ?: "").lowercase() }
+                l
+            }
+            if (archivos.isEmpty()) {
+                Ui.toast(activity, "No hay archivos comprimidos en esa carpeta")
+                return@launch
+            }
+            val nombres = Array(archivos.size) { archivos[it].name ?: "?" }
+            val marcados = BooleanArray(archivos.size) { true }
+            AlertDialog.Builder(activity)
+                .setTitle("${archivos.size} archivos encontrados")
+                .setMultiChoiceItems(nombres, marcados) { _, i, c -> marcados[i] = c }
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Continuar") { _, _ ->
+                    val elegidos = ArrayList<Uri>()
+                    for (i in archivos.indices) if (marcados[i]) elegidos.add(archivos[i].uri)
+                    if (elegidos.isEmpty()) Ui.toast(activity, "No has marcado ninguno")
+                    else DialogoExtraccion.mostrar(activity, vm, lanz, emptySet(), elegidos)
+                }
+                .show()
+        }
+    }
+
+    private fun construirRecientes() {
+        contenidoRecientes.removeAllViews()
+        val l = Historial.lista(activity)
+        if (l.isEmpty()) {
+            contenidoRecientes.addView(Ui.texto(activity, "Aún no has abierto ningún archivo.", 13f))
+            return
+        }
+        contenidoRecientes.addView(Ui.texto(activity, "Recientes", 15f, true))
+        for (r in l) {
+            val fila = Ui.vertical(activity, 8)
+            fila.addView(Ui.texto(activity, "📦 " + r.nombre, 14f))
+            val sub = Ui.texto(activity, Formato.bytes(r.tamano) + " · " + Formato.fecha(r.fecha), 11f)
+            sub.alpha = 0.7f
+            fila.addView(sub)
+            fila.setOnClickListener {
+                campoBusqueda.setText("")
+                vm.abrir(activity, Uri.parse(r.uri), false)
+            }
+            contenidoRecientes.addView(fila)
+            contenidoRecientes.addView(Ui.separador(activity))
+        }
+        contenidoRecientes.addView(Ui.botonSecundario(activity, "Borrar historial") {
+            Historial.borrar(activity)
+            construirRecientes()
+        }, Ui.anchoTotal(activity, 8))
     }
 
     private fun refrescar() {
@@ -217,6 +317,11 @@ class PantallaLista(
         info.text = if (c == null) "Abre un archivo comprimido (ZIP, 7z, RAR, TAR, GZ, APK…)"
         else vm.rutaNavegacion() + "\n${c.formato} · ${Formato.bytes(c.tamanoArchivo)} · ${vm.totalArchivos()} archivos"
         botonCerrar.visibility = if (c == null) View.GONE else View.VISIBLE
+        botonVerificar.visibility = if (c == null) View.GONE else View.VISIBLE
+        val verRecientes = c == null && !vm.cargando
+        panelRecientes.visibility = if (verRecientes) View.VISIBLE else View.GONE
+        lista.visibility = if (c == null) View.GONE else View.VISIBLE
+        if (verRecientes) construirRecientes()
         botonCerrar.text = if (vm.nivel > 0) "⬅ Volver al contenedor anterior" else "Cerrar contenedor"
         estado.text = when {
             vm.error != null -> "⚠ " + vm.error
