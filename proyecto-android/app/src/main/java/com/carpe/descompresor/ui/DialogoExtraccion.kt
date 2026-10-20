@@ -21,9 +21,11 @@ import androidx.lifecycle.lifecycleScope
 import com.carpe.descompresor.crear.CreadorZip
 import com.carpe.descompresor.destino.AlmacenamientoDestino
 import com.carpe.descompresor.destino.CatalogoDestinos
+import com.carpe.descompresor.extraer.DatosPendiente
 import com.carpe.descompresor.extraer.EstadoExtraccion
 import com.carpe.descompresor.extraer.InformeExtraccion
 import com.carpe.descompresor.extraer.OpcionesExtraccion
+import com.carpe.descompresor.extraer.Pendiente
 import com.carpe.descompresor.extraer.Progreso
 import com.carpe.descompresor.extraer.ServicioExtraccion
 import com.carpe.descompresor.extraer.SiExiste
@@ -44,12 +46,20 @@ object DialogoExtraccion {
         return activity.contentResolver.persistedUriPermissions.any { it.uri.toString() == s && it.isWritePermission }
     }
 
-    fun mostrar(activity: AppCompatActivity, vm: ContenedorViewModel, lanz: Lanzadores, rutas: Set<String>) {
+    fun mostrar(activity: AppCompatActivity, vm: ContenedorViewModel, lanz: Lanzadores, rutas: Set<String>, lote: List<Uri>? = null) {
         val prefs = PreferenciasApp(activity)
-        val cont = vm.contenedor ?: return
+        val cont = vm.contenedor
+        if (lote == null && cont == null) return
 
         val raiz = Ui.vertical(activity, 16)
-        raiz.addView(Ui.texto(activity, "${rutas.size} archivo(s) de «${cont.nombre}»", 14f, true))
+        raiz.addView(
+            Ui.texto(
+                activity,
+                if (lote != null) "${lote.size} archivo(s) comprimido(s) · cada uno en su propia carpeta"
+                else "${rutas.size} archivo(s) de «${cont?.nombre}»",
+                14f, true
+            )
+        )
         raiz.addView(Ui.texto(activity, "Destino", 13f, true), Ui.anchoTotal(activity, 10))
 
         val grupo = RadioGroup(activity)
@@ -140,17 +150,20 @@ object DialogoExtraccion {
                 prefs.poner("verificar_crc", cCrc.isChecked)
                 prefs.poner("si_existe", when (siExiste) { SiExiste.SOBRESCRIBIR -> "sobrescribir"; SiExiste.OMITIR -> "omitir"; else -> "renombrar" })
                 val opciones = OpcionesExtraccion(cPreservar.isChecked, siExiste, cCrc.isChecked)
+                fun sol(destinoId: String) = SolicitudExtraccion(
+                    cont, rutas, destinoId, opciones, lote, if (lote == null) vm.origenReanudable else null
+                )
                 when (id) {
                     "saf" -> {
                         if (!safListo(activity, prefs)) {
                             lanz.elegirCarpeta { uri ->
                                 if (uri != null) {
                                     prefs.ponerSafUri(uri.toString())
-                                    lanzar(activity, vm, lanz, SolicitudExtraccion(cont, rutas, "saf", opciones))
+                                    lanzar(activity, vm, lanz, sol("saf"))
                                 }
                             }
                         } else {
-                            lanzar(activity, vm, lanz, SolicitudExtraccion(cont, rutas, "saf", opciones))
+                            lanzar(activity, vm, lanz, sol("saf"))
                         }
                     }
                     "almacenamiento" -> {
@@ -158,10 +171,10 @@ object DialogoExtraccion {
                             pedirPermisoAlmacenamiento(activity, lanz)
                         } else {
                             prefs.poner("ruta_almacenamiento", campoRuta.text.toString().trim())
-                            lanzar(activity, vm, lanz, SolicitudExtraccion(cont, rutas, "almacenamiento", opciones))
+                            lanzar(activity, vm, lanz, sol("almacenamiento"))
                         }
                     }
-                    else -> lanzar(activity, vm, lanz, SolicitudExtraccion(cont, rutas, "interno", opciones))
+                    else -> lanzar(activity, vm, lanz, sol("interno"))
                 }
             }
             .show()
@@ -256,12 +269,12 @@ object DialogoExtraccion {
         b.setTitle(if (inf.cancelado) "Extracción cancelada" else "Extracción terminada")
             .setView(sv)
             .setPositiveButton("Cerrar", null)
-        if (inf.fallidos.isNotEmpty()) {
+        if (inf.fallidos.isNotEmpty() && inf.permiteReintento) {
             b.setNegativeButton("Reintentar fallidos") { _, _ ->
                 val s = EstadoExtraccion.solicitud
-                if (s != null) {
+                if (s != null && s.contenedor != null) {
                     val rutas = inf.fallidos.map { it.first }.toSet()
-                    lanzar(activity, vm, lanz, SolicitudExtraccion(s.contenedor, rutas, s.destinoId, s.opciones))
+                    lanzar(activity, vm, lanz, SolicitudExtraccion(s.contenedor, rutas, s.destinoId, s.opciones, null, s.origen, s.destinoDetalle))
                 }
             }
         }
@@ -295,6 +308,26 @@ object DialogoExtraccion {
                 activity.startActivity(Intent.createChooser(i, "Compartir"))
             } catch (t: Throwable) {
                 Ui.toast(activity, "No se pudo compartir: " + Ui.mensajeError(t))
+            }
+        }
+    }
+
+    /** Reanuda una extracción interrumpida: reabre el origen y salta lo que ya se extrajo. */
+    fun reanudar(activity: AppCompatActivity, vm: ContenedorViewModel, lanz: Lanzadores, d: DatosPendiente) {
+        val enCurso = PreferenciasApp(activity).cadena("pendiente_en_curso")
+        val opciones = OpcionesExtraccion(d.preservar, SiExiste.OMITIR, d.verificarCrc, "", true, enCurso)
+        if (d.tipo == "lote") {
+            val uris = d.uris.map { Uri.parse(it) }
+            lanzar(activity, vm, lanz, SolicitudExtraccion(null, emptySet(), d.destinoId, opciones, uris, null, d.destinoDetalle))
+            return
+        }
+        vm.abrir(activity, Uri.parse(d.origen), false) { ok ->
+            val c = vm.contenedor
+            if (!ok || c == null) {
+                Ui.toast(activity, "No se pudo reabrir «${d.nombre}»: " + (vm.error ?: "el archivo ya no está accesible"))
+                Pendiente.borrar(activity)
+            } else {
+                lanzar(activity, vm, lanz, SolicitudExtraccion(c, d.rutas.toSet(), d.destinoId, opciones, null, d.origen, d.destinoDetalle))
             }
         }
     }
