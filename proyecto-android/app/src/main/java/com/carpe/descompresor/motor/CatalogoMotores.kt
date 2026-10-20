@@ -5,6 +5,9 @@ import android.net.Uri
 import com.carpe.descompresor.data.Contenedor
 import com.carpe.descompresor.util.CopiaCancelada
 import com.carpe.descompresor.util.CopiaLocal
+import com.carpe.descompresor.util.PreferenciasApp
+import com.carpe.descompresor.util.Seguridad
+import com.carpe.descompresor.util.Volumenes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -42,5 +45,30 @@ object CatalogoMotores {
         val motor = motores.firstOrNull { it.puedeAbrir(cab, nombre) }
             ?: throw IOException("Formato no reconocido: $nombre")
         return motor.abrirArchivo(ctx, archivo, nombre)
+    }
+
+    /** Abre un archivo dividido en varios volúmenes (todas las partes elegidas a la vez). */
+    suspend fun abrirVolumenes(
+        ctx: Context,
+        uris: List<Uri>,
+        maxBytes: Long,
+        progreso: ((Long, Long) -> Unit)?,
+        cancelado: (() -> Boolean)?
+    ): Contenedor = withContext(Dispatchers.IO) {
+        val partes = uris.map { Volumenes.Parte(it, CopiaLocal.nombreDe(ctx, it)) }
+        val plan = Volumenes.planificar(partes)
+        val res = Volumenes.copiar(ctx, plan, maxBytes, progreso, cancelado)
+        try {
+            if (cancelado != null && cancelado()) throw CopiaCancelada()
+            val lim = Seguridad.limites(PreferenciasApp(ctx))
+            when (plan.tipo) {
+                Volumenes.Tipo.NUMERICO -> abrirArchivo(ctx, res.archivo, plan.nombreBase)
+                Volumenes.Tipo.ZIP_DIVIDIDO -> ContenedorZip(res.nombre, "ZIP (dividido)", res.archivo, lim.maxEntradas, true)
+                Volumenes.Tipo.RAR -> ContenedorRar(res.nombre, res.archivo, File(ctx.cacheDir, "rar_tmp"), lim.maxEntradas)
+            }
+        } catch (t: Throwable) {
+            CopiaLocal.borrar(res.archivo)
+            throw t
+        }
     }
 }
