@@ -114,12 +114,11 @@ class PantallaLista(
         spinner.adapter = ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, opciones)
         spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, v: View?, pos: Int, id: Long) {
-                if (ignorarSpinner) {
-                    ignorarSpinner = false
-                    return
+                val nuevo = if (pos == 0) null else Iconos.Categoria.values()[pos - 1]
+                if (nuevo != vm.filtro) {
+                    vm.filtro = nuevo
+                    vm.notificar()
                 }
-                vm.filtro = if (pos == 0) null else Iconos.Categoria.values()[pos - 1]
-                vm.notificar()
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -331,10 +330,7 @@ class PantallaLista(
 
         if (campoBusqueda.text.toString() != vm.consulta) campoBusqueda.setText(vm.consulta)
         val posFiltro = vm.filtro?.let { it.ordinal + 1 } ?: 0
-        if (spinner.selectedItemPosition != posFiltro) {
-            ignorarSpinner = true
-            spinner.setSelection(posFiltro)
-        }
+        if (spinner.selectedItemPosition != posFiltro) spinner.setSelection(posFiltro, false)
 
         adapter.resaltar = vm.consulta
         adapter.modoPlano = vm.consulta.isNotBlank() || vm.filtro != null
