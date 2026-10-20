@@ -3,9 +3,9 @@ package com.carpe.descompresor.destino
 import android.content.Context
 
 object CatalogoDestinos {
-    fun crear(id: String): EstrategiaDestino = when (id) {
+    fun crear(id: String, detalle: String = ""): EstrategiaDestino = when (id) {
         "almacenamiento" -> AlmacenamientoDestino()
-        "interno" -> InternoDestino()
+        "interno" -> InternoDestino(detalle)
         else -> SafDestino()
     }
 
