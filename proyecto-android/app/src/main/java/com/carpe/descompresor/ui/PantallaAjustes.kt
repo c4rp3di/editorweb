@@ -216,6 +216,9 @@ class PantallaAjustes(
                 .show()
         }, Ui.anchoTotal(activity, 6))
 
+        seccion("Ayuda")
+        contenido.addView(Ui.boton(activity, "Abrir la ayuda") { mostrarAyuda() }, Ui.anchoTotal(activity, 6))
+
         seccion("Avanzado")
         interruptor("Modo desarrollador (logs detallados)", "modo_dev")
         contenido.addView(Ui.botonSecundario(activity, "Exportar ajustes (JSON)") { exportar() }, Ui.anchoTotal(activity, 6))
@@ -368,5 +371,59 @@ class PantallaAjustes(
             }
             Ui.toast(activity, "Liberados " + Formato.bytes(liberado))
         }
+    }
+
+    // ---------- ayuda ----------
+    private val temasAyuda: List<Pair<String, String>> = listOf(
+        "Abrir archivos" to "Pulsa «Abrir archivo» y elige uno. Si no hay ninguno abierto verás tus «Recientes»: toca uno para reabrirlo.\n\n" +
+            "Tocar una carpeta la despliega; tocar un archivo muestra sus detalles, vista previa y acciones. El cuadro de la izquierda de cada fila marca para extraer (en carpetas marca todo lo que contienen).",
+        "Dónde se extrae (destinos)" to "• Carpeta elegida (SAF): eliges una carpeta y la app la recuerda. No necesita permisos especiales y funciona en todos los Android.\n\n" +
+            "• Almacenamiento (acceso total): escribe en una ruta de tu almacenamiento. Pide el permiso «Acceso a todos los archivos» en Ajustes del sistema. En Android 10 no está disponible.\n\n" +
+            "• Interno de la app: no necesita permisos y permite «Compartir» lo extraído, pero no es visible desde otros gestores de archivos.",
+        "Archivos divididos (volúmenes)" to "Pulsa «Abrir archivo» y marca TODAS las partes a la vez; la app las une sola.\n\n" +
+            "Se admiten: nombre.zip.001, .002…  ·  nombre.z01, .z02… + nombre.zip  ·  nombre.part1.rar, .part2.rar…  ·  nombre.rar + .r00, .r01…\n\n" +
+            "Si falta una parte te dirá cuál. RAR solo en versión 4; con contraseña no se pueden abrir.",
+        "Extraer en lote" to "Botón «Lote…»: elige varios archivos o una carpeta con archivos comprimidos. Cada uno se extrae en una subcarpeta con su nombre.\n\n" +
+            "Si uno falla, el resto continúa y el informe final lo indica. Los lotes no tienen «Reintentar fallidos», pero sí se pueden reanudar.",
+        "Reanudar extracciones" to "Si la app o el sistema se cierran a mitad de una extracción, al volver a abrir la app se te ofrece reanudarla.\n\n" +
+            "Se reabre el archivo original, se saltan los ya extraídos y se rehace el que estaba a medias. Para que funcione, el archivo debe seguir accesible (abierto con «Abrir archivo», «Recientes» o «Lote»). No se reanudan los archivos abiertos dentro de otros.",
+        "Verificar integridad" to "El botón «Verificar integridad» lee todo el contenido sin escribir nada y comprueba tamaños y CRC. En formatos de flujo (GZ, BZ2, XZ, TAR…) detecta además la corrupción por errores de lectura.\n\n" +
+            "Los archivos cifrados no se pueden verificar.",
+        "Archivos dentro de archivos" to "En los detalles de un .zip, .tar.gz, .apk, etc. aparece «Abrir como contenedor». El botón «Volver al contenedor anterior» (o el botón Atrás del móvil) regresa al nivel superior.",
+        "Abrir desde otras apps" to "Desde cualquier gestor, navegador, WhatsApp, Gmail o Telegram: «Abrir con» o «Compartir con» → Descompresor. El archivo se copia a una caché privada (límite en Seguridad y límites) que se limpia sola.\n\n" +
+            "Si tu app no ofrece Descompresor, usa «Abrir archivo» dentro de la app: siempre funciona.",
+        "APK: Manifest, edición y firma" to "En la pestaña APK: ver el Manifest, comprobar la firma y la alineación y editar el Manifest (se recompila a binario al guardar).\n\n" +
+            "Para cambiar archivos: en Contenedor toca un archivo del APK → reemplazar, editar como texto o eliminar. Luego «Reempaquetar → alinear → firmar». Necesitas una keystore importada en Ajustes → APK / Firma (JKS, PKCS12 o BKS).\n\n" +
+            "La keystore es tu llave: sin ella no podrás firmar actualizaciones de apps ya instaladas.",
+        "Límites y seguridad" to "Se rechazan siempre las rutas con «..», absolutas o con letra de unidad. Los límites de tamaño, ratio de compresión y nº de entradas protegen de «bombas» de descompresión y se pueden ajustar en Seguridad y límites.\n\n" +
+            "Una entrada que supera un límite se omite y aparece en el informe con el motivo.",
+        "Formatos y contraseñas no soportados" to "No se pueden abrir: ZIP, 7z y RAR con contraseña, RAR5, ni 7z con métodos BCJ2 o PPMd. Tampoco se crea RAR ni 7z.\n\n" +
+            "Sí: ZIP, TAR, TAR.GZ/BZ2/XZ, GZ, BZ2, XZ, 7z, RAR4, CPIO, AR, DEB y APK. Se puede crear ZIP, TAR y TAR.GZ.",
+        "Si algo falla" to "• «No aparece en Abrir con»: usa «Abrir archivo» en la app.\n" +
+            "• Extracción SAF vacía o con errores: elige otra carpeta (algunos proveedores como Drive fallan al escribir).\n" +
+            "• Un archivo se omite: mira el motivo en el informe (límite, ruta insegura, cifrado…).\n" +
+            "• Falta espacio: «Limpiar caché y extracciones internas» en Avanzado.\n" +
+            "• Quieres empezar de cero: «Restaurar ajustes recomendados»."
+    )
+
+    private fun mostrarAyuda() {
+        val titulos = temasAyuda.map { it.first }.toTypedArray()
+        AlertDialog.Builder(activity)
+            .setTitle("Ayuda")
+            .setItems(titulos) { _, i ->
+                val tv = Ui.texto(activity, temasAyuda[i].second, 14f)
+                val p = Ui.dp(activity, 16)
+                tv.setPadding(p, p, p, p)
+                val sv = ScrollView(activity)
+                sv.addView(tv)
+                AlertDialog.Builder(activity)
+                    .setTitle(temasAyuda[i].first)
+                    .setView(sv)
+                    .setPositiveButton("Cerrar", null)
+                    .setNegativeButton("Más temas") { _, _ -> mostrarAyuda() }
+                    .show()
+            }
+            .setNegativeButton("Cerrar", null)
+            .show()
     }
 }
