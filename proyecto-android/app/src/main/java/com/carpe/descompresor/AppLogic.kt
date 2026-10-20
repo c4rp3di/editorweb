@@ -30,13 +30,12 @@ object AppLogic {
         val prefs = PreferenciasApp(activity)
         prefs.inicializarSiHaceFalta(activity)
         Ui.escala = prefs.entero("escala_fuente") / 100f
-        AppCompatDelegate.setDefaultNightMode(
-            when (prefs.cadena("tema")) {
-                "claro" -> AppCompatDelegate.MODE_NIGHT_NO
-                "oscuro" -> AppCompatDelegate.MODE_NIGHT_YES
-                else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-            }
-        )
+        val modoTema = when (prefs.cadena("tema")) {
+            "claro" -> AppCompatDelegate.MODE_NIGHT_NO
+            "oscuro" -> AppCompatDelegate.MODE_NIGHT_YES
+            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        }
+        if (AppCompatDelegate.getDefaultNightMode() != modoTema) AppCompatDelegate.setDefaultNightMode(modoTema)
 
         val vm = ViewModelProvider(activity)[ContenedorViewModel::class.java]
         if (vm.contenedor == null && !vm.cargando) ArchivoInbox.barrerTodo(activity) else ArchivoInbox.barrerAntiguos(activity)
@@ -72,6 +71,7 @@ object AppLogic {
             mostrarPorId(item.itemId)
             true
         }
+        nav.setOnItemReselectedListener { item -> mostrarPorId(item.itemId) }
         // Tras recrear la actividad (cambio de tema, giro) se vuelve a la pestaña en la que estabas.
         val inicial = if (vm.pestana == 0) R.id.nav_contenedor else vm.pestana
         nav.selectedItemId = inicial
@@ -92,7 +92,10 @@ object AppLogic {
             }
         })
 
-        lanz.pedirNotificaciones()
+        if (!vm.pidioNotificaciones) {
+            vm.pidioNotificaciones = true
+            lanz.pedirNotificaciones()
+        }
 
         // ¿Quedó una extracción a medias (la app o el sistema cerraron el proceso)?
         if (!vm.preguntoPendiente && vm.contenedor == null && !vm.cargando) {
