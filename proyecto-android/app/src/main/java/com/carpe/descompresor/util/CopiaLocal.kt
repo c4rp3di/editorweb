@@ -107,6 +107,12 @@ object CopiaLocal {
         return Resultado(destino, nombre)
     }
 
+    /** Borra una copia de caché; si vive en una subcarpeta de inbox (volúmenes), borra la subcarpeta entera. */
+    fun borrar(f: File) {
+        val padre = f.parentFile
+        if (padre != null && padre.name != "inbox") padre.deleteRecursively() else f.delete()
+    }
+
     fun cabecera(archivo: File, n: Int): ByteArray {
         FileInputStream(archivo).use { i ->
             return Flujos.leerHasta(i, n)
