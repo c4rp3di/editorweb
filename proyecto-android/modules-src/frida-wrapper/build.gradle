@@ -1,0 +1,34 @@
+// Build independiente del shell. Como radare2-wrapper, no enlaza contra
+// ninguna librería nativa JVM propia: ExecShim.kt y PythonBridge.kt de
+// aquí son STUBS compileOnly (ver avisos en esos archivos) que se
+// EXCLUYEN del jar final — en runtime se resuelven a las clases reales
+// del shell vía delegación de classloader (DexClassLoader → padre).
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.9.24'
+}
+
+repositories {
+    mavenCentral()
+    google()
+}
+
+dependencies {
+    compileOnly files("${System.getenv('ANDROID_HOME')}/platforms/android-34/android.jar")
+}
+
+tasks.named('compileKotlin') {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+tasks.register('moduleJar', Jar) {
+    dependsOn 'classes'
+    from(sourceSets.main.output) {
+        // ⚠️ CRÍTICO (igual que en radare2-wrapper): nunca empaquetar los
+        // stubs de ExecShim/PythonBridge en el classes.dex del módulo.
+        exclude('com/carpe/panoptes/nativebridge/**')
+        exclude('com/carpe/panoptes/python/**')
+    }
+    archiveFileName.set('frida-wrapper.jar')
+}
