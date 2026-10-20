@@ -1,0 +1,32 @@
+// Build independiente del shell, igual que jadx-wrapper — ver nota en §2.2.
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.9.24'
+}
+
+repositories {
+    mavenCentral()
+    google()
+    flatDir { dirs 'libs' }
+}
+
+dependencies {
+    compileOnly files("${System.getenv('ANDROID_HOME')}/platforms/android-34/android.jar")
+
+    // apktool-lib y sus dependencias (smali, xmlpull...): la CI las
+    // descarga del release de apktool y las copia a libs/ antes de este
+    // build (ver build-module-apktool.yml). compileOnly por el mismo
+    // motivo que en jadx-wrapper: se combinan en el mismo classes.dex.
+    compileOnly fileTree(dir: 'libs', include: ['*.jar'])
+}
+
+tasks.named('compileKotlin') {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+tasks.register('moduleJar', Jar) {
+    dependsOn 'classes'
+    from sourceSets.main.output
+    archiveFileName.set('apktool-wrapper.jar')
+}
