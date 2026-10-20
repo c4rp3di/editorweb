@@ -1,7 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.MiApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/primario</item>
-        <item name="colorPrimaryDark">@color/primario_oscuro</item>
-        <item name="colorAccent">@color/acento</item>
-    </style>
+    <style name="Theme.Vigia" parent="Theme.Material3.DayNight.NoActionBar" />
 </resources>
