@@ -165,15 +165,16 @@ class ServicioExtraccion : Service() {
             var c: Contenedor? = null
             try {
                 val res = ArchivoInbox.recibir(app, uri, null) { EstadoExtraccion.cancelar }
-                c = try {
+                val abierto: Contenedor = try {
                     CatalogoMotores.abrirArchivo(app, res.archivo, res.nombre)
                 } catch (t: Throwable) {
                     CopiaLocal.borrar(res.archivo)
                     throw t
                 }
-                val todas = c.entradas.filter { !it.esDirectorio }.map { it.ruta }.toSet()
+                c = abierto
+                val todas = abierto.entradas.filter { !it.esDirectorio }.map { it.ruta }.toSet()
                 val opciones = sol.opciones.copy(prefijo = nombreCarpeta(res.nombre))
-                val extractor = Extractor(app, c, destino, opciones) { p ->
+                val extractor = Extractor(app, abierto, destino, opciones) { p ->
                     publicar(p.copy(archivoActual = etiqueta + " · " + p.archivoActual))
                 }
                 val inf = extractor.ejecutar(todas)
@@ -192,10 +193,10 @@ class ServicioExtraccion : Service() {
             } catch (t: Throwable) {
                 total.fallidos.add(Pair(nombreArchivo, t.message ?: t.javaClass.simpleName))
             } finally {
-                val abierto = c
-                if (abierto != null) {
-                    try { abierto.close() } catch (x: Exception) { }
-                    CopiaLocal.borrar(abierto.archivo)
+                val aCerrar = c
+                if (aCerrar != null) {
+                    try { aCerrar.close() } catch (x: Exception) { }
+                    CopiaLocal.borrar(aCerrar.archivo)
                 }
             }
         }
