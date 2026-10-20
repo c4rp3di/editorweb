@@ -151,6 +151,9 @@ class ContenedorViewModel : ViewModel() {
     /** Solo se pregunta una vez por sesión si hay una extracción interrumpida. */
     var preguntoPendiente: Boolean = false
 
+    /** El permiso de notificaciones se pide una sola vez por sesión (no en cada recreación). */
+    var pidioNotificaciones: Boolean = false
+
     /** Origen reanudable: solo si el contenedor está en el nivel 0 y vino de una Uri. */
     val origenReanudable: String?
         get() = if (pila.isEmpty()) origenUri else null
