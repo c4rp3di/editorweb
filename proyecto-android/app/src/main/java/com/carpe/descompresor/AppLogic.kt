@@ -7,9 +7,12 @@ import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.ViewModelProvider
+import com.carpe.descompresor.extraer.Pendiente
 import com.carpe.descompresor.ui.ContenedorViewModel
+import com.carpe.descompresor.ui.DialogoExtraccion
 import com.carpe.descompresor.ui.Lanzadores
 import com.carpe.descompresor.ui.PantallaAjustes
 import com.carpe.descompresor.ui.PantallaApk
@@ -90,6 +93,23 @@ object AppLogic {
         })
 
         lanz.pedirNotificaciones()
+
+        // ¿Quedó una extracción a medias (la app o el sistema cerraron el proceso)?
+        if (!vm.preguntoPendiente && vm.contenedor == null && !vm.cargando) {
+            vm.preguntoPendiente = true
+            val d = Pendiente.leer(activity)
+            if (d != null) {
+                val que = if (d.tipo == "lote") "El lote de ${d.uris.size} archivo(s)"
+                else "La extracción de «${d.nombre}» (${d.rutas.size} archivos)"
+                AlertDialog.Builder(activity)
+                    .setTitle("Extracción interrumpida")
+                    .setMessage("$que no llegó a terminar. ¿Reanudarla? Lo ya extraído se conserva y se salta; el archivo que estaba a medias se rehace.")
+                    .setPositiveButton("Reanudar") { _, _ -> DialogoExtraccion.reanudar(activity, vm, lanz, d) }
+                    .setNegativeButton("Descartar") { _, _ -> Pendiente.borrar(activity) }
+                    .setNeutralButton("Más tarde", null)
+                    .show()
+            }
+        }
     }
 
     /** Extrae la Uri de un intent VIEW (Abrir con) o SEND (Compartir con). */
