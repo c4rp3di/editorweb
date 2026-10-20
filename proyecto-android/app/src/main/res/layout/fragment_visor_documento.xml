@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/fondo">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="4dp"
+        android:background="@color/barra_superior"
+        android:elevation="3dp">
+
+        <ImageView
+            android:id="@+id/botonVolverDoc"
+            style="@style/BotonBarra"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="Cerrar" />
+
+        <TextView
+            android:id="@+id/nombreDoc"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="14sp"
+            android:textColor="@color/texto"
+            android:maxLines="1"
+            android:ellipsize="middle"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp" />
+
+        <ImageView
+            android:id="@+id/botonExternoDoc"
+            style="@style/BotonBarra"
+            android:src="@android:drawable/ic_menu_view"
+            android:contentDescription="Abrir con otra app" />
+    </LinearLayout>
+
+    <HorizontalScrollView
+        android:id="@+id/scrollPestanas"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:background="@color/barra_superior"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/pestanasHojas"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp" />
+    </HorizontalScrollView>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <WebView
+            android:id="@+id/webDocumento"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <ProgressBar
+            android:id="@+id/cargandoDoc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:indeterminate="true" />
+    </FrameLayout>
+</LinearLayout>
