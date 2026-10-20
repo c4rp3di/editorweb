@@ -7,7 +7,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 
-class InternoDestino : EstrategiaDestino {
+class InternoDestino(private val existente: String = "") : EstrategiaDestino {
     override val id: String = "interno"
     override val nombre: String = "Interno de la app (extraer y compartir)"
 
@@ -17,7 +17,8 @@ class InternoDestino : EstrategiaDestino {
     override fun disponible(ctx: Context): Boolean = true
 
     override suspend fun elegir(ctx: Context): Boolean {
-        val d = File(ctx.filesDir, "extracciones/" + System.currentTimeMillis())
+        if (raiz != null) return true
+        val d = if (existente.isNotEmpty()) File(existente) else File(ctx.filesDir, "extracciones/" + System.currentTimeMillis())
         d.mkdirs()
         raiz = d
         return d.isDirectory
