@@ -68,7 +68,11 @@ fun PanoptesNavHost(navController: NavHostController = rememberNavController()) 
         }
 
         composable(Routes.SETTINGS) {
-            SettingsScreen(onBack = { navController.popBackStack() })
+            SettingsScreen(onBack = { navController.popBackStack() }, onVerRegistro = { navController.navigate(Routes.LOG) })
+        }
+
+        composable(Routes.LOG) {
+            com.carpe.panoptes.ui.log.LogScreen(onBack = { navController.popBackStack() })
         }
     }
 }
