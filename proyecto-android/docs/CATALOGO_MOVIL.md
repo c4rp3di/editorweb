@@ -28,3 +28,6 @@ La primera vez que pases de una versión anterior a esta hay que desinstalar una
 tenían firmas distintas); a partir de ahí las actualizaciones se instalan encima y los módulos se conservan.
 Tras actualizar, vuelve a lanzar «Build module jadx» y «Build module apktool» y reinstala ambos desde Módulos.
 En cada análisis, la carpeta de cada módulo incluye `_panoptes-log.txt` con el resultado o el motivo del fallo.
+
+## Registro interno (v1.0.18)
+Ajustes → Depuración → «Ver registro interno»: muestra lo que hace la app (fases del análisis, carga y errores de módulos, descargas, cierres inesperados). Botones Copiar, Compartir, Actualizar y Borrar.
