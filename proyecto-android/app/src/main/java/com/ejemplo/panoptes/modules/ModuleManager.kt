@@ -37,9 +37,13 @@ class ModuleManager(private val context: Context) {
             if (!dir.isDirectory || dir.name.startsWith(".")) return@forEach
             val manifestFile = File(dir, "module.json")
             if (!manifestFile.isFile) return@forEach
-            val info = ModuleManifest.parse(manifestFile.readText()) ?: return@forEach
+            val info = ModuleManifest.parse(manifestFile.readText()) ?: run {
+                com.carpe.panoptes.core.log.AppLog.w("MODULOS", "module.json inválido en ${dir.name}"); return@forEach
+            }
             // H-04: la identidad la fija el directorio; un module.json que diga otro id se ignora.
-            if (info.id != dir.name) return@forEach
+            if (info.id != dir.name) {
+                com.carpe.panoptes.core.log.AppLog.w("MODULOS", "Ignorado ${dir.name}: module.json dice id=${info.id}"); return@forEach
+            }
             val dexFile = File(dir, info.dexName)
             // H-04: el DEX debe ser un archivo regular dentro del directorio del módulo.
             if (!dexFile.isFile) return@forEach
@@ -87,6 +91,7 @@ class ModuleManager(private val context: Context) {
             parent
         )
 
+        com.carpe.panoptes.core.log.AppLog.i("MODULO", "Cargando ${id} (${inst.entryClass}) desde ${inst.dexFile}")
         val clazz = loader.loadClass(inst.entryClass)
         require(AnalyzerModule::class.java.isAssignableFrom(clazz)) {
             "La clase ${inst.entryClass} no implementa AnalyzerModule"
