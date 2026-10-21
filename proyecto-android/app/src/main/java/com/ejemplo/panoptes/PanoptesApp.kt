@@ -28,10 +28,12 @@ class PanoptesApp : Application() {
     override fun onCreate() {
         super.onCreate()
 
+        com.carpe.panoptes.core.log.AppLog.init(filesDir)
         database = PanoptesDatabase.build(this)
         analysisRepository = AnalysisRepository(database)
         settingsRepository = SettingsRepository(this)
 
         moduleManager = ModuleManager(this).apply { scanInstalled() }
+        com.carpe.panoptes.core.log.AppLog.i("MODULOS", "Instalados: " + (moduleManager.listInstalled().joinToString { it.id + " v" + it.version }.ifEmpty { "ninguno" }))
     }
 }
