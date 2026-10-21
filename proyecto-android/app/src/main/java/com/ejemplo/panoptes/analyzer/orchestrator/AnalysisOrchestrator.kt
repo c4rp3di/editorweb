@@ -81,6 +81,12 @@ class AnalysisOrchestrator(
         dexResumenes.forEachIndexed { i, resumen ->
             avance(20 + 20 * i / dexResumenes.size.coerceAtLeast(1), "Buscando cadenas, URLs y secretos (${i + 1}/${dexResumenes.size})")
             val strings = stringScanner.extractStrings(resumen.file)
+            // Volcado de texto (una cadena por línea): permite buscar/abrir "dónde aparece" cada endpoint o secreto.
+            try {
+                File(resumen.file.parentFile, resumen.dexName + ".strings.txt").bufferedWriter().use { w ->
+                    strings.forEach { w.write(it); w.newLine() }
+                }
+            } catch (e: Exception) { /* es un extra: no debe romper el análisis */ }
             endpointsAcumulados.addAll(stringScanner.findEndpoints(strings, analysisId, source = "dex"))
             secretosAcumulados.addAll(stringScanner.findSecrets(strings, analysisId, sourceFile = resumen.dexName))
         }
@@ -90,6 +96,11 @@ class AnalysisOrchestrator(
         // [3] Manifest
         avance(42, "Leyendo el manifest")
         val manifest = manifestParser.parse(apkPath, analysisId)
+        // Manifest completo legible (decodificado en la propia app, sin depender de apktool).
+        try {
+            val xml = com.carpe.panoptes.core.files.AxmlDecoder.decodificarDesdeApk(apkFile)
+            if (xml != null) File(workDir, "AndroidManifest.xml").writeText(xml)
+        } catch (e: Throwable) { /* extra: si falla, el resto del análisis sigue */ }
 
         // [4] Python (F5): androguard siempre, quark-engine si hay reglas
         avance(45, "Análisis con Python (androguard / quark): puede tardar varios minutos")
@@ -445,6 +456,12 @@ class AnalysisOrchestrator(
             }
         }
         val resultado = salida.resultado
+        try {
+            File(outputDir, "_panoptes-log.txt").writeText(
+                "Módulo: $id\n" + (if (resultado != null) "Resultado: OK\n${resultado.jsonOutput}\n"
+                else "Resultado: FALLO\n${salida.fallo}\n")
+            )
+        } catch (e: Exception) { }
         if (resultado != null) {
             db.resultsDao().insertFindings(listOf(
                 FindingEntity(
