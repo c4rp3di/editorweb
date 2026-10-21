@@ -52,7 +52,10 @@ class AnalysisOrchestrator(
      * trabajando solo sobre el APK base.
      */
     suspend fun run(analysisId: String, apkPath: String, extraApkPaths: List<String> = emptyList()) {
-        fun avance(percent: Int, fase: String) = AnalysisProgressBus.report(analysisId, percent, fase)
+        fun avance(percent: Int, fase: String) {
+            AnalysisProgressBus.report(analysisId, percent, fase)
+            com.carpe.panoptes.core.log.AppLog.i("ANALISIS", "[$percent%] $fase")
+        }
         avance(2, "Preparando el análisis")
         val apkFile = File(apkPath)
         val workDir = File(context.filesDir, "analysis/$analysisId").apply { mkdirs() }
@@ -456,6 +459,8 @@ class AnalysisOrchestrator(
             }
         }
         val resultado = salida.resultado
+        if (resultado != null) com.carpe.panoptes.core.log.AppLog.i("MODULO", "$id OK (${resultado.outputFiles.size} archivos) ${resultado.jsonOutput.take(300)}")
+        else com.carpe.panoptes.core.log.AppLog.e("MODULO", "$id FALLO: ${salida.fallo}")
         try {
             File(outputDir, "_panoptes-log.txt").writeText(
                 "Módulo: $id\n" + (if (resultado != null) "Resultado: OK\n${resultado.jsonOutput}\n"
