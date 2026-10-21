@@ -6,8 +6,9 @@ object Routes {
     const val ANALYSIS_DETAIL = "analysis_detail/{analysisId}"
     const val MODULES = "modules"
     const val SETTINGS = "settings"
-    const val EXPLORER = "explorer/{analysisId}"
+    const val EXPLORER = "explorer/{analysisId}?q={q}&f={f}"
 
     fun analysisDetail(id: String) = "analysis_detail/$id"
-    fun explorer(id: String) = "explorer/$id"
+    fun explorer(id: String, consulta: String = "", archivo: String = "") =
+        "explorer/$id?q=${android.net.Uri.encode(consulta)}&f=${android.net.Uri.encode(archivo)}"
 }
