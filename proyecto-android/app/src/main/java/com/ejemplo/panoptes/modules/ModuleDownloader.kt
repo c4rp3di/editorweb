@@ -63,6 +63,7 @@ class ModuleDownloader(private val context: Context) {
 
     private fun instalar(module: ModuleCatalog.Entry, onProgress: (Progress) -> Unit): File {
         val operacion = UUID.randomUUID().toString().take(8)
+        com.carpe.panoptes.core.log.AppLog.i("DESCARGA", "Instalando ${module.id} v${module.version} desde ${module.url}")
         val temp = File(context.cacheDir, "${module.id}-$operacion.zip.download")
         val staging = File(context.cacheDir, "${module.id}-staging-$operacion")
         try {
@@ -119,7 +120,11 @@ class ModuleDownloader(private val context: Context) {
             respaldo?.deleteRecursively()
 
             onProgress(Progress.Done)
+            com.carpe.panoptes.core.log.AppLog.i("DESCARGA", "${module.id} instalado en $dest")
             return dest
+        } catch (e: Throwable) {
+            com.carpe.panoptes.core.log.AppLog.e("DESCARGA", "Fallo instalando ${module.id}", e)
+            throw e
         } finally {
             temp.delete()
             staging.deleteRecursively()
