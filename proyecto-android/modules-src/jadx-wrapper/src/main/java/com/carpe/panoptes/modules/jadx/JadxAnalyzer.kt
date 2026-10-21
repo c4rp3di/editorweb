@@ -50,6 +50,9 @@ class JadxAnalyzer : AnalyzerModule {
 
             val jadx = JadxDecompiler(args)
             decompiler = jadx
+            // En Android el DEX del módulo no conserva META-INF/services, así que jadx no encuentra
+            // solo su plugin de entrada de DEX (ServiceLoader): se registra a mano.
+            jadx.registerPlugin(jadx.plugins.input.dex.DexInputPlugin())
             jadx.load()
             listener.onProgress("decompilando", 40)
 
@@ -67,12 +70,13 @@ class JadxAnalyzer : AnalyzerModule {
                 jsonOutput = "{\"classesDecompiled\":${jadx.classes.size},\"filesWritten\":${archivos.size}}",
                 outputFiles = archivos
             )
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             AnalyzerModule.ModuleResult(
                 success = false,
                 jsonOutput = "{}",
                 outputFiles = emptyList(),
-                error = e.message ?: e.javaClass.simpleName
+                error = e.javaClass.simpleName + ": " + (e.message ?: "sin detalle") + " | " +
+                    e.stackTrace.take(6).joinToString(" < ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
             )
         }
     }
