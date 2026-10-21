@@ -43,6 +43,8 @@ fun AnalysisDetailScreen(
     analysisId: String,
     onBack: () -> Unit,
     onExplorar: () -> Unit = {},
+    onBuscarEnCodigo: (String) -> Unit = {},
+    onAbrirArchivo: (String) -> Unit = {},
     viewModel: AnalysisDetailViewModel = panoptesViewModel { AnalysisDetailViewModel(it) }
 ) {
     LaunchedEffect(analysisId) { viewModel.cargar(analysisId) }
@@ -144,6 +146,18 @@ fun AnalysisDetailScreen(
                 }
             }
 
+            item {
+                val hayManifest = remember(state.analisis?.status) {
+                    File(context.filesDir, "analysis/$analysisId/AndroidManifest.xml").isFile
+                }
+                if (hayManifest) {
+                    OutlinedButton(
+                        onClick = { onAbrirArchivo("AndroidManifest.xml") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Ver AndroidManifest.xml completo") }
+                }
+            }
+
             item { SeccionTitulo("Hallazgos (${state.findings.size})") }
             items(state.findings.sortedByDescending { it.severity.ordinal }) { FindingRow(it) }
 
@@ -160,6 +174,7 @@ fun AnalysisDetailScreen(
             item { SeccionTitulo("Endpoints candidatos (${state.endpoints.size})") }
             items(state.endpoints) { e ->
                 Text("(${"%.1f".format(e.confidence)}) ${e.url}", style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = { onBuscarEnCodigo(e.url) }) { Text("Ver dónde aparece (archivo y línea)") }
             }
 
             item { SeccionTitulo("Librerías nativas (${state.nativeLibs.size})") }
@@ -189,6 +204,7 @@ fun AnalysisDetailScreen(
                     "[${s.type}] ${enmascarar(s.value)} (entropía ${"%.1f".format(s.entropy)})",
                     style = MaterialTheme.typography.bodySmall
                 )
+                TextButton(onClick = { onBuscarEnCodigo(s.value) }) { Text("Ver dónde aparece (archivo y línea)") }
             }
 
             item { Spacer(Modifier.height(24.dp)) }
