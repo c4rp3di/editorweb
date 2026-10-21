@@ -36,7 +36,7 @@ internal object ModuleRunner {
             val modulo = cargar()
             val listener = object : AnalyzerModule.ProgressListener {
                 override fun onProgress(phase: String, percent: Int) = onProgress(phase, percent)
-                override fun onLog(line: String) {}
+                override fun onLog(line: String) { com.carpe.panoptes.core.log.AppLog.i("MODULO", line) }
             }
             val futuro = ejecutor.submit<AnalyzerModule.ModuleResult> { modulo.analyze(apkPath, outputDir, listener) }
             val resultado = try {
