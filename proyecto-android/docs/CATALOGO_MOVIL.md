@@ -21,3 +21,10 @@ Mientras no haya módulos publicados (releases `deps-<id>-<versión>`), el catá
 En el detalle de un análisis: **Explorar código, recursos y DEX generados**. Navega por carpetas, abre
 ficheros de texto (Java de jadx, XML de apktool...), busca texto en todo el código (lupa) y exporta una
 carpeta o fichero como ZIP (icono de descarga).
+
+## Actualizar la app sin perder los módulos (v1.0.17)
+Desde la v1.0.17 la app se firma siempre con la misma clave de depuración (incluida en `app/build.gradle`).
+La primera vez que pases de una versión anterior a esta hay que desinstalar una última vez (las anteriores
+tenían firmas distintas); a partir de ahí las actualizaciones se instalan encima y los módulos se conservan.
+Tras actualizar, vuelve a lanzar «Build module jadx» y «Build module apktool» y reinstala ambos desde Módulos.
+En cada análisis, la carpeta de cada módulo incluye `_panoptes-log.txt` con el resultado o el motivo del fallo.
