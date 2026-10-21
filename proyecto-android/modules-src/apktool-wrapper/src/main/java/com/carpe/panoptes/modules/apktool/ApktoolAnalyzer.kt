@@ -43,9 +43,19 @@ class ApktoolAnalyzer : AnalyzerModule {
                 decodeSources = AndrolibConfig.DECODE_SOURCES_NONE
             }
 
-            val decoder = ApkDecoder(config, ExtFile(File(apkPath)))
-            if (outputDir.exists()) outputDir.deleteRecursively()
-            decoder.decode(outputDir)
+            var nota = ""
+            try {
+                ApkDecoder(config, ExtFile(File(apkPath))).decode(outputDir)
+            } catch (e: Throwable) {
+                // Sin el framework de Android embebido (el DEX del módulo pierde los recursos del jar)
+                // la decodificación completa falla: se reintenta copiando los recursos sin decodificar.
+                nota = "decodificación completa no disponible (${e.javaClass.simpleName}: ${e.message}); recursos sin decodificar"
+                listener.onLog("apktool: $nota")
+                if (outputDir.exists()) outputDir.deleteRecursively()
+                outputDir.mkdirs()
+                config.decodeResources = AndrolibConfig.DECODE_RESOURCES_NONE
+                ApkDecoder(config, ExtFile(File(apkPath))).decode(outputDir)
+            }
 
             listener.onProgress("decodificando", 100)
 
@@ -56,15 +66,16 @@ class ApktoolAnalyzer : AnalyzerModule {
 
             AnalyzerModule.ModuleResult(
                 success = true,
-                jsonOutput = "{\"filesWritten\":${archivos.size}}",
+                jsonOutput = "{\"filesWritten\":${archivos.size},\"nota\":\"${nota.replace("\"", "'")}\"}",
                 outputFiles = archivos
             )
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             AnalyzerModule.ModuleResult(
                 success = false,
                 jsonOutput = "{}",
                 outputFiles = emptyList(),
-                error = e.message ?: e.javaClass.simpleName
+                error = e.javaClass.simpleName + ": " + (e.message ?: "sin detalle") + " | " +
+                    e.stackTrace.take(6).joinToString(" < ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
             )
         }
     }
