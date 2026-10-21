@@ -6,6 +6,7 @@ object Routes {
     const val ANALYSIS_DETAIL = "analysis_detail/{analysisId}"
     const val MODULES = "modules"
     const val SETTINGS = "settings"
+    const val LOG = "log"
     const val EXPLORER = "explorer/{analysisId}?q={q}&f={f}"
 
     fun analysisDetail(id: String) = "analysis_detail/$id"
