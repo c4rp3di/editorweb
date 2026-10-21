@@ -46,6 +46,7 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
             app.database.analysisDao().getById(analysisId)?.let { entidad ->
                 app.database.analysisDao().update(entidad.copy(status = AnalysisStatus.EN_CURSO))
             }
+            com.carpe.panoptes.core.log.AppLog.i("ANALISIS", "Inicio $analysisId (apk=$apkPath, splits=${extraApks.size})")
             AnalysisProgressBus.report(analysisId, 0, "Empezando")
             val orquestador = AnalysisOrchestrator(applicationContext, app.database, app.moduleManager)
             orquestador.run(analysisId, apkPath, extraApks)
@@ -55,18 +56,21 @@ class AnalysisWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     entidad.copy(status = AnalysisStatus.COMPLETADO, finishedAt = System.currentTimeMillis())
                 )
             }
+            com.carpe.panoptes.core.log.AppLog.i("ANALISIS", "Completado $analysisId")
             AnalysisProgressBus.report(analysisId, 100, "Completado")
             AnalysisProgressBus.clear(analysisId)
             Result.success()
         } catch (e: CancellationException) {
             // Cancelación (el usuario o el sistema cancelan el trabajo): el registro no puede quedar
             // "en curso" para siempre. Se marca ERROR con su finishedAt y se relanza la cancelación.
+            com.carpe.panoptes.core.log.AppLog.w("ANALISIS", "Cancelado $analysisId", e)
             marcarTerminal(app, analysisId, AnalysisStatus.ERROR)
             AnalysisProgressBus.clear(analysisId)
             throw e
         } catch (e: Throwable) {
             // Throwable y no solo Exception: un Error (p. ej. NoClassDefFoundError, OutOfMemoryError)
             // escapaba y dejaba el análisis "pendiente" para siempre.
+            com.carpe.panoptes.core.log.AppLog.e("ANALISIS", "Error en $analysisId", e)
             marcarTerminal(app, analysisId, AnalysisStatus.ERROR)
             AnalysisProgressBus.clear(analysisId)
             Result.failure()
