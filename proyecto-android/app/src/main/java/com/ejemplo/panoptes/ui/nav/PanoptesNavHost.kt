@@ -2,6 +2,8 @@ package com.carpe.panoptes.ui.nav
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -36,13 +38,26 @@ fun PanoptesNavHost(navController: NavHostController = rememberNavController()) 
             AnalysisDetailScreen(
                 analysisId = id,
                 onBack = { navController.popBackStack() },
-                onExplorar = { navController.navigate(Routes.explorer(id)) }
+                onExplorar = { navController.navigate(Routes.explorer(id)) },
+                onBuscarEnCodigo = { texto -> navController.navigate(Routes.explorer(id, consulta = texto)) },
+                onAbrirArchivo = { ruta -> navController.navigate(Routes.explorer(id, archivo = ruta)) }
             )
         }
 
-        composable(Routes.EXPLORER) { backStackEntry ->
+        composable(
+            Routes.EXPLORER,
+            arguments = listOf(
+                navArgument("q") { type = NavType.StringType; defaultValue = "" },
+                navArgument("f") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) { backStackEntry ->
             val id = backStackEntry.arguments?.getString("analysisId") ?: return@composable
-            ExplorerScreen(analysisId = id, onBack = { navController.popBackStack() })
+            ExplorerScreen(
+                analysisId = id,
+                onBack = { navController.popBackStack() },
+                consultaInicial = backStackEntry.arguments?.getString("q") ?: "",
+                archivoInicial = backStackEntry.arguments?.getString("f") ?: ""
+            )
         }
 
         composable(Routes.MODULES) {
