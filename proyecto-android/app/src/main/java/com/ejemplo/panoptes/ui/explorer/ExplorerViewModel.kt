@@ -28,7 +28,12 @@ data class ExplorerUiState(
 )
 
 /** Explorador de solo lectura de lo que ha generado el análisis (código descompilado, recursos, DEX). */
-class ExplorerViewModel(private val app: PanoptesApp, private val analysisId: String) : ViewModel() {
+class ExplorerViewModel(
+    private val app: PanoptesApp,
+    private val analysisId: String,
+    private val consultaInicial: String = "",
+    private val archivoInicial: String = ""
+) : ViewModel() {
 
     private val raiz = File(app.filesDir, "analysis/$analysisId")
 
@@ -39,6 +44,12 @@ class ExplorerViewModel(private val app: PanoptesApp, private val analysisId: St
 
     init {
         abrirCarpeta("")
+        if (archivoInicial.isNotEmpty()) {
+            abrirArchivo(archivoInicial, 1)
+        } else if (consultaInicial.isNotEmpty()) {
+            _state.value = _state.value.copy(busquedaActiva = true, consulta = consultaInicial)
+            buscar()
+        }
     }
 
     fun abrirCarpeta(ruta: String) {
