@@ -37,6 +37,7 @@ class SettingsViewModel(private val app: PanoptesApp) : ViewModel() {
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onVerRegistro: () -> Unit = {},
     viewModel: SettingsViewModel = panoptesViewModel { SettingsViewModel(it) }
 ) {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as PanoptesApp
@@ -146,6 +147,11 @@ fun SettingsScreen(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) { Text(stringResource(R.string.ajustes_guardar)) }
+
+            HorizontalDivider()
+            Text("Depuración", style = MaterialTheme.typography.titleMedium)
+            Text("Registro interno de lo que hace la app (análisis, módulos, descargas, errores). Puedes copiarlo o compartirlo para diagnosticar fallos.", style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = onVerRegistro, modifier = Modifier.fillMaxWidth()) { Text("Ver registro interno") }
         }
     }
 }
