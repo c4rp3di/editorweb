@@ -40,7 +40,9 @@ private fun tamanoLegible(bytes: Long): String = when {
 fun ExplorerScreen(
     analysisId: String,
     onBack: () -> Unit,
-    viewModel: ExplorerViewModel = panoptesViewModel { ExplorerViewModel(it, analysisId) }
+    consultaInicial: String = "",
+    archivoInicial: String = "",
+    viewModel: ExplorerViewModel = panoptesViewModel { ExplorerViewModel(it, analysisId, consultaInicial, archivoInicial) }
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
