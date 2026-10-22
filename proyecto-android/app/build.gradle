@@ -1,182 +1,38 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    id 'com.google.devtools.ksp'
-    id 'com.chaquo.python' // F5
-}
-
-// Firma fija para las compilaciones de depuración: sin ella cada ejecución de Actions genera una
-// firma distinta y Android no deja ACTUALIZAR la app (hay que desinstalar y se pierden los módulos).
-// Es la clave de depuración pública de Panoptes (contraseña "android"), no un secreto.
-def panoptesDebugKeystore = new File(projectDir, "panoptes-debug.p12")
-if (!panoptesDebugKeystore.exists()) {
-    panoptesDebugKeystore.bytes = Base64.decoder.decode(
-        "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" +
-        ""
-    )
 }
 
 android {
-    namespace 'com.carpe.panoptes'
-    compileSdk 34
-
     signingConfigs {
         debug {
-            storeFile panoptesDebugKeystore
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+            storeFile file("../apk-build/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
         }
     }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    namespace 'com.laberinto3d.juego'
+    compileSdk 34
 
     defaultConfig {
-        applicationId "com.carpe.panoptes"
-        minSdk 26
+        applicationId "com.laberinto3d.juego"
+        minSdk 24
         targetSdk 34
-        versionCode 4
-        versionName "v10.0"
-
-        ndk {
-            abiFilters 'arm64-v8a' // solo arm64: -50% de tamaño (§3.3 del plan)
-        }
-
-        // F5: Chaquopy (Python embebido). androguard/quark-engine vienen de
-        // wheels precompilados que mantiene Chaquopy, no de PyPI directo —
-        // ver el aviso grande sobre esto en README.md antes de tocar versiones.
-        python {
-            version "3.11"
-            pip {
-                // F5 · IMPORTANTE (v1.0.3): androguard 4.1.2 exige 'frida' sin versión, y Chaquopy
-                // no tiene wheel de frida para Android (pip intenta compilar el sdist y falla).
-                // Solución: instalar con --no-deps y listar a mano el cierre de dependencias que
-                // pip resolvió en el log de CI (todo lo que había, MENOS frida). androguard.core.apk
-                // y quark.core.quark no importan frida; solo lo usa androguard.pentest / quark.script.
-                // Si actualizas versiones de androguard o quark-engine, revisa esta lista.
-                options "--no-deps"
-
-                install "androguard==4.1.2"
-                install "quark-engine==23.9.1"
-                install "cryptography==42.0.8" // 42.0.5 no tiene wheel en Chaquopy (compilaba Rust/OpenSSL)
-                install "pyyaml==6.0.3"        // 6.0.1 no tiene wheel en Chaquopy para cp311
-                // install "frida" // sin wheel en Chaquopy: desactivado a propósito
-
-                // --- dependencias de androguard ---
-                install "pygments"
-                install "lxml"
-                install "colorama"
-                install "asn1crypto"
-                install "click"
-                install "pydot"
-                install "ipython"
-                install "mutf8"
-                install "dataset"
-                install "loguru"
-                install "apkInspector"
-                install "matplotlib"
-                install "networkx"
-                install "oscrypto"
-                // --- dependencias de quark-engine ---
-                install "rzpipe"
-                install "tqdm"
-                install "graphviz"
-                install "plotly"
-                install "prompt-toolkit"
-                install "prettytable"
-                // --- transitivas (cffi/cryptography, matplotlib, lxml, dataset, ipython...) ---
-                install "cffi"
-                install "pycparser"
-                install "chaquopy-libffi"
-                install "chaquopy-libyaml"
-                install "chaquopy-libxml2"
-                install "chaquopy-libxslt"
-                install "chaquopy-freetype"
-                install "chaquopy-libpng"
-                install "chaquopy-libjpeg"
-                install "chaquopy-libcxx"
-                install "chaquopy-openblas"
-                install "chaquopy-libgfortran"
-                install "numpy"
-                install "pillow"
-                install "kiwisolver"
-                install "contourpy"
-                install "fonttools"
-                install "cycler"
-                install "pyparsing"
-                install "packaging"
-                install "python-dateutil"
-                install "six"
-                install "sqlalchemy<3"
-                install "alembic"
-                install "Mako"
-                install "MarkupSafe"
-                install "typing_extensions"
-                install "stack_data"
-                install "asttokens"
-                install "executing"
-                install "pure-eval"
-                install "pexpect"
-                install "ptyprocess"
-                install "matplotlib-inline"
-                install "jedi"
-                install "parso<0.9"
-                install "traitlets"
-                install "ipython-pygments-lexers"
-                install "psutil"
-                install "narwhals"
-                install "wcwidth"
-            }
-        }
+        versionCode 1
+        versionName "v1.0"
     }
 
-    externalNativeBuild {
-        cmake {
-            path "src/main/jni/CMakeLists.txt"
-            version "3.22.1"
+    buildTypes {
+        release {
+            minifyEnabled false
         }
-    }
-
-    buildFeatures {
-        compose true
-        // viewBinding ya no hace falta: la UI es 100% Compose desde F3.
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion "1.5.14"
     }
 
     compileOptions {
@@ -186,49 +42,8 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    packaging {
-        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
-    }
 }
 
+// Sin dependencias externas: sólo el SDK de Android y la biblioteca estándar de Kotlin.
 dependencies {
-    // Compose
-    implementation platform('androidx.compose:compose-bom:2024.09.00')
-    implementation 'androidx.compose.ui:ui'
-    implementation 'androidx.compose.ui:ui-tooling-preview'
-    debugImplementation 'androidx.compose.ui:ui-tooling'
-    implementation 'androidx.compose.material3:material3'
-    implementation 'androidx.compose.material:material-icons-extended'
-    implementation 'androidx.activity:activity-compose:1.9.2'
-    implementation 'androidx.navigation:navigation-compose:2.8.1'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6'
-    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.6'
-
-    // Core Android
-    implementation 'androidx.core:core-ktx:1.13.1'
-    implementation 'androidx.appcompat:appcompat:1.7.0' // AppCompatActivity ya no hace falta, pero algunos recursos de tema lo asumen
-
-    // Ciclo de vida + WorkManager
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.6'
-    implementation 'androidx.work:work-runtime-ktx:2.9.1'
-
-    // Room + FTS4
-    implementation 'androidx.room:room-runtime:2.6.1'
-    implementation 'androidx.room:room-ktx:2.6.1'
-    implementation 'androidx.sqlite:sqlite-framework:2.4.0'
-    ksp 'androidx.room:room-compiler:2.6.1'
-
-    // Coroutines
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
-
-    // dexlib2 — parsing DEX en el shell (F1, §6.2 del plan)
-    implementation 'org.smali:dexlib2:2.5.2'
-    implementation 'org.smali:util:2.5.2'
-
-    // F2: descarga de módulos desde GitHub Releases
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-
-    // F3: preferencia "legal aceptado" (diálogo de primer uso, §11 del plan)
-    implementation 'androidx.datastore:datastore-preferences:1.1.1'
 }
