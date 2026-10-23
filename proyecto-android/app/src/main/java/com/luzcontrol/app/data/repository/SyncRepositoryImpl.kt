@@ -122,7 +122,7 @@ class SyncRepositoryImpl @Inject constructor(
 
     private suspend fun syncDatadis() {
         // Suministros (conserva alias y selección del usuario)
-        val remote = datadis.supplies()
+        val remote = datadis.supplies().orEmpty() // null = ya consultado hoy: se usan los guardados
         val existing = db.supplyDao().getAll().associateBy { it.cups }
         if (remote.isNotEmpty()) {
             db.supplyDao().upsertAll(remote.mapIndexed { i, dto ->
@@ -148,8 +148,8 @@ class SyncRepositoryImpl @Inject constructor(
     private suspend fun syncSupply(cups: String, distributorCode: String, pointType: Int) {
         // Contrato
         val contract = datadis.contract(cups, distributorCode)
-        contract.firstOrNull()?.let { db.contractDao().upsert(it.toEntity(cups)) }
-        delay(1_000)
+        contract?.firstOrNull()?.let { db.contractDao().upsert(it.toEntity(cups)) }
+        if (contract != null) delay(1_000)
 
         // Consumo: primera vez 12 meses; después desde 7 días antes de la última lectura
         val now = YearMonth.now(zone)
@@ -161,12 +161,12 @@ class SyncRepositoryImpl @Inject constructor(
             val rows = try {
                 datadis.consumption(cups, distributorCode, pointType, month.format(monthFormat))
             } catch (e: AppError.Server) {
-                // Un mes sin datos o con error puntual no detiene el resto
+                // Un mes con error puntual no detiene el resto (y no se repetirá hasta pasadas 24 h)
                 emptyList()
             }
-            if (rows.isNotEmpty()) db.consumptionDao().upsertAll(rows.toEntities(cups, zone, 60))
+            if (!rows.isNullOrEmpty()) db.consumptionDao().upsertAll(rows.toEntities(cups, zone, 60))
             month = month.plusMonths(1)
-            if (!month.isAfter(now)) delay(1_500)
+            if (rows != null && !month.isAfter(now)) delay(1_500)
         }
 
         // Maxímetro: últimos meses
@@ -178,10 +178,10 @@ class SyncRepositoryImpl @Inject constructor(
             } catch (e: AppError.Server) {
                 emptyList()
             }
-            val entities = rows.mapNotNull { it.toEntity(cups) }
+            val entities = rows.orEmpty().mapNotNull { it.toEntity(cups) }
             if (entities.isNotEmpty()) db.maxPowerDao().upsertAll(entities)
             m = m.plusMonths(1)
-            if (!m.isAfter(now)) delay(1_000)
+            if (rows != null && !m.isAfter(now)) delay(1_000)
         }
     }
 
