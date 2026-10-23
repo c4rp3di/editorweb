@@ -29,6 +29,13 @@ class Session(
     /** Tiempo jugado (nanosegundos de física: sólo avanza en PLAYING). */
     @Volatile var elapsedNanos: Long = 0L
 
+    /** Caídas (reapariciones en el último checkpoint o inicio) de esta partida. */
+    @Volatile var falls: Int = 0
+
+    /** Checkpoints alcanzados y totales (para el HUD). */
+    val checkpointsReached: Int get() = physics.checkpointIndex + 1
+    val checkpointsTotal: Int get() = world.checkpoints.size
+
     /** Resultado de la última victoria. */
     @Volatile var lastResultMs: Long = 0L
     @Volatile var newRecord: Boolean = false
