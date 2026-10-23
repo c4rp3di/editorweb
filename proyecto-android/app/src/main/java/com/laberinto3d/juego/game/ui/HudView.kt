@@ -53,6 +53,7 @@ class HudView(context: Context, hotspot: View) : FrameLayout(context) {
     private val levelText = TextView(context)
     private val timerText = TextView(context)
     private val bestText = TextView(context)
+    private val extraText = TextView(context)
     val pauseButton = PauseButton(context)
 
     private fun panel(t: TextView, mono: Boolean, sizeSp: Float) {
@@ -71,13 +72,24 @@ class HudView(context: Context, hotspot: View) : FrameLayout(context) {
         panel(levelText, false, 14f)
         panel(timerText, true, 20f)
         panel(bestText, true, 13f)
+        panel(extraText, false, 12f)
+        extraText.minHeight = UiKit.dp(context, 28)
+        extraText.setPadding(UiKit.dp(context, 10), UiKit.dp(context, 3), UiKit.dp(context, 10), UiKit.dp(context, 3))
+        extraText.visibility = GONE
         timerText.text = UiKit.formatTimeHud(0)
         bestText.text = "—"
 
         addView(levelText, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).also {
             it.setMargins(m, m, m, m)
         })
-        addView(timerText, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL).also {
+        val center = LinearLayout(context)
+        center.orientation = LinearLayout.VERTICAL
+        center.gravity = Gravity.CENTER_HORIZONTAL
+        center.addView(timerText, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        center.addView(extraText, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).also {
+            it.topMargin = UiKit.dp(context, 4)
+        })
+        addView(center, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL).also {
             it.setMargins(m, m, m, m)
         })
         val right = LinearLayout(context)
@@ -94,7 +106,18 @@ class HudView(context: Context, hotspot: View) : FrameLayout(context) {
     }
 
     @SuppressLint("SetTextI18n")
-    fun update(levelId: Int, levelName: String, elapsedMs: Long, bestMs: Long) {
+    fun update(levelId: Int, levelName: String, elapsedMs: Long, bestMs: Long,
+               checkpoints: Int = 0, checkpointsTotal: Int = 0, falls: Int = 0) {
+        val parts = ArrayList<String>(2)
+        if (checkpointsTotal > 0) parts.add(context.getString(R.string.hud_checkpoint, checkpoints, checkpointsTotal))
+        if (falls > 0) parts.add(context.getString(R.string.hud_falls, falls))
+        if (parts.isEmpty()) {
+            if (extraText.visibility != GONE) extraText.visibility = GONE
+        } else {
+            val t = parts.joinToString("  ·  ")
+            if (extraText.text.toString() != t) extraText.text = t
+            if (extraText.visibility != VISIBLE) extraText.visibility = VISIBLE
+        }
         val lvl = context.getString(R.string.level_label, levelId, levelName)
         if (levelText.text.toString() != lvl) levelText.text = lvl
         timerText.text = UiKit.formatTimeHud(elapsedMs)
