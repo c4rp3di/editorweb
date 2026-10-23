@@ -1,7 +1,12 @@
 package com.laberinto3d.juego.game.render
 
 import android.content.Context
+import android.annotation.SuppressLint
 import android.opengl.GLSurfaceView
+import android.view.GestureDetector
+import android.view.MotionEvent
+import kotlin.math.atan2
+import kotlin.math.hypot
 import com.laberinto3d.juego.game.core.Telemetry
 import com.laberinto3d.juego.game.diag.GameLog
 import javax.microedition.khronos.egl.EGL10
@@ -17,7 +22,69 @@ class GameSurfaceView(context: Context, renderer: GameRenderer) : GLSurfaceView(
         renderMode = RENDERMODE_CONTINUOUSLY
     }
 
+    // ---- Gestos de vista: dos dedos = pellizcar (zoom), girar (giro) y arrastrar vertical (elevación) ----
+    private var lastDist = 0f
+    private var lastAngle = 0f
+    private var lastMidY = 0f
+    private val detector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(e: MotionEvent): Boolean = true
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            CameraControl.reset()
+            CameraControl.gestureEnded = true
+            GameLog.i("Input", "Vista restablecida (doble toque)")
+            return true
+        }
+    })
+
+    private fun beginGesture(e: MotionEvent) {
+        val dx = e.getX(1) - e.getX(0)
+        val dy = e.getY(1) - e.getY(0)
+        lastDist = hypot(dx, dy).coerceAtLeast(1f)
+        lastAngle = atan2(dy, dx)
+        lastMidY = (e.getY(0) + e.getY(1)) * 0.5f
+        CameraControl.gesturing = true
+    }
+
+    private fun endGesture() {
+        if (CameraControl.gesturing) {
+            CameraControl.gesturing = false
+            CameraControl.gestureEnded = true
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(e: MotionEvent): Boolean {
+        detector.onTouchEvent(e)
+        when (e.actionMasked) {
+            MotionEvent.ACTION_POINTER_DOWN -> if (e.pointerCount >= 2) beginGesture(e)
+            MotionEvent.ACTION_MOVE -> if (e.pointerCount >= 2 && CameraControl.gesturing) {
+                val dx = e.getX(1) - e.getX(0)
+                val dy = e.getY(1) - e.getY(0)
+                val dist = hypot(dx, dy).coerceAtLeast(1f)
+                val ang = atan2(dy, dx)
+                val midY = (e.getY(0) + e.getY(1)) * 0.5f
+                var da = ang - lastAngle
+                val pi = Math.PI.toFloat()
+                if (da > pi) da -= 2f * pi
+                if (da < -pi) da += 2f * pi
+                CameraControl.yaw += da
+                CameraControl.zoom *= lastDist / dist
+                CameraControl.pitchDeg += (midY - lastMidY) * PITCH_PER_PX / resources.displayMetrics.density
+                CameraControl.clamp()
+                lastDist = dist; lastAngle = ang; lastMidY = midY
+            }
+            MotionEvent.ACTION_POINTER_UP -> if (e.pointerCount - 1 < 2) endGesture()
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> endGesture()
+        }
+        return true
+    }
+
     /** Elige RGBA8888 + profundidad 24 (o 16) + 4x MSAA, con varios planes de reserva. */
+    companion object {
+        /** Grados de elevación por dp de arrastre vertical con dos dedos. */
+        private const val PITCH_PER_PX = 0.25f
+    }
+
     private class MsaaConfigChooser : EGLConfigChooser {
         override fun chooseConfig(egl: EGL10, display: EGLDisplay): EGLConfig {
             val plans = arrayOf(
