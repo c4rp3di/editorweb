@@ -142,10 +142,14 @@ class DatadisClient @Inject constructor(
         val preferV2 = settings.settings.value.datadisApiV2
         return try {
             fetchList(serializer, endpoint, preferV2, token, params, wrapperKey)
-        } catch (e: AppError.Server) {
-            if (e.code == 400 || e.code == 404 || e.code == 405 || e.code == 410) {
-                fetchList(serializer, endpoint, !preferV2, token, params, wrapperKey)
-            } else throw e
+        } catch (first: AppError.Server) {
+            if (first.code == 400 || first.code == 404 || first.code == 405 || first.code == 410 || first.code >= 500) {
+                try {
+                    fetchList(serializer, endpoint, !preferV2, token, params, wrapperKey)
+                } catch (second: AppError.Server) {
+                    throw AppError.Server(second.code, "[${first.code}] ${first.detail.orEmpty()} | [${second.code}] ${second.detail.orEmpty()}")
+                }
+            } else throw first
         }
     }
 
@@ -161,7 +165,7 @@ class DatadisClient @Inject constructor(
             try {
                 api.get(DatadisEndpoints.path(endpoint, v2), "Bearer $token", params).string()
             } catch (e: Throwable) {
-                throw mapError(e)
+                throw mapError(e, DatadisEndpoints.path(endpoint, v2))
             }
         }
         return decodeList(serializer, body, wrapperKey)
@@ -205,12 +209,15 @@ class DatadisClient @Inject constructor(
         }
     }
 
-    private fun mapError(e: Throwable): AppError = when (e) {
+    private fun mapError(e: Throwable, where: String? = null): AppError = when (e) {
         is AppError -> e
         is HttpException -> when (e.code()) {
             401, 403 -> AppError.InvalidCredentials
             429 -> AppError.RateLimited(e.response()?.headers()?.get("Retry-After")?.toLongOrNull())
-            else -> AppError.Server(e.code(), e.message())
+            else -> {
+                val body = try { e.response()?.errorBody()?.string()?.replace(Regex("\\s+"), " ")?.take(160) } catch (_: Exception) { null }
+                AppError.Server(e.code(), listOfNotNull(where, body?.takeIf { it.isNotBlank() }).joinToString(" → "))
+            }
         }
         is IOException -> AppError.NoNetwork(e)
         is SerializationException -> AppError.Parse(e)
