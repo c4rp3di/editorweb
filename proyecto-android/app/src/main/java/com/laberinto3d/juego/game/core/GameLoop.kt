@@ -6,6 +6,10 @@ import com.laberinto3d.juego.game.input.AccelerometerController
 import com.laberinto3d.juego.game.input.CalibrationStore
 import com.laberinto3d.juego.game.input.TiltMapping
 import com.laberinto3d.juego.game.physics.Vec3
+import com.laberinto3d.juego.game.render.CameraControl
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 import com.laberinto3d.juego.game.storage.Prefs
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.exp
@@ -57,12 +61,22 @@ class GameLoop(private val accel: AccelerometerController) {
 
         // Sensor -> gravedad objetivo (cada frame, también fuera de PLAYING para el overlay)
         TiltMapping.compute(accel.filtered, CalibrationStore.neutral, accel.rotation, gravityTarget, angles)
+        applyViewAndGain()
         Telemetry.tiltRollDeg = angles[0]
         Telemetry.tiltPitchDeg = angles[1]
 
+        // fin de un gesto de dos dedos: los controles se realinean con la nueva vista
+        if (CameraControl.gestureEnded && !CameraControl.gesturing) {
+            CameraControl.gestureEnded = false
+            accel.resetFilter()
+            gravityNow.set(gravityTarget)
+            acc = 0f
+            GameLog.i("Loop", "Vista nueva: yaw=${"%.0f".format(Math.toDegrees(CameraControl.yaw.toDouble()))}° elev=${"%.0f".format(CameraControl.pitchDeg)}° zoom=${"%.2f".format(CameraControl.zoom)}")
+        }
+
         var steps = 0
         var alpha = 1f
-        if (s.phase == Phase.PLAYING) {
+        if (s.phase == Phase.PLAYING && !CameraControl.gesturing) {
             val t0 = System.nanoTime()
             acc += dt
             val k = 1f - exp(-Config.STEP / Config.GRAVITY_SMOOTH_TAU)
@@ -114,12 +128,39 @@ class GameLoop(private val accel: AccelerometerController) {
         return alpha
     }
 
+    /**
+     * Aplica a la gravedad calculada: compensación de perspectiva en el eje vertical de pantalla,
+     * ganancia de usuario y giro por la orientación de la cámara (los controles siguen a la vista).
+     */
+    private fun applyViewAndGain() {
+        val g = Config.GRAVITY
+        val pitchRad = Math.toRadians(CameraControl.pitchDeg.toDouble())
+        val persp = (1.0 / sin(pitchRad)).toFloat().coerceIn(1f, 1.5f)
+        var gx = gravityTarget.x
+        var gz = gravityTarget.z * persp * Tuning.verticalGain
+        val lim = g * 0.8f
+        val h = sqrt(gx * gx + gz * gz)
+        if (h > lim) { val k = lim / h; gx *= k; gz *= k }
+        val yaw = CameraControl.yaw
+        val c = cos(yaw)
+        val sn = sin(yaw)
+        val wx = gx * c + gz * sn
+        val wz = -gx * sn + gz * c
+        val wy = -sqrt(maxOf(0f, g * g - wx * wx - wz * wz))
+        gravityTarget.set(wx, wy, wz)
+    }
+
     private fun hookSession(s: Session) {
         s.physics.impactListener = { speed, _, _ ->
             AudioManager.playBounce(speed)
             if (speed > Config.VIBRATE_MIN_SPEED) AudioManager.vibrate()
         }
         s.physics.warnListener = { msg -> GameLog.w("Physics", msg) }
+        s.physics.checkpointListener = { i ->
+            GameLog.i("Loop", "Checkpoint ${i + 1}/${s.checkpointsTotal}")
+            AudioManager.playCheckpoint()
+            AudioManager.vibrate(40L)
+        }
         gravityNow.set(gravityTarget)
     }
 
@@ -140,7 +181,10 @@ class GameLoop(private val accel: AccelerometerController) {
     }
 
     private fun onFell(s: Session) {
-        GameLog.w("Loop", "La bola se salió del tablero en ${s.ball.position}")
-        GameState.transition(Phase.LOST, "bola fuera del tablero")
+        s.falls++
+        GameLog.w("Loop", "Caída #${s.falls} en ${s.ball.position}: reaparece (checkpoint ${s.physics.checkpointIndex + 1})")
+        AudioManager.playFall()
+        s.physics.resetBall()
+        gravityNow.set(gravityTarget)
     }
 }
