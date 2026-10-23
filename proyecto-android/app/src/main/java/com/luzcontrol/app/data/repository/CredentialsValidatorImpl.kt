@@ -9,9 +9,10 @@ import javax.inject.Inject
 class CredentialsValidatorImpl @Inject constructor(
     private val client: DatadisClient
 ) : CredentialsValidator {
-    /** Devuelve el número de suministros encontrados. */
+    /** Comprueba el login (no consume consultas de datos). El Int es 0 y se mantiene por compatibilidad. */
     override suspend fun validate(credentials: DatadisCredentials): Result<Int> = try {
-        Result.success(client.validate(credentials))
+        client.validate(credentials)
+        Result.success(0)
     } catch (e: AppError) {
         Result.failure(e)
     } catch (e: Exception) {
