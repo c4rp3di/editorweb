@@ -61,6 +61,26 @@ class WorldRenderer {
         GameLog.i("World", "Instancias subidas: $n cajas")
     }
 
+    private var moverData = FloatArray(0)
+
+    /** Sube de nuevo las instancias de las plataformas móviles (las primeras cajas del mundo). */
+    fun updateMovers(w: World) {
+        val m = w.movers.size
+        if (m == 0 || instanceVbo == 0 || count < m) return
+        if (moverData.size != m * 20) moverData = FloatArray(m * 20)
+        val mat = FloatArray(16)
+        for (i in 0 until m) {
+            val b = w.boxes[i]
+            Matrix.setTranslateScale(mat, b.centerX, b.centerY, b.centerZ, b.sizeX, b.sizeY, b.sizeZ)
+            System.arraycopy(mat, 0, moverData, i * 20, 16)
+            moverData[i * 20 + 16] = b.color[0]; moverData[i * 20 + 17] = b.color[1]
+            moverData[i * 20 + 18] = b.color[2]; moverData[i * 20 + 19] = 0.5f
+        }
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, instanceVbo)
+        GLES30.glBufferSubData(GLES30.GL_ARRAY_BUFFER, 0, moverData.size * 4, GlUtil.floatBuffer(moverData))
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
+    }
+
     fun draw(cam: Camera, lightX: Float, lightY: Float, lightZ: Float, ambient: Float) {
         val s = shader ?: return
         val mesh = box ?: return
