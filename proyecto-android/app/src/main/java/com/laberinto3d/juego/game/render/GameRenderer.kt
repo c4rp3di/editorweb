@@ -18,6 +18,7 @@ import kotlin.math.sqrt
  */
 class GameRenderer(private val loop: GameLoop) : GLSurfaceView.Renderer {
     private val world = WorldRenderer()
+    private val tris = TriMeshRenderer()
     private val ball = BallRenderer()
     private val shadow = ShadowRenderer()
     private val goal = GoalRenderer()
@@ -60,8 +61,9 @@ class GameRenderer(private val loop: GameLoop) : GLSurfaceView.Renderer {
         if (!Telemetry.glVersion.contains("OpenGL ES 3")) {
             GameLog.e("GL", "La versión no es OpenGL ES 3.x: ${Telemetry.glVersion}")
         }
-        world.destroy(); ball.destroy(); shadow.destroy(); goal.destroy()
+        world.destroy(); tris.destroy(); ball.destroy(); shadow.destroy(); goal.destroy()
         world.create()
+        tris.create()
         ball.create()
         shadow.create()
         goal.create()
@@ -94,6 +96,7 @@ class GameRenderer(private val loop: GameLoop) : GLSurfaceView.Renderer {
         if (s != null) {
             if (s !== loadedSession) {
                 world.setWorld(s.world)
+                tris.setWorld(s.world)
                 CameraControl.reset()
                 loadedSession = s
                 ball.interpolate(s.ball, 1f)
@@ -133,7 +136,9 @@ class GameRenderer(private val loop: GameLoop) : GLSurfaceView.Renderer {
         GLES30.glCullFace(GLES30.GL_BACK)
         GLES30.glDisable(GLES30.GL_BLEND)
 
+        world.updateMovers(s.world)
         world.draw(camera, lx, ly, lz, AMBIENT)
+        tris.draw(camera, lx, ly, lz, AMBIENT)
 
         // decales (meta y sombra): sin culling, con mezcla, sin escribir profundidad
         GLES30.glDisable(GLES30.GL_CULL_FACE)
