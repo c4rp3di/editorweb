@@ -23,6 +23,7 @@ data class DatadisContractDto(
     val marketer: String? = null,
     val tension: String? = null,
     val accesFare: String? = null,
+    val accessFare: String? = null,
     val codeFare: String? = null,
     val contractedPowerkW: List<Double>? = null,
     val timeDiscrimination: String? = null,
