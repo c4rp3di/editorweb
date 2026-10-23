@@ -44,8 +44,9 @@ class GameLifecycle(
         showForPhase(session)
     }
 
-    override fun onHud(levelId: Int, levelName: String, elapsedMs: Long, bestMs: Long) {
-        root.hud.update(levelId, levelName, elapsedMs, bestMs)
+    override fun onHud(levelId: Int, levelName: String, elapsedMs: Long, bestMs: Long,
+                       checkpoints: Int, checkpointsTotal: Int, falls: Int) {
+        root.hud.update(levelId, levelName, elapsedMs, bestMs, checkpoints, checkpointsTotal, falls)
         if (currentPhase == Phase.CALIBRATING) menus.refreshCalibration()
     }
 
@@ -59,7 +60,7 @@ class GameLifecycle(
             Phase.LOST -> overlay.setRoot(menus.lost(s))
             Phase.MENU -> overlay.setRoot(menus.levels())
         }
-        root.hud.update(s.levelId, s.level.name, s.elapsedMs, s.bestMs)
+        root.hud.update(s.levelId, s.level.name, s.elapsedMs, s.bestMs, s.checkpointsReached, s.checkpointsTotal, s.falls)
     }
 
     // ------------------------------------------------------------------ Navegación de pantallas
@@ -110,6 +111,14 @@ class GameLifecycle(
         } else if (!GameState.transition(Phase.MENU, "menú de niveles")) {
             GameLog.w("Life", "No se pudo abrir el menú desde ${s.phase}")
         }
+    }
+
+    /** Vuelve al último checkpoint (o al inicio) sin perder el tiempo ni contar caída. */
+    fun backToCheckpoint() {
+        val s = GameState.currentSession ?: return
+        loop.post(Runnable { s.physics.resetBall() })
+        GameLog.i("Life", "Volver al checkpoint ${s.physics.checkpointIndex + 1}")
+        if (s.phase == Phase.PAUSED) GameState.transition(Phase.PLAYING, "volver al checkpoint")
     }
 
     fun recalibrate() {
@@ -176,6 +185,7 @@ class GameLifecycle(
     fun onHostPause() {
         AudioManager.pauseAll()
         root.debug.onHostPause()
+        com.laberinto3d.juego.game.render.CameraControl.gesturing = false
         if (currentPhase == Phase.PLAYING) GameState.transition(Phase.PAUSED, "app en segundo plano")
     }
 
