@@ -53,7 +53,11 @@ class DatadisClient @Inject constructor(
 
     private suspend fun login(creds: DatadisCredentials): String {
         val text = try {
-            api.login(creds.username.trim(), creds.password).string().trim()
+            api.login(creds.username.trim().uppercase(), creds.password).string().trim()
+        } catch (e: HttpException) {
+            // En el login, 400/401/403 significan usuario o contraseña no aceptados
+            if (e.code() in 400..403) throw AppError.InvalidCredentials
+            throw mapError(e)
         } catch (e: Throwable) {
             throw mapError(e)
         }
@@ -72,8 +76,7 @@ class DatadisClient @Inject constructor(
     /** Valida usuario y contraseña (login + get-supplies) sin tocar las credenciales guardadas. Devuelve nº de suministros. */
     suspend fun validate(creds: DatadisCredentials): Int {
         val t = login(creds)
-        val v2 = settings.settings.value.datadisApiV2
-        return fetchList(DatadisSupplyDto.serializer(), DatadisEndpoints.SUPPLIES, v2, t, emptyMap(), "supplies").size
+        return fetchWithFallback(DatadisSupplyDto.serializer(), DatadisEndpoints.SUPPLIES, t, emptyMap(), "supplies").size
     }
 
     private suspend fun <T> authed(block: suspend (String) -> T): T {
@@ -140,7 +143,7 @@ class DatadisClient @Inject constructor(
         return try {
             fetchList(serializer, endpoint, preferV2, token, params, wrapperKey)
         } catch (e: AppError.Server) {
-            if (e.code == 404 || e.code == 410) {
+            if (e.code == 400 || e.code == 404 || e.code == 405 || e.code == 410) {
                 fetchList(serializer, endpoint, !preferV2, token, params, wrapperKey)
             } else throw e
         }
