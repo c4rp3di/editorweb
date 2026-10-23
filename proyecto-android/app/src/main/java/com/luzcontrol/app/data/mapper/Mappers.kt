@@ -63,7 +63,7 @@ fun DatadisContractDto.toEntity(fallbackCups: String): ContractEntity {
         cups = cups ?: fallbackCups,
         contractedPowerP1 = powers.getOrNull(0) ?: 0.0,
         contractedPowerP2 = powers.getOrNull(1) ?: powers.getOrNull(0) ?: 0.0,
-        tariffType = accesFare ?: codeFare.orEmpty(),
+        tariffType = accessFare ?: accesFare ?: codeFare.orEmpty(),
         marketer = marketer.orEmpty(),
         startDate = startDate,
         timeDiscrimination = timeDiscrimination
@@ -101,9 +101,11 @@ fun List<DatadisConsumptionDto>.toEntities(cups: String, zone: ZoneId, stepMinut
 fun periodFromDatadis(text: String?): Int {
     val t = text.orEmpty().trim().uppercase()
     return when {
-        t.contains("PUNTA") || t == "P1" || t == "1" -> 1
-        t.contains("LLANO") || t == "P2" || t == "2" -> 2
-        t.contains("VALLE") || t == "P3" || t == "3" -> 3
+        t.contains("PUNTA") -> 1
+        t.contains("LLANO") -> 2
+        t.contains("VALLE") -> 3
+        // Periodos de potencia 2.0TD: 1 = punta/llano, 2 = valle
+        t == "1" || t == "P1" -> 1
         else -> 3
     }
 }
