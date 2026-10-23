@@ -9,6 +9,13 @@
     <string name="calibrate_no_data">El acelerómetro aún no ha enviado datos. Espera un instante.</string>
     <string name="calibrate_done">Calibrado</string>
 
+    <string name="hud_checkpoint">Checkpoint %1$d/%2$d</string>
+    <string name="hud_falls">Caídas %1$d</string>
+    <string name="checkpoint_button">Volver al checkpoint</string>
+    <string name="won_falls">Caídas: %1$d</string>
+    <string name="advanced_vertical_gain">Ganancia eje vertical</string>
+    <string name="settings_reset_view">Recentrar vista</string>
+
     <string name="pause_title">Pausa</string>
     <string name="resume_button">Continuar</string>
     <string name="restart_button">Reiniciar nivel</string>
