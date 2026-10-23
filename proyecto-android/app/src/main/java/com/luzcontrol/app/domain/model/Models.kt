@@ -94,7 +94,7 @@ data class UserSettings(
     val dailySync: Boolean = true,
     val priceNotifications: Boolean = false,
     val requireBiometric: Boolean = false,
-    val datadisApiV2: Boolean = true,
+    val datadisApiV2: Boolean = false,
     val ufdEnabled: Boolean = false,
     val billing: BillingParams = BillingParams()
 )
