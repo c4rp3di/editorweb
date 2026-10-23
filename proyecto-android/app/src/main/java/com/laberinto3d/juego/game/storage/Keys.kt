@@ -28,6 +28,7 @@ object Keys {
     const val TUNE_INVERT_X = "tune_invert_x"
     const val TUNE_INVERT_Y = "tune_invert_y"
     const val TUNE_SWAP_XY = "tune_swap_xy"
+    const val TUNE_VERTICAL_GAIN = "tune_vertical_gain"
 
     fun bestTime(levelId: Int): String = "best_time_$levelId"
 }
