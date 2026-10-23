@@ -148,7 +148,6 @@ private fun SettingsContent(viewModel: SettingsViewModel, settings: com.luzcontr
                     else viewModel.setPriceNotifications(on)
                 }
                 SwitchRow("Pedir huella / PIN para abrir Ajustes", settings.requireBiometric) { viewModel.setRequireBiometric(it) }
-                SwitchRow("API de Datadis v2 (si falla, prueba v1)", settings.datadisApiV2) { viewModel.setApiV2(it) }
                 SwitchRow("Fuente UFD directa (no disponible aún)", false, enabled = false) { }
             }
         }
@@ -214,7 +213,7 @@ private fun CredentialsCard(viewModel: SettingsViewModel, hasCreds: Boolean, val
         when (validation) {
             ValidationState.Idle -> {}
             ValidationState.Validating -> Text("Validando con Datadis…")
-            is ValidationState.Ok -> NoticeBanner("Credenciales correctas. Suministros encontrados: ${validation.supplies}. Sincronizando…")
+            is ValidationState.Ok -> NoticeBanner("Credenciales correctas. Descargando tus suministros y consumos…")
             is ValidationState.Failed -> NoticeBanner(validation.message, isError = true)
         }
     }
