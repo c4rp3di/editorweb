@@ -46,6 +46,10 @@ class PhysicsEngine(
     @JvmField var stepsRun = 0L
 
     private val contact = Contact()
+    private var simTime = 0f
+    /** Superficie del suelo sobre el que rodó la bola en el paso anterior (0 normal, 1 hielo, 2 arena). */
+    private var surfaceNow = 0
+    private var contactCount = 0
     private var stuckCounter = 0
     private var warnedSpeed = false
 
@@ -73,13 +77,18 @@ class PhysicsEngine(
         b.prevPosition.set(p)
         b.prevRotation.set(b.rotation)
 
+        // 0) plataformas móviles
+        simTime += dt
+        world.updateMovers(simTime, dt)
+
         // 1) gravedad
         v.x += gravity.x * dt
         v.y += gravity.y * dt
         v.z += gravity.z * dt
 
-        // 2) amortiguamiento lineal
-        val damp = (1f - b.linearDamping * dt).coerceAtLeast(0f)
+        // 2) amortiguamiento lineal (hielo: casi nada; arena: mucho)
+        val dampK = when (surfaceNow) { 1 -> 0.08f; 2 -> 5f; else -> 1f }
+        val damp = (1f - b.linearDamping * dampK * dt).coerceAtLeast(0f)
         v.x *= damp; v.y *= damp; v.z *= damp
 
         // Límite de velocidad (red de seguridad contra el tunneling)
@@ -98,48 +107,28 @@ class PhysicsEngine(
         p.y += v.y * dt
         p.z += v.z * dt
 
-        // 4) colisiones
-        var contacts = 0
+        // 4) colisiones (cajas, plataformas móviles y triángulos de rampas)
+        contactCount = 0
+        surfaceNow = 0
         for (iter in 0 until Config.COLLISION_ITERATIONS) {
             for (i in world.boxes.indices) {
                 val box = world.boxes[i]
                 if (!Collision.sphereAabb(p.x, p.y, p.z, b.radius, box, contact)) continue
-                contacts++
-                val nx = contact.nx
-                val ny = contact.ny
-                val nz = contact.nz
-                // push-out
-                p.x += nx * contact.depth
-                p.y += ny * contact.depth
-                p.z += nz * contact.depth
-                // respuesta de velocidad
-                val vn = v.x * nx + v.y * ny + v.z * nz
-                if (vn < 0f) {
-                    val impact = -vn
-                    val e = if (impact > Config.REST_THRESHOLD) b.restitution else 0f
-                    val jn = (1f + e) * impact          // variación de velocidad normal
-                    v.x += nx * jn; v.y += ny * jn; v.z += nz * jn
-                    val floorLike = ny > 0.7f
-                    if (!floorLike) {
-                        // fricción de Coulomb: limitada por mu * impulso normal
-                        val vn2 = v.x * nx + v.y * ny + v.z * nz
-                        val tx = v.x - nx * vn2
-                        val ty = v.y - ny * vn2
-                        val tz = v.z - nz * vn2
-                        val tl = sqrt(tx * tx + ty * ty + tz * tz)
-                        if (tl > 1e-6f) {
-                            val dv = minOf(tl, b.friction * jn)
-                            val k = dv / tl
-                            v.x -= tx * k; v.y -= ty * k; v.z -= tz * k
-                        }
-                        if (impact > Config.IMPACT_MIN_SPEED && iter == 0) {
-                            if (impact > maxImpactSeen) maxImpactSeen = impact
-                            impactListener?.invoke(impact, nx, nz)
-                        }
-                    }
+                val dyn = box.dynamic
+                resolve(iter, dt, if (dyn) box.vel.x else 0f, if (dyn) box.vel.y else 0f, if (dyn) box.vel.z else 0f, dyn, box.dvx, box.dvz)
+                if (contact.ny > 0.7f && box.surface != 0) surfaceNow = box.surface
+            }
+            val tv = world.tris
+            val tn = world.triNormals
+            var ti = 0
+            while (ti < tn.size) {
+                if (Collision.sphereTri(p.x, p.y, p.z, b.radius, tv, ti * 3, tn[ti], tn[ti + 1], tn[ti + 2], contact)) {
+                    resolve(iter, dt, 0f, 0f, 0f, false, 0f, 0f)
                 }
+                ti += 3
             }
         }
+        val contacts = contactCount
         contactsLastStep = contacts
         totalContacts += contacts
         stepsRun++
@@ -206,4 +195,56 @@ class PhysicsEngine(
     }
 
     private val q = Quat()
+
+    /**
+     * Respuesta al contacto guardado en [contact]: saca la bola, anula/rebota la velocidad normal
+     * (relativa a la superficie, que puede moverse a [bvx],[bvy],[bvz]) y aplica rozamiento de pared.
+     */
+    private fun resolve(iter: Int, dt: Float, bvx: Float, bvy: Float, bvz: Float, dyn: Boolean, dvx: Float, dvz: Float) {
+        val b = ball
+        val v = b.velocity
+        val p = b.position
+        contactCount++
+        val nx = contact.nx
+        val ny = contact.ny
+        val nz = contact.nz
+        p.x += nx * contact.depth
+        p.y += ny * contact.depth
+        p.z += nz * contact.depth
+        val vn = (v.x - bvx) * nx + (v.y - bvy) * ny + (v.z - bvz) * nz
+        if (vn < 0f) {
+            val impact = -vn
+            val e = if (impact > Config.REST_THRESHOLD) b.restitution else 0f
+            val jn = (1f + e) * impact
+            v.x += nx * jn; v.y += ny * jn; v.z += nz * jn
+            val floorLike = ny > 0.7f
+            if (!floorLike) {
+                val rvx = v.x - bvx; val rvy = v.y - bvy; val rvz = v.z - bvz
+                val vn2 = rvx * nx + rvy * ny + rvz * nz
+                val tx = rvx - nx * vn2
+                val ty = rvy - ny * vn2
+                val tz = rvz - nz * vn2
+                val tl = sqrt(tx * tx + ty * ty + tz * tz)
+                if (tl > 1e-6f) {
+                    val dv = minOf(tl, b.friction * jn)
+                    val k = dv / tl
+                    v.x -= tx * k; v.y -= ty * k; v.z -= tz * k
+                }
+                if (impact > Config.IMPACT_MIN_SPEED && iter == 0) {
+                    if (impact > maxImpactSeen) maxImpactSeen = impact
+                    impactListener?.invoke(impact, nx, nz)
+                }
+            }
+        }
+        // una plataforma móvil arrastra a la bola que va encima: la bola hereda la ACELERACIÓN horizontal
+        // de la plataforma (agarre perfecto) y su movimiento relativo se amortigua suavemente, de modo que
+        // se puede seguir rodando sobre ella con normalidad.
+        if (dyn && ny > 0.7f && iter == 0) {
+            v.x += dvx
+            v.z += dvz
+            val k = minOf(1f, 1.5f * dt)
+            v.x += (bvx - v.x) * k
+            v.z += (bvz - v.z) * k
+        }
+    }
 }
