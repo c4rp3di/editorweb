@@ -99,6 +99,7 @@ object Prefs {
         Tuning.invertX = s.getBoolean(Keys.TUNE_INVERT_X, false)
         Tuning.invertY = s.getBoolean(Keys.TUNE_INVERT_Y, false)
         Tuning.swapXY = s.getBoolean(Keys.TUNE_SWAP_XY, false)
+        Tuning.verticalGain = s.getFloat(Keys.TUNE_VERTICAL_GAIN, Tuning.DEF_VERTICAL_GAIN)
     }
 
     fun saveTuning() {
@@ -113,6 +114,7 @@ object Prefs {
             .putBoolean(Keys.TUNE_INVERT_X, Tuning.invertX)
             .putBoolean(Keys.TUNE_INVERT_Y, Tuning.invertY)
             .putBoolean(Keys.TUNE_SWAP_XY, Tuning.swapXY)
+            .putFloat(Keys.TUNE_VERTICAL_GAIN, Tuning.verticalGain)
             .apply()
     }
 
