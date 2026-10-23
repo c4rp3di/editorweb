@@ -31,7 +31,7 @@ class SettingsRepositoryImpl @Inject constructor(
             dailySync = prefs.getBoolean("daily_sync", true),
             priceNotifications = prefs.getBoolean("price_notifications", false),
             requireBiometric = prefs.getBoolean("require_biometric", false),
-            datadisApiV2 = prefs.getBoolean("datadis_api_v2", true),
+            datadisApiV2 = prefs.getBoolean("datadis_api_v2", false),
             ufdEnabled = prefs.getBoolean("ufd_enabled", false),
             billing = BillingParams(
                 powerP1EurKwDay = d("b_p1", def.powerP1EurKwDay),
