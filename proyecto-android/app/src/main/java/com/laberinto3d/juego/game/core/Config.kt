@@ -20,12 +20,21 @@ object Config {
     const val IMPACT_MIN_SPEED = 0.35f
     const val GOAL_HEIGHT_TOLERANCE = 0.3f
     /** Si la bola baja de esta altura se considera caída (estado LOST). */
-    const val FALL_Y = -3f
+    const val FALL_Y = -1.5f
     /** Margen fuera del tablero a partir del cual se considera que la bola se escapó. */
     const val OUT_OF_BOUNDS_MARGIN = 1.5f
     /** Pasos seguidos con penetración grave antes de reiniciar la bola ("atascada"). */
     const val STUCK_STEPS = 40
     const val STUCK_DEPTH = 0.06f
+
+    /** Radio horizontal para activar un checkpoint y tolerancia de altura. */
+    const val CHECKPOINT_RADIUS = 0.30f
+    const val CHECKPOINT_HEIGHT_TOL = 0.30f
+
+    // ---- Mapas de texto ----
+    const val CELL = 0.6f
+    const val HEIGHT_STEP = 0.3f
+    const val FLOOR_BASE_Y = -0.4f
 
     // ---- Tiempo ----
     /** Tiempo máximo de un frame; el exceso se descarta (evita la espiral de la muerte). */
@@ -81,6 +90,7 @@ object Tuning {
     const val DEF_RESTITUTION = 0.35f
     const val DEF_WALL_FRICTION = 0.15f
     const val DEF_SENSOR_TAU_MS = 80f
+    const val DEF_VERTICAL_GAIN = 1.0f
 
     @Volatile var sensitivity = DEF_SENSITIVITY
     @Volatile var deadZoneDeg = DEF_DEAD_ZONE_DEG
@@ -92,6 +102,8 @@ object Tuning {
     @Volatile var invertX = false
     @Volatile var invertY = false
     @Volatile var swapXY = false
+    /** Ganancia extra del eje vertical de pantalla (además de la compensación de perspectiva). */
+    @Volatile var verticalGain = DEF_VERTICAL_GAIN
 
     /** Restaura sólo los parámetros de física/sensor (no sonido, vibración ni ejes). */
     fun resetPhysics() {
@@ -102,5 +114,6 @@ object Tuning {
         restitution = DEF_RESTITUTION
         wallFriction = DEF_WALL_FRICTION
         sensorTauMs = DEF_SENSOR_TAU_MS
+        verticalGain = DEF_VERTICAL_GAIN
     }
 }
