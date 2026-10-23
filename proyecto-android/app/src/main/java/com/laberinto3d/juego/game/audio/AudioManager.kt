@@ -104,6 +104,8 @@ object AudioManager {
 
     fun playGoal() = play(SoundIds.GOAL, 1f)
     fun playTap() = play(SoundIds.TAP, 0.8f)
+    fun playCheckpoint() = play(SoundIds.CHECKPOINT, 0.9f)
+    fun playFall() = play(SoundIds.FALL, 0.8f)
 
     /** Reproduce un sonido aunque el usuario tenga el sonido apagado (prueba desde depuración). */
     fun playTest(id: Int) {
