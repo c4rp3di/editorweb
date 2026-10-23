@@ -6,7 +6,7 @@ import com.laberinto3d.juego.game.physics.Vec3
 
 /** Los tres niveles de la v1.0. Todo en metros; ver sección 10 del plan. */
 object Levels {
-    const val COUNT = 3
+    const val COUNT = 7
 
     private const val T = Config.WALL_THICKNESS
     private val H = Config.WALL_HEIGHT
@@ -25,7 +25,11 @@ object Levels {
             l = when (i) {
                 1 -> buildLevel1()
                 2 -> buildLevel2()
-                else -> buildLevel3()
+                3 -> buildLevel3()
+                4 -> MapParser.build(4, MapLevels.NAME_4, MapLevels.MAP_4)
+                5 -> MapParser.build(5, MapLevels.NAME_5, MapLevels.MAP_5)
+                6 -> MapParser.build(6, MapLevels.NAME_6, MapLevels.MAP_6)
+                else -> MapParser.build(7, MapLevels.NAME_7, MapLevels.MAP_7)
             }
             cache[i] = l
         }
