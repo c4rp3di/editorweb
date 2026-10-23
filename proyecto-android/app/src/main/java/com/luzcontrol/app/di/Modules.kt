@@ -61,6 +61,12 @@ object NetworkModule {
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val req = chain.request()
+                if (req.url.host == NetworkConfig.DATADIS_HOST && req.header("Accept") == null) {
+                    chain.proceed(req.newBuilder().header("Accept", "application/json").build())
+                } else chain.proceed(req)
+            }
         // Sin interceptor de logging a propósito: las peticiones llevan DNI/contraseña/token.
         val pinner = CertificatePinner.Builder()
         var anyPin = false
