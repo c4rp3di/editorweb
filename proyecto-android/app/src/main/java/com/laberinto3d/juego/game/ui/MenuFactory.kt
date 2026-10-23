@@ -83,6 +83,9 @@ class MenuFactory(private val a: Activity, private val lc: GameLifecycle) {
         c.addView(UiKit.title(a, str(R.string.pause_title)))
         c.addView(UiKit.body(a, str(R.string.level_label, s.levelId, s.level.name), secondary = true, sizeSp = 14f))
         full(c, btn(R.string.resume_button, UiKit.Kind.PRIMARY) { lc.resume() }, 12)
+        if (s.checkpointsTotal > 0) {
+            full(c, btn(R.string.checkpoint_button) { lc.backToCheckpoint() }, 10)
+        }
         c.addView(UiKit.row(a, btn(R.string.restart_button) { lc.restart() }, btn(R.string.recalibrate_button) { lc.recalibrate() }))
         c.addView(UiKit.row(a, btn(R.string.levels_button) { lc.openLevels() }, btn(R.string.settings_button) { lc.push(settings()) }))
         c.addView(UiKit.row(a, btn(R.string.view_log_button) { lc.push(logViewer()) }, btn(R.string.exit_button, UiKit.Kind.DANGER) { lc.exitGame() }))
@@ -98,6 +101,7 @@ class MenuFactory(private val a: Activity, private val lc: GameLifecycle) {
         val time = UiKit.body(a, str(R.string.won_time, UiKit.formatTime(s.lastResultMs)), sizeSp = 22f)
         time.typeface = android.graphics.Typeface.DEFAULT_BOLD
         c.addView(time)
+        if (s.falls > 0) c.addView(UiKit.body(a, str(R.string.won_falls, s.falls), secondary = true, sizeSp = 14f))
         if (s.newRecord) {
             val r = UiKit.body(a, str(R.string.won_record), sizeSp = 18f)
             r.setTextColor(Color.parseColor("#FFD36B"))
@@ -211,6 +215,7 @@ class MenuFactory(private val a: Activity, private val lc: GameLifecycle) {
         c.addView(UiKit.sliderRow(a, str(R.string.advanced_restitution), 0f, 0.8f, 0.05f, Tuning.restitution, ::num) { Tuning.restitution = it; Prefs.saveTuning() })
         c.addView(UiKit.sliderRow(a, str(R.string.advanced_wall_friction), 0f, 0.6f, 0.05f, Tuning.wallFriction, ::num) { Tuning.wallFriction = it; Prefs.saveTuning() })
         c.addView(UiKit.sliderRow(a, str(R.string.advanced_sensor_tau), 0f, 300f, 10f, Tuning.sensorTauMs, { String.format(java.util.Locale.US, "%.0f ms", it) }) { Tuning.sensorTauMs = it; Prefs.saveTuning() })
+        c.addView(UiKit.sliderRow(a, str(R.string.advanced_vertical_gain), 0.6f, 2.0f, 0.05f, Tuning.verticalGain, ::num) { Tuning.verticalGain = it; Prefs.saveTuning() })
         c.addView(UiKit.toggleRow(a, str(R.string.advanced_invert_x), Tuning.invertX) { Tuning.invertX = it; Prefs.saveTuning(); GameLog.i("Settings", "invertX=$it") })
         c.addView(UiKit.toggleRow(a, str(R.string.advanced_invert_y), Tuning.invertY) { Tuning.invertY = it; Prefs.saveTuning(); GameLog.i("Settings", "invertY=$it") })
         c.addView(UiKit.toggleRow(a, str(R.string.advanced_swap), Tuning.swapXY) { Tuning.swapXY = it; Prefs.saveTuning(); GameLog.i("Settings", "swapXY=$it") })
