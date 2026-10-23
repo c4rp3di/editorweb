@@ -9,7 +9,7 @@ import com.laberinto3d.juego.game.storage.Prefs
 /** Avisos del núcleo hacia la interfaz. Siempre se invocan en el hilo UI. */
 interface GameEvents {
     fun onPhaseChanged(session: Session, from: Phase, to: Phase)
-    fun onHud(levelId: Int, levelName: String, elapsedMs: Long, bestMs: Long)
+    fun onHud(levelId: Int, levelName: String, elapsedMs: Long, bestMs: Long, checkpoints: Int, checkpointsTotal: Int, falls: Int)
 }
 
 /**
@@ -89,7 +89,10 @@ object GameState {
         val name = s.level.name
         val el = s.elapsedMs
         val best = s.bestMs
-        main.post { ev.onHud(id, name, el, best) }
+        val cp = s.checkpointsReached
+        val cpt = s.checkpointsTotal
+        val fl = s.falls
+        main.post { ev.onHud(id, name, el, best, cp, cpt, fl) }
     }
 
     fun postToMain(r: Runnable) {
