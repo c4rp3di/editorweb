@@ -42,12 +42,15 @@ void main() {
     vec3 n = normalize(vNormal);
     float ndl = max(dot(n, uLightDir), 0.0);
     float shade = 1.0;
-    if (vColor.a < 0.75) {
-        vec2 g = abs(fract(vWorld.xz / 0.5 + 0.5) - 0.5);
-        float line = 1.0 - smoothstep(0.0, 0.02, min(g.x, g.y));
-        shade = 1.0 - 0.12 * line;
-    } else if (n.y < 0.5) {
-        shade = mix(0.68, 1.0, smoothstep(0.0, 0.18, vWorld.y));
+    if (n.y > 0.5) {
+        if (vColor.a < 0.75) {
+            vec2 g = abs(fract(vWorld.xz / 0.5 + 0.5) - 0.5);
+            float line = 1.0 - smoothstep(0.0, 0.02, min(g.x, g.y));
+            shade = 1.0 - 0.12 * line;
+        }
+    } else {
+        // caras laterales: más oscuras cuanto más abajo (da sensación de profundidad)
+        shade = mix(0.45, 1.0, smoothstep(-0.4, 0.3, vWorld.y));
     }
     vec3 lit = vColor.rgb * (uAmbient + ndl * 0.85) * shade;
     oColor = vec4(lit, 1.0);
@@ -126,15 +129,18 @@ void main() {
 precision highp float;
 in vec2 vUv;
 uniform float uTime;
+uniform vec3 uColA;
+uniform vec3 uColB;
+uniform float uPulse;
 layout(location = 0) out vec4 oColor;
 void main() {
     float d = length(vUv);
     float ring = smoothstep(0.80, 0.88, d) - smoothstep(0.95, 1.0, d);
     float fill = (1.0 - smoothstep(0.0, 0.85, d)) * 0.38;
-    float pulse = 0.78 + 0.22 * sin(uTime * 3.0);
+    float pulse = 1.0 - uPulse + uPulse * (0.78 + 0.22 * sin(uTime * 3.0));
     float a = (ring * 0.95 + fill) * pulse;
     if (a < 0.01) discard;
-    vec3 c = mix(vec3(0.50, 0.88, 0.74), vec3(0.85, 1.0, 0.92), ring);
+    vec3 c = mix(uColA, uColB, ring);
     oColor = vec4(c, a);
 }
 """
