@@ -57,9 +57,41 @@ object SoundSynth {
         return toWav(s, 0.6f)
     }
 
+    /** Dos notas suaves ascendentes, ~350 ms. */
+    fun checkpoint(): ByteArray {
+        val n = (SAMPLE_RATE * 0.35).toInt()
+        val s = FloatArray(n)
+        val freqs = doubleArrayOf(880.0, 1318.5)
+        for (k in freqs.indices) {
+            val start = (k * 0.09 * SAMPLE_RATE).toInt()
+            for (i in start until n) {
+                val t = (i - start).toFloat() / SAMPLE_RATE
+                val env = exp(-t * 9f) * (1f - exp(-t * 600f))
+                s[i] += sin(2.0 * PI * freqs[k] * t).toFloat() * env * 0.6f
+            }
+        }
+        return toWav(s, 0.7f)
+    }
+
+    /** Silbido descendente corto, ~350 ms. */
+    fun fall(): ByteArray {
+        val n = (SAMPLE_RATE * 0.35).toInt()
+        val s = FloatArray(n)
+        var phase = 0.0
+        for (i in 0 until n) {
+            val t = i.toFloat() / SAMPLE_RATE
+            val f = 900.0 * exp(-t * 4.0) + 120.0
+            phase += 2.0 * PI * f / SAMPLE_RATE
+            s[i] = sin(phase).toFloat() * (1f - t / 0.35f) * 0.8f
+        }
+        return toWav(s, 0.65f)
+    }
+
     fun generate(id: Int): ByteArray = when (id) {
         SoundIds.BOUNCE -> bounce()
         SoundIds.GOAL -> goal()
+        SoundIds.CHECKPOINT -> checkpoint()
+        SoundIds.FALL -> fall()
         else -> tap()
     }
 
