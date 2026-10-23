@@ -80,7 +80,12 @@ class DebugOverlay(context: Context, private val accel: AccelerometerController)
             if (s != null) {
                 val b = s.ball
                 val sp = Math.sqrt((b.velocity.x * b.velocity.x + b.velocity.y * b.velocity.y + b.velocity.z * b.velocity.z).toDouble()).toFloat()
-                sb.append("fase ").append(s.phase).append("  nivel ").append(s.levelId).append("  t=").append(s.elapsedMs).append("ms\n")
+                sb.append("fase ").append(s.phase).append("  nivel ").append(s.levelId).append("  t=").append(s.elapsedMs).append("ms")
+                    .append("  cp ").append(s.checkpointsReached).append('/').append(s.checkpointsTotal).append("  caídas ").append(s.falls).append('\n')
+                sb.append("vista yaw ").append(f(Math.toDegrees(com.laberinto3d.juego.game.render.CameraControl.yaw.toDouble()).toFloat(), 0))
+                    .append("°  elev ").append(f(com.laberinto3d.juego.game.render.CameraControl.pitchDeg, 0))
+                    .append("°  zoom ").append(f(com.laberinto3d.juego.game.render.CameraControl.zoom))
+                    .append(if (com.laberinto3d.juego.game.render.CameraControl.gesturing) "  [CONGELADO]" else "").append('\n')
                 sb.append("pos ").append(f(b.position.x)).append(' ').append(f(b.position.y)).append(' ').append(f(b.position.z)).append('\n')
                 sb.append("vel ").append(f(b.velocity.x)).append(' ').append(f(b.velocity.y)).append(' ').append(f(b.velocity.z))
                     .append("  |v|=").append(f(sp)).append('\n')
