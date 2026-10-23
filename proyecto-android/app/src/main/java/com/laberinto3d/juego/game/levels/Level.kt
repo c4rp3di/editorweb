@@ -25,13 +25,17 @@ class Level(
     val minX: Float,
     val maxX: Float,
     val minZ: Float,
-    val maxZ: Float
+    val maxZ: Float,
+    /** Checkpoints en orden (y = cara superior del suelo). */
+    val checkpoints: List<Vec3> = emptyList(),
+    val topY: Float = 0.2f
 ) {
     fun buildWorld(): World = World(
         boxes = boxes,
         floorY = 0f,
         goalPosition = goal,
         goalRadius = goalRadius,
-        minX = minX, maxX = maxX, minZ = minZ, maxZ = maxZ
+        minX = minX, maxX = maxX, minZ = minZ, maxZ = maxZ,
+        checkpoints = checkpoints, topY = topY
     )
 }
