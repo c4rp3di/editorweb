@@ -14,14 +14,14 @@ class ShadowRenderer {
     }
 
     /** [bx],[bz]: posición de la bola; [height]: altura de la base de la bola sobre el suelo. */
-    fun draw(cam: Camera, bx: Float, bz: Float, ballRadius: Float, height: Float) {
+    fun draw(cam: Camera, bx: Float, floorY: Float, bz: Float, ballRadius: Float, height: Float) {
         val s = shader ?: return
         val q = quad ?: return
-        val alpha = 0.42f * max(0f, 1f - height / 0.6f)
+        val alpha = 0.42f * max(0f, 1f - height / 0.9f)
         if (alpha <= 0.01f) return
         s.use()
         s.setMat4("uViewProj", cam.viewProj)
-        s.setVec4("uCenterRadius", bx, 0.004f, bz, ballRadius * 1.35f)
+        s.setVec4("uCenterRadius", bx, floorY + 0.004f, bz, ballRadius * 1.35f)
         s.setFloat("uAlpha", alpha)
         q.draw(GLES30.GL_TRIANGLE_STRIP)
         GLES30.glBindVertexArray(0)
