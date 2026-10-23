@@ -79,7 +79,6 @@ class GameRenderer(private val loop: GameLoop) : GLSurfaceView.Renderer {
         Telemetry.surfaceW = width
         Telemetry.surfaceH = height
         GameLog.i("GL", "Surface ${width}x$height")
-        loadedSession?.let { camera.configure(it.world, aspect()) }
     }
 
     private fun aspect(): Float = width.toFloat() / height.toFloat()
@@ -95,11 +94,16 @@ class GameRenderer(private val loop: GameLoop) : GLSurfaceView.Renderer {
         if (s != null) {
             if (s !== loadedSession) {
                 world.setWorld(s.world)
-                camera.configure(s.world, aspect())
-                Telemetry.camDistance = camera.distance
+                CameraControl.reset()
                 loadedSession = s
-                GameLog.i("GL", "Escena cargada: nivel ${s.levelId}, cámara a ${"%.2f".format(camera.distance)} m")
+                ball.interpolate(s.ball, 1f)
+                camera.configure(s.world, aspect(), ball.drawX, ball.drawY, ball.drawZ)
+                GameLog.i("GL", "Escena cargada: nivel ${s.levelId}, cámara a ${"%.2f".format(camera.fitDistance)} m, cajas ${s.world.boxes.size}")
             }
+            CameraControl.clamp()
+            ball.interpolate(s.ball, alpha)
+            camera.configure(s.world, aspect(), ball.drawX, ball.drawY, ball.drawZ)
+            Telemetry.camDistance = camera.distance
             drawScene(s, alpha, t0)
         }
         GlUtil.check("onDrawFrame")
@@ -139,9 +143,22 @@ class GameRenderer(private val loop: GameLoop) : GLSurfaceView.Renderer {
         GLES30.glEnable(GLES30.GL_POLYGON_OFFSET_FILL)
         GLES30.glPolygonOffset(-2f, -2f)
         val gp = s.world.goalPosition
-        goal.draw(camera, gp.x, gp.z, s.world.goalRadius, (nowNs - startNanos) / 1e9f)
+        val timeSec = (nowNs - startNanos) / 1e9f
+        val cps = s.world.checkpoints
+        for (i in cps.indices) {
+            val c = cps[i]
+            val done = i <= s.physics.checkpointIndex
+            goal.draw(camera, c.x, c.y, c.z, com.laberinto3d.juego.game.core.Config.CHECKPOINT_RADIUS * 0.85f, timeSec,
+                if (done) GoalRenderer.CP_DONE_A else GoalRenderer.CP_PENDING_A,
+                if (done) GoalRenderer.CP_DONE_B else GoalRenderer.CP_PENDING_B,
+                if (done) 0f else 1f)
+        }
+        goal.draw(camera, gp.x, gp.y, gp.z, s.world.goalRadius, timeSec)
         ball.interpolate(s.ball, alpha)
-        shadow.draw(camera, ball.drawX, ball.drawZ, s.ball.radius, ball.drawY - s.ball.radius)
+        val fy = s.world.floorBelow(ball.drawX, ball.drawZ, ball.drawY - s.ball.radius)
+        if (fy > com.laberinto3d.juego.game.physics.World.NO_FLOOR) {
+            shadow.draw(camera, ball.drawX, fy, ball.drawZ, s.ball.radius, ball.drawY - s.ball.radius - fy)
+        }
         GLES30.glDisable(GLES30.GL_POLYGON_OFFSET_FILL)
         GLES30.glDepthMask(true)
         GLES30.glDisable(GLES30.GL_BLEND)
