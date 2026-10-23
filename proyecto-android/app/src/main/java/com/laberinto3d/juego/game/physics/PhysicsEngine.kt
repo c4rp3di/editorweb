@@ -18,6 +18,16 @@ class PhysicsEngine(
     /** Gravedad actual (la fija GameLoop cada paso a partir del acelerómetro). */
     @JvmField val gravity = Vec3(0f, -Config.GRAVITY, 0f)
 
+    /** Punto de reaparición (inicio o último checkpoint). Centro de la bola. */
+    private val spawn = Vec3(start.x, start.y, start.z)
+
+    /** Índice del último checkpoint alcanzado (-1 = ninguno). */
+    var checkpointIndex = -1
+        private set
+
+    /** Aviso al alcanzar un checkpoint nuevo (índice). */
+    var checkpointListener: ((Int) -> Unit)? = null
+
     var won = false
         private set
     var fell = false
@@ -43,8 +53,9 @@ class PhysicsEngine(
         resetBall()
     }
 
+    /** Reaparece en el último checkpoint (o en el inicio). */
     fun resetBall() {
-        ball.placeAt(start)
+        ball.placeAt(spawn)
         won = false
         fell = false
         stuckCounter = 0
@@ -171,6 +182,21 @@ class PhysicsEngine(
         if (gdx * gdx + gdz * gdz < world.goalRadius * world.goalRadius &&
             abs(gdy) < Config.GOAL_HEIGHT_TOLERANCE
         ) won = true
+
+        // 6b) checkpoints
+        val cps = world.checkpoints
+        for (i in checkpointIndex + 1 until cps.size) {
+            val c = cps[i]
+            val dx = p.x - c.x
+            val dz = p.z - c.z
+            if (dx * dx + dz * dz < Config.CHECKPOINT_RADIUS * Config.CHECKPOINT_RADIUS &&
+                abs(p.y - b.radius - c.y) < Config.CHECKPOINT_HEIGHT_TOL
+            ) {
+                checkpointIndex = i
+                spawn.set(c.x, c.y + b.radius, c.z)
+                checkpointListener?.invoke(i)
+            }
+        }
 
         // 7) caída / fuera del tablero
         val m = Config.OUT_OF_BOUNDS_MARGIN
