@@ -1,57 +1,57 @@
-# Perplexus 3D — Android nativo (v1.0.0)
+# DocReaderEditor
 
-Laberinto esférico 3D con física de cuerpo rígido en un **sistema de referencia no inercial**: la esfera rota con el
-móvil y la bola siente gravedad, fuerza centrífuga, Coriolis y Euler. Implementa el *Plan técnico v1.0* completo.
-
-* Kotlin 1.9.22 · AGP 8.2.2 · Gradle ≥ 8.2 (workflow de respaldo usa 8.5) · JDK 17
-* minSdk 24 · targetSdk/compileSdk 34 · OpenGL ES 3.0 · **sin dependencias de runtime** (solo JUnit para tests)
-* Paquete `com.perplexus.game` · APK debug firmado con `apk-build/debug.keystore` si existe en la raíz
+App Android nativa y offline (Kotlin 1.9.24, AGP 8.5.0, Gradle 8.7, JDK 17, SDK 34, KSP 1.9.24-1.0.20, Hilt 2.51.1, Room 2.6.1).
 
 ## Compilar
-`gradle assembleDebug` (o el workflow `build-apk-nativo.yml` del editor). No se incluye `gradlew`/`gradle-wrapper.jar`
-(binario): si tu workflow lo exige, genera el wrapper con `gradle wrapper --gradle-version 8.5`.
-Tests de JVM: `gradle :app:testDebugUnitTest`.
+1. Abrir la carpeta en Android Studio (Koala o posterior) con JDK 17, o por terminal:
+2. Si falta `gradle/wrapper/gradle-wrapper.jar`: `gradle wrapper --gradle-version 8.7`
+3. `./gradlew assembleDebug`
 
-## Cómo se juega
-1. Calibra (móvil quieto 1 s). 2. Elige nivel. 3. Gira el móvil: la bola rueda por tubos huecos.
-Tocar la esfera exterior = caer al vacío (derrota); llegar a la esfera verde = victoria.
-**Truco del nivel 1:** gira el móvil sobre su eje horizontal (como un tornillo): la bola avanza por la hélice.
-Gestos: dos dedos = órbita, pinza = zoom, doble toque = recentrar, pulsación larga 3 s esquina sup. izq. = debug.
+## Funcionalidad (v1)
+| Formato | Ver | Editar | Notas |
+|---|---|---|---|
+| TXT, MD, CSV/TSV, JSON, XML | ✅ | ✅ texto plano | MD con vista previa (Markwon) |
+| HTML | ✅ texto | ✅ texto plano | al guardar se pierden las etiquetas |
+| DOCX | ✅ con formato | ✅ editor tipo Word | ver «Fase 1: editor Word» |
+| XLSX | ✅ con fórmulas calculadas | ✅ editor tipo Excel | ver «Fase 2: editor Excel» |
+| PDF | ✅ PdfRenderer | ❌ | OCR ML Kit (máx. 30 págs) para búsqueda |
 
-## Estructura
-```
-app/src/main/java/com/perplexus/game/
-  math/       Vec3 Quat Mat3 Mat4 AABB BVH Transform MathUtils
-  physics/    RigidBody Forces(fuerzas ficticias) PhysicsWorld Broadphase(BVH) Narrowphase CollisionSolver
-              Shapes: Capsule Triangle Sphere Box Tube(+TubeJoint, Shell)
-  input/      SensorFusion(Mahony) OrientationEstimator Calibrator SensorMonitor SampleRing(lock-free) controladores
-  render/     GameRenderer Shader Mesh Camera Scene ShadowMap PostProcess(bloom+FXAA+viñeteado) ParticleSystem
-              TubeMesh LevelMesh ProceduralMarble/Noise
-  levels/     Json(propio) Level LevelFormat LevelLoader LevelValidator LevelGenerator
-  ui/ core/ lifecycle/ audio/ storage/ diag/   (pantallas, estados, sensores, sonido, prefs, log/crash/profiler)
-app/src/main/assets/levels/   8 niveles JSON + index.json (se pueden añadir más en Android/data/<pkg>/files/levels/*.json)
-app/src/test/                 tests JUnit (math, física, sensores, niveles, escenarios completos)
-tools/                        gen_levels.py, gen_sounds.py, physics_smoke.py (port Python de la física)
-```
+Biblioteca con búsqueda por nombre y por texto extraído (Room). Acceso a archivos solo con SAF, sin permisos.
 
-## Formato de nivel (JSON)
-`polyline` (tubos huecos encadenados con codos automáticos; `open` = ranura por la que cae la bola, escalar o por
-tramo; `branches` = bifurcaciones en Y), `tube`, `capsule`, `triangle`, `sphere`, `box`. Ver `levels/LevelFormat.kt`.
+## Pendiente respecto al plan
+Edición PDF (androidx.pdf Ink, alpha), ajustes, anotaciones, tests.
+PDFs con contraseña no soportados (PdfRenderer no admite clave antes de API 35).
 
-## Desviaciones deliberadas respecto al plan (y por qué)
-* **Tubos huecos** (la bola rueda por dentro) con ranuras, codos y bifurcaciones, en vez de cápsulas macizas: es lo que
-  hace jugable el concepto Perplexus. Las cápsulas macizas siguen disponibles.
-* **Caer al vacío = tocar la esfera exterior** (la esfera es física, RF-05, y a la vez letal, RF-06/08).
-* **CCD por subdivisión adaptativa** del paso (hasta 16 subpasos) en lugar de TOI analítico.
-* **Rodadura con SoundPool** (loop + `setRate`) en lugar de MediaPlayer: cambia el rate sin artefactos.
-* **FXAA en vez de MSAA** (la escena se dibuja a textura para el post-proceso).
-* **Cámara**: FOV adaptado al aspecto para que la esfera quepa; zoom como factor sobre la distancia base y nunca
-  dentro de la esfera (los valores 0.5R–2.5R del plan situarían la cámara dentro).
-* Orientación del cuaternión: q = dispositivo→mundo (Z arriba), `q = fromTwoVectors(a_n, ẑ)` en la calibración.
-* Editor in-app de niveles: no incluido (el plan lo marca opcional); sí hay generador procedural ("Nivel aleatorio").
+## Edición DOCX/XLSX (sin Apache POI)
+Se edita el paquete OOXML directamente (ZIP + XML), copiando intactas el resto de entradas.
+- DOCX: los párrafos con imágenes, campos, hipervínculos, saltos de página o cambios controlados aparecen bloqueados. Al editar un párrafo se conserva su estilo y el formato de su primer fragmento; el formato intermedio (negritas parciales) se unifica.
+- XLSX: al editar se elimina calcChain.xml y se pide recálculo al abrir; las fórmulas dependientes se actualizan al abrir en Excel.
+- Guardar escribe sobre el archivo original; si no hay permiso de escritura, ofrece «Guardar como».
 
-## Validación hecha sin compilador Kotlin
-Esta entrega se escribió sin poder ejecutar `kotlinc`/Gradle. Se validó: balance sintáctico de los 87 archivos,
-geometría y accesibilidad de los 8 niveles (`tools/gen_levels.py`) y la física/efecto tornillo con un port en Python
-(`tools/physics_smoke.py`, niveles 1, 2, 5 y 6 se completan con un giro constante). **Es probable que la primera
-compilación muestre algún error tipográfico**: el log de Actions suele señalarlo directamente.
+## Fase 1: editor Word (DOCX)
+Barra de herramientas: deshacer/rehacer, estilo (Normal, Título, Título 1-3), fuente, tamaño, negrita, cursiva,
+subrayado, tachado, color de texto, resaltado, alineación (izq/centro/der/justificado), listas con viñetas y
+numeradas (sangrar/anular sangría), interlineado, imagen, tablas (insertar, filas/columnas, eliminar),
+buscar y reemplazar, quitar formato y borrar párrafo.
+- Intro divide el párrafo; Retroceso al inicio lo une con el anterior.
+- Solo se reescriben los párrafos/tablas modificados; el resto del archivo queda byte a byte igual.
+- Se muestran bloqueados (solo borrables): imágenes y objetos existentes, campos, hipervínculos, saltos de página,
+  controles de contenido y cambios controlados. Tablas con celdas combinadas o anidadas: solo se edita el texto.
+- Al reescribir un párrafo se pierden sus marcadores internos (marcadores/bookmarks, correctores).
+- Sin paginación ni encabezados/pies (vista de flujo continuo).
+
+## Fase 2: editor Excel (XLSX)
+- Barra de fórmulas (celda activa + entrada), cabeceras de columna/fila, selección de rango (botón «Rango» o pulsación larga).
+- Cálculo de fórmulas: operadores + - * / ^ & % y comparaciones; SUM, AVERAGE, MIN, MAX, COUNT, COUNTA, COUNTBLANK,
+  PRODUCT, MEDIAN, IF, IFERROR, AND, OR, NOT, ABS, ROUND/UP/DOWN, INT, MOD, POWER, SQRT, EXP, LN, LOG, LOG10, PI,
+  LEN, UPPER, LOWER, TRIM, LEFT, RIGHT, MID, CONCAT(ENATE), REPT, SUBSTITUTE, FIND, SEARCH, VALUE, TEXT, SUMIF,
+  COUNTIF, AVERAGEIF, VLOOKUP, INDEX, MATCH, TODAY, NOW, DATE, YEAR, MONTH, DAY, ISBLANK/ISNUMBER/ISTEXT/ISERROR.
+  Funciones no soportadas muestran el último valor guardado en el archivo (o #NAME?). Se guardan los resultados en caché.
+- Formato: negrita, cursiva, subrayado, color de texto y relleno, tamaño, alineación, bordes, formatos numéricos
+  (número, miles, moneda, porcentaje, fecha, hora, texto) y +/− decimales.
+- Estructura: insertar/eliminar filas y columnas (las referencias de fórmulas se actualizan), ordenar, copiar/cortar/pegar
+  (también desde/hacia el portapapeles del sistema), borrar, Σ autosuma, insertador de funciones, buscar y reemplazar,
+  hojas nuevas y renombrar (pulsación larga en la pestaña), deshacer/rehacer (25 pasos).
+- Límites: sin filtros ni paneles inmovilizados ni combinar celdas (las combinaciones existentes se conservan); el ancho de
+  columna se conserva pero no se edita; el texto enriquecido dentro de una celda se aplana al guardar las hojas modificadas;
+  formato condicional, validaciones y gráficos se conservan pero no se desplazan al insertar/eliminar filas o columnas.
