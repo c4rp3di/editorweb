@@ -1,26 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
-    <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true" />
-    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
-
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
-
+    <!-- Sin permisos: acceso a archivos solo vía Storage Access Framework. App 100% offline. -->
     <application
+        android:name=".App"
         android:allowBackup="true"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@android:drawable/ic_menu_agenda"
         android:label="@string/app_name"
-        android:theme="@style/Theme.Perplexus"
-        android:hardwareAccelerated="true">
-
+        android:theme="@style/Theme.DocReader">
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="portrait"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density"
-            android:launchMode="singleTask">
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
