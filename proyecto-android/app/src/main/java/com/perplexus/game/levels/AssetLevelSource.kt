@@ -6,7 +6,7 @@ import java.io.File
 
 /**
  * Niveles incluidos en assets/levels (índice index.json) más los que el jugador copie a
- * Android/data/<paquete>/files/levels/*.json (se añaden sin recompilar, RF-17).
+ * Android/data/<paquete>/files/levels (archivos .json; se añaden sin recompilar, RF-17).
  */
 class AssetLevelSource(private val context: Context) : LevelSource {
     private fun externalDir(): File? = try { context.getExternalFilesDir("levels") } catch (_: Exception) { null }
