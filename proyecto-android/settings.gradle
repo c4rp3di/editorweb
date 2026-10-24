@@ -12,5 +12,6 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "DocReaderEditor"
+
+rootProject.name = "app"
 include ':app'
