@@ -1,22 +1,41 @@
-# LuzControl — monitorización, análisis y simulación de consumo eléctrico (UFD · Naturgy)
+# DocReaderEditor
 
-App Android nativa (Kotlin + Jetpack Compose, Clean Architecture + MVVM, offline-first).
-Paquete: `com.luzcontrol.app` · minSdk 26 · targetSdk/compileSdk 34.
+App Android nativa y offline (Kotlin 1.9.24, AGP 8.5.0, Gradle 8.7, JDK 17, SDK 34, KSP 1.9.24-1.0.20, Hilt 2.51.1, Room 2.6.1).
 
-## Compilación (compatible con Fusion / GitHub Actions)
-- AGP 8.5.0, Kotlin 1.9.24, KSP 1.9.24-1.0.20, Hilt 2.51.1, Compose compiler 1.5.14, JDK 17, Gradle 8.7.
-- Groovy DSL (`build.gradle`), módulo único `:app`. `./gradlew assembleDebug`.
+## Compilar
+1. Abrir la carpeta en Android Studio (Koala o posterior) con JDK 17, o por terminal:
+2. Si falta `gradle/wrapper/gradle-wrapper.jar`: `gradle wrapper --gradle-version 8.7`
+3. `./gradlew assembleDebug`
 
-## Capas
-- `domain/`: modelos puros, interfaces de repositorio y casos de uso (coste, anomalías, standby, desplazamiento, factura, potencia).
-- `data/`: Room (6 entidades), Retrofit (Datadis, ESIOS, REE), repositorios, WorkManager, notificaciones, widget, exportación CSV/PDF, credenciales cifradas.
-- `ui/`: 5 pestañas (Inicio, Consumo, Precios, Facturas, Ajustes), estados Loading/Success/Stale/Empty/Error, gráficas propias en Canvas.
+## Funcionalidad (v1)
+| Formato | Ver | Editar | Notas |
+|---|---|---|---|
+| TXT, MD, CSV/TSV, JSON, XML | ✅ | ✅ texto plano | MD con vista previa (Markwon) |
+| HTML | ✅ texto | ✅ texto plano | al guardar se pierden las etiquetas |
+| DOCX | ✅ con formato | ✅ editor tipo Word | ver «Fase 1: editor Word» |
+| XLSX | ✅ cuadrícula, todas las hojas | ✅ celda a celda | texto, números y =fórmulas; se conservan estilos/gráficos |
+| PDF | ✅ PdfRenderer | ❌ | OCR ML Kit (máx. 30 págs) para búsqueda |
 
-## Puntos a revisar antes de publicar
-1. **Datadis (según el manual oficial de la API privada)**: login `POST nikola-auth/tokens/login` (form `username`/`password`, DNI/NIE en mayúsculas) y `GET api-private/api/get-supplies | get-contract-detail | get-consumption-data | get-max-power` con `Authorization: Bearer`. Fechas `AAAA/MM`. **Datadis no permite repetir la misma consulta en 24 h ni las que den error**: `ApiCallGuard` lo respeta (nunca repite antes de tiempo, sin reintentos automáticos de consultas, sin repetir logins rechazados). Las consultas omitidas usan los datos ya guardados.
-2. **Certificate pinning**: `data/remote/NetworkConfig.kt` trae las listas de pines vacías (un pin erróneo bloquearía la app). Rellénalas con los hashes SPKI (instrucciones en el archivo).
-3. **Parámetros de factura** (`BillingParams`): valores orientativos 2.0TD editables en Ajustes; contrástalos con una factura real.
-4. **UFD directo**: no incluido (feature flag deshabilitada), como indica el plan.
-5. **Términos de Datadis**: comprueba sus condiciones de uso para apps de terceros antes de distribuir en Play Store.
-6. Los precios PVPC sin token salen de `apidatos.ree.es`; con token personal se usa ESIOS (indicadores 1001 y 600, península).
-7. Tests unitarios en `app/src/test` (JUnit 5, MockK). Fusion no compila tests; ejecútalos con `./gradlew testDebugUnitTest`.
+Biblioteca con búsqueda por nombre y por texto extraído (Room). Acceso a archivos solo con SAF, sin permisos.
+
+## Pendiente respecto al plan
+Edición PDF (androidx.pdf Ink, alpha), ajustes, anotaciones, tests.
+PDFs con contraseña no soportados (PdfRenderer no admite clave antes de API 35).
+
+## Edición DOCX/XLSX (sin Apache POI)
+Se edita el paquete OOXML directamente (ZIP + XML), copiando intactas el resto de entradas.
+- DOCX: los párrafos con imágenes, campos, hipervínculos, saltos de página o cambios controlados aparecen bloqueados. Al editar un párrafo se conserva su estilo y el formato de su primer fragmento; el formato intermedio (negritas parciales) se unifica.
+- XLSX: al editar se elimina calcChain.xml y se pide recálculo al abrir; las fórmulas dependientes se actualizan al abrir en Excel.
+- Guardar escribe sobre el archivo original; si no hay permiso de escritura, ofrece «Guardar como».
+
+## Fase 1: editor Word (DOCX)
+Barra de herramientas: deshacer/rehacer, estilo (Normal, Título, Título 1-3), fuente, tamaño, negrita, cursiva,
+subrayado, tachado, color de texto, resaltado, alineación (izq/centro/der/justificado), listas con viñetas y
+numeradas (sangrar/anular sangría), interlineado, imagen, tablas (insertar, filas/columnas, eliminar),
+buscar y reemplazar, quitar formato y borrar párrafo.
+- Intro divide el párrafo; Retroceso al inicio lo une con el anterior.
+- Solo se reescriben los párrafos/tablas modificados; el resto del archivo queda byte a byte igual.
+- Se muestran bloqueados (solo borrables): imágenes y objetos existentes, campos, hipervínculos, saltos de página,
+  controles de contenido y cambios controlados. Tablas con celdas combinadas o anidadas: solo se edita el texto.
+- Al reescribir un párrafo se pierden sus marcadores internos (marcadores/bookmarks, correctores).
+- Sin paginación ni encabezados/pies (vista de flujo continuo).
