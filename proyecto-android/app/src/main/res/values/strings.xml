@@ -1,8 +1,8 @@
 <resources>
-    <string name="app_name">LuzControl</string>
-    <string name="widget_description">Precio actual de la luz y consumo de ayer</string>
-    <string name="widget_no_data">Sin datos</string>
-    <string name="sync_channel_name">Sincronización</string>
-    <string name="price_channel_name">Avisos de precio</string>
-    <string name="sync_notification_title">Sincronizando datos de consumo…</string>
+    <string name="app_name">DocReader</string>
+    <string name="search_hint">Buscar por nombre o contenido</string>
+    <string name="empty_library">Importa un documento con el botón +</string>
+    <string name="save">Guardar</string>
+    <string name="preview">Vista previa</string>
+    <string name="edit">Editar</string>
 </resources>
