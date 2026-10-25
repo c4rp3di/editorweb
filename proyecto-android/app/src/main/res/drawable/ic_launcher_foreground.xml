@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icono de DevChat: bocadillo de chat con "</>" dentro. Zona segura del icono adaptable: círculo central de 66 dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- bocadillo -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,32 H70 A8,8 0 0 1 78,40 V60 A8,8 0 0 1 70,68 H52 L42,79 L41,68 H38 A8,8 0 0 1 30,60 V40 A8,8 0 0 1 38,32 Z" />
+    <!-- < -->
+    <path
+        android:strokeColor="#0F766E"
+        android:strokeWidth="3.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M47,42 L40,50 L47,58" />
+    <!-- > -->
+    <path
+        android:strokeColor="#0F766E"
+        android:strokeWidth="3.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M61,42 L68,50 L61,58" />
+    <!-- / -->
+    <path
+        android:strokeColor="#0F766E"
+        android:strokeWidth="3.6"
+        android:strokeLineCap="round"
+        android:pathData="M57,41 L51,59" />
+</vector>
