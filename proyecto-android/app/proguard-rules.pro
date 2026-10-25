@@ -1,0 +1,2 @@
+-dontwarn org.jsoup.**
+-keep class org.jsoup.** {*;}
