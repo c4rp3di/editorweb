@@ -519,7 +519,7 @@ class Engine(
         if (dp == 53) {
             val q = Dpi.dnsQuery(payload)
             if (q != null) {
-                ctx.flow.setHost(q)
+                ctx.flow.noteHost(q)
                 ctx.flow.notes.add("DNS: la app pregunta por " + q)
             }
         }
