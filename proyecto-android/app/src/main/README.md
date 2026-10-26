@@ -27,3 +27,10 @@ su contenido en el historial; los anteriores se sustituyen por una nota para no 
 glslc ni SPIR-V: puedes quitar esos pasos de tu workflow de GitHub Actions. El APK exige un móvil con i8mm
 (Dimensity 9000+, Snapdragon 8 Gen 1+...); si ves SIGILL, quita la línea `GGML_CPU_ARM_ARCH` de `native/llama/CMakeLists.txt`.
 Nueva dependencia: `com.google.mlkit:text-recognition:16.0.1` (modelo OCR incluido en el APK, ~4 MB).
+
+## Notas para el editor (EditorWeb)
+- **Carpeta native/**: el editor v10 publica `native/…` en `app/src/main/native/…` (versiones anteriores, en `app/native/…`).
+  `build.gradle` detecta cuál existe; si falta, la build falla con un mensaje explícito. Hay que publicar los 3 archivos:
+  `native/prepare_native_engines.sh`, `native/llama/CMakeLists.txt`, `native/llama/llama_jni.cpp`.
+- **Icono**: `res/mipmap-xxxhdpi/ic_launcher.png` (192×192). El editor lo importa como icono del proyecto y genera los 5 tamaños
+  (normal + redondo); puedes cambiarlo desde el propio editor. No incluyo icono adaptable en XML para no taparlo.
