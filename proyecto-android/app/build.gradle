@@ -1,12 +1,9 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    // [PLUGINS:FUNCIONALIDADES]
+    id 'com.google.devtools.ksp'
+    id 'com.google.dagger.hilt.android'
 }
-
-// El editor (v10) publica native/ en app/src/main/native/; las versiones anteriores lo dejaban en app/native/.
-// Se admiten las dos ubicaciones (el script y jniLibs siempre van juntos).
-def nativoDir = file('src/main/native/prepare_native_engines.sh').exists() ? 'src/main/native' : 'native'
 
 android {
     signingConfigs {
@@ -23,30 +20,22 @@ android {
         }
     }
 
-    // namespace = paquete interno del código (R, JNI): NO se cambia. La identidad de la app es el applicationId.
-    namespace 'com.ejemplo.chat'
+    namespace 'com.docreader.editor'
     compileSdk 34
-    ndkVersion '29.0.13113456'
 
     defaultConfig {
-        applicationId "com.ejemplo.devchat"   // distinto de Chat Pro: se instala junto a él, con sus propios datos
-        minSdk 28
+        applicationId "com.docreader.editor"
+        minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName "v2.0"
-
-        ndk {
-            abiFilters 'arm64-v8a'
-        }
+        versionCode 2
+        versionName "v5.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    buildFeatures {
-        viewBinding true
-    }
-
-    sourceSets {
-        main {
-            jniLibs.srcDirs = ["${nativoDir}/jniLibs".toString()]
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
@@ -54,11 +43,15 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-}
+    kotlinOptions { jvmTarget = '17' }
 
-kotlin {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    buildFeatures { viewBinding true }
+
+    packaging {
+        resources {
+            excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/LICENSE.txt',
+                         'META-INF/NOTICE', 'META-INF/NOTICE.txt', 'META-INF/INDEX.LIST']
+        }
     }
 }
 
@@ -66,36 +59,37 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.fragment:fragment-ktx:1.8.2'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.4'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0'
-    implementation 'com.google.ai.edge.litert:litert:2.2.0'
-    implementation 'com.google.ai.edge.litertlm:litertlm-android:0.16.1'
-    // OCR en el dispositivo (modelo incluido en el APK, funciona sin conexión): capturas -> texto para el modelo.
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.7.7'
+    implementation 'androidx.navigation:navigation-ui-ktx:2.7.7'
+
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1'
+
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    ksp 'androidx.room:room-compiler:2.6.1'
+
+    implementation 'com.google.dagger:hilt-android:2.51.1'
+    ksp 'com.google.dagger:hilt-compiler:2.51.1'
+
+    implementation 'androidx.documentfile:documentfile:1.0.1'
+    implementation 'androidx.exifinterface:exifinterface:1.3.7'
+
+    // PDF: texto con posiciones, anotaciones, formularios, páginas
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+
+    // OCR on-device (modelo latino incluido)
     implementation 'com.google.mlkit:text-recognition:16.0.1'
-    // [DEPENDENCIAS:FUNCIONALIDADES]
-}
 
-tasks.register('prepareNativeEngines') {
-    group = 'devchat'
-    description = 'Descarga y compila llama.cpp durante el build de Android.'
-    doLast {
-        if ((System.getenv('CHATPRO_SKIP_NATIVE') ?: '0') == '1') {
-            logger.lifecycle('DevChat: CHATPRO_SKIP_NATIVE=1; se omite la preparación nativa.')
-            return
-        }
-        def script = file("${nativoDir}/prepare_native_engines.sh")
-        if (!script.exists()) {
-            throw new GradleException('DevChat: no encuentro prepare_native_engines.sh ni en app/src/main/native/ ni en app/native/. ' +
-                'Publica la carpeta native/ del proyecto (prepare_native_engines.sh, llama/CMakeLists.txt, llama/llama_jni.cpp).')
-        }
-        exec {
-            commandLine 'bash', script.absolutePath
-        }
-    }
-}
+    implementation 'org.jsoup:jsoup:1.17.2'
+    implementation 'io.noties.markwon:core:4.6.2'
 
-tasks.named('preBuild') {
-    dependsOn(tasks.named('prepareNativeEngines'))
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
 }
-
