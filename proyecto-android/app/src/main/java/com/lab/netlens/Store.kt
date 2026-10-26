@@ -38,7 +38,7 @@ class Flow(val id: Long, val stat: AppStat, val proto: String, val dstIp: String
         last = System.currentTimeMillis()
     }
 
-    fun setHost(h: String) {
+    fun noteHost(h: String) {
         if (h.isEmpty()) return
         host = h
         stat.hosts.add(h)
@@ -69,7 +69,7 @@ object Store {
     fun newFlow(stat: AppStat, proto: String, ip: String, port: Int): Flow {
         val f = Flow(ids.incrementAndGet(), stat, proto, ip, port)
         stat.flows.incrementAndGet()
-        dns[ip]?.let { f.setHost(it) }
+        dns[ip]?.let { f.noteHost(it) }
         synchronized(lock) {
             list.add(f)
             while (list.size > 1200) list.removeAt(0)
