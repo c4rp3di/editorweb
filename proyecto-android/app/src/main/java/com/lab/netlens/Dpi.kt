@@ -208,7 +208,7 @@ object Dpi {
         val t = tls(a)
         if (t != null) {
             val s = t.sni
-            if (s != null) flow.setHost(s)
+            if (s != null) flow.noteHost(s)
             val ver = if (t.tls13) "TLS 1.3" else when (t.legacyVer) {
                 0x0303 -> "TLS 1.2"
                 0x0302 -> "TLS 1.1"
@@ -223,7 +223,7 @@ object Dpi {
         val h = http(a)
         if (h != null) {
             val hh = h.host
-            if (hh != null) flow.setHost(hh.substringBefore(':'))
+            if (hh != null) flow.noteHost(hh.substringBefore(':'))
             flow.stat.clearFlows.incrementAndGet()
             flow.notes.add("⚠ HTTP SIN CIFRAR: " + h.method + " " + (hh ?: "") + h.path)
             if (h.queryKeys.isNotEmpty()) flow.notes.add("Parámetros enviados (solo nombres): " + h.queryKeys.joinToString(", "))
