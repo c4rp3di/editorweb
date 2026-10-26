@@ -4,6 +4,10 @@ plugins {
     // [PLUGINS:FUNCIONALIDADES]
 }
 
+// El editor (v10) publica native/ en app/src/main/native/; las versiones anteriores lo dejaban en app/native/.
+// Se admiten las dos ubicaciones (el script y jniLibs siempre van juntos).
+def nativoDir = file('src/main/native/prepare_native_engines.sh').exists() ? 'src/main/native' : 'native'
+
 android {
     signingConfigs {
         debug {
@@ -29,7 +33,7 @@ android {
         minSdk 28
         targetSdk 34
         versionCode 1
-        versionName "v1.0"
+        versionName "v2.0"
 
         ndk {
             abiFilters 'arm64-v8a'
@@ -42,7 +46,7 @@ android {
 
     sourceSets {
         main {
-            jniLibs.srcDirs = ['native/jniLibs']
+            jniLibs.srcDirs = ["${nativoDir}/jniLibs".toString()]
         }
     }
 
@@ -80,8 +84,13 @@ tasks.register('prepareNativeEngines') {
             logger.lifecycle('DevChat: CHATPRO_SKIP_NATIVE=1; se omite la preparación nativa.')
             return
         }
+        def script = file("${nativoDir}/prepare_native_engines.sh")
+        if (!script.exists()) {
+            throw new GradleException('DevChat: no encuentro prepare_native_engines.sh ni en app/src/main/native/ ni en app/native/. ' +
+                'Publica la carpeta native/ del proyecto (prepare_native_engines.sh, llama/CMakeLists.txt, llama/llama_jni.cpp).')
+        }
         exec {
-            commandLine 'bash', file('native/prepare_native_engines.sh').absolutePath
+            commandLine 'bash', script.absolutePath
         }
     }
 }
