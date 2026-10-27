@@ -21,144 +21,68 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-/** Utilidades para leer y construir paquetes IPv4 / TCP / UDP. */
 object Pkt {
-    const val FIN = 1
-    const val SYN = 2
-    const val RST = 4
-    const val PSH = 8
-    const val ACK = 16
-
+    const val FIN = 1; const val SYN = 2; const val RST = 4; const val PSH = 8; const val ACK = 16
     private val ipId = AtomicInteger(1)
-
     fun u8(b: ByteArray, p: Int): Int = b[p].toInt() and 0xFF
     fun u16(b: ByteArray, p: Int): Int = (u8(b, p) shl 8) or u8(b, p + 1)
-    fun u32(b: ByteArray, p: Int): Int =
-        (u8(b, p) shl 24) or (u8(b, p + 1) shl 16) or (u8(b, p + 2) shl 8) or u8(b, p + 3)
-
-    fun put16(b: ByteArray, p: Int, v: Int) {
-        b[p] = (v shr 8).toByte()
-        b[p + 1] = v.toByte()
-    }
-
-    fun put32(b: ByteArray, p: Int, v: Int) {
-        b[p] = (v shr 24).toByte()
-        b[p + 1] = (v shr 16).toByte()
-        b[p + 2] = (v shr 8).toByte()
-        b[p + 3] = v.toByte()
-    }
-
-    fun ipStr(b: ByteArray, p: Int): String =
-        "" + u8(b, p) + "." + u8(b, p + 1) + "." + u8(b, p + 2) + "." + u8(b, p + 3)
-
+    fun u32(b: ByteArray, p: Int): Int = (u8(b, p) shl 24) or (u8(b, p + 1) shl 16) or (u8(b, p + 2) shl 8) or u8(b, p + 3)
+    fun put16(b: ByteArray, p: Int, v: Int) { b[p] = (v shr 8).toByte(); b[p + 1] = v.toByte() }
+    fun put32(b: ByteArray, p: Int, v: Int) { b[p] = (v shr 24).toByte(); b[p + 1] = (v shr 16).toByte(); b[p + 2] = (v shr 8).toByte(); b[p + 3] = v.toByte() }
+    fun ipStr(b: ByteArray, p: Int): String = "" + u8(b, p) + "." + u8(b, p + 1) + "." + u8(b, p + 2) + "." + u8(b, p + 3)
     fun checksum(b: ByteArray, off: Int, len: Int, init: Long): Int {
-        var sum: Long = init
-        var i = off
-        val end = off + len
-        while (i + 1 < end) {
-            sum += ((u8(b, i) shl 8) or u8(b, i + 1)).toLong()
-            i += 2
-        }
+        var sum: Long = init; var i = off; val end = off + len
+        while (i + 1 < end) { sum += ((u8(b, i) shl 8) or u8(b, i + 1)).toLong(); i += 2 }
         if (i < end) sum += (u8(b, i) shl 8).toLong()
         while ((sum shr 16) != 0L) sum = (sum and 0xFFFFL) + (sum shr 16)
         return (sum.inv() and 0xFFFFL).toInt()
     }
-
     private fun pseudo(src: ByteArray, dst: ByteArray, proto: Int, len: Int): Long {
         var s = 0L
-        s += ((u8(src, 0) shl 8) or u8(src, 1)).toLong()
-        s += ((u8(src, 2) shl 8) or u8(src, 3)).toLong()
-        s += ((u8(dst, 0) shl 8) or u8(dst, 1)).toLong()
-        s += ((u8(dst, 2) shl 8) or u8(dst, 3)).toLong()
-        s += proto.toLong()
-        s += len.toLong()
-        return s
+        s += ((u8(src, 0) shl 8) or u8(src, 1)).toLong(); s += ((u8(src, 2) shl 8) or u8(src, 3)).toLong()
+        s += ((u8(dst, 0) shl 8) or u8(dst, 1)).toLong(); s += ((u8(dst, 2) shl 8) or u8(dst, 3)).toLong()
+        s += proto.toLong(); s += len.toLong(); return s
     }
-
     private fun ipHeader(p: ByteArray, total: Int, proto: Int, src: ByteArray, dst: ByteArray) {
-        p[0] = 0x45.toByte()
-        p[1] = 0
-        put16(p, 2, total)
-        put16(p, 4, ipId.getAndIncrement() and 0xFFFF)
-        put16(p, 6, 0x4000)
-        p[8] = 64
-        p[9] = proto.toByte()
-        System.arraycopy(src, 0, p, 12, 4)
-        System.arraycopy(dst, 0, p, 16, 4)
-        put16(p, 10, 0)
-        put16(p, 10, checksum(p, 0, 20, 0L))
+        p[0] = 0x45.toByte(); p[1] = 0
+        put16(p, 2, total); put16(p, 4, ipId.getAndIncrement() and 0xFFFF); put16(p, 6, 0x4000)
+        p[8] = 64; p[9] = proto.toByte()
+        System.arraycopy(src, 0, p, 12, 4); System.arraycopy(dst, 0, p, 16, 4)
+        put16(p, 10, 0); put16(p, 10, checksum(p, 0, 20, 0L))
     }
-
-    fun tcp(
-        src: ByteArray, dst: ByteArray, sp: Int, dp: Int, seq: Int, ack: Int,
-        flags: Int, win: Int, data: ByteArray?, off: Int, len: Int, mss: Int
-    ): ByteArray {
-        val th = if (mss > 0) 24 else 20
-        val total = 20 + th + len
-        val p = ByteArray(total)
-        ipHeader(p, total, 6, src, dst)
+    fun tcp(src: ByteArray, dst: ByteArray, sp: Int, dp: Int, seq: Int, ack: Int, flags: Int, win: Int, data: ByteArray?, off: Int, len: Int, mss: Int): ByteArray {
+        val th = if (mss > 0) 24 else 20; val total = 20 + th + len
+        val p = ByteArray(total); ipHeader(p, total, 6, src, dst)
         val t = 20
-        put16(p, t, sp)
-        put16(p, t + 2, dp)
-        put32(p, t + 4, seq)
-        put32(p, t + 8, ack)
-        p[t + 12] = ((th / 4) shl 4).toByte()
-        p[t + 13] = flags.toByte()
-        put16(p, t + 14, win)
-        if (mss > 0) {
-            p[t + 20] = 2
-            p[t + 21] = 4
-            put16(p, t + 22, mss)
-        }
+        put16(p, t, sp); put16(p, t + 2, dp); put32(p, t + 4, seq); put32(p, t + 8, ack)
+        p[t + 12] = ((th / 4) shl 4).toByte(); p[t + 13] = flags.toByte(); put16(p, t + 14, win)
+        if (mss > 0) { p[t + 20] = 2; p[t + 21] = 4; put16(p, t + 22, mss) }
         if (len > 0 && data != null) System.arraycopy(data, off, p, t + th, len)
         put16(p, t + 16, checksum(p, t, th + len, pseudo(src, dst, 6, th + len)))
         return p
     }
-
     fun udp(src: ByteArray, dst: ByteArray, sp: Int, dp: Int, data: ByteArray, off: Int, len: Int): ByteArray {
-        val total = 20 + 8 + len
-        val p = ByteArray(total)
-        ipHeader(p, total, 17, src, dst)
-        val t = 20
-        put16(p, t, sp)
-        put16(p, t + 2, dp)
-        put16(p, t + 4, 8 + len)
+        val total = 20 + 8 + len; val p = ByteArray(total); ipHeader(p, total, 17, src, dst)
+        val t = 20; put16(p, t, sp); put16(p, t + 2, dp); put16(p, t + 4, 8 + len)
         System.arraycopy(data, off, p, t + 8, len)
-        var c = checksum(p, t, 8 + len, pseudo(src, dst, 17, 8 + len))
-        if (c == 0) c = 0xFFFF
-        put16(p, t + 6, c)
-        return p
+        var c = checksum(p, t, 8 + len, pseudo(src, dst, 17, 8 + len)); if (c == 0) c = 0xFFFF
+        put16(p, t + 6, c); return p
     }
 }
 
-/** Una conexión TCP del móvil, terminada aquí y reenviada a un socket "protegido" real. */
 class TcpConn(
-    private val eng: Engine,
-    private val key: String,
-    private val cIp: ByteArray,
-    private val sIp: ByteArray,
-    private val cPort: Int,
-    private val sPort: Int,
-    clientIsn: Int,
-    val flow: Flow
+    private val eng: Engine, private val key: String,
+    private val cIp: ByteArray, private val sIp: ByteArray,
+    private val cPort: Int, private val sPort: Int,
+    clientIsn: Int, val flow: Flow
 ) {
-    companion object {
-        val FIN_MARK = ByteArray(0)
-        const val MSS = 1400
-    }
-
-    private val lk = ReentrantLock()
-    private val cond = lk.newCondition()
+    companion object { val FIN_MARK = ByteArray(0); const val MSS = 1400 }
+    private val lk = ReentrantLock(); private val cond = lk.newCondition()
     private val iss: Int = Random().nextInt()
-    private var rcvNxt: Int = clientIsn + 1
-    private var sndNxt: Int = iss
-    private var lastAck: Int = iss
-    private var cWnd: Int = 65535
-    private var established = false
-    private var finFromClient = false
-    private var finToClient = false
-    @Volatile private var closed = false
-    @Volatile private var zeroWin = false
+    private var rcvNxt: Int = clientIsn + 1; private var sndNxt: Int = iss
+    private var lastAck: Int = iss; private var cWnd: Int = 65535
+    private var established = false; private var finFromClient = false; private var finToClient = false
+    @Volatile private var closed = false; @Volatile private var zeroWin = false
     @Volatile var lastActive: Long = System.currentTimeMillis()
     private var sock: Socket? = null
     private val wq = LinkedBlockingQueue<ByteArray>()
@@ -169,84 +93,43 @@ class TcpConn(
     fun begin() {
         eng.pool.execute {
             try {
-                val s = Socket()
-                eng.protect(s)
-                s.tcpNoDelay = true
-                s.connect(InetSocketAddress(InetAddress.getByAddress(sIp), sPort), 8000)
+                val s = Socket(); eng.protect(s); s.tcpNoDelay = true
+                if (Store.mitmEnabled && sPort == 443) {
+                    s.connect(InetSocketAddress(InetAddress.getByName("127.0.0.1"), MitmProxy.PORT), 8000)
+                } else {
+                    s.connect(InetSocketAddress(InetAddress.getByAddress(sIp), sPort), 8000)
+                }
                 sock = s
                 lk.withLock {
                     eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, iss, rcvNxt, Pkt.SYN or Pkt.ACK, 65535, null, 0, 0, MSS))
-                    sndNxt = iss + 1
-                    lastAck = iss + 1
-                    established = true
+                    sndNxt = iss + 1; lastAck = iss + 1; established = true
                 }
                 eng.pool.execute { writerLoop(s) }
                 readerLoop(s)
             } catch (e: Exception) {
-                if (!closed) {
-                    flow.notes.add("✖ No se pudo conectar: " + (e.message ?: e.javaClass.simpleName))
-                    lk.withLock { rst() }
-                }
+                if (!closed) { flow.notes.add("✖ No se pudo conectar: " + (e.message ?: e.javaClass.simpleName)); lk.withLock { rst() } }
                 teardown()
             }
         }
     }
 
-    private fun advWin(): Int {
-        val q = queued.get()
-        if (q > 262144) {
-            zeroWin = true
-            return 0
-        }
-        return 65535
-    }
-
-    /** Debe llamarse con el cerrojo tomado. */
-    private fun sendAck() {
-        eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, sndNxt, rcvNxt, Pkt.ACK, advWin(), null, 0, 0, 0))
-    }
-
-    private fun rst() {
-        val seq = if (established) sndNxt else 0
-        eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, seq, rcvNxt, Pkt.RST or Pkt.ACK, 0, null, 0, 0, 0))
-    }
+    private fun advWin(): Int { val q = queued.get(); if (q > 262144) { zeroWin = true; return 0 }; return 65535 }
+    private fun sendAck() { eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, sndNxt, rcvNxt, Pkt.ACK, advWin(), null, 0, 0, 0)) }
+    private fun rst() { val seq = if (established) sndNxt else 0; eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, seq, rcvNxt, Pkt.RST or Pkt.ACK, 0, null, 0, 0, 0)) }
 
     fun onSegment(flags: Int, seq: Int, ack: Int, win: Int, data: ByteArray?) {
         lastActive = System.currentTimeMillis()
-        if ((flags and Pkt.RST) != 0) {
-            teardown()
-            return
-        }
+        if ((flags and Pkt.RST) != 0) { teardown(); return }
         lk.withLock {
             if (!established) return
-            if ((flags and Pkt.SYN) != 0) {
-                eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, iss, rcvNxt, Pkt.SYN or Pkt.ACK, 65535, null, 0, 0, MSS))
-                return
-            }
-            if ((flags and Pkt.ACK) != 0) {
-                if ((ack - lastAck) > 0) lastAck = ack
-                cWnd = win
-                cond.signalAll()
-            }
+            if ((flags and Pkt.SYN) != 0) { eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, iss, rcvNxt, Pkt.SYN or Pkt.ACK, 65535, null, 0, 0, MSS)); return }
+            if ((flags and Pkt.ACK) != 0) { if ((ack - lastAck) > 0) lastAck = ack; cWnd = win; cond.signalAll() }
             val dlen = if (data == null) 0 else data.size
             if (dlen > 0 && data != null) {
-                if (seq == rcvNxt) {
-                    rcvNxt += dlen
-                    wq.add(data)
-                    queued.addAndGet(dlen)
-                    flow.addUp(dlen)
-                    inspect(data)
-                }
+                if (seq == rcvNxt) { rcvNxt += dlen; wq.add(data); queued.addAndGet(dlen); flow.addUp(dlen); inspect(data) }
                 sendAck()
             }
-            if ((flags and Pkt.FIN) != 0) {
-                if (!finFromClient && (seq + dlen) == rcvNxt) {
-                    finFromClient = true
-                    rcvNxt += 1
-                    wq.add(FIN_MARK)
-                }
-                sendAck()
-            }
+            if ((flags and Pkt.FIN) != 0) { if (!finFromClient && (seq + dlen) == rcvNxt) { finFromClient = true; rcvNxt += 1; wq.add(FIN_MARK) }; sendAck() }
             checkDone()
         }
     }
@@ -254,47 +137,25 @@ class TcpConn(
     private fun inspect(d: ByteArray) {
         if (dpiDone) return
         dpiBuf.write(d, 0, d.size)
+        if (dpiBuf.size() > 16384) { dpiDone = true; return }
         val a = dpiBuf.toByteArray()
         dpiDone = Dpi.inspectOut(flow, a, sPort)
-        if (!dpiDone && a.size > 4096) dpiDone = true
     }
 
-    /** Con el cerrojo tomado. */
-    private fun checkDone() {
-        if (finFromClient && finToClient) {
-            eng.timer.schedule(Runnable { teardown() }, 3, TimeUnit.SECONDS)
-        }
-    }
+    private fun checkDone() { if (finFromClient && finToClient) eng.timer.schedule(Runnable { teardown() }, 3, TimeUnit.SECONDS) }
 
     private fun writerLoop(s: Socket) {
         try {
             val os = s.getOutputStream()
             while (!closed) {
                 val d = wq.poll(500, TimeUnit.MILLISECONDS) ?: continue
-                if (d === FIN_MARK) {
-                    try {
-                        s.shutdownOutput()
-                    } catch (e: Exception) {
-                    }
-                    continue
-                }
-                os.write(d)
-                os.flush()
+                if (d === FIN_MARK) { try { s.shutdownOutput() } catch (e: Exception) {}; continue }
+                os.write(d); os.flush()
                 val q = queued.addAndGet(-d.size)
-                if (zeroWin && q < 131072) {
-                    lk.withLock {
-                        zeroWin = false
-                        sendAck()
-                    }
-                }
+                if (zeroWin && q < 131072) lk.withLock { zeroWin = false; sendAck() }
                 lastActive = System.currentTimeMillis()
             }
-        } catch (e: Exception) {
-            if (!closed) {
-                lk.withLock { rst() }
-                teardown()
-            }
-        }
+        } catch (e: Exception) { if (!closed) { lk.withLock { rst() }; teardown() } }
     }
 
     private fun readerLoop(s: Socket) {
@@ -306,54 +167,30 @@ class TcpConn(
                 if (n < 0) break
                 if (n == 0) continue
                 lk.withLock {
-                    while (!closed && (sndNxt - lastAck) > 0 && (sndNxt - lastAck) + n > cWnd) {
-                        cond.await(200, TimeUnit.MILLISECONDS)
-                    }
-                    if (!closed) {
-                        eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, sndNxt, rcvNxt, Pkt.ACK or Pkt.PSH, advWin(), buf, 0, n, 0))
-                        sndNxt += n
-                    }
+                    while (!closed && (sndNxt - lastAck) > 0 && (sndNxt - lastAck) + n > cWnd) cond.await(200, TimeUnit.MILLISECONDS)
+                    if (!closed) { eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, sndNxt, rcvNxt, Pkt.ACK or Pkt.PSH, advWin(), buf, 0, n, 0)); sndNxt += n }
                 }
-                flow.addDown(n)
-                lastActive = System.currentTimeMillis()
+                flow.addDown(n); lastActive = System.currentTimeMillis()
             }
             lk.withLock {
-                if (!closed) {
-                    eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, sndNxt, rcvNxt, Pkt.FIN or Pkt.ACK, advWin(), null, 0, 0, 0))
-                    sndNxt += 1
-                    finToClient = true
-                    checkDone()
-                }
+                if (!closed) { eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, sndNxt, rcvNxt, Pkt.FIN or Pkt.ACK, advWin(), null, 0, 0, 0)); sndNxt += 1; finToClient = true; checkDone() }
             }
-        } catch (e: Exception) {
-            if (!closed) {
-                lk.withLock { rst() }
-                teardown()
-            }
-        }
+        } catch (e: Exception) { if (!closed) { lk.withLock { rst() }; teardown() } }
     }
 
     fun teardown() {
         if (closed) return
         closed = true
-        try {
-            sock?.close()
-        } catch (e: Exception) {
-        }
-        flow.closed = true
-        eng.removeTcp(key)
-        lk.withLock { cond.signalAll() }
+        try { sock?.close() } catch (e: Exception) {}
+        flow.closed = true; eng.removeTcp(key); lk.withLock { cond.signalAll() }
     }
 }
 
 class UdpCtx(val sock: DatagramSocket?, val flow: Flow)
 
-/** Motor: recibe paquetes IP de la interfaz TUN, los reenvía a Internet y devuelve las respuestas. */
 class Engine(
-    private val svc: VpnService,
-    private val out: FileOutputStream,
-    private val pm: PackageManager,
-    private val cm: ConnectivityManager
+    private val svc: VpnService, private val out: FileOutputStream,
+    private val pm: PackageManager, private val cm: ConnectivityManager
 ) {
     val pool = Executors.newCachedThreadPool()
     val timer = Executors.newScheduledThreadPool(1)
@@ -362,55 +199,25 @@ class Engine(
     private val uidCache = ConcurrentHashMap<Int, AppStat>()
     @Volatile private var alive = true
 
-    init {
-        timer.scheduleWithFixedDelay({ janitor() }, 20, 20, TimeUnit.SECONDS)
-    }
-
-    fun protect(s: Socket) {
-        svc.protect(s)
-    }
-
-    fun protect(s: DatagramSocket) {
-        svc.protect(s)
-    }
-
-    fun write(p: ByteArray) {
-        synchronized(out) {
-            try {
-                out.write(p)
-            } catch (e: Exception) {
-            }
-        }
-    }
-
-    fun removeTcp(key: String) {
-        tcp.remove(key)
-    }
+    init { timer.scheduleWithFixedDelay({ janitor() }, 20, 20, TimeUnit.SECONDS) }
+    fun protect(s: Socket) { svc.protect(s) }
+    fun protect(s: DatagramSocket) { svc.protect(s) }
+    fun write(p: ByteArray) { synchronized(out) { try { out.write(p) } catch (e: Exception) {} } }
+    fun removeTcp(key: String) { tcp.remove(key) }
 
     private fun janitor() {
         val now = System.currentTimeMillis()
-        for (c in tcp.values) {
-            if (now - c.lastActive > 180000) c.teardown()
-        }
-        for (e in udp.entries) {
-            if (e.value.sock == null && now - e.value.flow.last > 60000) udp.remove(e.key)
-        }
+        for (c in tcp.values) if (now - c.lastActive > 180000) c.teardown()
+        for (e in udp.entries) if (e.value.sock == null && now - e.value.flow.last > 60000) udp.remove(e.key)
     }
 
     fun stop() {
         alive = false
         for (c in tcp.values) c.teardown()
-        for (u in udp.values) {
-            try {
-                u.sock?.close()
-            } catch (e: Exception) {
-            }
-        }
-        pool.shutdownNow()
-        timer.shutdownNow()
+        for (u in udp.values) { try { u.sock?.close() } catch (e: Exception) {} }
+        pool.shutdownNow(); timer.shutdownNow()
     }
 
-    // ------------------------------------------------------------ entrada
     fun handle(b: ByteArray, n: Int) {
         if (n < 20) return
         if (((b[0].toInt() shr 4) and 0xF) != 4) return
@@ -419,25 +226,12 @@ class Engine(
         val total = Pkt.u16(b, 2)
         val len = if (total in 20..n) total else n
         if ((Pkt.u16(b, 6) and 0x3FFF) != 0) return
-        when (Pkt.u8(b, 9)) {
-            6 -> handleTcp(b, len, ihl)
-            17 -> handleUdp(b, len, ihl)
-            else -> {
-            }
-        }
+        when (Pkt.u8(b, 9)) { 6 -> handleTcp(b, len, ihl); 17 -> handleUdp(b, len, ihl) }
     }
 
     private fun ownerUid(proto: Int, src: ByteArray, sp: Int, dst: ByteArray, dp: Int): Int {
         if (Build.VERSION.SDK_INT < 29) return -1
-        return try {
-            cm.getConnectionOwnerUid(
-                proto,
-                InetSocketAddress(InetAddress.getByAddress(src), sp),
-                InetSocketAddress(InetAddress.getByAddress(dst), dp)
-            )
-        } catch (e: Exception) {
-            -1
-        }
+        return try { cm.getConnectionOwnerUid(proto, InetSocketAddress(InetAddress.getByAddress(src), sp), InetSocketAddress(InetAddress.getByAddress(dst), dp)) } catch (e: Exception) { -1 }
     }
 
     private fun appFor(proto: Int, src: ByteArray, sp: Int, dst: ByteArray, dp: Int): AppStat {
@@ -445,48 +239,35 @@ class Engine(
         return uidCache.getOrPut(uid) {
             val pkgs = if (uid >= 0) pm.getPackagesForUid(uid) else null
             val pkg = if (pkgs != null && pkgs.isNotEmpty()) pkgs[0] else if (uid == 1000) "android" else "uid:" + uid
-            val label = try {
-                pm.getApplicationInfo(pkg, 0).loadLabel(pm).toString()
-            } catch (e: Exception) {
-                if (uid == 1000) "Sistema Android" else if (uid < 0) "App desconocida" else pkg
-            }
+            val label = try { pm.getApplicationInfo(pkg, 0).loadLabel(pm).toString() }
+            catch (e: Exception) { if (uid == 1000) "Sistema Android" else if (uid < 0) "App desconocida" else pkg }
             Store.app(pkg, label)
         }
     }
 
-    // ---------------------------------------------------------------- TCP
     private fun handleTcp(b: ByteArray, len: Int, ihl: Int) {
         if (len < ihl + 20) return
         val t = ihl
-        val sp = Pkt.u16(b, t)
-        val dp = Pkt.u16(b, t + 2)
-        val seq = Pkt.u32(b, t + 4)
-        val ack = Pkt.u32(b, t + 8)
+        val sp = Pkt.u16(b, t); val dp = Pkt.u16(b, t + 2)
+        val seq = Pkt.u32(b, t + 4); val ack = Pkt.u32(b, t + 8)
         val doff = (Pkt.u8(b, t + 12) shr 4) * 4
-        val flags = Pkt.u8(b, t + 13)
-        val win = Pkt.u16(b, t + 14)
+        val flags = Pkt.u8(b, t + 13); val win = Pkt.u16(b, t + 14)
         if (doff < 20 || len < t + doff) return
         val dlen = len - t - doff
         val key = "" + sp + ">" + Pkt.ipStr(b, 16) + ":" + dp
         val c = tcp[key]
-        val isSyn = (flags and Pkt.SYN) != 0
-        val isAck = (flags and Pkt.ACK) != 0
-        val isRst = (flags and Pkt.RST) != 0
+        val isSyn = (flags and Pkt.SYN) != 0; val isAck = (flags and Pkt.ACK) != 0; val isRst = (flags and Pkt.RST) != 0
         if (c == null) {
             if (isSyn && !isAck) {
-                val src = b.copyOfRange(12, 16)
-                val dst = b.copyOfRange(16, 20)
+                val src = b.copyOfRange(12, 16); val dst = b.copyOfRange(16, 20)
                 val stat = appFor(6, src, sp, dst, dp)
                 val flow = Store.newFlow(stat, "TCP", Pkt.ipStr(b, 16), dp)
                 val conn = TcpConn(this, key, src, dst, sp, dp, seq, flow)
-                tcp[key] = conn
-                conn.begin()
+                tcp[key] = conn; conn.begin()
             } else if (!isRst) {
-                val src = b.copyOfRange(16, 20)
-                val dst = b.copyOfRange(12, 16)
-                if (isAck) {
-                    write(Pkt.tcp(src, dst, dp, sp, ack, 0, Pkt.RST, 0, null, 0, 0, 0))
-                } else {
+                val src = b.copyOfRange(16, 20); val dst = b.copyOfRange(12, 16)
+                if (isAck) write(Pkt.tcp(src, dst, dp, sp, ack, 0, Pkt.RST, 0, null, 0, 0, 0))
+                else {
                     val add = dlen + (if (isSyn) 1 else 0) + (if ((flags and Pkt.FIN) != 0) 1 else 0)
                     write(Pkt.tcp(src, dst, dp, sp, 0, seq + add, Pkt.RST or Pkt.ACK, 0, null, 0, 0, 0))
                 }
@@ -497,62 +278,35 @@ class Engine(
         c.onSegment(flags, seq, ack, win, data)
     }
 
-    // ---------------------------------------------------------------- UDP
     private fun handleUdp(b: ByteArray, len: Int, ihl: Int) {
         if (len < ihl + 8) return
-        val sp = Pkt.u16(b, ihl)
-        val dp = Pkt.u16(b, ihl + 2)
+        val sp = Pkt.u16(b, ihl); val dp = Pkt.u16(b, ihl + 2)
         val ulen = Pkt.u16(b, ihl + 4)
         val dlen = minOf(ulen - 8, len - ihl - 8)
         if (dlen < 0) return
-        if (Pkt.u8(b, 16) >= 224) return // multicast / broadcast
+        if (Pkt.u8(b, 16) >= 224) return
         val key = "" + sp + ">" + Pkt.ipStr(b, 16) + ":" + dp
-        val src = b.copyOfRange(12, 16)
-        val dst = b.copyOfRange(16, 20)
+        val src = b.copyOfRange(12, 16); val dst = b.copyOfRange(16, 20)
         val ctx: UdpCtx = udp[key] ?: (createUdp(key, src, dst, sp, dp, Pkt.ipStr(b, 16)) ?: return)
         val sock = ctx.sock
-        if (sock == null) {
-            ctx.flow.last = System.currentTimeMillis()
-            return
-        }
+        if (sock == null) { ctx.flow.last = System.currentTimeMillis(); return }
         val payload = b.copyOfRange(ihl + 8, ihl + 8 + dlen)
-        if (dp == 53) {
-            val q = Dpi.dnsQuery(payload)
-            if (q != null) {
-                ctx.flow.noteHost(q)
-                ctx.flow.notes.add("DNS: la app pregunta por " + q)
-            }
-        }
-        try {
-            sock.send(DatagramPacket(payload, payload.size))
-            ctx.flow.addUp(dlen)
-        } catch (e: Exception) {
-        }
+        if (dp == 53) { val q = Dpi.dnsQuery(payload); if (q != null) { ctx.flow.noteHost(q); ctx.flow.notes.add("DNS: la app pregunta por " + q) } }
+        try { sock.send(DatagramPacket(payload, payload.size)); ctx.flow.addUp(dlen) } catch (e: Exception) {}
     }
 
     private fun createUdp(key: String, src: ByteArray, dst: ByteArray, sp: Int, dp: Int, dstStr: String): UdpCtx? {
         val stat = appFor(17, src, sp, dst, dp)
         val proto = if (dp == 53) "DNS" else if (dp == 443) "UDP·QUIC" else "UDP"
         val flow = Store.newFlow(stat, proto, dstStr, dp)
-        if (dp == 443 && Store.blockQuic) {
-            flow.notes.add("⛔ QUIC bloqueado: la app caerá a TCP+TLS, donde sí se ve el SNI")
-            flow.closed = true
-            udp[key] = UdpCtx(null, flow)
-            return udp[key]
-        }
+        if (dp == 443 && Store.blockQuic) { flow.notes.add("⛔ QUIC bloqueado: la app caerá a TCP+TLS"); flow.closed = true; udp[key] = UdpCtx(null, flow); return udp[key] }
         val c: UdpCtx = try {
-            val s = DatagramSocket()
-            protect(s)
-            s.connect(InetAddress.getByAddress(dst), dp)
+            val s = DatagramSocket(); protect(s); s.connect(InetAddress.getByAddress(dst), dp)
             s.soTimeout = if (dp == 53) 5000 else 30000
             UdpCtx(s, flow)
-        } catch (e: Exception) {
-            flow.notes.add("✖ No se pudo abrir el socket UDP")
-            flow.closed = true
-            return null
-        }
+        } catch (e: Exception) { flow.notes.add("✖ No se pudo abrir el socket UDP"); flow.closed = true; return null }
         udp[key] = c
-        if (dp == 443) flow.notes.add("QUIC/HTTP3: va cifrado y no deja ver el nombre del sitio. Activa «Bloquear QUIC» para forzar TCP+TLS")
+        if (dp == 443) flow.notes.add("QUIC/HTTP3: va cifrado. Activa «Bloquear QUIC» para forzar TCP+TLS")
         pool.execute { udpReceiver(key, c, src, dst, sp, dp) }
         return c
     }
@@ -562,29 +316,15 @@ class Engine(
         val buf = ByteArray(4096)
         try {
             while (alive) {
-                val dpk = DatagramPacket(buf, buf.size)
-                s.receive(dpk)
-                val n = dpk.length
-                ctx.flow.addDown(n)
-                if (dp == 53) {
-                    val r = Dpi.dnsAnswers(buf, n)
-                    if (r != null) {
-                        for (ip in r.second) Store.dns[ip] = r.first
-                        ctx.flow.notes.add("DNS respuesta: " + r.first + " → " + r.second.joinToString(", "))
-                    }
-                }
+                val dpk = DatagramPacket(buf, buf.size); s.receive(dpk)
+                val n = dpk.length; ctx.flow.addDown(n)
+                if (dp == 53) { val r = Dpi.dnsAnswers(buf, n); if (r != null) { for (ip in r.second) Store.dns[ip] = r.first; ctx.flow.notes.add("DNS respuesta: " + r.first + " → " + r.second.joinToString(", ")) } }
                 if (n <= 1472) write(Pkt.udp(dst, src, dp, sp, buf, 0, n))
                 if (dp == 53) break
             }
-        } catch (e: SocketTimeoutException) {
-        } catch (e: Exception) {
-        } finally {
-            try {
-                s.close()
-            } catch (e: Exception) {
-            }
-            ctx.flow.closed = true
-            udp.remove(key)
+        } catch (e: SocketTimeoutException) {} catch (e: Exception) {} finally {
+            try { s.close() } catch (e: Exception) {}
+            ctx.flow.closed = true; udp.remove(key)
         }
     }
 }
