@@ -51,7 +51,7 @@ class NetLensVpnService : VpnService() {
     }
 
     private fun startVpn(target: String?) {
-        Protection.init(this)
+        NetworkTools.init(this)
         if (pfd != null) return
         val b = Builder()
             .setSession("NetLens")
