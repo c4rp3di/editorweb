@@ -1,5 +1,7 @@
+
 <resources>
     <style name="Theme.NetLens" parent="Theme.MaterialComponents.NoActionBar">
         <item name="android:windowBackground">@android:color/black</item>
     </style>
 </resources>
+
