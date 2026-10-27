@@ -15,7 +15,7 @@ object IpInfo {
             for (ip in ips) {
                 if (cache.containsKey(ip)) continue
                 try {
-                    val url = URL("https://ip-api.com/json/$ip?fields=status,country,isp,as,org")
+                    val url = URL("http://ip-api.com/json/$ip?fields=status,country,isp,as,org")
                     val conn = url.openConnection() as HttpURLConnection
                     conn.connectTimeout = 5000
                     conn.readTimeout = 5000
