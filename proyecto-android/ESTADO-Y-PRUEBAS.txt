@@ -1,0 +1,24 @@
+NETLENS INTEGRADO — estado real
+
+Implementado en código:
+- Controles visibles: Protección, Reglas, Estadísticas, Laboratorio.
+- Reglas persistentes globales y por paquete, +permitir/-bloquear, con prioridad permitir.
+- Bloqueo DNS UDP con respuesta NXDOMAIN; bloqueo TCP/UDP mediante asociación DNS observada.
+- Lista pequeña integrada basada en categorías Dpi. No suscripciones ni EasyList completa.
+- Estadísticas en memoria del proceso.
+- Laboratorio con guía de aislamiento, configuración debug, checklist y criterios de evidencia.
+- MITM limitado a selección de app con consentimiento. Proxy original sin inspector de contenido nuevo.
+
+Pendientes: DoH/DoT, listas descargables y actualización, interfaz de historial, cobertura IPv6, motor por SNI, optimizaciones medidas y pruebas de APK.
+La consulta ASN ahora usa HTTPS; puede no funcionar si el proveedor exige plan de pago. No se degrada a HTTP.
+No se han implementado los siete puntos íntegramente. No es equivalente a AdGuard.
+
+Comprobaciones ejecutadas:
+XML válido: AndroidManifest.xml
+XML válido: res/values/strings.xml
+XML válido: res/values/themes.xml
+Controles de Protección, Reglas, Estadísticas y Laboratorio presentes en MainActivity.
+Reglas conectadas al motor TCP y UDP/DNS.
+Persistencia SharedPreferences presente.
+No compilado: no hay Java, Gradle ni Android SDK disponibles.
+No probado en dispositivo; no se afirma estabilidad, cobertura ni ahorro de batería.
