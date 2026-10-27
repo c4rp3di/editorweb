@@ -1,4 +1,3 @@
-
 package com.lab.netlens
 
 import java.util.Collections
@@ -14,7 +13,6 @@ class AppStat(val pkg: String, val label: String) {
     val trackers: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     val sensitive: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     val orgs: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
-    val blocked = AtomicInteger()
 }
 
 class Flow(val id: Long, val stat: AppStat, val proto: String, val dstIp: String, val dstPort: Int) {
@@ -44,8 +42,6 @@ object Store {
     val apps = ConcurrentHashMap<String, AppStat>()
     val dns = ConcurrentHashMap<String, String>()
     val ipOrg = ConcurrentHashMap<String, String>()
-    val blockedTotal = java.util.concurrent.atomic.AtomicInteger()
-    @Volatile var protectionEnabled = false
     @Volatile var running = false
     @Volatile var blockQuic = false
     @Volatile var mitmEnabled = false
@@ -61,4 +57,3 @@ object Store {
     fun snapshot(): List<Flow> = synchronized(lock) { ArrayList(list) }
     fun clear() { synchronized(lock) { list.clear() }; apps.clear(); ipOrg.clear() }
 }
-
