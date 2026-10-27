@@ -4,11 +4,9 @@ import android.util.Log
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.io.InputStream
 import java.io.OutputStream
-import java.io.PushbackInputStream
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
-import java.nio.channels.SocketChannel
 import java.security.KeyStore
 import java.security.Principal
 import java.security.PrivateKey
@@ -20,11 +18,6 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509ExtendedKeyManager
-
-// Objeto para pasar el SNI de forma segura al KeyManager en el mismo hilo
-object SniHolder {
-    val currentSni = ThreadLocal<String>()
-}
 
 class MitmProxy(
     private val port: Int = PORT,
@@ -75,46 +68,28 @@ class MitmProxy(
         var sslClient: SSLSocket? = null
         try {
             client.soTimeout = 20000
-            // 1. Envolvemos el stream en un PushbackInputStream para poder leer y devolver bytes
-            val pushback = PushbackInputStream(client.getInputStream(), 16384)
-            
-            // 2. Leemos el ClientHello para extraer el SNI
-            val peekBuf = ByteArray(16384)
-            val n = pushback.read(peekBuf)
-            if (n < 6 || (peekBuf[0].toInt() and 0xFF) != 0x16) {
-                client.close(); return
-            }
-            
-            val tls = Dpi.tls(peekBuf.copyOf(n))
-            val sni = tls?.sni
-            if (sni.isNullOrEmpty()) {
-                Log.w(TAG, "SNI vacío en ClientHello, cerrando")
-                client.close(); return
-            }
-
-            // 3. Devolvemos los bytes al stream (unread) para que el SSLSocket los lea intactos
-            pushback.unread(peekBuf, 0, n)
-
-            // 4. Pasamos el SNI al KeyManager usando un ThreadLocal
-            SniHolder.currentSni.set(sni)
-            
-            // 5. Creamos un "falso" Socket que lee del PushbackInputStream
-            val wrappedSocket = PushbackSocket(client, pushback)
-            
             val sslFactory: SSLSocketFactory = sslContext.socketFactory as SSLSocketFactory
-            sslClient = sslFactory.createSocket(wrappedSocket, sni, 443, true) as SSLSocket
+            sslClient = sslFactory.createSocket(client, null, client.port, false) as SSLSocket
             sslClient.useClientMode = false
             sslClient.soTimeout = 20000
             sslClient.startHandshake()
 
+            val sni = try {
+                sslClient.handshakeSession?.peerHost
+            } catch (e: Exception) {
+                null
+            }
+            if (sni.isNullOrEmpty()) {
+                Log.w(TAG, "SNI vacío, cerrando")
+                try { sslClient.close() } catch (_: Exception) {}
+                return
+            }
             Log.i(TAG, "Cliente TLS OK para $sni")
             handleTlsMitm(sslClient, sni)
         } catch (e: Exception) {
-            Log.e(TAG, "handleClient falló: ${e.javaClass.simpleName}: ${e.message}")
+            Log.e(TAG, "handleClient: ${e.javaClass.simpleName}: ${e.message}")
             try { sslClient?.close() } catch (_: Exception) {}
             try { client.close() } catch (_: Exception) {}
-        } finally {
-            SniHolder.currentSni.remove()
         }
     }
 
@@ -125,7 +100,7 @@ class MitmProxy(
             protector(remote)
             remote.connect(InetSocketAddress(sni, 443), 10000)
             val defaultFactory: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
-            sslRemote = defaultFactory.createSocket(remote, sni, 443, true) as SSLSocket
+            sslRemote = defaultFactory.createSocket(remote, sni, 443, false) as SSLSocket
             sslRemote.startHandshake()
             Log.i(TAG, "Remoto TLS OK para $sni")
 
@@ -167,7 +142,10 @@ class MitmProxy(
             while (running) {
                 val n = input.read(buf)
                 if (n < 0) break
-                if (n > 0) { output.write(buf, 0, n); output.flush() }
+                if (n > 0) {
+                    output.write(buf, 0, n)
+                    output.flush()
+                }
             }
         } catch (e: Exception) {
         } finally {
@@ -175,22 +153,6 @@ class MitmProxy(
             try { input.close() } catch (_: Exception) {}
         }
     }
-}
-
-// Envoltorio para engañar al SSLSocket y que lea del PushbackInputStream
-class PushbackSocket(private val underlying: Socket, private val pushback: PushbackInputStream) : Socket() {
-    override fun getInputStream(): InputStream = pushback
-    override fun getOutputStream(): OutputStream = underlying.getOutputStream()
-    override fun getInetAddress() = underlying.inetAddress
-    override fun getPort() = underlying.port
-    override fun getLocalAddress() = underlying.localAddress
-    override fun getLocalPort() = underlying.localPort
-    override fun getChannel(): SocketChannel? = underlying.channel
-    override fun close() = underlying.close()
-    override fun isClosed() = underlying.isClosed
-    override fun isConnected() = underlying.isConnected
-    override fun setSoTimeout(timeout: Int) { underlying.soTimeout = timeout }
-    override fun getSoTimeout() = underlying.soTimeout
 }
 
 class DynamicSniKeyManager(
@@ -213,12 +175,13 @@ class DynamicSniKeyManager(
     }
 
     override fun chooseServerAlias(keyType: String?, issuers: Array<out Principal>?, socket: Socket?): String? {
-        // Recuperamos el SNI que guardamos antes de crear el socket
-        val domain = SniHolder.currentSni.get()
-        if (domain.isNullOrEmpty()) {
-            Log.e("DynamicSniKeyManager", "No hay SNI en el ThreadLocal")
-            return null
+        val sslSock = socket as? SSLSocket ?: return null
+        val domain = try {
+            sslSock.handshakeSession?.peerHost ?: sslSock.session?.peerHost
+        } catch (e: Exception) {
+            null
         }
+        if (domain.isNullOrEmpty()) return null
         return getOrCreate(domain)
     }
 
