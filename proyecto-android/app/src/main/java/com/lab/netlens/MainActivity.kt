@@ -112,7 +112,7 @@ class MainActivity : AppCompatActivity() {
         window.statusBarColor = cBg
         window.navigationBarColor = cBg
         CaManager.init(this)
-        Protection.init(this)
+        NetworkTools.init(this)
         buildUi()
         loadUserApps()
         loadPerms()
@@ -158,17 +158,7 @@ class MainActivity : AppCompatActivity() {
             text = "MITM TLS"; setTextColor(cPurple); textSize = 12f
             isChecked = Store.mitmEnabled
             setOnCheckedChangeListener { _, on ->
-                if (on) {
-                    isChecked = false
-                    if (Store.running || spinner.selectedItemPosition <= 0) {
-                        Toast.makeText(this@MainActivity, "Detén la captura y selecciona una sola app.", Toast.LENGTH_LONG).show()
-                    } else {
-                        AlertDialog.Builder(this@MainActivity).setTitle("MITM de laboratorio")
-                            .setMessage("Solo pruebas propias o autorizadas, con cuentas ficticias. Puede romper conexiones y exponer secretos. No evita pinning. Descifrar no confirma una fuga. Instala primero la CA.")
-                            .setPositiveButton("Aceptar") { _, _ -> Store.mitmEnabled = true }
-                            .setNegativeButton("Cancelar", null).show()
-                    }
-                } else Store.mitmEnabled = false
+                Store.mitmEnabled = on
                 if (on && !CaManager.isInstalled(this@MainActivity)) {
                     Toast.makeText(this@MainActivity, "Instala la CA desde el botón CA antes de activar MITM", Toast.LENGTH_LONG).show()
                 }
@@ -206,23 +196,11 @@ class MainActivity : AppCompatActivity() {
         status = TextView(this).apply { textSize = 12f; setTextColor(cMuted) }
         root.addView(status)
 
-        val extras = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val protectBox = CheckBox(this).apply {
-            text = "Protección"; setTextColor(cText); isChecked = Protection.enabled
-            setOnCheckedChangeListener { _, on -> Protection.enabled = on }
+        val tools = Button(this).apply {
+            text = "PROTECCIÓN · DNS · REGLAS · LABORATORIO"; textSize = 11f
+            setOnClickListener { openTools() }
         }
-        extras.addView(protectBox)
-        for (label in listOf("Reglas", "Estadísticas", "Laboratorio")) {
-            extras.addView(Button(this).apply {
-                text = label; textSize = 10f; isAllCaps = false
-                setOnClickListener { when(label) {
-                    "Reglas" -> editProtectionRules()
-                    "Estadísticas" -> dialog("Estadísticas", Protection.stats(), null)
-                    else -> openLaboratory()
-                } }
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        }
-        root.addView(extras)
+        root.addView(tools)
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val names = listOf("En vivo", "Apps", "Permisos", "Aprende")
         for (i in names.indices) {
@@ -286,9 +264,6 @@ class MainActivity : AppCompatActivity() {
     private fun launchService() {
         val pos = spinner.selectedItemPosition
         val target: String? = if (pos > 0 && pos - 1 < userApps.size) userApps[pos - 1].first else null
-        if (Store.mitmEnabled && target == null) {
-            Toast.makeText(this, "MITM requiere una app objetivo", Toast.LENGTH_LONG).show(); return
-        }
         Store.clear()
         val i = Intent(this, NetLensVpnService::class.java)
         i.action = NetLensVpnService.ACTION_START
@@ -424,33 +399,32 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun editProtectionRules() {
-        val input = android.widget.EditText(this).apply {
-            setText(Protection.rules.sorted().joinToString("\n"))
-            minLines = 5
-            hint = "-dominio.com\n+excepcion.com\n-paquete.app|dominio.com"
-        }
-        AlertDialog.Builder(this).setTitle("Reglas persistentes (+ permitir, - bloquear)")
-            .setMessage("Una por línea. Incluyen subdominios. Permitir tiene prioridad. Activa Protección. Afecta nuevas conexiones; reinicia captura para repetir pruebas.")
-            .setView(input).setPositiveButton("Guardar") { _, _ ->
-                try { Protection.save(input.text.toString()) }
-                catch(e: Exception) { dialog("Reglas no guardadas", e.message ?: "Error", null) }
-            }.setNegativeButton("Cancelar", null).show()
-    }
-
-    private fun openLaboratory() {
-        val titles = arrayOf("Zona aislada", "Configuración debug", "Checklist release", "Evidencia", "Límites y pendientes")
-        AlertDialog.Builder(this).setTitle("Laboratorio NetLens")
-            .setItems(titles) { _, n ->
-                val text = when(n) {
-                    0 -> "Utiliza un dispositivo o emulador de pruebas. No uses cuentas ni datos reales. Un perfil secundario no equivale a una máquina virtual. NetLens no crea el aislamiento: esta sección es una guía."
-                    1 -> "Para una app que desarrollas: referencia este recurso desde android:networkSecurityConfig en application. debug-overrides solo se aplica a builds debuggable. No habilita todas las bibliotecas TLS.\n\n<network-security-config>\n <debug-overrides>\n  <trust-anchors>\n   <certificates src=\"user\" />\n  </trust-anchors>\n </debug-overrides>\n</network-security-config>"
-                    2 -> "• Verificar release no debuggable.\n• Revisar confianza CA y validación del hostname.\n• Revisar permisos y HTTP.\n• Quitar datos y certificados de prueba.\n• Comparar comportamiento release/debug.\n• Probar pinning si lo utiliza la app. Esta lista no es una auditoría automática."
-                    3 -> "Permisos + terceros: indicio, no acceso observado.\nHTTP: transporte sin cifrar, no fuga demostrada.\nMITM: canal accesible, no fuga confirmada.\nPara confirmar un envío sensible hay que identificar el dato, su destino y contexto. NetLens no certifica ausencia de fugas."
-                    else -> "Implementado: reglas persistentes, listas integradas pequeñas, bloqueo DNS clásico y TCP/UDP por IP asociada a DNS, estadísticas del proceso.\nPendiente: DoH/DoT propio, actualización de suscripciones, filtrado por SNI antes de conexión, IPv6 completo, historial, inspector de contenido HTTPS y pruebas de consumo. No promete cobertura universal."
-                }
-                dialog(titles[n], text, null)
-            }.show()
+    private fun openTools() {
+        val titles=arrayOf("Protección: " + if(NetworkTools.enabled) "ACTIVA" else "INACTIVA", "DNS: ${NetworkTools.dnsMode}", "Reglas guardadas", "Actualizar lista HTTPS", "Estadísticas", "Laboratorio", "Estado y límites")
+        AlertDialog.Builder(this).setTitle("NetLens · Herramientas").setItems(titles){_,n -> when(n){
+            0 -> {NetworkTools.enabled=!NetworkTools.enabled;openTools()}
+            1 -> AlertDialog.Builder(this).setTitle("DNS para consultas UDP/53 capturadas")
+                .setItems(arrayOf("normal","DoH","DoT")){_,i -> NetworkTools.dnsMode=arrayOf("normal","DoH","DoT")[i]
+                    dialog("DNS", "DoH/DoT usa Cloudflare. No cambia DNS cifrado interno de otras apps. Sin retorno silencioso a DNS en claro si falla. Reinicia captura.",null)}.show()
+            2 -> {
+                val input=android.widget.EditText(this).apply{setText(NetworkTools.rules.sorted().joinToString("\n"));minLines=5}
+                AlertDialog.Builder(this).setTitle("-bloquear / +permitir")
+                    .setMessage("Una por línea: -dominio.com, +dominio.com, -paquete.app|dominio.com. Permitir tiene prioridad. Activa Protección.")
+                    .setView(input).setPositiveButton("Guardar"){_,_->try{NetworkTools.saveRules(input.text.toString())}catch(e:Exception){dialog("Error",e.message ?: "Error",null)}}.setNegativeButton("Cancelar",null).show()
+            }
+            3 -> {
+                val input=android.widget.EditText(this).apply{hint="https://servidor/lista.txt"}
+                AlertDialog.Builder(this).setTitle("Suscripción de dominios/hosts")
+                    .setMessage("Descarga manual de hasta 4 MiB, solo HTTPS sin redirecciones. Reemplaza la lista anterior solo si es válida. No interpreta EasyList completa. El servidor verá tu IP.")
+                    .setView(input).setPositiveButton("Descargar"){_,_->val url=input.text.toString().trim()
+                        Thread { val result=try{NetworkTools.updateList(url)}catch(e:Exception){"No actualizado: ${e.message}"}
+                            runOnUiThread{dialog("Lista",result,null)} }.start()
+                    }.setNegativeButton("Cancelar",null).show()
+            }
+            4 -> dialog("Estadísticas",NetworkTools.stats(),null)
+            5 -> dialog("Laboratorio", "Usa dispositivo/emulador de pruebas y datos ficticios. No crea aislamiento automáticamente.\n\nEn una build propia debuggable, referencia network_security_config desde el manifest y usa: <network-security-config><debug-overrides><trust-anchors><certificates src=\"user\" /></trust-anchors></debug-overrides></network-security-config>. No desactives la validación del servidor.\n\nRelease: revisar permisos, HTTP, validación TLS, secretos y eliminar datos de prueba.\n\nMITM no demuestra fuga y un error TLS no demuestra pinning. El inspector de contenido sigue pendiente.",null)
+            6 -> dialog("Estado", "Añadido en código: DoH/DoT para DNS UDP capturado, lista HTTPS manual, reglas persistentes, protección y estadísticas.\nPendiente: actualización programada, IPv6 completo, historial persistente, inspector HTTPS y pruebas de rendimiento. Sin certificación de fugas. No compilado ni probado en dispositivo en este entorno.",null)
+        }}.show()
     }
 
     private fun askExport() {
