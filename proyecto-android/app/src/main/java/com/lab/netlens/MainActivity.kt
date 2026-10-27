@@ -24,6 +24,7 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.Spinner
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -93,6 +94,18 @@ class MainActivity : AppCompatActivity() {
     private val vpnLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) launchService()
     }
+    private var exportRaw = false
+    private val createDoc = registerForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) {
+            try {
+                val text = Export.build(Store.snapshot(), exportRaw)
+                contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                Toast.makeText(this, "CSV exportado", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "No se pudo exportar", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
     private val notifLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
@@ -156,6 +169,11 @@ class MainActivity : AppCompatActivity() {
         row2.addView(cbQuic)
         row2.addView(cbDns)
         row2.addView(cbPause)
+        val btnCsv = Button(this)
+        btnCsv.text = "CSV"
+        btnCsv.textSize = 12f
+        btnCsv.setOnClickListener { askExport() }
+        row2.addView(btnCsv)
         root.addView(row2)
 
         status = TextView(this)
@@ -354,6 +372,20 @@ class MainActivity : AppCompatActivity() {
             }
             tag == "lesson" -> dialog(r.title, r.sub, null)
         }
+    }
+
+    private fun askExport() {
+        AlertDialog.Builder(this)
+            .setTitle("Exportar sesión a CSV")
+            .setItems(arrayOf(
+                "Datos brutos (IP, dominio completo, notas del análisis)",
+                "Sanitizados (sin IP, dominio base, bytes aproximados, sin notas)"
+            )) { _, which ->
+                exportRaw = (which == 0)
+                createDoc.launch(if (exportRaw) "netlens-bruto.csv" else "netlens-sanitizado.csv")
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     private fun showFlow(f: Flow) {
