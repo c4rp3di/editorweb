@@ -2,7 +2,6 @@ package com.lab.netlens
 
 import android.util.Log
 import org.bouncycastle.jce.provider.BouncyCastleProvider
-import java.io.BufferedInputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
@@ -27,7 +26,6 @@ class MitmProxy(
     companion object {
         const val PORT = 8888
         private const val TAG = "MitmProxy"
-        private const val PEEK_SIZE = 16384
     }
 
     private var serverSocket: ServerSocket? = null
@@ -67,95 +65,67 @@ class MitmProxy(
     }
 
     private fun handleClient(client: Socket) {
-        var consumed = false
         try {
-            client.soTimeout = 15000
-            val inRaw = BufferedInputStream(client.getInputStream(), PEEK_SIZE)
-            inRaw.mark(PEEK_SIZE)
-            val peek = ByteArray(PEEK_SIZE)
-            var got = 0
-            // Leer al menos 6 bytes para detectar TLS
-            while (got < 6) {
-                val r = inRaw.read(peek, got, 6 - got)
-                if (r < 0) break
-                got += r
-            }
-            inRaw.reset()
-            if (got < 6 || (peek[0].toInt() and 0xFF) != 0x16) {
-                client.close()
-                return
-            }
-            // Leer bloque completo para extraer SNI
-            inRaw.mark(PEEK_SIZE)
-            var total = 0
-            while (total < PEEK_SIZE) {
-                val r = inRaw.read(peek, total, PEEK_SIZE - total)
-                if (r < 0) break
-                total += r
-                // Cortar cuando tengamos suficiente para el ClientHello
-                val tls = try { Dpi.tls(peek.copyOf(total)) } catch (e: Exception) { null }
-                if (tls != null && tls.complete) break
-            }
-            inRaw.reset()
-            val tls = Dpi.tls(peek.copyOf(total))
-            val sni = tls?.sni
-            if (sni == null) {
-                client.close()
-                return
-            }
-            consumed = true
-            handleTlsMitm(client, inRaw, sni)
-        } catch (e: Exception) {
-            Log.e(TAG, "handleClient: ${e.message}", e)
-        } finally {
-            if (!consumed) try { client.close() } catch (e: Exception) {}
-        }
-    }
-
-    private fun handleTlsMitm(client: Socket, bufferedIn: BufferedInputStream, sni: String) {
-        try {
-            // SSLSocket server: usa el socket raw. Como ya hemos bufferizado bytes (reset),
-            // el BufferedInputStream los conserva pero SSLSocket leerá del raw.
-            // Por eso usamos un wrapper: el SSLSocket lee del raw, y los bytes bufferizados
-            // están en el raw. Tras reset(), están en el buffer del BufferedInputStream,
-            // pero el raw ya los consumió. Punto delicado.
-            // Solución: NO resetear antes; SSLSocket necesita ver los bytes.
-            // Como no podemos "re-inyectar" al raw, leemos el raw directamente.
-            // (Se ha consumido el buffer; aquí ya no sirve el reset.)
-            // Por seguridad, usamos el cliente raw envuelto.
-            val sslClient = sslContext.socketFactory.createSocket(client, null, client.port, false) as SSLSocket
+            client.soTimeout = 20000
+            // Sin peek: el SSLSocket lee el ClientHello directamente.
+            // El SNI se obtiene en DynamicSniKeyManager.chooseServerAlias vía handshakeSession.peerHost.
+            val sslClient = sslContext.socketFactory
+                .createSocket(client, null, client.port, false) as SSLSocket
             sslClient.useClientMode = false
             sslClient.soTimeout = 20000
             sslClient.startHandshake()
-            Log.i(TAG, "MITM cliente OK para $sni")
 
+            val sni = try {
+                sslClient.handshakeSession?.peerHost
+            } catch (e: Exception) {
+                null
+            }
+            if (sni.isNullOrEmpty()) {
+                Log.w(TAG, "SNI vacío, cerrando")
+                try { sslClient.close() } catch (_: Exception) {}
+                return
+            }
+            Log.i(TAG, "Cliente TLS OK para $sni")
+            handleTlsMitm(sslClient, sni)
+        } catch (e: Exception) {
+            Log.e(TAG, "handleClient: ${e.javaClass.simpleName}: ${e.message}")
+            try { client.close() } catch (_: Exception) {}
+        }
+    }
+
+    private fun handleTlsMitm(sslClient: SSLSocket, sni: String) {
+        var sslRemote: SSLSocket? = null
+        try {
             val remote = Socket()
             protector(remote)
             remote.connect(InetSocketAddress(sni, 443), 10000)
-            val remoteFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
-            val sslRemote = remoteFactory.createSocket(remote, sni, 443, false) as SSLSocket
+            sslRemote = SSLSocketFactory.getDefault()
+                .createSocket(remote, sni, 443, false) as SSLSocket
             sslRemote.startHandshake()
-            Log.i(TAG, "MITM remoto OK para $sni")
+            Log.i(TAG, "Remoto TLS OK para $sni")
 
-            // Marcar el flujo correspondiente
             markMitm(sni)
 
-            // Piping bidireccional
-            val t1 = Thread { pipe(sslClient.inputStream, sslRemote.outputStream) }
-            val t2 = Thread { pipe(sslRemote.inputStream, sslClient.outputStream) }
+            val in1 = sslClient.inputStream
+            val out1 = sslRemote.outputStream
+            val in2 = sslRemote.inputStream
+            val out2 = sslClient.outputStream
+
+            val t1 = Thread { pipe(in1, out1) }
+            val t2 = Thread { pipe(in2, out2) }
             t1.start(); t2.start()
-            t1.join(120000); t2.join(120000)
-            try { sslClient.close() } catch (e: Exception) {}
-            try { sslRemote.close() } catch (e: Exception) {}
+            t1.join(180000); t2.join(180000)
         } catch (e: Exception) {
             Log.w(TAG, "MITM falló para $sni: ${e.javaClass.simpleName}: ${e.message}")
+        } finally {
+            try { sslClient.close() } catch (_: Exception) {}
+            try { sslRemote?.close() } catch (_: Exception) {}
         }
     }
 
     private fun markMitm(sni: String) {
         try {
-            val flows = Store.snapshot()
-            for (f in flows) {
+            for (f in Store.snapshot()) {
                 if (f.host == sni && !f.mitm) {
                     f.mitm = true
                     f.stat.mitmCount.incrementAndGet()
@@ -172,11 +142,15 @@ class MitmProxy(
             while (running) {
                 val n = input.read(buf)
                 if (n < 0) break
-                if (n > 0) { output.write(buf, 0, n); output.flush() }
+                if (n > 0) {
+                    output.write(buf, 0, n)
+                    output.flush()
+                }
             }
-        } catch (e: Exception) {} finally {
-            try { output.close() } catch (e: Exception) {}
-            try { input.close() } catch (e: Exception) {}
+        } catch (e: Exception) {
+        } finally {
+            try { output.close() } catch (_: Exception) {}
+            try { input.close() } catch (_: Exception) {}
         }
     }
 }
@@ -184,7 +158,8 @@ class MitmProxy(
 class DynamicSniKeyManager(
     private val certProvider: (String) -> Pair<PrivateKey, X509Certificate>
 ) : X509ExtendedKeyManager() {
-    private val store = KeyStore.getInstance("PKCS12").apply { load(null, null) }
+
+    private val store: KeyStore = KeyStore.getInstance("PKCS12").apply { load(null, null) }
     private val pass = "cert".toCharArray()
     private val domainToAlias = ConcurrentHashMap<String, String>()
     private var counter = 0
@@ -203,7 +178,9 @@ class DynamicSniKeyManager(
         val sslSock = socket as? SSLSocket ?: return null
         val domain = try {
             sslSock.handshakeSession?.peerHost ?: sslSock.session?.peerHost
-        } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            null
+        }
         if (domain.isNullOrEmpty()) return null
         return getOrCreate(domain)
     }
@@ -216,7 +193,9 @@ class DynamicSniKeyManager(
             store.setKeyEntry(alias, key, pass, arrayOf(cert))
             domainToAlias[domain] = alias
             alias
-        } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     override fun getServerAliases(keyType: String?, issuers: Array<out Principal>?): Array<String>? = null
