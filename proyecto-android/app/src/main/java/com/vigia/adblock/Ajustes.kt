@@ -13,7 +13,7 @@ object Ajustes {
         ListaDef("oisd_small", "OISD small", "Anuncios y rastreadores sin romper webs. Recomendada. ~57 000 dominios.", "https://small.oisd.nl/domainswild2"),
         ListaDef("adaway", "AdAway", "Lista clásica de anuncios móviles. ~6 000 dominios.", "https://adaway.org/hosts.txt"),
         ListaDef("oisd_big", "OISD big", "Más agresiva: añade más rastreadores y telemetría. ~200 000 dominios.", "https://big.oisd.nl/domainswild2"),
-        ListaDef("hagezi_pro", "HaGeZi Pro", "Anuncios, rastreadores y malware. ~350 000 dominios.", "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.txt"),
+        ListaDef("hagezi_pro", "HaGeZi Pro", "Anuncios, rastreadores y malware. ~350 000 dominios.", "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt"),
         ListaDef("stevenblack", "StevenBlack", "Anuncios y malware unificados. ~150 000 dominios.", "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"),
         ListaDef("easylist", "EasyList", "Solo se usan sus reglas de dominio entero; la mayoría de EasyList no es aplicable en DNS.", "https://easylist.to/easylist/easylist.txt"),
         ListaDef("easyprivacy", "EasyPrivacy", "Rastreadores. Igual que EasyList: solo reglas de dominio entero.", "https://easylist.to/easylist/easyprivacy.txt")
