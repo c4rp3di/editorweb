@@ -14,6 +14,7 @@ class AppStat(val pkg: String, val label: String) {
     val trackers: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     val sensitive: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     val orgs: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+    val blocked = AtomicInteger()
 }
 
 class Flow(val id: Long, val stat: AppStat, val proto: String, val dstIp: String, val dstPort: Int) {
@@ -43,11 +44,11 @@ object Store {
     val apps = ConcurrentHashMap<String, AppStat>()
     val dns = ConcurrentHashMap<String, String>()
     val ipOrg = ConcurrentHashMap<String, String>()
+    val blockedTotal = java.util.concurrent.atomic.AtomicInteger()
+    @Volatile var protectionEnabled = false
     @Volatile var running = false
     @Volatile var blockQuic = false
     @Volatile var mitmEnabled = false
-    var pinningFailures = 0
-    var pinningDetected = false
 
     fun app(pkg: String, label: String): AppStat = apps.getOrPut(pkg) { AppStat(pkg, label) }
     fun newFlow(stat: AppStat, proto: String, ip: String, port: Int): Flow {
