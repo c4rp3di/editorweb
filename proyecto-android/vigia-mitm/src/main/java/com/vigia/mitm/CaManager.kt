@@ -57,12 +57,12 @@ object CaManager {
         val c = contexto.applicationContext
         val almacen = AlmacenClaves.paraApp(c, "adblockplus_ca")
         val archivo = File(c.filesDir, KS_FILE)
-        var clave = almacen.leerSecreto(SECRETO)
+        val guardada = almacen.leerSecreto(SECRETO)
         val ks = KeyStore.getInstance("PKCS12")
-        if (archivo.exists() && clave != null) {
+        if (archivo.exists() && guardada != null) {
             try {
-                archivo.inputStream().use { ks.load(it, clave.toCharArray()) }
-                caKey = ks.getKey(CA_ALIAS, clave.toCharArray()) as PrivateKey
+                archivo.inputStream().use { ks.load(it, guardada.toCharArray()) }
+                caKey = ks.getKey(CA_ALIAS, guardada.toCharArray()) as PrivateKey
                 caCert = ks.getCertificate(CA_ALIAS) as X509Certificate
             } catch (e: Exception) {
                 caKey = null; caCert = null
@@ -70,7 +70,7 @@ object CaManager {
         }
         if (caKey == null) {
             // Primera vez, o el Keystore ya no puede abrir la CA: se crea una nueva (habrá que reinstalarla).
-            clave = ByteArray(24).also { azar.nextBytes(it) }.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+            val clave = ByteArray(24).also { azar.nextBytes(it) }.let { Base64.encodeToString(it, Base64.NO_WRAP) }
             almacen.guardarSecreto(SECRETO, clave)
             val kp = nuevoRsa()
             val ahora = System.currentTimeMillis()
