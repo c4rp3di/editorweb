@@ -195,15 +195,16 @@ abstract class NucleoVpnService : VpnService() {
                 builder.addDisallowedApplication(packageName)
             } catch (e: Exception) {
             }
-            for (p in cfg.excluirApps) {
-                try {
-                    builder.addDisallowedApplication(p)
-                } catch (e: Exception) {
-                }
-            }
         } else {
             // Modo DNS: solo la dirección falsa del servidor DNS entra en el túnel.
             builder.addRoute(IP_DNS, 32)
+        }
+        // Apps excluidas: no usan el túnel (en modo DNS resuelven con el DNS normal de la red).
+        for (p in cfg.excluirApps) {
+            try {
+                builder.addDisallowedApplication(p)
+            } catch (e: Exception) {
+            }
         }
         val pfd = builder.establish() ?: return null
         val salida = FileOutputStream(pfd.fileDescriptor)
