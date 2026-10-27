@@ -1,4 +1,3 @@
-
 package com.lab.netlens
 
 import java.text.SimpleDateFormat
@@ -43,4 +42,3 @@ object Export {
         return sb.toString()
     }
 }
-
