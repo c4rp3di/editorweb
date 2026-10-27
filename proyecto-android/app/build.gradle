@@ -18,15 +18,15 @@ android {
         }
     }
 
-    namespace 'com.vigia.adblock'
+    namespace 'com.lab.netlens'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.vigia.adblock"
+        applicationId "com.lab.netlens"
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "v1.0"
+        versionCode 2
+        versionName "v5.0"
     }
 
     compileOptions {
@@ -39,14 +39,9 @@ android {
 }
 
 dependencies {
-    // Núcleo de la suite (expone con «api» Material, corrutinas, AndroidX).
-    implementation project(':vigia-core')
-
-    // Ya llegan con «api» desde :vigia-core; se repiten para que el diagnóstico de Fusión las vea.
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
-
-    // Actualización diaria de las listas.
-    implementation 'androidx.work:work-runtime-ktx:2.9.0'
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.78.1'
 }
