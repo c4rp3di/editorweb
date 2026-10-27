@@ -118,8 +118,6 @@ class MitmProxy(
             t1.join(180000); t2.join(180000)
         } catch (e: Exception) {
             Log.w(TAG, "MITM falló para $sni: ${e.javaClass.simpleName}: ${e.message}")
-            Store.pinningFailures++
-            if (Lab.pinningLikely(Store.pinningFailures)) Store.pinningDetected = true
         } finally {
             try { sslClient.close() } catch (_: Exception) {}
             try { sslRemote?.close() } catch (_: Exception) {}
