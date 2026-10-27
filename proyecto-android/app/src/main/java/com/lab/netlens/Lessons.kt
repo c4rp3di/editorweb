@@ -12,8 +12,8 @@ object Lessons {
             "Muchas apps de Google, Meta, etc. usan QUIC (UDP 443), que cifra incluso el saludo. Activa «Bloquear QUIC»: las apps vuelven a TCP+TLS y podrás ver el SNI. Es una prueba de laboratorio, no algo que dejar activado siempre.",
         "5 · ECH y DNS privado" to
             "ECH (Encrypted Client Hello) esconde el SNI; DNS-over-HTTPS/TLS esconde las consultas DNS. Si una app los usa verás menos nombres. Con «DNS privado» activado en Ajustes, las consultas del sistema pueden saltarse la vista DNS de NetLens.",
-        "6 · MITM y límites" to
-            "El MITM necesita confianza en la CA y compatibilidad del cliente. Un error TLS no demuestra pinning: puede ser CA no confiable, autenticación mutua o incompatibilidad del proxy. No se certifica una fuga por descifrar una conexión. Usa pruebas propias o autorizadas con datos ficticios.",
+        "6 · MITM TLS (fase 2, solo para TUS apps)" to
+            "NetLens puede generar una CA propia, firmar certificados al vuelo y terminar el TLS entre la app y el servidor. Para que una app acepte la CA: exporta la CA desde el botón «Exportar CA», instálala en Ajustes → Seguridad → Cifrado y credenciales → Instalar certificado → CA, y activa «MITM TLS» en NetLens.\n\nLa app debe confiar en CAs de usuario. Desde Android 7, solo lo hacen si su network_security_config.xml incluye:\n\n<debug-overrides>\n  <trust-anchors>\n    <certificates src=\"user\"/>\n  </trust-anchors>\n</debug-overrides>\n\nEn apps de terceros con certificate pinning (bancos, redes sociales…) el handshake fallará. Ese es el comportamiento correcto: NO se debe saltar el pinning. El MITM es para tus apps de laboratorio, no para auditar apps ajenas.",
         "7 · Permisos: qué puede y qué no esta app" to
             "NetLens pide: VPN (consentimiento del sistema, no se puede saltar), notificaciones (para el aviso permanente) y ver la lista de apps instaladas. NO puede concederse permisos a sí misma ni a otras apps en silencio: Android lo impide a propósito. Desde la pestaña Permisos abrimos los ajustes de cada app para que seas tú quien conceda o retire.",
         "8 · Úsalo con ética" to
