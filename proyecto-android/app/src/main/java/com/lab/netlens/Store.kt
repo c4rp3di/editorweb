@@ -1,3 +1,4 @@
+
 package com.lab.netlens
 
 import java.util.Collections
@@ -45,6 +46,8 @@ object Store {
     @Volatile var running = false
     @Volatile var blockQuic = false
     @Volatile var mitmEnabled = false
+    var pinningFailures = 0
+    var pinningDetected = false
 
     fun app(pkg: String, label: String): AppStat = apps.getOrPut(pkg) { AppStat(pkg, label) }
     fun newFlow(stat: AppStat, proto: String, ip: String, port: Int): Flow {
@@ -57,3 +60,4 @@ object Store {
     fun snapshot(): List<Flow> = synchronized(lock) { ArrayList(list) }
     fun clear() { synchronized(lock) { list.clear() }; apps.clear(); ipOrg.clear() }
 }
+
