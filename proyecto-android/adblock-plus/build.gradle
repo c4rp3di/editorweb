@@ -22,6 +22,18 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+
+    // BouncyCastle (bcprov, bcpkix y bcutil) trae los mismos archivos de metadatos en cada JAR.
+    packaging {
+        resources {
+            excludes += [
+                'META-INF/versions/**/OSGI-INF/MANIFEST.MF',
+                'META-INF/DEPENDENCIES',
+                'META-INF/LICENSE*',
+                'META-INF/NOTICE*'
+            ]
+        }
+    }
 }
 
 dependencies {
