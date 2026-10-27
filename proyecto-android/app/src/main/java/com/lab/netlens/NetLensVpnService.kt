@@ -13,10 +13,6 @@ import androidx.core.app.NotificationCompat
 import java.io.FileInputStream
 import java.io.FileOutputStream
 
-/**
- * VPN local: NO envía tu tráfico a ningún servidor de terceros. Crea una interfaz virtual (TUN),
- * lee los paquetes de las apps, los analiza y los reenvía a Internet por sockets "protegidos".
- */
 class NetLensVpnService : VpnService() {
     companion object {
         const val ACTION_START = "com.lab.netlens.START"
@@ -27,13 +23,11 @@ class NetLensVpnService : VpnService() {
 
     private var pfd: ParcelFileDescriptor? = null
     private var engine: Engine? = null
+    private var proxy: MitmProxy? = null
     private var reader: Thread? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent != null && intent.action == ACTION_STOP) {
-            stopVpn()
-            return START_NOT_STICKY
-        }
+        if (intent != null && intent.action == ACTION_STOP) { stopVpn(); return START_NOT_STICKY }
         startFg()
         startVpn(intent?.getStringExtra(EXTRA_PKG))
         return START_NOT_STICKY
@@ -41,16 +35,9 @@ class NetLensVpnService : VpnService() {
 
     private fun startFg() {
         val nm = getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= 26) {
-            nm.createNotificationChannel(NotificationChannel(CHANNEL, "Captura de red", NotificationManager.IMPORTANCE_LOW))
-        }
-        val stop = PendingIntent.getService(
-            this, 1, Intent(this, NetLensVpnService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        val open = PendingIntent.getActivity(
-            this, 2, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
-        )
+        if (Build.VERSION.SDK_INT >= 26) nm.createNotificationChannel(NotificationChannel(CHANNEL, "Captura de red", NotificationManager.IMPORTANCE_LOW))
+        val stop = PendingIntent.getService(this, 1, Intent(this, NetLensVpnService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
+        val open = PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val n = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_warning)
             .setContentTitle("NetLens está observando el tráfico de este móvil")
@@ -59,11 +46,8 @@ class NetLensVpnService : VpnService() {
             .addAction(0, "Detener", stop)
             .setOngoing(true)
             .build()
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-        } else {
-            startForeground(1, n)
-        }
+        if (Build.VERSION.SDK_INT >= 34) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(1, n)
     }
 
     private fun startVpn(target: String?) {
@@ -79,18 +63,23 @@ class NetLensVpnService : VpnService() {
         try {
             if (target != null && target.isNotEmpty()) b.addAllowedApplication(target)
             else b.addDisallowedApplication(packageName)
-        } catch (e: Exception) {
-        }
-        val fd = b.establish()
-        if (fd == null) {
-            stopVpn()
-            return
-        }
+        } catch (e: Exception) {}
+        val fd = b.establish() ?: run { stopVpn(); return }
         pfd = fd
         val out = FileOutputStream(fd.fileDescriptor)
         val inp = FileInputStream(fd.fileDescriptor)
         val eng = Engine(this, out, packageManager, getSystemService(ConnectivityManager::class.java))
         engine = eng
+
+        if (Store.mitmEnabled) {
+            try {
+                val p = MitmProxy(this) { s -> protect(s) }
+                proxy = p; p.start()
+            } catch (e: Exception) {
+                Store.mitmEnabled = false
+            }
+        }
+
         Store.running = true
         reader = Thread({
             val buf = ByteArray(32767)
@@ -101,36 +90,23 @@ class NetLensVpnService : VpnService() {
                     else if (n < 0) break
                     else Thread.sleep(5)
                 }
-            } catch (e: Exception) {
-            }
-        }, "netlens-reader")
-        reader?.start()
+            } catch (e: Exception) {}
+        }, "netlens-reader").apply { start() }
     }
 
     private fun stopVpn() {
         Store.running = false
-        try {
-            engine?.stop()
-        } catch (e: Exception) {
-        }
+        try { engine?.stop() } catch (e: Exception) {}
         engine = null
-        try {
-            pfd?.close()
-        } catch (e: Exception) {
-        }
+        try { proxy?.stop() } catch (e: Exception) {}
+        proxy = null
+        try { pfd?.close() } catch (e: Exception) {}
         pfd = null
-        reader?.interrupt()
-        reader = null
+        reader?.interrupt(); reader = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
-    override fun onRevoke() {
-        stopVpn()
-    }
-
-    override fun onDestroy() {
-        stopVpn()
-        super.onDestroy()
-    }
+    override fun onRevoke() { stopVpn() }
+    override fun onDestroy() { stopVpn(); super.onDestroy() }
 }
