@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'com.google.devtools.ksp'
 }
 
 android {
@@ -18,15 +19,15 @@ android {
         }
     }
 
-    namespace 'com.lab.netlens'
+    namespace 'com.vigia.nucleolab'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.lab.netlens"
+        applicationId "com.vigia.nucleolab"
         minSdk 24
         targetSdk 34
-        versionCode 2
-        versionName "v4.0"
+        versionCode 1
+        versionName "v1.0"
     }
 
     compileOptions {
@@ -39,9 +40,15 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.core:core-ktx:1.13.1'
-    implementation 'androidx.appcompat:appcompat:1.7.0'
+    // Núcleo de la suite (expone con «api» Material, corrutinas, Room y SQLCipher).
+    implementation project(':vigia-core')
+
+    // Ya llegan con «api» desde :vigia-core; se repiten aquí para que el diagnóstico de Fusión las vea.
     implementation 'com.google.android.material:material:1.12.0'
-    implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
-    implementation 'org.bouncycastle:bcpkix-jdk18on:1.78.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+
+    // El procesador de Room se declara en cada app: genera el código de SUS entidades.
+    ksp 'androidx.room:room-compiler:2.6.1'
 }
