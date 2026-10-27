@@ -1,4 +1,3 @@
-
 package com.lab.netlens
 
 import android.util.Log
@@ -203,4 +202,3 @@ class DynamicSniKeyManager(
     override fun chooseClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, socket: Socket?): String? = null
     override fun getClientAliases(keyType: String?, issuers: Array<out Principal>?): Array<String>? = null
 }
-
