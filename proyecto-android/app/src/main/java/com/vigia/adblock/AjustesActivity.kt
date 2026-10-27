@@ -8,6 +8,8 @@ import android.provider.Settings
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -21,11 +23,27 @@ import com.vigia.core.ui.ActividadBase
 import com.vigia.core.ui.Dialogos
 import com.vigia.core.ui.TipoBoton
 import com.vigia.core.ui.Vistas
+import com.vigia.mitm.CaManager
 
 class AjustesActivity : ActividadBase() {
 
     private lateinit var vpn: VpnController
     private var pendienteListas = false
+
+    // Exportar la CA: el sistema de archivos del móvil la guarda donde elija el usuario (no hace falta ningún permiso).
+    private val guardarCa = registerForActivityResult(ActivityResultContracts.CreateDocument("application/x-x509-ca-cert")) { uri ->
+        if (uri == null) return@registerForActivityResult
+        try {
+            contentResolver.openOutputStream(uri)?.use { it.write(CaManager.exportarDer()) }
+            Dialogos.informar(
+                this, "Certificado guardado",
+                "Ahora instálalo: Ajustes de Android › Seguridad › Cifrado y credenciales › Instalar un certificado › " +
+                    "Certificado de CA. Elige el archivo que acabas de guardar."
+            )
+        } catch (e: Exception) {
+            Dialogos.informar(this, "No se pudo guardar", e.message ?: "Error desconocido")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,8 +115,11 @@ class AjustesActivity : ActividadBase() {
             reiniciarSiActiva()
         }, Vistas.anchoCompleto(this, 8))
         val profundo = Ajustes.modoProfundo(this)
-        r.addView(Vistas.boton(this, "Modo profundo (experimental): " + (if (profundo) "activado" else "desactivado"), TipoBoton.TONAL) { alternarProfundo() }, Vistas.anchoCompleto(this, 8))
+        r.addView(Vistas.boton(this, "Bloqueo por SNI (experimental): " + (if (profundo) "activado" else "desactivado"), TipoBoton.TONAL) { alternarProfundo() }, Vistas.anchoCompleto(this, 8))
         r.addView(Vistas.boton(this, "Apps excluidas (" + Ajustes.excluidas(this).size + ")", TipoBoton.TONAL) { elegirExcluidas() }, Vistas.anchoCompleto(this, 0))
+
+        // --- Modo Profundo (MitM)
+        construirMitm(raiz)
 
         // --- Sistema
         val s = seccion(raiz, "Sistema")
@@ -117,6 +138,102 @@ class AjustesActivity : ActividadBase() {
         val scroll = ScrollView(this)
         scroll.addView(raiz)
         setContentView(scroll)
+    }
+
+    // ------------------------------------------------------------------ Modo Profundo (MitM)
+
+    private fun construirMitm(raiz: LinearLayout) {
+        val m = seccion(raiz, "Modo Profundo (MitM)")
+        m.addView(
+            Vistas.texto(
+                this,
+                "Descifra localmente el tráfico HTTPS (443) para ocultar los huecos de anuncios y vaciar scripts e imágenes " +
+                    "bloqueados sin romper la web. Necesita instalar el certificado CA de esta app. Las apps que lo rechazan " +
+                    "(SSL pinning) se dejan sin descifrar automáticamente. Apagado = bloqueo DNS/SNI normal.",
+                true
+            ), Vistas.anchoCompleto(this, 8)
+        )
+        val activo = Ajustes.mitmActivo(this)
+        m.addView(Vistas.boton(this, "Modo Profundo (MitM): " + (if (activo) "activado" else "desactivado"), TipoBoton.TONAL) { alternarMitm(!activo) }, Vistas.anchoCompleto(this, 8))
+
+        val estado = Vistas.texto(this, "Certificado CA: comprobando…", true)
+        m.addView(estado, Vistas.anchoCompleto(this, 8))
+        conCa {
+            estado.text = if (CaManager.estaInstalada()) "Certificado CA: instalado ✔\nSHA-256: " + CaManager.huellaSha256().take(47) + "…"
+            else "Certificado CA: NO instalado (el Modo Profundo no arrancará hasta instalarlo)"
+        }
+
+        m.addView(Vistas.boton(this, "Exportar certificado CA (.crt)", TipoBoton.TONAL) {
+            conCa { guardarCa.launch("AdBlockSoberanoPlus-CA.crt") }
+        }, Vistas.anchoCompleto(this, 8))
+        m.addView(Vistas.boton(this, "Abrir ajustes de seguridad de Android", TipoBoton.TONAL) {
+            try {
+                startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+            } catch (e: Exception) {
+                Dialogos.informar(this, "No se pudo abrir", "Ve a Ajustes › Seguridad › Cifrado y credenciales.")
+            }
+        }, Vistas.anchoCompleto(this, 8))
+        m.addView(Vistas.boton(this, "Apps sin descifrar (" + Ajustes.mitmExentas(this).size + ")", TipoBoton.TONAL) { verExentas() }, Vistas.anchoCompleto(this, 0))
+    }
+
+    /** La CA tarda un momento la primera vez (RSA-2048): fuera del hilo principal. */
+    private fun conCa(alTerminar: () -> Unit) {
+        Thread {
+            try {
+                CaManager.iniciar(this)
+                runOnUiThread { if (!isFinishing) alTerminar() }
+            } catch (e: Exception) {
+                runOnUiThread { if (!isFinishing) Dialogos.informar(this, "Error con el certificado", e.message ?: e.javaClass.simpleName) }
+            }
+        }.start()
+    }
+
+    private fun alternarMitm(activar: Boolean) {
+        if (!activar) {
+            Ajustes.setMitmActivo(this, false)
+            reiniciarSiActiva()
+            recreate()
+            return
+        }
+        Dialogos.confirmar(
+            this, "Modo Profundo (MitM)",
+            "Esta app podrá leer el tráfico HTTPS de las apps que acepten su certificado. Solo se procesa en el móvil. " +
+                "Desde Android 7 la mayoría de las apps NO aceptan certificados instalados por el usuario (los navegadores " +
+                "sí): esas se dejarán sin descifrar. Si quitas la app, quita también el certificado. ¿Activarlo?",
+            "Activar"
+        ) {
+            conCa {
+                Ajustes.setMitmActivo(this, true)
+                if (!CaManager.estaInstalada()) {
+                    Dialogos.informar(
+                        this, "Falta instalar el certificado",
+                        "Pulsa «Exportar certificado CA», guárdalo e instálalo desde Ajustes de Android › Seguridad › " +
+                            "Cifrado y credenciales › Instalar un certificado › Certificado de CA. Hasta entonces se usa el bloqueo DNS."
+                    )
+                }
+                reiniciarSiActiva()
+                recreate()
+            }
+        }
+    }
+
+    private fun verExentas() {
+        val lista = Ajustes.mitmExentas(this).sorted()
+        if (lista.isEmpty()) {
+            Dialogos.informar(this, "Apps sin descifrar", "Ninguna todavía. Cuando una app rechace el certificado (SSL pinning) aparecerá aquí.")
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Apps sin descifrar")
+            .setMessage(lista.joinToString("\n"))
+            .setPositiveButton("Cerrar", null)
+            .setNegativeButton("Vaciar lista") { _, _ ->
+                Ajustes.setMitmExentas(this, emptySet())
+                Toast.makeText(this, "Se volverá a intentar descifrar todas", Toast.LENGTH_SHORT).show()
+                reiniciarSiActiva()
+                recreate()
+            }
+            .show()
     }
 
     private fun seccion(raiz: LinearLayout, titulo: String): LinearLayout {
