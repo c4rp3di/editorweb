@@ -154,6 +154,11 @@ class MainActivity : AppCompatActivity() {
             text = "Bloquear QUIC"; setTextColor(cText); textSize = 12f
             setOnCheckedChangeListener { _, on -> Store.blockQuic = on }
         }
+        val cbProt = CheckBox(this).apply {
+            text = "Protección"; setTextColor(cBad); textSize = 12f
+            isChecked = Store.protectionEnabled
+            setOnCheckedChangeListener { _, on -> Store.protectionEnabled = on; refresh() }
+        }
         val cbMitm = CheckBox(this).apply {
             text = "MITM TLS"; setTextColor(cPurple); textSize = 12f
             isChecked = Store.mitmEnabled
@@ -184,10 +189,15 @@ class MainActivity : AppCompatActivity() {
             text = "Exportar CA"; textSize = 12f; setTextColor(cPurple)
             setOnClickListener { exportCaCert() }
         }
+        val btnRules = Button(this).apply {
+            text = "Reglas"; textSize = 12f; setTextColor(cBad)
+            setOnClickListener { askRules() }
+        }
         val btnWho = Button(this).apply {
             text = "Quién"; textSize = 12f; setTextColor(cAccent)
             setOnClickListener { resolveOwners() }
         }
+        row3.addView(btnRules, 0, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 0.8f))
         row3.addView(btnCsv, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row3.addView(btnCa, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row3.addView(btnWho, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -197,7 +207,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(status)
 
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val names = listOf("En vivo", "Apps", "Permisos", "Laboratorio", "Aprende")
+        val names = listOf("En vivo", "Apps", "Permisos", "Aprende")
         for (i in names.indices) {
             val b = Button(this).apply {
                 text = names[i]; isAllCaps = false; textSize = 12f
@@ -273,7 +283,6 @@ class MainActivity : AppCompatActivity() {
             tabButtons[k].setBackgroundColor(if (k == i) cAccent else Color.parseColor("#21262D"))
         }
         if (i == 2) loadPerms()
-        if (i == 3) loadLab()
         refresh()
     }
 
@@ -348,6 +357,7 @@ class MainActivity : AppCompatActivity() {
                     val dec = s.mitmCount.get() > 0
                     val color = if (bad) cBad else if (dec) cPurple else if (tr > 0) cWarn else cText
                     var sub = "↑" + fmt(s.up.get()) + " ↓" + fmt(s.down.get()) + " · " + s.hosts.size + " dominios · " + s.flows.get() + " conexiones"
+                    if (s.blocked.get() > 0) sub += "\n⛔ " + s.blocked.get() + " bloqueadas"
                     if (tr > 0) sub += "\n🎯 " + tr + " destinos de anuncios/analítica/fallos"
                     if (bad) sub += "\n⚠ " + s.clearFlows.get() + " conexiones HTTP sin cifrar"
                     if (dec) sub += "\n🔓 " + s.mitmCount.get() + " conexiones descifradas (MITM)"
@@ -377,16 +387,6 @@ class MainActivity : AppCompatActivity() {
     private fun onRow(r: Row) {
         val tag = r.tag
         when {
-            tag == "cfg" -> dialog("Config segura", Lab.safeNetworkConfig(), null)
-            tag == "check" -> dialog("Checklist de release", Lab.releaseChecklist().joinToString("\n• ", "• "), null)
-            tag == "evid" -> {
-                var trackers = 0; var clear = 0; var mitm = 0; var sens = 0
-                for (a in Store.apps.values) { trackers += a.trackers.size; clear += a.clearFlows.get(); mitm += a.mitmCount.get(); sens += a.flows.get() }
-                val r = Lab.evidenceLevel(sens, trackers, clear, mitm)
-                dialog("Nivel de evidencia", r.evidence + "\n\n" + r.advice, null)
-            }
-            tag == "mitm" -> confirmMitm()
-            tag == "pin" -> dialog("Certificate pinning", "Una app está rechazando la CA local de forma repetida. Es una protección legítima: NetLens no intenta saltarla.", null)
             tag is Flow -> showFlow(tag)
             tag is AppStat -> dialog(tag.label, Insights.forApp(tag, Perms.forPackage(packageManager, tag.pkg)), tag.pkg)
             tag is Perms.Info -> {
@@ -406,22 +406,16 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-    private fun loadLab() {
-        val rows = ArrayList<Row>()
-        rows.add(Row("Generar config segura", "network_security_config.xml para debug", cAccent, "cfg"))
-        rows.add(Row("Checklist de release", "Qué revisar antes de publicar", cWarn, "check"))
-        rows.add(Row("Nivel de evidencia", "Evalúa la sesión actual", cPurple, "evid"))
-        rows.add(Row("MITM responsable", "Solo apps que aceptan la CA local", cPurple, "mitm"))
-        if (Store.pinningDetected) rows.add(Row("Pinning detectado", "Una app rechaza la CA local repetidamente", cBad, "pin"))
-        adapter.rows = rows
-        adapter.notifyDataSetChanged()
-    }
-
-    private fun confirmMitm() {
+    private fun askRules() {
+        val input = android.widget.EditText(this)
+        input.hint = "dominio.com"
         AlertDialog.Builder(this)
-            .setTitle("Activar MITM responsable")
-            .setMessage("El MITM descifrará tráfico solo si la app acepta la CA local.\n\nÚsalo solo con tus propias apps o apps de laboratorio. NetLens no intentará saltar certificate pinning.")
-            .setPositiveButton("Activar") { _, _ -> Store.mitmEnabled = true; refresh() }
+            .setTitle("Bloquear dominio")
+            .setView(input)
+            .setPositiveButton("Bloquear") { _, _ ->
+                val d = input.text.toString().trim().lowercase()
+                if (d.isNotEmpty()) Blocker.customBlocks.add(d)
+            }
             .setNegativeButton("Cancelar", null)
             .show()
     }
