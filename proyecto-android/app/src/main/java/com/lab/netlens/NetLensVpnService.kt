@@ -73,7 +73,7 @@ class NetLensVpnService : VpnService() {
 
         if (Store.mitmEnabled) {
             try {
-                val p = MitmProxy(this) { s -> protect(s) }
+            val p = MitmProxy(protector = { s -> protect(s) })
                 proxy = p; p.start()
             } catch (e: Exception) {
                 Store.mitmEnabled = false
