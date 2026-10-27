@@ -1,4 +1,3 @@
-
 # NetLens (laboratorio didáctico)
 
 VPN local + relay TCP/UDP + DPI ligero + auditoría de permisos + **MITM TLS opcional (fase 2)**.
@@ -24,4 +23,3 @@ Solo tu dispositivo, tus apps, tu tráfico. Interceptar tráfico de terceros o d
 - QUIC (UDP:443) no se descifra. Usa «Bloquear QUIC» para forzar TCP+TLS.
 - TLS 1.3 con ECH no se puede descifrar (el SNI va cifrado).
 - Apps con certificate pinning fallarán el handshake.
-
