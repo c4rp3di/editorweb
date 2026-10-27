@@ -114,6 +114,7 @@ class MainActivity : AppCompatActivity() {
         CaManager.init(this)
         buildUi()
         loadUserApps()
+        loadPerms()
         selectTab(0)
     }
 
@@ -182,8 +183,13 @@ class MainActivity : AppCompatActivity() {
             text = "Exportar CA"; textSize = 12f; setTextColor(cPurple)
             setOnClickListener { exportCaCert() }
         }
+        val btnWho = Button(this).apply {
+            text = "Quién"; textSize = 12f; setTextColor(cAccent)
+            setOnClickListener { resolveOwners() }
+        }
         row3.addView(btnCsv, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row3.addView(btnCa, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row3.addView(btnWho, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         root.addView(row3)
 
         status = TextView(this).apply { textSize = 12f; setTextColor(cMuted) }
@@ -281,6 +287,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun fmt(n: Long): String = Insights.fmt(n)
 
+    private fun riskAlerts(): List<Row> {
+        val rows = ArrayList<Row>()
+        val permsByPkg = permRows.associateBy { it.pkg }
+        for (s in Store.apps.values) {
+            val p = permsByPkg[s.pkg] ?: continue
+            if (s.trackers.isEmpty()) continue
+            val sens = p.perms.filter { it.second }.map { it.first }
+            val risky = sens.any { it.startsWith("Ubicación") || it == "Micrófono" || it == "Cámara" || it.contains("contactos") }
+            if (!risky) continue
+            val sub = "Permisos: " + sens.joinToString(", ") + "\nContacta con: " + s.trackers.take(3).joinToString(", ")
+            rows.add(Row("⚠ " + s.label, sub, cBad, s))
+        }
+        return rows
+    }
+
     private fun refresh() {
         val running = Store.running
         btnStart.text = if (running) "■ Detener" else "▶ Iniciar captura"
@@ -295,6 +316,7 @@ class MainActivity : AppCompatActivity() {
         val rows = ArrayList<Row>()
         when (tab) {
             0 -> {
+                rows.addAll(riskAlerts())
                 val now = System.currentTimeMillis()
                 var shown = 0
                 for (f in flows.asReversed()) {
@@ -390,6 +412,7 @@ class MainActivity : AppCompatActivity() {
         sb.append("Aplicación: ").append(f.stat.label).append("\n")
         sb.append("Destino: ").append(f.dstIp).append(":").append(f.dstPort).append("\n")
         sb.append("Nombre: ").append(f.name()).append("\n")
+        f.org?.let { sb.append("Propietario: ").append(it).append("\n") }
         sb.append("Protocolo: ").append(f.proto).append("\n")
         sb.append("Subido: ").append(fmt(f.up.get())).append("   Bajado: ").append(fmt(f.down.get())).append("\n")
         sb.append("Duración: ").append((f.last - f.start) / 1000).append(" s\n")
@@ -437,6 +460,18 @@ class MainActivity : AppCompatActivity() {
                 .show()
         } catch (e: Exception) {
             Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun resolveOwners() {
+        val ips = Store.snapshot().map { it.dstIp }.toSet()
+        if (ips.isEmpty()) { Toast.makeText(this, "Sin conexiones todavía", Toast.LENGTH_SHORT).show(); return }
+        Toast.makeText(this, "Resolviendo propietarios…", Toast.LENGTH_SHORT).show()
+        IpInfo.resolve(ips) {
+            runOnUiThread {
+                refresh()
+                Toast.makeText(this, "Propietarios actualizados", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
