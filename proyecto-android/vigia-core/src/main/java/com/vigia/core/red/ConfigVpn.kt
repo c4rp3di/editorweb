@@ -15,7 +15,7 @@ enum class RespuestaBloqueo { NXDOMAIN, CERO }
  * @param dnsUpstream «sistema» (usa los DNS de la red activa) o la IP de un servidor concreto, por ejemplo 1.1.1.1.
  * @param grabando se consulta en cada evento: devolver falso pone en pausa el detalle (no el bloqueo).
  * @param reiniciarSiMuere si es verdadero, Android relanza el servicio tras matarlo (bloqueador 24/7).
- * @param excluirApps paquetes que NO pasan por el túnel (solo tiene efecto en modo CONEXIONES).
+ * @param excluirApps paquetes que NO pasan por el túnel (en ambos modos).
  */
 class ConfigVpn(
     val nombreSesion: String,
