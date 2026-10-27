@@ -1,3 +1,4 @@
+
 package com.lab.netlens
 
 import android.Manifest
@@ -196,7 +197,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(status)
 
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val names = listOf("En vivo", "Apps", "Permisos", "Aprende")
+        val names = listOf("En vivo", "Apps", "Permisos", "Laboratorio", "Aprende")
         for (i in names.indices) {
             val b = Button(this).apply {
                 text = names[i]; isAllCaps = false; textSize = 12f
@@ -272,6 +273,7 @@ class MainActivity : AppCompatActivity() {
             tabButtons[k].setBackgroundColor(if (k == i) cAccent else Color.parseColor("#21262D"))
         }
         if (i == 2) loadPerms()
+        if (i == 3) loadLab()
         refresh()
     }
 
@@ -375,6 +377,16 @@ class MainActivity : AppCompatActivity() {
     private fun onRow(r: Row) {
         val tag = r.tag
         when {
+            tag == "cfg" -> dialog("Config segura", Lab.safeNetworkConfig(), null)
+            tag == "check" -> dialog("Checklist de release", Lab.releaseChecklist().joinToString("\n• ", "• "), null)
+            tag == "evid" -> {
+                var trackers = 0; var clear = 0; var mitm = 0; var sens = 0
+                for (a in Store.apps.values) { trackers += a.trackers.size; clear += a.clearFlows.get(); mitm += a.mitmCount.get(); sens += a.flows.get() }
+                val r = Lab.evidenceLevel(sens, trackers, clear, mitm)
+                dialog("Nivel de evidencia", r.evidence + "\n\n" + r.advice, null)
+            }
+            tag == "mitm" -> confirmMitm()
+            tag == "pin" -> dialog("Certificate pinning", "Una app está rechazando la CA local de forma repetida. Es una protección legítima: NetLens no intenta saltarla.", null)
             tag is Flow -> showFlow(tag)
             tag is AppStat -> dialog(tag.label, Insights.forApp(tag, Perms.forPackage(packageManager, tag.pkg)), tag.pkg)
             tag is Perms.Info -> {
@@ -391,6 +403,27 @@ class MainActivity : AppCompatActivity() {
             }
             tag == "lesson" -> dialog(r.title, r.sub, null)
         }
+    }
+
+
+    private fun loadLab() {
+        val rows = ArrayList<Row>()
+        rows.add(Row("Generar config segura", "network_security_config.xml para debug", cAccent, "cfg"))
+        rows.add(Row("Checklist de release", "Qué revisar antes de publicar", cWarn, "check"))
+        rows.add(Row("Nivel de evidencia", "Evalúa la sesión actual", cPurple, "evid"))
+        rows.add(Row("MITM responsable", "Solo apps que aceptan la CA local", cPurple, "mitm"))
+        if (Store.pinningDetected) rows.add(Row("Pinning detectado", "Una app rechaza la CA local repetidamente", cBad, "pin"))
+        adapter.rows = rows
+        adapter.notifyDataSetChanged()
+    }
+
+    private fun confirmMitm() {
+        AlertDialog.Builder(this)
+            .setTitle("Activar MITM responsable")
+            .setMessage("El MITM descifrará tráfico solo si la app acepta la CA local.\n\nÚsalo solo con tus propias apps o apps de laboratorio. NetLens no intentará saltar certificate pinning.")
+            .setPositiveButton("Activar") { _, _ -> Store.mitmEnabled = true; refresh() }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     private fun askExport() {
@@ -492,3 +525,4 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() { super.onResume(); handler.post(ticker) }
     override fun onPause() { handler.removeCallbacks(ticker); super.onPause() }
 }
+
