@@ -73,7 +73,7 @@ class MainActivity : ActividadBase() {
 
     private fun construirUi() {
         val raiz = Vistas.columna(this, 16)
-        raiz.addView(Vistas.titulo(this, "AdBlock Soberano"), Vistas.anchoCompleto(this, 2))
+        raiz.addView(Vistas.titulo(this, "AdBlock Soberano+"), Vistas.anchoCompleto(this, 2))
         raiz.addView(Vistas.texto(this, "Bloqueo de anuncios y rastreadores en tu teléfono. Sin cuentas, sin nubes.", true), Vistas.anchoCompleto(this, 16))
 
         botonProteccion = Vistas.boton(this, "Protección inactiva") { alternar() }
