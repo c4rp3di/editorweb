@@ -1,4 +1,3 @@
-
 package com.lab.netlens
 
 import android.app.NotificationChannel
@@ -52,6 +51,7 @@ class NetLensVpnService : VpnService() {
     }
 
     private fun startVpn(target: String?) {
+        Protection.init(this)
         if (pfd != null) return
         val b = Builder()
             .setSession("NetLens")
@@ -111,4 +111,3 @@ class NetLensVpnService : VpnService() {
     override fun onRevoke() { stopVpn() }
     override fun onDestroy() { stopVpn(); super.onDestroy() }
 }
-
