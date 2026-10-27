@@ -1,6 +1,6 @@
 # AdBlock Soberano+ (2.0) — notas de integración
 
-Módulos: :vigia-core (+3 ganchos, sin BouncyCastle) · :vigia-mitm (nuevo) · :app (AdBlock 1.0, intacto) · :adblock-plus (nueva app, applicationId com.vigia.adblockplus).
+Módulos: :vigia-core (+3 ganchos, sin BouncyCastle) · :vigia-mitm (nuevo) · :app (AdBlock 1.0, intacto) · :app (AdBlock Soberano+, applicationId com.vigia.adblockplus).
 
 NO compilado: el entorno no tenía Android SDK ni Kotlin. Primera compilación = posibles errores menores.
 
