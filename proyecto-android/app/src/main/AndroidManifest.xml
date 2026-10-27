@@ -54,7 +54,7 @@
             </intent-filter>
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="local_vpn_dns_filter" />
+                android:value="local_vpn_dns_mitm_filter" />
         </service>
 
     </application>
