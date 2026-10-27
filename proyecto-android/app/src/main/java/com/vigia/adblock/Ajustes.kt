@@ -36,6 +36,14 @@ object Ajustes {
     fun modoProfundo(c: Context): Boolean = p(c).getBoolean("modo_profundo", false)
     fun setModoProfundo(c: Context, v: Boolean) = p(c).edit().putBoolean("modo_profundo", v).apply()
 
+    // ---- Modo Profundo (MitM) · solo AdBlock Soberano+
+    fun mitmActivo(c: Context): Boolean = p(c).getBoolean("mitm_activo", false)
+    fun setMitmActivo(c: Context, v: Boolean) = p(c).edit().putBoolean("mitm_activo", v).apply()
+
+    /** Apps (o «ip:x.x.x.x» si Android < 10 no da la app) que NO se interceptan: pinning o sin confianza en CA de usuario. */
+    fun mitmExentas(c: Context): Set<String> = HashSet(p(c).getStringSet("mitm_exentas", emptySet()) ?: emptySet())
+    fun setMitmExentas(c: Context, v: Set<String>) = p(c).edit().putStringSet("mitm_exentas", HashSet(v)).apply()
+
     fun bloqueoNxdomain(c: Context): Boolean = p(c).getBoolean("nxdomain", false)
     fun setBloqueoNxdomain(c: Context, v: Boolean) = p(c).edit().putBoolean("nxdomain", v).apply()
 
