@@ -12,6 +12,7 @@ class AppStat(val pkg: String, val label: String) {
     val hosts: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     val trackers: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     val sensitive: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+    val orgs: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
 }
 
 class Flow(val id: Long, val stat: AppStat, val proto: String, val dstIp: String, val dstPort: Int) {
@@ -20,6 +21,7 @@ class Flow(val id: Long, val stat: AppStat, val proto: String, val dstIp: String
     @Volatile var host: String? = null
     @Volatile var closed: Boolean = false
     @Volatile var mitm: Boolean = false
+    @Volatile var org: String? = null
     val up = AtomicLong(); val down = AtomicLong()
     val notes: MutableSet<String> = Collections.synchronizedSet(LinkedHashSet<String>())
     fun addUp(n: Int) { up.addAndGet(n.toLong()); stat.up.addAndGet(n.toLong()); last = System.currentTimeMillis() }
@@ -39,6 +41,7 @@ object Store {
     private val ids = AtomicLong()
     val apps = ConcurrentHashMap<String, AppStat>()
     val dns = ConcurrentHashMap<String, String>()
+    val ipOrg = ConcurrentHashMap<String, String>()
     @Volatile var running = false
     @Volatile var blockQuic = false
     @Volatile var mitmEnabled = false
@@ -52,5 +55,5 @@ object Store {
         return f
     }
     fun snapshot(): List<Flow> = synchronized(lock) { ArrayList(list) }
-    fun clear() { synchronized(lock) { list.clear() }; apps.clear() }
+    fun clear() { synchronized(lock) { list.clear() }; apps.clear(); ipOrg.clear() }
 }
