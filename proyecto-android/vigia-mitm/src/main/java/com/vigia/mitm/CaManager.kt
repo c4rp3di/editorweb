@@ -74,7 +74,7 @@ object CaManager {
             almacen.guardarSecreto(SECRETO, clave)
             val kp = nuevoRsa()
             val ahora = System.currentTimeMillis()
-            val nombre = X500Name("CN=AdBlock Soberano+ CA (local), O=AdBlock Soberano+")
+            val nombre = X500Name("CN=AdBlock Soberano Plus CA (local), O=AdBlock Soberano Plus")
             val b = JcaX509v3CertificateBuilder(
                 nombre, serie(), Date(ahora - TimeUnit.DAYS.toMillis(1)),
                 Date(ahora + TimeUnit.DAYS.toMillis(CA_DIAS)), nombre, kp.public
@@ -142,7 +142,7 @@ object CaManager {
         val b = JcaX509v3CertificateBuilder(
             JcaX509CertificateHolder(ca).subject, serie(),
             Date(ahora - TimeUnit.DAYS.toMillis(1)), Date(ahora + TimeUnit.DAYS.toMillis(HOJA_DIAS)),
-            X500Name("CN=" + nombre.replace(",", "").replace("=", "").take(60)), kp.public
+            X500Name("CN=" + nombre.filter { it.isLetterOrDigit() || it == '.' || it == '-' || it == '_' || it == ':' }.take(60).ifEmpty { "host" }), kp.public
         )
         val ext = JcaX509ExtensionUtils()
         b.addExtension(Extension.basicConstraints, true, BasicConstraints(false))
