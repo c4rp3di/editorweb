@@ -1,3 +1,4 @@
+
 package com.lab.netlens
 
 import android.content.pm.ApplicationInfo
@@ -117,3 +118,4 @@ object Insights {
         return sb.toString()
     }
 }
+
