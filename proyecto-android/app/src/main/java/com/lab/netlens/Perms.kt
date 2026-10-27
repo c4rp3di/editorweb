@@ -86,6 +86,7 @@ object Insights {
         sb.append("Aplicación: ").append(s.label).append("  (").append(s.pkg).append(")\n\n")
         sb.append("Tráfico observado: ↑ ").append(fmt(s.up.get())).append("  ↓ ").append(fmt(s.down.get())).append("  · ").append(s.flows.get()).append(" conexiones\n")
         sb.append("Dominios contactados: ").append(s.hosts.size).append("\n")
+        if (s.orgs.isNotEmpty()) sb.append("Propietarios/ASN: ").append(s.orgs.take(5).joinToString(", ")).append("\n")
         val top = s.hosts.take(12)
         if (top.isNotEmpty()) sb.append("   ").append(top.joinToString(", ")).append(if (s.hosts.size > 12) " …" else "").append("\n")
         val ads = s.trackers.filter { it.startsWith("Anuncios") }.map { it.substringAfter('|') }
