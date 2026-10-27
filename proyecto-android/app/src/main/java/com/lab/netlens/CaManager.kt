@@ -1,4 +1,3 @@
-
 package com.lab.netlens
 
 import android.content.Context
@@ -103,4 +102,3 @@ object CaManager {
         return Pair(kp.private, cert)
     }
 }
-
