@@ -1,7 +1,10 @@
 package com.vigia.adblock
 
+import android.content.Context
 import android.content.Intent
 import com.vigia.core.red.ConfigVpn
+import com.vigia.core.red.DesvioTcp
+import com.vigia.core.red.VpnEstado
 import com.vigia.core.red.ModoVpn
 import com.vigia.core.red.NucleoVpnService
 import com.vigia.core.red.ObservadorTrafico
@@ -13,6 +16,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.vigia.mitm.CaManager
+import com.vigia.mitm.DesvioMitm
+import com.vigia.mitm.MitmProxy
 import java.text.NumberFormat
 
 /** Solo cuenta bloqueos: el túnel no resuelve la app de origen ni lee respuestas (mínimo coste de batería). */
@@ -33,25 +39,62 @@ class AdBlockVpnService : NucleoVpnService() {
     private val ambito = Hilos.nuevoAmbito(Dispatchers.Default)
     private var ticker: Job? = null
 
+    // --- Modo Profundo (MitM). Se crean una sola vez y sobreviven a los reinicios del túnel.
+    private var proxy: MitmProxy? = null
+    private var politica: PoliticaAdBlock? = null
+
     override fun crearConfig(): ConfigVpn {
         val c = applicationContext
         Estadisticas.iniciar(c)
         ListasManager.asegurarCargado(c)
         Ajustes.setActiva(c, true)
         iniciarTicker()
-        val profundo = Ajustes.modoProfundo(c)
+        // Modo Profundo (MitM) apagado -> exactamente el AdBlock 1.0 (DNS, o SNI si se activó el modo experimental).
+        // Encendido -> modo CONEXIONES + el TCP 443 se desvía al MitmProxy.
+        val desvio: DesvioTcp? = if (Ajustes.mitmActivo(c)) prepararMitm(c) else null
+        val mitm = desvio != null
+        val profundo = mitm || Ajustes.modoProfundo(c)
         return ConfigVpn(
-            nombreSesion = "AdBlock Soberano",
+            nombreSesion = "AdBlock Soberano+",
             notificacion = datosNotificacion(),
             modo = if (profundo) ModoVpn.CONEXIONES else ModoVpn.DNS,
             dnsUpstream = Ajustes.dnsUpstream(c),
             bloquearQuic = profundo,
-            filtro = AdBlockEstado.filtro,
+            // En MitM el DNS deja pasar los dominios bloqueados: el proxy contesta 200 vacío en vez de cortar.
+            filtro = if (mitm) FiltroProfundo(AdBlockEstado.filtro) else AdBlockEstado.filtro,
             respuestaBloqueo = if (Ajustes.bloqueoNxdomain(c)) RespuestaBloqueo.NXDOMAIN else RespuestaBloqueo.CERO,
             observador = ObservadorAdBlock,
             reiniciarSiMuere = true,
-            excluirApps = Ajustes.excluidas(c).toList()
+            excluirApps = Ajustes.excluidas(c).toList(),
+            desvioTcp = desvio
         )
+    }
+
+    /**
+     * Arranca el proxy y devuelve el desvío, o null si no se puede usar el MitM. Sin la CA instalada TODAS las
+     * conexiones fallarían el handshake y se irían a la lista blanca una a una, así que mejor no empezar.
+     */
+    private fun prepararMitm(c: Context): DesvioTcp? {
+        return try {
+            CaManager.iniciar(c)
+            if (!CaManager.estaInstalada()) {
+                VpnEstado.mensaje.value = "Modo Profundo (MitM) no activado: falta instalar el certificado CA en Android. " +
+                    "Se usa el bloqueo DNS normal."
+                return null
+            }
+            val pol = politica ?: PoliticaAdBlock(c).also { politica = it }
+            val p = proxy ?: MitmProxy(
+                protector = { socket -> protect(socket) },
+                politica = pol,
+                filtro = FiltroContenidoAdBlock(AdBlockEstado.filtro),
+                eventos = EventosAdBlock
+            ).also { proxy = it }
+            p.iniciar()
+            DesvioMitm(p, pol)
+        } catch (e: Exception) {
+            VpnEstado.mensaje.value = "No se pudo iniciar el Modo Profundo (MitM): " + (e.message ?: e.javaClass.simpleName)
+            null
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -72,6 +115,8 @@ class AdBlockVpnService : NucleoVpnService() {
     override fun onDestroy() {
         ticker?.cancel()
         ambito.cancel()
+        proxy?.detener()
+        proxy = null
         Estadisticas.guardar(applicationContext)
         super.onDestroy()
     }
@@ -99,7 +144,7 @@ class AdBlockVpnService : NucleoVpnService() {
             canalId = "adblock_proteccion",
             canalNombre = "Protección AdBlock",
             id = 101,
-            titulo = "AdBlock Soberano",
+            titulo = "AdBlock Soberano+",
             texto = texto,
             actividad = MainActivity::class.java,
             textoDetener = "Desactivar"
