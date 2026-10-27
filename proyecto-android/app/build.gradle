@@ -1,7 +1,6 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    id 'com.google.devtools.ksp'
 }
 
 android {
@@ -19,11 +18,11 @@ android {
         }
     }
 
-    namespace 'com.vigia.nucleolab'
+    namespace 'com.vigia.adblock'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.vigia.nucleolab"
+        applicationId "com.vigia.adblock"
         minSdk 24
         targetSdk 34
         versionCode 1
@@ -40,15 +39,14 @@ android {
 }
 
 dependencies {
-    // Núcleo de la suite (expone con «api» Material, corrutinas, Room y SQLCipher).
+    // Núcleo de la suite (expone con «api» Material, corrutinas, AndroidX).
     implementation project(':vigia-core')
 
-    // Ya llegan con «api» desde :vigia-core; se repiten aquí para que el diagnóstico de Fusión las vea.
+    // Ya llegan con «api» desde :vigia-core; se repiten para que el diagnóstico de Fusión las vea.
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
-    implementation 'androidx.room:room-runtime:2.6.1'
-    implementation 'androidx.room:room-ktx:2.6.1'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
 
-    // El procesador de Room se declara en cada app: genera el código de SUS entidades.
-    ksp 'androidx.room:room-compiler:2.6.1'
+    // Actualización diaria de las listas.
+    implementation 'androidx.work:work-runtime-ktx:2.9.0'
 }
