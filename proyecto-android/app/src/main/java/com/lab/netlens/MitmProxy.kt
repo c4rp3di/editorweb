@@ -65,31 +65,33 @@ class MitmProxy(
     }
 
     private fun handleClient(client: Socket) {
-    try {
-        client.soTimeout = 20000
-        val factory = sslContext.socketFactory as SSLSocketFactory
-        val sslClient = factory.createSocket(client, null, client.port, false) as SSLSocket
-        sslClient.useClientMode = false
-        sslClient.soTimeout = 20000
-        sslClient.startHandshake()
+        var sslClient: SSLSocket? = null
+        try {
+            client.soTimeout = 20000
+            val sslFactory: SSLSocketFactory = sslContext.socketFactory as SSLSocketFactory
+            sslClient = sslFactory.createSocket(client, null, client.port, false) as SSLSocket
+            sslClient.useClientMode = false
+            sslClient.soTimeout = 20000
+            sslClient.startHandshake()
 
-        val sni = try {
-            sslClient.handshakeSession?.peerHost
+            val sni = try {
+                sslClient.handshakeSession?.peerHost
+            } catch (e: Exception) {
+                null
+            }
+            if (sni.isNullOrEmpty()) {
+                Log.w(TAG, "SNI vacío, cerrando")
+                try { sslClient.close() } catch (_: Exception) {}
+                return
+            }
+            Log.i(TAG, "Cliente TLS OK para $sni")
+            handleTlsMitm(sslClient, sni)
         } catch (e: Exception) {
-            null
+            Log.e(TAG, "handleClient: ${e.javaClass.simpleName}: ${e.message}")
+            try { sslClient?.close() } catch (_: Exception) {}
+            try { client.close() } catch (_: Exception) {}
         }
-        if (sni.isNullOrEmpty()) {
-            Log.w(TAG, "SNI vacío, cerrando")
-            try { sslClient.close() } catch (_: Exception) {}
-            return
-        }
-        Log.i(TAG, "Cliente TLS OK para $sni")
-        handleTlsMitm(sslClient, sni)
-    } catch (e: Exception) {
-        Log.e(TAG, "handleClient: ${e.javaClass.simpleName}: ${e.message}")
-        try { client.close() } catch (_: Exception) {}
     }
-}
 
     private fun handleTlsMitm(sslClient: SSLSocket, sni: String) {
         var sslRemote: SSLSocket? = null
@@ -97,8 +99,8 @@ class MitmProxy(
             val remote = Socket()
             protector(remote)
             remote.connect(InetSocketAddress(sni, 443), 10000)
-            sslRemote = SSLSocketFactory.getDefault()
-                .createSocket(remote, sni, 443, false) as SSLSocket
+            val defaultFactory: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
+            sslRemote = defaultFactory.createSocket(remote, sni, 443, false) as SSLSocket
             sslRemote.startHandshake()
             Log.i(TAG, "Remoto TLS OK para $sni")
 
