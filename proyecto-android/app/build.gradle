@@ -22,11 +22,11 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.vigia.adblock"
+        applicationId "com.vigia.adblockplus"
         minSdk 24
         targetSdk 34
         versionCode 1
-        versionName "v3.0"
+        versionName "v1.0"
     }
 
     compileOptions {
@@ -36,11 +36,26 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+
+    // BouncyCastle (bcprov, bcpkix y bcutil) trae los mismos archivos de metadatos en cada JAR.
+    packaging {
+        resources {
+            excludes += [
+                'META-INF/versions/**/OSGI-INF/MANIFEST.MF',
+                'META-INF/DEPENDENCIES',
+                'META-INF/LICENSE*',
+                'META-INF/NOTICE*'
+            ]
+        }
+    }
 }
 
 dependencies {
     // Núcleo de la suite (expone con «api» Material, corrutinas, AndroidX).
     implementation project(':vigia-core')
+
+    // MitM TLS (BouncyCastle vive solo aquí; el AdBlock 1.0 no lo incluye).
+    implementation project(':vigia-mitm')
 
     // Ya llegan con «api» desde :vigia-core; se repiten para que el diagnóstico de Fusión las vea.
     implementation 'com.google.android.material:material:1.12.0'
