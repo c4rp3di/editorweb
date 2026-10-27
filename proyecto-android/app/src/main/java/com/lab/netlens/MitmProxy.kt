@@ -65,33 +65,31 @@ class MitmProxy(
     }
 
     private fun handleClient(client: Socket) {
-        try {
-            client.soTimeout = 20000
-            // Sin peek: el SSLSocket lee el ClientHello directamente.
-            // El SNI se obtiene en DynamicSniKeyManager.chooseServerAlias vía handshakeSession.peerHost.
-            val sslClient = sslContext.socketFactory
-                .createSocket(client, null, client.port, false) as SSLSocket
-            sslClient.useClientMode = false
-            sslClient.soTimeout = 20000
-            sslClient.startHandshake()
+    try {
+        client.soTimeout = 20000
+        val factory = sslContext.socketFactory as SSLSocketFactory
+        val sslClient = factory.createSocket(client, null, client.port, false) as SSLSocket
+        sslClient.useClientMode = false
+        sslClient.soTimeout = 20000
+        sslClient.startHandshake()
 
-            val sni = try {
-                sslClient.handshakeSession?.peerHost
-            } catch (e: Exception) {
-                null
-            }
-            if (sni.isNullOrEmpty()) {
-                Log.w(TAG, "SNI vacío, cerrando")
-                try { sslClient.close() } catch (_: Exception) {}
-                return
-            }
-            Log.i(TAG, "Cliente TLS OK para $sni")
-            handleTlsMitm(sslClient, sni)
+        val sni = try {
+            sslClient.handshakeSession?.peerHost
         } catch (e: Exception) {
-            Log.e(TAG, "handleClient: ${e.javaClass.simpleName}: ${e.message}")
-            try { client.close() } catch (_: Exception) {}
+            null
         }
+        if (sni.isNullOrEmpty()) {
+            Log.w(TAG, "SNI vacío, cerrando")
+            try { sslClient.close() } catch (_: Exception) {}
+            return
+        }
+        Log.i(TAG, "Cliente TLS OK para $sni")
+        handleTlsMitm(sslClient, sni)
+    } catch (e: Exception) {
+        Log.e(TAG, "handleClient: ${e.javaClass.simpleName}: ${e.message}")
+        try { client.close() } catch (_: Exception) {}
     }
+}
 
     private fun handleTlsMitm(sslClient: SSLSocket, sni: String) {
         var sslRemote: SSLSocket? = null
