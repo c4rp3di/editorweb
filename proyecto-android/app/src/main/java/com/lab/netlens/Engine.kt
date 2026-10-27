@@ -263,6 +263,13 @@ class Engine(
                 val src = b.copyOfRange(12, 16); val dst = b.copyOfRange(16, 20)
                 val stat = appFor(6, src, sp, dst, dp)
                 val flow = Store.newFlow(stat, "TCP", Pkt.ipStr(b, 16), dp)
+                val host = Store.dns[Pkt.ipStr(b, 16)]
+                if (Store.protectionEnabled && Blocker.isBlocked(stat.pkg, host)) {
+                    flow.notes.add("⛔ Bloqueado por protección: " + (host ?: Pkt.ipStr(b, 16)))
+                    stat.blocked.incrementAndGet(); Store.blockedTotal.incrementAndGet()
+                    write(Pkt.tcp(dst, src, dp, sp, 0, seq + 1, Pkt.RST or Pkt.ACK, 0, null, 0, 0, 0))
+                    return
+                }
                 val conn = TcpConn(this, key, src, dst, sp, dp, seq, flow)
                 tcp[key] = conn; conn.begin()
             } else if (!isRst) {
@@ -292,7 +299,12 @@ class Engine(
         val sock = ctx.sock
         if (sock == null) { ctx.flow.last = System.currentTimeMillis(); return }
         val payload = b.copyOfRange(ihl + 8, ihl + 8 + dlen)
-        if (dp == 53) { val q = Dpi.dnsQuery(payload); if (q != null) { ctx.flow.noteHost(q); ctx.flow.notes.add("DNS: la app pregunta por " + q) } }
+        if (dp == 53) { val q = Dpi.dnsQuery(payload); if (q != null) { ctx.flow.noteHost(q); ctx.flow.notes.add("DNS: la app pregunta por " + q)
+            if (Store.protectionEnabled && Blocker.isBlocked(ctx.flow.stat.pkg, q)) {
+                ctx.flow.notes.add("⛔ DNS bloqueado: " + q)
+                ctx.flow.stat.blocked.incrementAndGet(); Store.blockedTotal.incrementAndGet()
+                return
+            } } }
         try { sock.send(DatagramPacket(payload, payload.size)); ctx.flow.addUp(dlen) } catch (e: Exception) {}
     }
 
