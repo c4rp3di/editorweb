@@ -262,10 +262,9 @@ class Engine(
                 val src = b.copyOfRange(12, 16); val dst = b.copyOfRange(16, 20)
                 val stat = appFor(6, src, sp, dst, dp)
                 val flow = Store.newFlow(stat, "TCP", Pkt.ipStr(b, 16), dp)
-                val deny = Protection.reason(stat.pkg, Store.dns[Pkt.ipStr(b, 16)])
-                if (deny != null) {
-                    flow.notes.add("Bloqueado: " + deny); flow.closed = true; Protection.record(stat.pkg)
-                    write(Pkt.tcp(dst, src, dp, sp, 0, seq + 1, Pkt.RST or Pkt.ACK, 0, null, 0, 0, 0)); return
+                if(NetworkTools.deny(stat.pkg, Store.dns[Pkt.ipStr(b,16)])) {
+                    NetworkTools.record(stat.pkg);flow.notes.add("Bloqueado por reglas");flow.closed=true
+                    write(Pkt.tcp(dst,src,dp,sp,0,seq+1,Pkt.RST or Pkt.ACK,0,null,0,0,0));return
                 }
                 val conn = TcpConn(this, key, src, dst, sp, dp, seq, flow)
                 tcp[key] = conn; conn.begin()
@@ -292,24 +291,34 @@ class Engine(
         if (Pkt.u8(b, 16) >= 224) return
         val key = "" + sp + ">" + Pkt.ipStr(b, 16) + ":" + dp
         val src = b.copyOfRange(12, 16); val dst = b.copyOfRange(16, 20)
+        val payloadEarly = b.copyOfRange(ihl + 8, ihl + 8 + dlen)
+        val pkgStat=appFor(17,src,sp,dst,dp)
+        val hostEarly=if(dp==53) Dpi.dnsQuery(payloadEarly) else Store.dns[Pkt.ipStr(b,16)]
+        if(NetworkTools.deny(pkgStat.pkg,hostEarly)) {
+            NetworkTools.record(pkgStat.pkg)
+            if(dp==53 && payloadEarly.size>=12){
+                val reply=payloadEarly.copyOf();reply[2]=((reply[2].toInt() and 1) or 128).toByte();reply[3]=0x83.toByte()
+                for(p in 6..11)reply[p]=0
+                write(Pkt.udp(dst,src,dp,sp,reply,0,reply.size))
+            };return
+        }
+        if(dp==53 && NetworkTools.dnsMode!="normal") {
+            val flow=Store.newFlow(pkgStat,"DNS·"+NetworkTools.dnsMode,Pkt.ipStr(b,16),dp)
+            hostEarly?.let{flow.noteHost(it)}
+            pool.execute {
+                try {
+                    val reply=NetworkTools.encryptedDns(payloadEarly){s->protect(s)}
+                    flow.addUp(payloadEarly.size);flow.addDown(reply.size)
+                    Dpi.dnsAnswers(reply,reply.size)?.let{r->for(ip in r.second)Store.dns[ip]=r.first}
+                    write(Pkt.udp(dst,src,dp,sp,reply,0,reply.size))
+                }catch(ex:Exception){NetworkTools.errors.incrementAndGet();flow.notes.add("DNS cifrado falló; sin fallback: "+ex.javaClass.simpleName)}
+                finally{flow.closed=true}
+            };return
+        }
         val ctx: UdpCtx = udp[key] ?: (createUdp(key, src, dst, sp, dp, Pkt.ipStr(b, 16)) ?: return)
         val sock = ctx.sock
         if (sock == null) { ctx.flow.last = System.currentTimeMillis(); return }
         val payload = b.copyOfRange(ihl + 8, ihl + 8 + dlen)
-        val host = if (dp == 53) Dpi.dnsQuery(payload) else Store.dns[Pkt.ipStr(b, 16)]
-        val deny = Protection.reason(ctx.flow.stat.pkg, host)
-        if (deny != null) {
-            Protection.record(ctx.flow.stat.pkg); ctx.flow.notes.add("Bloqueado: " + deny)
-            if (dp == 53 && payload.size >= 12) {
-                val reply = payload.copyOf()
-                reply[2] = ((reply[2].toInt() and 1) or 0x80).toByte()
-                reply[3] = 0x83.toByte()
-                for (p in 6..11) reply[p] = 0
-                write(Pkt.udp(dst, src, dp, sp, reply, 0, reply.size))
-            }
-            return
-        }
-
         if (dp == 53) { val q = Dpi.dnsQuery(payload); if (q != null) { ctx.flow.noteHost(q); ctx.flow.notes.add("DNS: la app pregunta por " + q) } }
         try { sock.send(DatagramPacket(payload, payload.size)); ctx.flow.addUp(dlen) } catch (e: Exception) {}
     }
