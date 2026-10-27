@@ -19,10 +19,10 @@ object Lessons {
             "NetLens pide: VPN (consentimiento del sistema, no se puede saltar), notificaciones (para el aviso permanente) y ver la lista de apps instaladas. NO puede concederse permisos a sí misma ni a otras apps en silencio: Android lo impide a propósito. Desde la pestaña Permisos abrimos los ajustes de cada app para que seas tú quien conceda o retire.",
         "8 · Úsalo con ética" to
             "Observa tu propio móvil y tus propias apps. Inspeccionar el tráfico de otras personas o de redes ajenas sin permiso es ilegal en la mayoría de países. NetLens es una herramienta para entender y reducir el alcance de lo que programas: ¿cuántos dominios contacta tu app?, ¿envía algo en claro?, ¿pide permisos que no usa?",
-        "9 · Lente, no llave" to
-            "NetLens observa; no debilita. El MITM solo tiene sentido cuando la app acepta la CA local por diseño propio. Activar CAs de usuario en una app acabada la hace más vulnerable. Para productos de terceros, NetLens ofrece evidencia sin alterar su seguridad. Para tus propias apps, usa el Laboratorio para probar MITM, permisos y fugas.",
-        "10 · Zona aislada" to
-            "Usa un perfil secundario o un dispositivo de pruebas para apps que no controlas. No uses tu cuenta principal ni datos reales. NetLens puede observar patrones, pero no certificar fugas sin MITM aceptado por la app."
+        "11 · Protección" to
+            "El modo Protección bloquea dominios de anuncios y analítica conocidos, y cualquier dominio que añadas manualmente. No descifra nada y no salta certificate pinning: solo impide que la app llegue a esos destinos.",
+        "12 · Reglas por app" to
+            "Puedes bloquear dominios solo para una app concreta. Así puedes permitir un dominio en general y bloquearlo en una app invasiva."
     )
 }
 
