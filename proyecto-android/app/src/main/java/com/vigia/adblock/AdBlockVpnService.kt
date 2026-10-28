@@ -53,6 +53,8 @@ class AdBlockVpnService : NucleoVpnService() {
         // Encendido -> modo CONEXIONES + el TCP 443 se desvía al MitmProxy.
         val desvio: DesvioTcp? = if (Ajustes.mitmActivo(c)) prepararMitm(c) else null
         val mitm = desvio != null
+        MitmEstado.reiniciar()
+        MitmEstado.activo = mitm
         val profundo = mitm || Ajustes.modoProfundo(c)
         return ConfigVpn(
             nombreSesion = "AdBlock Soberano+",
@@ -117,6 +119,7 @@ class AdBlockVpnService : NucleoVpnService() {
         ambito.cancel()
         proxy?.detener()
         proxy = null
+        MitmEstado.activo = false
         Estadisticas.guardar(applicationContext)
         super.onDestroy()
     }
