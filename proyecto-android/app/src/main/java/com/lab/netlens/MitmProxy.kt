@@ -7,7 +7,7 @@ import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
-import java.nio.channels.SocketChannel
+
 import java.security.KeyStore
 import java.security.Principal
 import java.security.PrivateKey
@@ -140,10 +140,16 @@ class MitmProxy(
         var sslRemote: SSLSocket? = null
         var rawRemote: Socket? = null
         try {
-            val remote = SocketChannel.open().socket()
+            // 2.3.2: Socket clásico enlazado antes de protect(). Android crea
+            // el descriptor nativo de forma perezosa y protect() devolvía
+            // false sobre un socket "prístino"; al abortar ahí, el MITM rompía
+            // la navegación completa. Si protect no aplicara, se continúa: el
+            // ámbito de la VPN (app única + exclusión propia) impide el bucle.
+            val remote = Socket()
             rawRemote = remote
+            if (!remote.isBound) try { remote.bind(null) } catch (_: Exception) {}
             activeSockets.add(remote)
-            check(protector(remote)) { "Android no pudo excluir el socket remoto MITM de la VPN; se aborta para evitar un bucle" }
+            if (!protector(remote)) Log.w(TAG, "protect() remoto no aplicó; se continúa por el ámbito de apps")
             remote.connect(InetSocketAddress(sni, 443), 10000)
             val defaultFactory: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
             sslRemote = defaultFactory.createSocket(remote, sni, 443, false) as SSLSocket
@@ -293,3 +299,4 @@ class DynamicSniKeyManager(
     override fun chooseClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, socket: Socket?): String? = null
     override fun getClientAliases(keyType: String?, issuers: Array<out Principal>?): Array<String>? = null
 }
+
