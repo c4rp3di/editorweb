@@ -19,6 +19,8 @@ fi
 kotlinc -classpath "$OUT/junit:$BCPROV:$BCPKIX" \
   "$PRE/AndroidPmStubs.kt" "$PRE/AndroidNetStubs.kt" "$PRE/AndroidOsStubs.kt" "$PRE/AndroidContextStubs.kt" \
   "$PRE/AndroidLogStub.kt" "$PRE/CaManagerStub.kt" \
+  "$ROOT/app/src/main/java/com/lab/netlens/DebugLog.kt" \
+  "$PRE/DebugLogSmoke.kt" \
   "$ROOT/app/src/main/java/com/lab/netlens/Store.kt" \
   "$ROOT/app/src/main/java/com/lab/netlens/Dpi.kt" \
   "$ROOT/app/src/main/java/com/lab/netlens/NetworkTools.kt" \
@@ -28,6 +30,7 @@ kotlinc -classpath "$OUT/junit:$BCPROV:$BCPKIX" \
   "$PRE/EngineParserSmoke.kt" "$PRE/NetworkRulesSmoke.kt" "$PRE/EngineRelaySmoke.kt" "$PRE/MitmLifecycleSmoke.kt" "$PRE/TlsTestRunner.kt" \
   -d "$OUT/classes"
 
+kotlin -classpath "$OUT/junit:$OUT/classes" com.lab.netlens.DebugLogSmokeKt
 kotlin -classpath "$OUT/junit:$OUT/classes" com.lab.netlens.EngineParserSmokeKt
 kotlin -classpath "$OUT/junit:$OUT/classes" com.lab.netlens.NetworkRulesSmokeKt
 kotlin -classpath "$OUT/junit:$OUT/classes" com.lab.netlens.EngineRelaySmokeKt
