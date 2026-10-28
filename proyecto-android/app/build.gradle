@@ -25,8 +25,8 @@ android {
         applicationId "com.lab.netlens"
         minSdk 24
         targetSdk 34
-        versionCode 5
-        versionName "v15.0"
+        versionCode 6
+        versionName "v16.0"
     }
 
     compileOptions {
