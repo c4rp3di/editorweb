@@ -624,3 +624,4 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() { super.onResume(); handler.post(ticker) }
     override fun onPause() { handler.removeCallbacks(ticker); super.onPause() }
 }
+
