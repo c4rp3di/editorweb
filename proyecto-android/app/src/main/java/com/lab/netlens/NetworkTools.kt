@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import java.net.URL
 import java.net.Socket
 import java.net.InetSocketAddress
+import java.nio.channels.SocketChannel
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
@@ -73,7 +74,11 @@ object NetworkTools {
             .mapNotNull { parseRule(it) }
             .filter { it.pkg == null || it.pkg == pkg }
             .filter { matches(h, it.domain) }
-            .sortedWith(compareByDescending<DomainRule> { it.domain.length }.thenByDescending { it.allow })
+            .sortedWith(
+                compareByDescending<DomainRule> { it.domain.length }
+                    .thenByDescending { it.pkg != null }
+                    .thenByDescending { it.allow }
+            )
             .firstOrNull()
         if (rule != null) return !rule.allow
 
@@ -120,7 +125,8 @@ object NetworkTools {
     }
     fun encryptedDns(q:ByteArray,protect:(Socket)->Unit):ByteArray {
         val result=if(dnsMode=="DoT") {
-            val raw=Socket();protect(raw)
+            val raw=SocketChannel.open().socket()
+            protect(raw) // Must be protected before connect() to avoid VPN recursion.
             try {
                 raw.connect(InetSocketAddress("1.1.1.1",853),8000)
                 val tls=(SSLSocketFactory.getDefault() as SSLSocketFactory).createSocket(raw,"cloudflare-dns.com",853,true) as SSLSocket
