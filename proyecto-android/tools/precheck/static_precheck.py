@@ -6,6 +6,8 @@ engine = (base / 'Engine.kt').read_text()
 service = (base / 'NetLensVpnService.kt').read_text()
 mitm = (base / 'MitmProxy.kt').read_text()
 main = (base / 'MainActivity.kt').read_text()
+debug = (base / 'DebugLog.kt').read_text()
+precheck = (root / 'tools/precheck/run_precheck.sh').read_text()
 network = (base / 'NetworkTools.kt').read_text()
 readme = (root / 'README.md').read_text()
 validation = (root / 'VALIDACION.md').read_text()
@@ -30,6 +32,9 @@ checks = {
  'QUIC blocking has a dedicated UDP/443 branch': 'dp == 443 && Store.blockQuic' in engine and 'QUIC/UDP 443 bloqueado' in engine,
  'Rule specificity includes package-scoped rules': 'thenByDescending { it.pkg != null }' in network,
  'IPv4 fragment limitations are disclosed in docs': 'fragment' in readme.lower() or 'fragment' in validation.lower(),
+ 'debug entry is available in Tools and has copy/clear actions': 'Depuración: ver / copiar log' in main and 'showDebugLog()' in main and 'Copiar log' in main and 'Borrar log' in main,
+ 'diagnostic log includes protect and upstream errors': 'DebugLog.log("SOCKET", message)' in engine and 'DebugLog.log("TCP", "ERROR upstream' in engine and 'DebugLog.log("VPN", "ERROR al iniciar' in service,
+ 'diagnostic log is bounded and payload-free by design': 'MAX_ENTRIES = 500' in debug and 'entries.size > MAX_ENTRIES' in debug and 'DebugLogSmoke.kt' in precheck,
 }
 for name, ok in checks.items():
     print(('PASS' if ok else 'FAIL') + ' — ' + name)
