@@ -52,21 +52,24 @@ class NetLensVpnService : VpnService() {
         else startForeground(1, n)
     }
 
+    // 2.3.2 · Mismo criterio que Engine.protect(): se enlaza el socket para
+    // garantizar el descriptor nativo, se reintenta y, si Android sigue sin
+    // marcarlo, NO se aborta la conexión MITM: el ámbito de la VPN
+    // (addAllowedApplication en modo MITM, verificado al iniciar) ya excluye
+    // al propio NetLens del TUN, así que no hay riesgo de bucle. El resultado
+    // queda en el log de depuración.
     private fun protectUpstreamSocket(socket: java.net.Socket): Boolean {
-        val ok = try { protect(socket) } catch (e: Exception) {
-            Store.lastRuntimeError = "Error al excluir el socket remoto MITM: ${e.message ?: e.javaClass.simpleName}"
-            DebugLog.log("MITM", "ERROR protect(socket remoto): ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}")
-            throw e
+        if (!socket.isBound) try { socket.bind(null) } catch (_: Exception) {}
+        var ok = false
+        for (i in 1..3) {
+            try { ok = protect(socket); if (ok) break } catch (e: Exception) {
+                DebugLog.log("MITM", "ERROR protect(socket remoto) (intento $i): ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}")
+            }
+            try { Thread.sleep(50L * i) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); break }
         }
-        DebugLog.log("MITM", "protect(socket remoto)=${if (ok) "OK" else "FALLO"}")
-        if (!ok) {
-            val permissionRevoked = try { VpnService.prepare(this) != null } catch (_: Exception) { true }
-            Store.lastRuntimeError = if (permissionRevoked)
-                "Android no pudo excluir el socket MITM: el permiso VPN no está activo o fue revocado."
-            else
-                "Android rechazó el socket remoto MITM aunque el permiso VPN parece activo."
-        }
-        return ok
+        DebugLog.log("MITM", "protect(socket remoto)=${if (ok) "OK" else "no aplicó; se continúa por el ámbito de apps (sin riesgo de bucle)"}")
+        if (!ok) Store.lastRuntimeError = "protect(socket MITM) no aplicó; continúa por el ámbito de apps que ya excluye a NetLens"
+        return true
     }
 
     private fun startVpn(target: String?) {
@@ -171,3 +174,4 @@ class NetLensVpnService : VpnService() {
     override fun onRevoke() { stopVpn() }
     override fun onDestroy() { stopVpn(); super.onDestroy() }
 }
+
