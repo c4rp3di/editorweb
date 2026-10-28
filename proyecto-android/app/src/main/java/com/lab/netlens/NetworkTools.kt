@@ -32,6 +32,10 @@ import java.util.concurrent.atomic.AtomicLong
  * 2.4.1: oisd.nl retiró la ruta /hosts (HTTP 404); la lista recomendada
  * pasa al espejo GitHub de OISD small, con respaldo automático en
  * StevenBlack/hosts si el espejo falla.
+ *
+ * 2.5.0: el lote recomendado pasa a ser un paquete de 3 listas que se
+ * descargan en serie y se fusionan en un conjunto deduplicado (OISD
+ * small, StevenBlack, HaGeZi Pro); si una falla se conservan las demás.
  */
 object NetworkTools {
     private lateinit var prefs: SharedPreferences
@@ -42,11 +46,17 @@ object NetworkTools {
     val errors = AtomicLong()
     val byApp = ConcurrentHashMap<String, AtomicLong>()
 
-    /** Lista recomendada: OISD small (~59k dominios, formato de dominios; espejo GitHub oficial). */
-    const val DEFAULT_LIST_URL = "https://raw.githubusercontent.com/sjhgvr/oisd/refs/heads/main/domainswild2_small.txt"
-
-    /** Respaldo automático si OISD falla: StevenBlack (~76k dominios, formato hosts). */
-    const val FALLBACK_LIST_URL = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+    /**
+     * 2.5 · Lote recomendado: tres listas públicas que se descargan en serie
+     * y se fusionan en un conjunto deduplicado. Anuncios, rastreadores,
+     * telemetría y estafas con pocos falsos positivos (~180k dominios tras
+     * fusionar). Si una falla, se conservan las demás.
+     */
+    val DEFAULT_LIST_URLS = arrayOf(
+        "https://raw.githubusercontent.com/sjhgvr/oisd/refs/heads/main/domainswild2_small.txt",
+        "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+        "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/pro-onlydomains.txt"
+    )
 
     /**
      * 2.4 · Servidores DoH/DoT conocidos. Si una app resuelve por aquí, se
@@ -114,13 +124,31 @@ object NetworkTools {
 
     fun record(pkg: String) { blocked.incrementAndGet(); byApp.getOrPut(pkg) { AtomicLong() }.incrementAndGet() }
 
-    fun updateList(url: String): String = try {
-        updateListOnce(url)
-    } catch (e: Exception) {
-        if (url == DEFAULT_LIST_URL) updateListOnce(FALLBACK_LIST_URL) else throw e
+    fun updateList(url: String): String {
+        val urls = url.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+        return if (urls.size > 1) updateListBundle(urls) else updateListOnce(url.trim())
+    }
+
+    /** 2.5 · Descarga varias listas y las fusiona; tolera fallos individuales. */
+    private fun updateListBundle(urls: List<String>): String {
+        val domains = HashSet<String>()
+        var ok = 0; val failed = ArrayList<String>()
+        for (u in urls) {
+            try { domains.addAll(downloadDomains(u)); ok++ }
+            catch (e: Exception) { failed.add(u.substringAfterLast('/').take(24) + ": " + (e.message ?: "error")) }
+        }
+        require(ok > 0 && domains.isNotEmpty()) { "Ninguna lista descargó: ${failed.joinToString("; ").take(140)}" }
+        saveDomains(domains, urls.joinToString("\n"))
+        return "${domains.size} dominios guardados de $ok de ${urls.size} lista(s)." + if (failed.isEmpty()) "" else "\nFallos: ${failed.joinToString("; ").take(180)}"
     }
 
     private fun updateListOnce(url: String): String {
+        val domains = downloadDomains(url)
+        saveDomains(domains, url)
+        return "${domains.size} dominios guardados. Actualización manual."
+    }
+
+    private fun downloadDomains(url: String): Set<String> {
         val u = URL(url); require(u.protocol == "https") { "Solo HTTPS" }
         val c = u.openConnection() as HttpsURLConnection
         c.instanceFollowRedirects = false; c.connectTimeout = 10000; c.readTimeout = 15000
@@ -137,12 +165,15 @@ object NetworkTools {
                 }
             }.toSet()
             require(domains.isNotEmpty()) { "Sin dominios compatibles; no admite EasyList completa" }
-            val target = java.io.File(ctx.filesDir, "domains.txt")
-            val tmp = java.io.File(ctx.filesDir, "domains.tmp"); tmp.writeText(domains.joinToString("\n"))
-            require(tmp.renameTo(target)) { "No se pudo guardar" }; list = domains
-            prefs.edit().putString("url", url).putLong("updated", System.currentTimeMillis()).apply()
-            return "${domains.size} dominios guardados. Actualización manual."
+            return domains
         } finally { c.disconnect() }
+    }
+
+    private fun saveDomains(domains: Set<String>, url: String) {
+        val target = java.io.File(ctx.filesDir, "domains.txt")
+        val tmp = java.io.File(ctx.filesDir, "domains.tmp"); tmp.writeText(domains.joinToString("\n"))
+        require(tmp.renameTo(target)) { "No se pudo guardar" }; list = domains
+        prefs.edit().putString("url", url).putLong("updated", System.currentTimeMillis()).apply()
     }
 
     private fun java.io.InputStream.readBytesLimited(max: Int): ByteArray {
