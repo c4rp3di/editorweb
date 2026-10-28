@@ -1,54 +1,58 @@
-# NetLens 2.2-review — filtro local de red para Android
+# NetLens 2.3.0-audit — proyecto Android para Fusion
 
-NetLens es un proyecto didáctico de Android que crea una VPN local, registra flujos TCP/UDP, atribuye conexiones a aplicaciones cuando Android lo permite, aplica reglas de dominio, inspecciona DNS/SNI y ofrece un MITM TLS experimental para laboratorios autorizados.
+NetLens es un proyecto didáctico de VPN local para observar flujos IPv4 TCP/UDP, atribuirlos a aplicaciones cuando Android lo permite y aplicar reglas de dominio basadas en SNI visible o `Host` en HTTP sin cifrar. Incluye controles para QUIC, DNS y un MITM TLS experimental.
 
-**Estado de la entrega:** código fuente revisado y pruebas aisladas de Kotlin ejecutadas. No hay APK ni compilación completa de Gradle confirmada: el entorno de revisión no dispone de Android SDK/Gradle. Todavía necesita pruebas en un dispositivo real.
+**Estado de esta entrega:** correcciones estáticas y pruebas aisladas de Kotlin superadas; **no es un APK validado**. En este entorno no hay Android SDK ni Gradle ejecutable, así que no se pudo hacer el build Android completo ni probar `VpnService.protect()` en el móvil donde apareció el error.
 
-## Mejoras de esta revisión
+## Correcciones de esta revisión
 
-- El parser TLS procesa el ClientHello completo, incluidos mensajes fragmentados entre segmentos TCP o registros TLS, y extrae SNI, ALPN, TLS 1.3 y la señal ECH con validaciones de límites.
-- El relay mantiene en búfer los primeros bytes TCP (hasta 64 KiB) mientras clasifica el protocolo y el Host/SNI. Si una regla bloquea el dominio, no encola ni reenvía esos bytes iniciales al socket de salida; si se permite, los reenvía en el orden original después de clasificar.
-- Las reglas usan coincidencia por límites de dominio (dominio exacto o subdominio) y gana la regla explícita coincidente más específica. Si dos reglas tienen la misma especificidad, la de permitir gana.
-- El filtrado de HTTP en claro espera al encabezado `Host` para aplicar las reglas.
-- Si no se puede proteger un socket de salida con `VpnService.protect`, la conexión falla en lugar de continuar en un estado potencialmente recursivo.
-- El proxy MITM obtiene el nombre de servidor desde `ExtendedSSLSession`/SNI en vez de tratar el `peerHost` como SNI, y activa la verificación de identidad HTTPS al conectarse al servidor remoto.
-- La interfaz ya no afirma que puede detectar si el usuario instaló realmente la CA: Android no ofrece una comprobación simple y fiable de esa condición para este flujo.
+- Las conexiones TCP salientes se crean a través de `SocketChannel.open()` y las UDP a través de `DatagramChannel.open()`. El descriptor nativo se crea antes de llamar a `VpnService.protect()`, y la llamada se hace antes de `connect()` en los sockets remotos.
+- La conexión interna hacia `127.0.0.1:8888` en modo MITM no llama a `protect()`: es tráfico de loopback hacia el proxy local, no una conexión al servidor remoto.
+- Si `protect()` devuelve `false`, NetLens registra si Android detecta que el permiso VPN no está activo/revocado o si rechaza el descriptor pese a que el permiso parece activo. No se omite la protección ni se sigue por una ruta potencialmente recursiva.
+- MITM enlaza el socket servidor de forma síncrona antes de iniciar el lector TUN. Si el listener no puede arrancar, el inicio falla y la interfaz muestra el motivo.
+- Los cambios de MITM durante una captura se rechazan: hay que detener y volver a iniciar para evitar que el estado visual difiera del proxy real.
+- El proxy ya no corta voluntariamente una sesión después de 180 segundos ni aplica un timeout de 20 segundos a las lecturas de datos una vez terminado el handshake. Al detenerlo cierra las conexiones activas.
+- La selección de apps no oculta errores. Si la app elegida no está instalada o el ámbito VPN no puede configurarse, el servicio no arranca con el ámbito predeterminado por accidente.
+- Una petición HTTP completa sin `Host` (posible en HTTP/1.0) se reenvía con una nota en vez de quedarse retenida esperando el encabezado opcional.
 
-## Cómo probar el filtro por dominio
+## Prueba del filtro por dominio
 
-1. Instala una build de depuración que tú mismo hayas compilado en un dispositivo de pruebas.
-2. Abre **Herramientas → Protección** y déjala en **ACTIVA**.
-3. En **Herramientas → Reglas guardadas**, añade por ejemplo `-example.com` y guarda.
-4. Inicia la captura y prueba únicamente con una aplicación y dominios bajo tu control. `example.com` y sus subdominios deberían aparecer bloqueados cuando el SNI sea visible.
-5. Prueba una excepción más específica, por ejemplo `+safe.example.com`, para comprobar la precedencia de reglas.
-6. Consulta los detalles del flujo: el bloqueo por SNI debe aparecer como `HTTPS bloqueado antes de enviar el ClientHello (SNI)`.
+1. Compila e instala el proyecto en un dispositivo de pruebas propio.
+2. Mantén inicialmente **MITM TLS** y **Bloquear QUIC** desactivados.
+3. En **Herramientas → Protección**, activa las reglas y añade una regla como `-example.com`.
+4. Inicia la captura y prueba solo con una aplicación/dominio de laboratorio bajo tu control.
+5. Comprueba que un SNI visible de `example.com` se bloquea, `notexample.com` no se bloquea por coincidencia parcial, y una regla más específica como `+safe.example.com` permite ese subdominio. Si dos reglas cubren el mismo dominio, la regla por paquete tiene prioridad sobre la regla global.
+6. Desactiva la regla y verifica que el tráfico vuelve a pasar.
 
-La lista de suscripción y las reglas solo aplican cuando **Protección** está activa. Bloquear QUIC es un ajuste separado que afecta a UDP/443.
+## Significado de los controles
 
-## Límites de HTTPS y seguridad
+- **Todas las apps / selector:** define qué aplicaciones entran al túnel. Si seleccionas una app concreta, las demás usan su conexión de red normal.
+- **Bloquear QUIC:** descarta UDP al puerto 443. La app puede intentar TCP como alternativa, pero depende de su implementación.
+- **MITM TLS:** termina y vuelve a establecer TLS para una app objetivo de laboratorio. Requiere confiar en una CA adecuada; no funciona con todas las apps y no elude certificate pinning.
+- **Ocultar DNS:** solo oculta filas DNS en la vista en vivo; no cifra por sí mismo el DNS.
+- **Pausar:** pausa la actualización de la vista, no la captura.
+- **Protección:** reglas/listas de dominio. No es lo mismo que iniciar la VPN.
 
-- El filtro genérico HTTPS bloquea por **dominio** (SNI), no por URL completa. No puede decidir por ruta, parámetros, cabecera HTTP o contenido del cuerpo cifrado sin una inspección MITM compatible.
-- **ECH (Encrypted Client Hello)** puede ocultar el nombre real solicitado; el dominio exterior visible no siempre identifica el destino real. En ese caso no se garantiza un bloqueo por el nombre real.
-- El MITM sigue siendo experimental. No filtra rutas ni cuerpos HTTP, puede romper aplicaciones modernas y no elude certificate pinning. Úsalo solo con aplicaciones propias o autorizadas y datos ficticios.
-- IPv6 no se inspecciona completamente en esta versión y puede escapar del filtrado IPv4; NetLens no debe tratarse como cortafuegos integral ni como prueba de ausencia de fugas.
-- Las aplicaciones pueden usar DNS cifrado, direcciones IP, protocolos propios o canales alternativos. SNI ausente, ECH o un flujo que no llegue a clasificarse puede impedir el filtro por nombre.
-- El búfer de clasificación inicial está limitado a 64 KiB. Si se supera ese límite, el flujo se reenvía sin clasificación para evitar consumo ilimitado de memoria; por ello no es un filtro de seguridad con garantía absoluta.
+## Límites importantes
 
-## MITM TLS opcional (laboratorio)
+- **IPv6 no se inspecciona en esta versión.** La ruta de VPN configurada es IPv4; no debe tratarse como cortafuegos integral ni como garantía de ausencia de fugas.
+- La implementación de TCP en espacio de usuario sigue siendo simplificada: no tiene una cola completa de retransmisión de los datos enviados al cliente ni un reensamblado fiable de segmentos fuera de orden en todos los casos.
+- Se descartan paquetes IPv4 fragmentados y datagramas UDP demasiado grandes para el formato de salida actual. Los flujos que dependan de ellos pueden fallar.
+- El bloqueo HTTPS normal trabaja por hostname/SNI visible, no por URL, ruta, cabeceras ni cuerpo cifrado. ECH o SNI ausente puede ocultar el nombre real.
+- El búfer de clasificación se limita a 64 KiB; si se supera, se reenvía sin clasificar para evitar memoria ilimitada.
+- DoH/DoT fallidos no tienen fallback silencioso al DNS en claro; el error se registra. La disponibilidad depende de la red y del proveedor configurado.
+- MITM sigue siendo experimental; úsalo solo con apps/servidores propios o con autorización y datos ficticios.
 
-1. Arranca NetLens y pulsa **Exportar CA**.
-2. Instala el certificado CA desde los ajustes de seguridad de Android y comprueba la huella SHA-256 mostrada por NetLens.
-3. Activa MITM solo para una app propia elegida como objetivo. Una app de pruebas debuggable puede configurar `network_security_config.xml` con `debug-overrides` y `certificates src="user"`.
-4. No desactives la validación del certificado del servidor remoto. Las apps con certificate pinning o que no aceptan CAs de usuario pueden fallar correctamente.
+## Comprobaciones locales ejecutadas
 
-La presencia de un registro MITM solo significa que se estableció el túnel TLS en ambos lados; **no significa que NetLens haya inspeccionado URLs o cuerpos HTTP**.
+- Compilación JVM aislada de `Dpi.kt`, `Store.kt`, `Engine.kt` y `NetworkTools.kt` con stubs mínimos de Android.
+- 2.000 entradas aleatorias al parser TLS sin excepción.
+- Pruebas aisladas de reglas de dominio: dominio exacto, subdominios, frontera contra `notexample.com`, especificidad y alcance por paquete.
+- Pruebas de control de `protect()` simulado como éxito y como fallo para TCP y UDP; se comprobó que el fallo no se silencia.
+- Compilación aislada de `MitmProxy.kt` con stubs de Android y BouncyCastle.
+- 16 comprobaciones estáticas de secuenciación, configuración y estado.
+- Pruebas adicionales del relé TCP: ClientHello TLS permitido/bloqueado repartido entre segmentos, HTTP Host dividido/bloqueado, HTTP/1.0 completo sin Host, protocolo desconocido sin bloqueo y rama de bloqueo QUIC UDP/443.
+- Prueba de precedencia que confirma que una regla específica por paquete gana frente a una regla global para el mismo dominio.
+- Prueba de ciclo de vida MITM en JVM: `start()` devuelve con el puerto loopback enlazado y `stop()` cierra el listener y el socket de prueba.
 
-## Validaciones ejecutadas durante esta revisión
-
-- Compilación Kotlin aislada de `Dpi.kt`, `Store.kt`, `Engine.kt` y `NetworkTools.kt` con stubs de Android.
-- Prueba sintética del parser para SNI normalizado, ALPN, detección TLS 1.3, ClientHello fragmentado por TCP, ClientHello en varios registros TLS y señal ECH.
-- Prueba de integración aislada del relay: un SNI bloqueado no se encola ni cuenta como enviado; un ClientHello permitido y dividido en dos segmentos se reenvía completo después de clasificar.
-- Pruebas de reglas: coincidencia por subdominio, regla más específica, alcance por paquete y prevención de coincidencias engañosas como `notexample.com`.
-- Compilación aislada de `MitmProxy.kt` con stubs de Android/BouncyCastle.
-
-Estas pruebas no sustituyen un build Android real, pruebas en móvil, pruebas de rendimiento ni una auditoría de IPv6/fugas.
+La compilación del motor/MITM en Kotlin/JVM con stubs y las pruebas del relé no reproducen el kernel, el descriptor real de Android ni la red de un dispositivo. Estas pruebas no validan el comportamiento de Android real. Consulta `VALIDACION.md` antes de considerar este proyecto una build funcional.
