@@ -1,8 +1,14 @@
-# NetLens 2.3.0-audit — proyecto Android para Fusion
+# NetLens 2.3.1-debug — proyecto Android para Fusion
 
 NetLens es un proyecto didáctico de VPN local para observar flujos IPv4 TCP/UDP, atribuirlos a aplicaciones cuando Android lo permite y aplicar reglas de dominio basadas en SNI visible o `Host` en HTTP sin cifrar. Incluye controles para QUIC, DNS y un MITM TLS experimental.
 
 **Estado de esta entrega:** correcciones estáticas y pruebas aisladas de Kotlin superadas; **no es un APK validado**. En este entorno no hay Android SDK ni Gradle ejecutable, así que no se pudo hacer el build Android completo ni probar `VpnService.protect()` en el móvil donde apareció el error.
+
+## Diagnóstico local nuevo
+
+En **Herramientas → Depuración: ver / copiar log** se puede consultar el estado actual de VPN, MITM, QUIC, reglas y DNS, junto con hasta 500 eventos recientes. El botón **Copiar log** copia el diagnóstico al portapapeles; **Borrar log** vacía el búfer en memoria. Registra errores de inicio, lector TUN, `protect()` TCP/UDP, conexión upstream, clasificación TLS, bloqueos por reglas, UDP y QUIC.
+
+El log es local y acotado. No registra el contenido de los paquetes, pero sí puede incluir IPs de destino, dominios y nombres de paquetes; revísalo antes de compartirlo. Es un búfer en memoria y se pierde si Android mata el proceso.
 
 ## Correcciones de esta revisión
 
@@ -51,6 +57,7 @@ NetLens es un proyecto didáctico de VPN local para observar flujos IPv4 TCP/UDP
 - Pruebas de control de `protect()` simulado como éxito y como fallo para TCP y UDP; se comprobó que el fallo no se silencia.
 - Compilación aislada de `MitmProxy.kt` con stubs de Android y BouncyCastle.
 - 16 comprobaciones estáticas de secuenciación, configuración y estado.
+- Prueba del registro de depuración: sanitización de saltos de línea, límite de 500 eventos y borrado.
 - Pruebas adicionales del relé TCP: ClientHello TLS permitido/bloqueado repartido entre segmentos, HTTP Host dividido/bloqueado, HTTP/1.0 completo sin Host, protocolo desconocido sin bloqueo y rama de bloqueo QUIC UDP/443.
 - Prueba de precedencia que confirma que una regla específica por paquete gana frente a una regla global para el mismo dominio.
 - Prueba de ciclo de vida MITM en JVM: `start()` devuelve con el puerto loopback enlazado y `stop()` cierra el listener y el socket de prueba.
