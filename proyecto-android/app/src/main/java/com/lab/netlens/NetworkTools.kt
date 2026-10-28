@@ -101,11 +101,44 @@ object NetworkTools {
 
     fun saveRules(text: String) {
         val n = text.lines().map { it.trim().lowercase(java.util.Locale.ROOT) }.filter { it.isNotEmpty() }.toSet()
-        require(n.all { Regex("[+-]([^| ]+\\|)?[a-z0-9.-]+").matches(it) }) { "Usa -dominio.com, +dominio.com o -paquete|dominio.com" }
+        require(n.all { Regex("[+-]([^| ]+\\|)?[a-z0-9.-]+(/[a-z0-9._*-]*)?").matches(it) }) { "Usa -dominio.com, +dominio.com, -paquete|dominio.com o -dominio.com/ruta (con MITM)" }
         prefs.edit().putStringSet("rules", n).apply(); rules = n
     }
 
     private fun matches(h: String, d: String) = h == d || h.endsWith("." + d)
+
+    /**
+     * 2.6.0 · Laboratorio: reglas con ruta -dominio.com/ruta, evaluadas solo
+     * dentro del túnel MITM (la CA del proxy debe estar instalada y la app
+     * objetivo debe confiar en ella). Solo se evalúan reglas globales (sin
+     * parte de paquete) porque el MITM captura una única app objetivo.
+     * El comodín * al final cubre el resto de la ruta. Devuelve la regla que
+     * coincide, o null si no hay bloqueo.
+     */
+    fun denyHttpPath(host0: String, path: String): String? {
+        if (!enabled) return null
+        val host = host0.lowercase(java.util.Locale.ROOT).trimEnd('.')
+        var allow: String? = null
+        var block: String? = null
+        for (r in rules) {
+            if (!r.contains('/') || r.contains('|')) continue
+            val sign = r.substringBefore('/')
+            val dom = sign.substring(1)
+            if (dom.isEmpty() || !matches(host, dom)) continue
+            if (!pathMatches(path, r.substringAfter('/'))) continue
+            if (sign.startsWith("+")) allow = r else block = r
+        }
+        return if (allow != null) null else block
+    }
+
+    private fun pathMatches(path: String, pat0: String): Boolean {
+        val pat = if (pat0.startsWith("/")) pat0 else "/" + pat0
+        if (pat == "/") return true
+        if (pat.endsWith("*")) return path.startsWith(pat.dropLast(1))
+        if (!pat.contains('*')) return path == pat
+        val re = pat.split('*').joinToString(".*") { Regex.escape(it) }
+        return Regex(re).matches(path)
+    }
 
     fun deny(pkg: String, h0: String?): Boolean {
         if (h0 == null) return false
