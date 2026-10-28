@@ -1,10 +1,10 @@
-# NetLens 2.5.1 — proyecto Android para Fusion
+# NetLens 2.6.0 — proyecto Android para Fusion
 
 NetLens es un proyecto didáctico de VPN local para observar flujos IPv4 TCP/UDP, atribuirlos a aplicaciones cuando Android lo permite y aplicar reglas de dominio basadas en SNI visible o `Host` en HTTP sin cifrar. Incluye controles para QUIC, DNS (DoH/DoT), lista de dominios por suscripción HTTPS, historial de sesiones y un MITM TLS experimental.
 
-**Estado de esta entrega:** sobre la 2.3.2-fix (que corrigió compilación y tráfico), la 2.4.0 añade las piezas de bloqueo de anuncios: lista recomendada por suscripción, anti-DoH, anti-ECH, neutralización de IPv6 y respuestas DNS bloqueadas sintéticas. La 2.4.1 corrige la lista recomendada: `small.oisd.nl/hosts` dejó de existir (HTTP 404), así que se usa el espejo GitHub de OISD small con respaldo automático en StevenBlack. La 2.5.0 amplía el lote recomendado a 3 listas fusionadas (OISD small + StevenBlack + HaGeZi Pro) con tolerancia a fallos por lista. La 2.5.1 suaviza el conmutador Bloquear ECH: los ClientHello con extensión ECH ya no se rechazan (el rechazo causaba reinicios de conexión que impedían cargar sitios con ECH); se dejan pasar y se clasifican por el SNI externo, que sigue aplicando el filtro por dominio. Queda pendiente la validación en dispositivo de la matriz de pruebas; no es un APK certificado.
+**Estado de esta entrega:** sobre la 2.3.2-fix (que corrigió compilación y tráfico), la 2.4.0 añade las piezas de bloqueo de anuncios: lista recomendada por suscripción, anti-DoH, anti-ECH, neutralización de IPv6 y respuestas DNS bloqueadas sintéticas. La 2.4.1 corrige la lista recomendada: `small.oisd.nl/hosts` dejó de existir (HTTP 404), así que se usa el espejo GitHub de OISD small con respaldo automático en StevenBlack. La 2.5.0 amplía el lote recomendado a 3 listas fusionadas (OISD small + StevenBlack + HaGeZi Pro) con tolerancia a fallos por lista. La 2.5.1 suaviza el conmutador Bloquear ECH: los ClientHello con extensión ECH ya no se rechazan (el rechazo causaba reinicios de conexión que impedían cargar sitios con ECH); se dejan pasar y se clasifican por el SNI externo, que sigue aplicando el filtro por dominio. La 2.6.0 añade filtrado de rutas de petición dentro del túnel MITM con la nueva sintaxis `-dominio.com/ruta` (laboratorio). Queda pendiente la validación en dispositivo de la matriz de pruebas; no es un APK certificado.
 
-## Novedades de 2.4.x, 2.5.0 y 2.5.1 (bloqueo de anuncios en webs y apps)
+## Novedades de 2.4.x, 2.5.x y 2.6.0 (bloqueo de anuncios en webs y apps)
 
 1. **Lote recomendado de 3 listas fusionadas** (2.5.0): Herramientas → *Suscribir listas recomendadas (3 fusionadas)* descarga en serie y deduplica OISD small (`raw.githubusercontent.com/sjhgvr/oisd/.../domainswild2_small.txt`, ~59.000 dominios), StevenBlack (`raw.githubusercontent.com/StevenBlack/hosts/master/hosts`, ~76.000) y HaGeZi Pro (`raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/pro-onlydomains.txt`, ~100.000): ~180.000 dominios de anuncios, rastreadores, telemetría y estafas. Si una lista falla, se conservan las demás (solo exige que al menos una descargue); la actualización periódica refresca el lote completo. El límite de descarga es de 8 MiB por lista. El motor de bloqueo (DNS, SNI, `Host`, QUIC temprano, TCP por IP/DNS) ya existía desde 2.3.x; ahora hay contenido listo para usar.
 
@@ -17,6 +17,8 @@ NetLens es un proyecto didáctico de VPN local para observar flujos IPv4 TCP/UDP
 4. **Neutralizar IPv6** (`Store.blockIpv6`, por defecto ON): sin rutas v6, las apps con IPv6 salían FUERA de la VPN y se saltaban todo el filtrado. Ahora el TUN enruta `2000::/3` y `fc00::/7`; el motor (solo IPv4) descarta esos paquetes con un aviso único en el log. Las apps dual-stack decaen a IPv4; los destinos solo-v6 quedan inaccesibles durante la captura (comportamiento esperado y documentado).
 
 5. **DNS bloqueado con respuesta sintética** (`Dpi.dnsBlockedReply`): las consultas bloqueadas responden `0.0.0.0` (TTL 300) para A y NOERROR vacío para el resto (AAAA, HTTPS...), en lugar del NXDOMAIN anterior: las apps fallan rápido y sin reintentos agresivos.
+
+6. **Filtrado de rutas en MITM** (2.6.0, laboratorio): nueva sintaxis de regla `-dominio.com/ruta` (solo globales, sin parte de paquete). Dentro del túnel MITM, cada petición HTTP/1.1 se evalúa contra la ruta: `-dominio.com/ads_videos/*` bloquea con 204 cualquier petición cuyo path empiece por esa ruta; sin `*` exige coincidencia exacta; `*` intermedio actúa de comodín. La query (`?...`) no se evalúa. **Solo aplican con MITM TLS activo**: sin MITM quedan inertes (el dominio se sigue filtrando por DNS/SNI con la regla sin ruta). Las peticiones con cuerpo no delimitable (chunked) o cabeceras desmesuradas pasan transparentes; los cuerpos y las respuestas no se inspeccionan. Requiere CA instalada y app objetivo única; el navegador DuckDuckGo probablemente rechazará la CA (probar con Chrome o Firefox importando la CA).
 
 ## Errores corregidos en 2.3.2
 
@@ -51,7 +53,7 @@ En **Herramientas → Depuración: ver / copiar log** se consulta el estado actu
 
 - **Todas las apps / selector:** define qué aplicaciones entran al túnel. Si seleccionas una app concreta, las demás usan su conexión de red normal.
 - **Bloquear QUIC:** descarta UDP al puerto 443. La app puede intentar TCP como alternativa, pero depende de su implementación.
-- **MITM TLS:** termina y vuelve a establecer TLS para una app objetivo de laboratorio. Requiere confiar en la CA local; no funciona con todas las apps y no elude certificate pinning.
+- **MITM TLS:** termina y vuelve a establecer TLS para una app objetivo de laboratorio. Requiere confiar en la CA local; no funciona con todas las apps y no elude certificate pinning. Desde 2.6.0, dentro del túnel filtra rutas de petición con reglas `-dominio.com/ruta`; no inspecciona cuerpos ni respuestas.
 - **Ocultar DNS:** solo oculta filas DNS en la vista en vivo; no cifra por sí mismo el DNS.
 - **Pausar:** pausa la actualización de la vista, no la captura.
 - **Protección:** reglas/listas de dominio. No es lo mismo que iniciar la VPN.
@@ -81,6 +83,7 @@ En **Herramientas → Depuración: ver / copiar log** se consulta el estado actu
 | Reglas on/off | `-example.com` bloquea por SNI/Host visible; `+sub` permite; sin coincidencia parcial. |
 | DNS normal / DoH / DoT | Las consultas reciben respuesta en cada modo; el error del proveedor queda visible. |
 | MITM en app de laboratorio | Con la CA confiada, la conexión se descifra; con pinning, falla como se espera. |
+| Regla de ruta en MITM (2.6.0) | Con `-dominio.com/ruta/*` y CA confiada, la petición a esa ruta responde 204 y queda registrada como `PETICIÓN ... → 204`; el resto del dominio funciona. |
 | Detener/revocar/iniciar | Red se recupera; el ámbito de captura no cambia en silencio. |
 | Lista OISD suscrita | Con Protección activa, un dominio de la lista se bloquea por DNS (0.0.0.0) o SNI; uno legítimo pasa. |
 | Anti-DoH activo | Una app con DoH embebido (p. ej. Chrome con «DNS seguro») vuelve al DNS del sistema; el 853 da RST. |
