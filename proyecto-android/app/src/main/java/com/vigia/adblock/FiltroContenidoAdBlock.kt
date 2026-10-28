@@ -41,9 +41,27 @@ class FiltroContenidoAdBlock(private val base: FiltroAdBlock) : FiltroContenido 
     }
 }
 
+/** Contadores del Modo Profundo desde que arrancó la protección; la pantalla principal los muestra. */
+object MitmEstado {
+    @Volatile var activo = false
+    val descifradas = java.util.concurrent.atomic.AtomicInteger()
+    val vaciados = java.util.concurrent.atomic.AtomicInteger()
+    val paginasLimpias = java.util.concurrent.atomic.AtomicInteger()
+    val rechazos = java.util.concurrent.atomic.AtomicInteger()
+
+    fun reiniciar() {
+        descifradas.set(0); vaciados.set(0); paginasLimpias.set(0); rechazos.set(0)
+    }
+}
+
 /** Cuenta los bloqueos del MitM en las mismas estadísticas que el DNS. */
 object EventosAdBlock : EventosMitm {
     override fun alBloquear(host: String, ruta: String, tipo: TipoRecurso) {
+        MitmEstado.vaciados.incrementAndGet()
         Estadisticas.registrar(host)
     }
+
+    override fun alInyectarCss(host: String) { MitmEstado.paginasLimpias.incrementAndGet() }
+    override fun alConexionDescifrada(host: String) { MitmEstado.descifradas.incrementAndGet() }
+    override fun alFallbackPinning(app: String, host: String, motivo: String) { MitmEstado.rechazos.incrementAndGet() }
 }
