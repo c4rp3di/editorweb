@@ -170,7 +170,9 @@ class MitmProxy(
             val in2 = sslRemote.inputStream
             val out2 = sslClient.outputStream
 
-            val t1 = Thread { pipe(in1, out1) }
+            // 2.6.0 · El sentido cliente→remoto pasa por el filtro de rutas;
+            // el remoto→cliente sigue siendo reenvío directo.
+            val t1 = Thread { pumpRequests(in1, out1, out2, sni) }
             val t2 = Thread { pipe(in2, out2) }
             t1.isDaemon = true; t2.isDaemon = true
             t1.start(); t2.start()
@@ -196,7 +198,7 @@ class MitmProxy(
                 if (f.host == sni && !f.mitm) {
                     f.mitm = true
                     f.stat.mitmCount.incrementAndGet()
-                    f.notes.add("🔓 MITM TLS activo: flujo TLS terminado y reenviado; no filtra rutas ni cuerpos HTTP")
+                    f.notes.add("🔓 MITM TLS activo: flujo TLS terminado y reenviado; desde 2.6.0 filtra rutas de petición con reglas -dominio/ruta; no inspecciona cuerpos")
                     break
                 }
             }
@@ -219,6 +221,124 @@ class MitmProxy(
             try { output.close() } catch (_: Exception) {}
             try { input.close() } catch (_: Exception) {}
         }
+    }
+
+    private val blockResponse = "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".toByteArray(Charsets.ISO_8859_1)
+
+    /**
+     * 2.6.0 · Laboratorio: filtro de rutas de petición dentro del túnel MITM.
+     * Solo HTTP/1.1 con cuerpo delimitable por Content-Length; ante cualquier
+     * ambigüedad (chunked, cabecera desmesurada, datos no HTTP) la conexión
+     * pasa a transparente para no romper el tráfico. Las reglas -dominio/ruta
+     * solo aplican a peticiones; cuerpos y respuestas no se inspeccionan.
+     * La query (?...) no se evalúa: se compara solo la ruta.
+     */
+    private fun pumpRequests(input: InputStream, remoteOut: OutputStream, clientOut: OutputStream, sni: String) {
+        try {
+            var pending = ByteArray(0)
+            val chunk = ByteArray(8192)
+            while (running) {
+                // 1 · Cargar hasta tener la cabecera completa (o EOF/desmesurada).
+                var headEnd = indexOfCrlfCrlf(pending)
+                while (headEnd < 0 && running && pending.size <= 131072) {
+                    val n = input.read(chunk)
+                    if (n < 0) break
+                    if (n > 0) pending += chunk.copyOf(n)
+                    headEnd = indexOfCrlfCrlf(pending)
+                }
+                if (headEnd < 0) {
+                    // EOF a mitad de cabecera o desmesurada: transparente.
+                    if (pending.isNotEmpty()) writeAll(remoteOut, pending)
+                    break
+                }
+                val headLen = headEnd + 4
+                val headText = String(pending, 0, headLen, Charsets.ISO_8859_1)
+                val reqLine = headText.substringBefore("\r\n")
+                val parts = reqLine.split(" ")
+                var okHttp = false
+                var host = sni
+                var path = "/"
+                var bodyLen = -2L // -2 = sin cuerpo declarado, -1 = no delimitable
+                if (parts.size == 3 && parts[2].startsWith("HTTP/1.")) {
+                    okHttp = true
+                    for (line in headText.substringAfter("\r\n").split("\r\n")) {
+                        val idx = line.indexOf(':')
+                        if (idx <= 0) continue
+                        val name = line.substring(0, idx).trim().lowercase(Locale.ROOT)
+                        val value = line.substring(idx + 1).trim()
+                        when (name) {
+                            "host" -> host = value.lowercase(Locale.ROOT)
+                            "content-length" -> bodyLen = value.toLongOrNull() ?: -1L
+                            "transfer-encoding" -> bodyLen = -1L
+                        }
+                    }
+                    var target = parts[1]
+                    if (target.startsWith("http://", true) || target.startsWith("https://", true)) {
+                        val rest = target.substringAfter("://")
+                        val slash = rest.indexOf('/')
+                        target = if (slash >= 0) rest.substring(slash) else "/"
+                    }
+                    path = target.substringBefore('?')
+                    if (path.isEmpty()) path = "/"
+                }
+                val headBytes = pending.copyOf(headLen)
+                pending = pending.copyOfRange(headLen, pending.size)
+                if (!okHttp || bodyLen == -1L) {
+                    // Petición no reconocible o cuerpo no delimitable: transparente.
+                    writeAll(remoteOut, headBytes)
+                    if (pending.isNotEmpty()) writeAll(remoteOut, pending)
+                    pending = ByteArray(0)
+                    break
+                }
+                // 2 · Evaluar la regla de ruta para esta petición.
+                val rule = NetworkTools.denyHttpPath(host, path)
+                // 3 · Consumir (regla) o reenviar (sin regla) el cuerpo declarado.
+                var need = if (bodyLen == -2L) 0L else bodyLen
+                while (need > 0 && running) {
+                    if (pending.isEmpty()) {
+                        val n = input.read(chunk)
+                        if (n < 0) { need = 0; break } // EOF dentro del cuerpo
+                        if (n > 0) pending += chunk.copyOf(n)
+                    }
+                    val take = minOf(need, pending.size.toLong()).toInt()
+                    if (take == 0) break
+                    if (rule == null) writeAll(remoteOut, pending.copyOf(take))
+                    pending = pending.copyOfRange(take, pending.size)
+                    need -= take
+                }
+                if (rule != null) {
+                    writeAll(clientOut, blockResponse)
+                    DebugLog.log("MITM", "PETICIÓN ${parts[0]} $host$path → 204 (regla $rule)")
+                    NetworkTools.record("lab-mitm")
+                }
+                // Siguiente petición en la misma conexión (keep-alive).
+            }
+            // 4 · Passthrough final: lo que llegue ya sin interpretar.
+            while (running) {
+                val n = input.read(chunk)
+                if (n < 0) break
+                if (n > 0) writeAll(remoteOut, chunk.copyOf(n))
+            }
+        } catch (_: Exception) {
+        } finally {
+            try { remoteOut.close() } catch (_: Exception) {}
+            try { input.close() } catch (_: Exception) {}
+        }
+    }
+
+    private fun writeAll(out: OutputStream, bytes: ByteArray) {
+        if (bytes.isEmpty()) return
+        out.write(bytes)
+        out.flush()
+    }
+
+    private fun indexOfCrlfCrlf(b: ByteArray): Int {
+        if (b.size < 4) return -1
+        val cr = 13.toByte(); val lf = 10.toByte()
+        for (i in 0..b.size - 4) {
+            if (b[i] == cr && b[i + 1] == lf && b[i + 2] == cr && b[i + 3] == lf) return i
+        }
+        return -1
     }
 }
 
