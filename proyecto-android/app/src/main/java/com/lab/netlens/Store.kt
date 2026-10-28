@@ -59,3 +59,4 @@ object Store {
     fun snapshot(): List<Flow> = synchronized(lock) { ArrayList(list) }
     fun clear() { synchronized(lock) { list.clear() }; apps.clear(); ipOrg.clear() }
 }
+
