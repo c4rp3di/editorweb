@@ -24,6 +24,10 @@ import java.util.concurrent.atomic.AtomicLong
  * no estaban definidos, y el socket DoT se crea y enlaza antes de pedir
  * protect(), porque Android crea el descriptor nativo de un Socket de forma
  * perezosa y protect() sobre un socket sin descriptor devuelve false.
+ *
+ * 2.4.0: lista recomendada por defecto (OISD small, formato hosts, ~17k
+ * dominios), bloqueo de resolutores DoH/DoT conocidos (anti-bypass del DNS
+ * de la VPN) y límite de descarga elevado a 8 MiB para listas grandes.
  */
 object NetworkTools {
     private lateinit var prefs: SharedPreferences
@@ -33,6 +37,23 @@ object NetworkTools {
     val blocked = AtomicLong()
     val errors = AtomicLong()
     val byApp = ConcurrentHashMap<String, AtomicLong>()
+
+    /** Lista recomendada: OISD small en formato hosts (anuncios/rastreadores, pocos falsos positivos). */
+    const val DEFAULT_LIST_URL = "https://small.oisd.nl/hosts"
+
+    /**
+     * 2.4 · Servidores DoH/DoT conocidos. Si una app resuelve por aquí, se
+     * salta el DNS de la VPN y con él todo el filtrado por nombre. Se bloquean
+     * por dominio (DNS/SNI/Host); el puerto 853 se bloquea en el motor. El
+     * DoT/DoH interno de NetLens va con protect() y no se ve afectado.
+     */
+    private val DOH = setOf(
+        "dns.google", "dns.google.com", "cloudflare-dns.com", "one.one.one.one",
+        "chrome.cloudflare-dns.com", "security.cloudflare-dns.com", "mozilla.cloudflare-dns.com",
+        "dns.quad9.net", "dns9.quad9.net", "dns11.quad9.net", "dns.adguard.com", "dns.adguard-dns.com",
+        "doh.opendns.com", "doh.familyshield.opendns.com", "dns.sb", "doh.dns.sb",
+        "doh.mullvad.net", "doh.cleanbrowsing.org", "dns.surfshark.com", "dnsfast.doh.surfshark.com"
+    )
 
     fun init(c: Context) {
         ctx = c.applicationContext
@@ -70,8 +91,12 @@ object NetworkTools {
     private fun matches(h: String, d: String) = h == d || h.endsWith("." + d)
 
     fun deny(pkg: String, h0: String?): Boolean {
-        if (!enabled || h0 == null) return false
+        if (h0 == null) return false
         val h = h0.lowercase(java.util.Locale.ROOT).trimEnd('.')
+        // 2.4 · Anti-DoH: bloquea resolutores cifrados conocidos aunque la
+        // protección general esté apagada; fuerza el DNS del sistema (por la VPN).
+        if (Store.blockDoh && DOH.any { h == it || h.endsWith("." + it) }) return true
+        if (!enabled) return false
         val applicable = rules.filter { !it.contains('|') || it.drop(1).substringBefore('|') == pkg }
         if (applicable.any { it.startsWith("+") && matches(h, it.drop(1).substringAfter('|')) }) return false
         if (applicable.any { it.startsWith("-") && matches(h, it.drop(1).substringAfter('|')) }) return true
@@ -88,7 +113,7 @@ object NetworkTools {
         c.instanceFollowRedirects = false; c.connectTimeout = 10000; c.readTimeout = 15000
         try {
             require(c.responseCode == 200) { "HTTP ${c.responseCode}" }
-            val bytes = c.inputStream.use { it.readBytesLimited(4 * 1024 * 1024) }
+            val bytes = c.inputStream.use { it.readBytesLimited(8 * 1024 * 1024) }
             val domains = bytes.toString(Charsets.UTF_8).lineSequence().mapNotNull { line ->
                 val t = line.substringBefore('#').trim().lowercase(java.util.Locale.ROOT)
                 if (t.isEmpty() || t.startsWith("!") || t.startsWith("[")) null
