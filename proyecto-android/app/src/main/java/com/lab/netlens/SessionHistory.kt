@@ -43,3 +43,4 @@ object SessionHistory {
     } catch (_: Exception) { "Historial no legible." }
     fun clear() { io.execute { synchronized(this) { if (file.exists()) file.delete() } } }
 }
+
