@@ -18,15 +18,15 @@ android {
         }
     }
 
-    namespace 'com.lab.netlens'
+    namespace 'com.vigia.adblock'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.lab.netlens"
+        applicationId "com.vigia.adblockplus"
         minSdk 24
         targetSdk 34
-        versionCode 7
-        versionName "v24.0"
+        versionCode 2
+        versionName "v4.0"
     }
 
     compileOptions {
@@ -37,21 +37,31 @@ android {
         jvmTarget = '17'
     }
 
+    // BouncyCastle (bcprov, bcpkix y bcutil) trae los mismos archivos de metadatos en cada JAR.
     packaging {
         resources {
-            excludes += ['META-INF/versions/9/OSGI-INF/MANIFEST.MF']
+            excludes += [
+                'META-INF/versions/**/OSGI-INF/MANIFEST.MF',
+                'META-INF/DEPENDENCIES',
+                'META-INF/LICENSE*',
+                'META-INF/NOTICE*'
+            ]
         }
     }
 }
 
 dependencies {
-    implementation 'androidx.work:work-runtime-ktx:2.9.1'
-    implementation 'androidx.core:core-ktx:1.13.1'
-    implementation 'androidx.activity:activity-ktx:1.9.0'
-    implementation 'androidx.appcompat:appcompat:1.7.0'
-    implementation 'com.google.android.material:material:1.12.0'
-    implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
-    implementation 'org.bouncycastle:bcpkix-jdk18on:1.78.1'
-    testImplementation 'junit:junit:4.13.2'
-}
+    // Núcleo de la suite (expone con «api» Material, corrutinas, AndroidX).
+    implementation project(':vigia-core')
 
+    // MitM TLS (BouncyCastle vive solo aquí; el AdBlock 1.0 no lo incluye).
+    implementation project(':vigia-mitm')
+
+    // Ya llegan con «api» desde :vigia-core; se repiten para que el diagnóstico de Fusión las vea.
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+
+    // Actualización diaria de las listas.
+    implementation 'androidx.work:work-runtime-ktx:2.9.0'
+}
