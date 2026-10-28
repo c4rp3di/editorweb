@@ -2,6 +2,8 @@ package com.lab.netlens
 
 import android.Manifest
 import android.content.ContentValues
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -439,11 +441,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openTools() {
-        val titles=arrayOf("Protección: " + if(NetworkTools.enabled) "ACTIVA" else "INACTIVA", "DNS: ${NetworkTools.dnsMode}", "Reglas guardadas", "Actualizar lista HTTPS", "Estadísticas", "Laboratorio", "Estado y límites", "Actualización periódica", "Historial local", "Borrar historial")
+        val titles=arrayOf("Protección: " + if(NetworkTools.enabled) "ACTIVA" else "INACTIVA", "DNS: ${NetworkTools.dnsMode}", "Reglas guardadas", "Actualizar lista HTTPS", "Estadísticas", "Laboratorio", "Estado y límites", "Actualización periódica", "Historial local", "Borrar historial", "Depuración: ver / copiar log (${DebugLog.count()})")
         AlertDialog.Builder(this).setTitle("NetLens · Herramientas").setItems(titles){_,n -> when(n){
-            0 -> {NetworkTools.enabled=!NetworkTools.enabled;openTools()}
+            0 -> {NetworkTools.enabled=!NetworkTools.enabled;DebugLog.log("UI", "Protección/reglas=${NetworkTools.enabled}");openTools()}
             1 -> AlertDialog.Builder(this).setTitle("DNS para consultas UDP/53 capturadas")
                 .setItems(arrayOf("normal","DoH","DoT")){_,i -> NetworkTools.dnsMode=arrayOf("normal","DoH","DoT")[i]
+                    DebugLog.log("UI", "Modo DNS cambiado a ${NetworkTools.dnsMode}")
                     dialog("DNS", "DoH/DoT usa Cloudflare. No cambia DNS cifrado interno de otras apps. Sin retorno silencioso a DNS en claro si falla. Reinicia captura.",null)}.show()
             2 -> {
                 val input=android.widget.EditText(this).apply{setText(NetworkTools.rules.sorted().joinToString("\n"));minLines=5}
@@ -479,7 +482,47 @@ class MainActivity : AppCompatActivity() {
             9 -> AlertDialog.Builder(this).setTitle("¿Borrar historial local?")
                 .setMessage("Se eliminarán los resúmenes de sesiones, no las reglas ni listas.")
                 .setPositiveButton("Borrar") { _, _ -> SessionHistory.clear() }.setNegativeButton("Cancelar", null).show()
+            10 -> showDebugLog()
         }}.show()
+    }
+
+    private fun showDebugLog() {
+        val statusText = buildString {
+            append("Estado actual: VPN=").append(Store.running)
+            append("; protección/reglas=").append(NetworkTools.enabled)
+            append("; MITM=").append(Store.mitmEnabled)
+            append("; bloquearQUIC=").append(Store.blockQuic)
+            append("; DNS=").append(NetworkTools.dnsMode)
+            append("; flujos=").append(Store.snapshot().size).append("\n")
+            append("Último error de inicio: ").append(Store.lastStartError ?: "ninguno").append("\n")
+            append("Último error de ejecución: ").append(Store.lastRuntimeError ?: "ninguno").append("\n\n")
+            append(DebugLog.snapshot())
+        }
+        val view = TextView(this).apply {
+            text = statusText
+            textSize = 12f
+            setTextIsSelectable(true)
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+        }
+        val scroll = android.widget.ScrollView(this).apply {
+            addView(view)
+            layoutParams = android.view.ViewGroup.LayoutParams(-1, dp(420))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Diagnóstico local · ${DebugLog.count()} eventos")
+            .setMessage("El registro incluye destinos IP/dominios, nombres de paquetes y errores, pero no guarda el contenido de los paquetes. Revísalo antes de compartirlo.")
+            .setView(scroll)
+            .setPositiveButton("Copiar log") { _, _ ->
+                val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("NetLens diagnóstico", statusText))
+                Toast.makeText(this, "Log copiado al portapapeles", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Borrar log") { _, _ ->
+                DebugLog.clear()
+                Toast.makeText(this, "Log local borrado", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cerrar", null)
+            .show()
     }
 
     private fun askExport() {
