@@ -117,3 +117,4 @@ object Insights {
         return sb.toString()
     }
 }
+
