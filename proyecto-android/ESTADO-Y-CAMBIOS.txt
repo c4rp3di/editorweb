@@ -22,3 +22,6 @@ Cosas que NO se declaran corregidas ni verificadas:
 - QUIC bloqueado significa descartar UDP/443; el fallback a TCP depende de cada app.
 
 No se ha modificado Fusion-21.html.
+
+
+Versión 2.3.1-debug: añade Herramientas → Depuración: ver/copiar log. El registro incluye estado y eventos de VPN, sockets protect, errores TCP/UDP, clasificación TLS y bloqueos; está limitado a 500 eventos en memoria y no guarda payloads. Puede incluir IPs/dominios/paquetes.
