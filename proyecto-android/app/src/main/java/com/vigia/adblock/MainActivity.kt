@@ -158,16 +158,29 @@ class MainActivity : ActividadBase() {
 
         val n = AdBlockEstado.filtro.totalDominios
         val ultima = Ajustes.ultimaActualizacion(this)
-        textoFiltro.text = if (n == 0) {
+        val base = if (n == 0) {
             "Sin listas cargadas. Pulsa «Actualizar listas ahora»."
         } else {
             numeros.format(n) + " dominios en el filtro" + (if (ultima > 0L) " · listas del " + Formato.fecha(ultima) else "")
         }
+        textoFiltro.text = base + textoMitm(activa)
 
         numHoy.text = numeros.format(Estadisticas.hoy())
         numTotal.text = numeros.format(Estadisticas.total()) + " bloqueados en total"
         pintarBarras()
         pintarTop()
+    }
+
+    /** Línea de estado del Modo Profundo: si no sube «descifradas» al navegar, no está funcionando. */
+    private fun textoMitm(activa: Boolean): String {
+        if (!Ajustes.mitmActivo(this)) return ""
+        if (!activa) return "\nModo Profundo (MitM): activado en Ajustes, la protección está parada"
+        if (!MitmEstado.activo) return "\nModo Profundo (MitM): NO activo · falta instalar el certificado CA (usa bloqueo DNS)"
+        return "\nModo Profundo (MitM): activo\n" +
+            numeros.format(MitmEstado.descifradas.get()) + " conexiones descifradas · " +
+            numeros.format(MitmEstado.vaciados.get()) + " recursos vaciados · " +
+            numeros.format(MitmEstado.paginasLimpias.get()) + " páginas limpiadas\n" +
+            Ajustes.mitmExentas(this).size.toString() + " apps sin descifrar (rechazan el certificado)"
     }
 
     private fun pintarBarras() {
