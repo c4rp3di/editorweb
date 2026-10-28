@@ -1,10 +1,10 @@
-# NetLens 2.5.0 — proyecto Android para Fusion
+# NetLens 2.5.1 — proyecto Android para Fusion
 
 NetLens es un proyecto didáctico de VPN local para observar flujos IPv4 TCP/UDP, atribuirlos a aplicaciones cuando Android lo permite y aplicar reglas de dominio basadas en SNI visible o `Host` en HTTP sin cifrar. Incluye controles para QUIC, DNS (DoH/DoT), lista de dominios por suscripción HTTPS, historial de sesiones y un MITM TLS experimental.
 
-**Estado de esta entrega:** sobre la 2.3.2-fix (que corrigió compilación y tráfico), la 2.4.0 añade las piezas de bloqueo de anuncios: lista recomendada por suscripción, anti-DoH, anti-ECH, neutralización de IPv6 y respuestas DNS bloqueadas sintéticas. La 2.4.1 corrige la lista recomendada: `small.oisd.nl/hosts` dejó de existir (HTTP 404), así que se usa el espejo GitHub de OISD small con respaldo automático en StevenBlack. La 2.5.0 amplía el lote recomendado a 3 listas fusionadas (OISD small + StevenBlack + HaGeZi Pro) con tolerancia a fallos por lista. Queda pendiente la validación en dispositivo de la matriz de pruebas; no es un APK certificado.
+**Estado de esta entrega:** sobre la 2.3.2-fix (que corrigió compilación y tráfico), la 2.4.0 añade las piezas de bloqueo de anuncios: lista recomendada por suscripción, anti-DoH, anti-ECH, neutralización de IPv6 y respuestas DNS bloqueadas sintéticas. La 2.4.1 corrige la lista recomendada: `small.oisd.nl/hosts` dejó de existir (HTTP 404), así que se usa el espejo GitHub de OISD small con respaldo automático en StevenBlack. La 2.5.0 amplía el lote recomendado a 3 listas fusionadas (OISD small + StevenBlack + HaGeZi Pro) con tolerancia a fallos por lista. La 2.5.1 suaviza el conmutador Bloquear ECH: los ClientHello con extensión ECH ya no se rechazan (el rechazo causaba reinicios de conexión que impedían cargar sitios con ECH); se dejan pasar y se clasifican por el SNI externo, que sigue aplicando el filtro por dominio. Queda pendiente la validación en dispositivo de la matriz de pruebas; no es un APK certificado.
 
-## Novedades de 2.4.x y 2.5.0 (bloqueo de anuncios en webs y apps)
+## Novedades de 2.4.x, 2.5.0 y 2.5.1 (bloqueo de anuncios en webs y apps)
 
 1. **Lote recomendado de 3 listas fusionadas** (2.5.0): Herramientas → *Suscribir listas recomendadas (3 fusionadas)* descarga en serie y deduplica OISD small (`raw.githubusercontent.com/sjhgvr/oisd/.../domainswild2_small.txt`, ~59.000 dominios), StevenBlack (`raw.githubusercontent.com/StevenBlack/hosts/master/hosts`, ~76.000) y HaGeZi Pro (`raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/pro-onlydomains.txt`, ~100.000): ~180.000 dominios de anuncios, rastreadores, telemetría y estafas. Si una lista falla, se conservan las demás (solo exige que al menos una descargue); la actualización periódica refresca el lote completo. El límite de descarga es de 8 MiB por lista. El motor de bloqueo (DNS, SNI, `Host`, QUIC temprano, TCP por IP/DNS) ya existía desde 2.3.x; ahora hay contenido listo para usar.
 
@@ -12,7 +12,7 @@ NetLens es un proyecto didáctico de VPN local para observar flujos IPv4 TCP/UDP
 
 3. **Bloquear ECH** (`Store.rejectEch`), doble capa:
    - Primaria: las consultas DNS de tipo HTTPS(65)/SVCB(64) se responden en local con NOERROR vacío, de modo que el navegador no recibe configuración ECH y el SNI del ClientHello queda visible y filtrable.
-   - Estricta: si aún llega un ClientHello con extensión ECH (0xFE0D), se rechaza antes de reenviarlo.
+   - Suave (2.5.1): si aún llega un ClientHello con extensión ECH (0xFE0D), se deja pasar y se clasifica por el SNI externo; el rechazo anterior causaba reinicios de conexión (ERR_CONNECTION_RESET) que impedían cargar sitios con ECH. El filtro por dominio sigue aplicándose sobre el SNI externo.
 
 4. **Neutralizar IPv6** (`Store.blockIpv6`, por defecto ON): sin rutas v6, las apps con IPv6 salían FUERA de la VPN y se saltaban todo el filtrado. Ahora el TUN enruta `2000::/3` y `fc00::/7`; el motor (solo IPv4) descarta esos paquetes con un aviso único en el log. Las apps dual-stack decaen a IPv4; los destinos solo-v6 quedan inaccesibles durante la captura (comportamiento esperado y documentado).
 
@@ -57,7 +57,7 @@ En **Herramientas → Depuración: ver / copiar log** se consulta el estado actu
 - **Protección:** reglas/listas de dominio. No es lo mismo que iniciar la VPN.
 - **DoH/DoT:** resuelve por DNS cifrado (Cloudflare) las consultas UDP/53 capturadas; no afecta al DNS cifrado interno de otras apps. Sin fallback silencioso al DNS en claro.
 - **Actualización periódica:** WorkManager re-descarga la lista HTTPS cada ~24 h si hay una suscripción válida.
-- **Bloquear ECH:** corta las consultas HTTPS(65)/SVCB(64) y rechaza el ClientHello con ECH para que el SNI quede filtrable.
+- **Bloquear ECH:** corta las consultas HTTPS(65)/SVCB(64) y, si llega un ClientHello con ECH, lo deja pasar clasificándolo por el SNI externo (desde 2.5.1 ya no se rechaza: rompía la carga de sitios con ECH).
 - **Anti-DoH:** bloquea resolutores cifrados conocidos (dominio y puerto 853) para forzar el DNS del sistema, que pasa por la VPN.
 - **Neutralizar IPv6:** enruta IPv6 al TUN y lo descarta; evita que las apps dual-stack se salten la VPN. Con destinos solo-v6, quedan inaccesibles durante la captura.
 
@@ -84,5 +84,5 @@ En **Herramientas → Depuración: ver / copiar log** se consulta el estado actu
 | Detener/revocar/iniciar | Red se recupera; el ámbito de captura no cambia en silencio. |
 | Lista OISD suscrita | Con Protección activa, un dominio de la lista se bloquea por DNS (0.0.0.0) o SNI; uno legítimo pasa. |
 | Anti-DoH activo | Una app con DoH embebido (p. ej. Chrome con «DNS seguro») vuelve al DNS del sistema; el 853 da RST. |
-| Bloquear ECH activo | Las consultas tipo 65/64 responden vacío; un sitio con ECH termina conectando con SNI visible. |
+| Bloquear ECH activo | Las consultas tipo 65/64 responden vacío; si llega un ClientHello con ECH se clasifica por el SNI externo (2.5.1, sin reinicios de conexión). |
 | Neutralizar IPv6 activo | Una web solo-v6 no carga durante la captura; una dual-stack usa IPv4 y funciona. |
