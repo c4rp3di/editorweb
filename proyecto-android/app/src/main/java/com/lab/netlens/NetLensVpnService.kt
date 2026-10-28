@@ -29,7 +29,7 @@ class NetLensVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent != null && intent.action == ACTION_STOP) { DebugLog.log("VPN", "Solicitud de parada recibida"); stopVpn(); return START_NOT_STICKY }
         val target = intent?.getStringExtra(EXTRA_PKG)
-        DebugLog.log("VPN", "Solicitud de inicio; alcance=${target ?: "todas las apps"}; MITM=${Store.mitmEnabled}; bloquearQUIC=${Store.blockQuic}; reglas=${NetworkTools.enabled}; DNS=${NetworkTools.dnsMode}")
+        DebugLog.log("VPN", "Solicitud de inicio; alcance=${target ?: "todas las apps"}; MITM=${Store.mitmEnabled}; bloquearQUIC=${Store.blockQuic}; bloquearECH=${Store.rejectEch}; antiDoH=${Store.blockDoh}; neutralizarIPv6=${Store.blockIpv6}; reglas=${NetworkTools.enabled}; DNS=${NetworkTools.dnsMode}")
         startFg()
         startVpn(target)
         return START_NOT_STICKY
@@ -90,6 +90,18 @@ class NetLensVpnService : VpnService() {
                 .setMtu(1500)
                 .setBlocking(true)
 
+            // 2.4 · IPv6: sin rutas v6 en el TUN, las apps con IPv6 salen
+            // FUERA de la VPN y se saltan todo el filtrado. Con
+            // «Neutralizar IPv6» se enruta el espacio global (2000::/3) y el
+            // ULA (fc00::/7) al TUN; el motor (solo IPv4) los descarta: las
+            // apps dual-stack decaen a IPv4 y los destinos solo-v6 quedan
+            // inaccesibles mientras dure la captura.
+            if (Store.blockIpv6) {
+                b.addAddress("fd00:15:26::1", 128)
+                b.addRoute("2000::", 3)
+                b.addRoute("fc00::", 7)
+            }
+
             // App scope is security-critical: never swallow a bad package/scope
             // selection, because Builder would otherwise default to all apps.
             if (!target.isNullOrBlank()) {
@@ -103,7 +115,7 @@ class NetLensVpnService : VpnService() {
                 "Android no estableció la VPN. Comprueba el permiso VPN y vuelve a iniciar."
             )
             pfd = fd
-            DebugLog.log("VPN", "Builder.establish() correcto; ruta=IPv4 por defecto; IPv6 no configurado")
+            DebugLog.log("VPN", "Builder.establish() correcto; rutas=IPv4" + (if (Store.blockIpv6) " + IPv6 al TUN (neutralizado)" else " ; IPv6 fuera de la VPN (sin capturar)"))
 
             // For MITM, bind and start the listener synchronously before the TUN
             // reader starts forwarding any TCP/443 connection to 127.0.0.1:8888.
