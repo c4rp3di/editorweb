@@ -195,6 +195,41 @@ object Dpi {
 
     fun dnsQuery(b: ByteArray): String? = try { if (b.size < 13) null else readName(b, 12).first } catch (e: Exception) { null }
 
+    /** 2.4 · Tipo (QTYPE) de la primera pregunta; 0 si no se puede leer. */
+    fun dnsQType(q: ByteArray): Int = try {
+        if (q.size < 12 || u16(q, 4) != 1) 0 else u16(q, readName(q, 12).second)
+    } catch (e: Exception) { 0 }
+
+    /**
+     * 2.4 · Sintetiza una respuesta DNS local para consultas bloqueadas o de
+     * HTTPS(65)/SVCB(64): para consultas A responde 0.0.0.0 (TTL 300) y para
+     * cualquier otro tipo (AAAA, HTTPS, SVCB...) responde NOERROR vacío, para
+     * que el resolvedor no espere y decaiga rápido a IPv4 / SNI visible.
+     * Devuelve null si la consulta no se puede analizar; el llamador conserva
+     * entonces su comportamiento previo (NXDOMAIN sintético).
+     */
+    fun dnsBlockedReply(q: ByteArray): ByteArray? {
+        try {
+            if (q.size < 12 || u16(q, 4) != 1) return null
+            val name = readName(q, 12)
+            val qEnd = name.second + 4
+            if (qEnd > q.size) return null
+            val isA = u16(q, name.second) == 1
+            val out = java.io.ByteArrayOutputStream(qEnd + 16)
+            out.write(q, 0, 2)                                   // ID del cliente
+            out.write(byteArrayOf(0x84.toByte(), 0x00))          // QR=1, RA=1, rcode 0
+            out.write(byteArrayOf(0x00, 0x01))                    // QDCOUNT 1
+            out.write(if (isA) byteArrayOf(0x00, 0x01) else byteArrayOf(0x00, 0x00)) // ANCOUNT
+            out.write(byteArrayOf(0x00, 0x00))                    // NSCOUNT 0
+            out.write(byteArrayOf(0x00, 0x00))                    // ARCOUNT 0 (se omite el EDNS0 del cliente)
+            out.write(q, 12, qEnd - 12)                           // pregunta original
+            if (isA) out.write(byteArrayOf(                      // puntero C00C · A · IN · TTL 300 · 0.0.0.0
+                0xC0.toByte(), 0x0C, 0x00, 0x01, 0x00, 0x01,
+                0x00, 0x00, 0x01, 0x2C, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00))
+            return out.toByteArray()
+        } catch (e: Exception) { return null }
+    }
+
     fun dnsAnswers(b: ByteArray, n: Int): Pair<String, List<String>>? {
         val d = b.copyOf(n); val ips = ArrayList<String>(); var qname = ""
         try {
