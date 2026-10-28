@@ -309,7 +309,7 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             AlertDialog.Builder(this).setTitle("MITM de laboratorio")
-                .setMessage("Objetivo: " + target + "\nSolo pruebas propias o autorizadas y con datos ficticios. Puede romper conexiones. No evita pinning ni certifica fugas. El filtro HTTPS trabaja por dominio/SNI; MITM sigue siendo experimental y no filtra rutas ni cuerpos HTTP.")
+                .setMessage("Objetivo: " + target + "\nSolo pruebas propias o autorizadas y con datos ficticios. Puede romper conexiones. No evita pinning ni certifica fugas. El filtro HTTPS trabaja por dominio/SNI; desde 2.6.0 el MITM filtra rutas de petición HTTP/1.1 con reglas -dominio/ruta (laboratorio, CA necesaria); no inspecciona cuerpos ni respuestas.")
                 .setPositiveButton("Iniciar") { _, _ -> startSelectedCapture(target) }
                 .setNegativeButton("Cancelar", null).show()
             return
@@ -471,7 +471,7 @@ class MainActivity : AppCompatActivity() {
             2 -> {
                 val input=android.widget.EditText(this).apply{setText(NetworkTools.rules.sorted().joinToString("\n"));minLines=5}
                 AlertDialog.Builder(this).setTitle("-bloquear / +permitir")
-                    .setMessage("Una por línea: -dominio.com, +dominio.com, -paquete.app|dominio.com. Gana la regla coincidente más específica; si empatan, permitir. Activa Protección.")
+                    .setMessage("Una por línea: -dominio.com, +dominio.com, -paquete.app|dominio.com. Con MITM TLS activo también rutas: -dominio.com/ruta/* (solo globales; el comodín * al final cubre el resto; sin MITM no aplican). Gana la regla coincidente más específica; si empatan, permitir. Activa Protección.")
                     .setView(input).setPositiveButton("Guardar"){_,_->try{NetworkTools.saveRules(input.text.toString())}catch(e:Exception){dialog("Error",e.message ?: "Error",null)}}.setNegativeButton("Cancelar",null).show()
             }
             3 -> {
@@ -484,8 +484,8 @@ class MainActivity : AppCompatActivity() {
                     }.setNegativeButton("Cancelar",null).show()
             }
             4 -> dialog("Estadísticas",NetworkTools.stats(),null)
-            5 -> dialog("Laboratorio", "Usa dispositivo/emulador de pruebas y datos ficticios. No crea aislamiento automáticamente.\n\nEn una build propia debuggable, referencia network_security_config desde el manifest y usa: <network-security-config><debug-overrides><trust-anchors><certificates src=\"user\" /></trust-anchors></debug-overrides></network-security-config>. No desactives la validación del servidor.\n\nRelease: revisar permisos, HTTP, validación TLS, secretos y eliminar datos de prueba.\n\nEl filtrado HTTPS añadido funciona por SNI cuando el nombre está visible. MITM sigue experimental y no filtra rutas/cuerpos HTTP; un error TLS no demuestra pinning.",null)
-            6 -> dialog("Estado", "Añadido en código: filtrado TCP por SNI TLS antes de reenviar el ClientHello, filtrado HTTP por Host y reglas más específicas, además de DoH/DoT, listas y registro local.\n2.4: lista recomendada (OISD small) en Herramientas; anti-DoH bloquea resolutores cifrados conocidos y el puerto 853 para forzar el DNS del sistema; Bloquear ECH responde vacío a las consultas HTTPS(65)/SVCB(64) y rechaza el ClientHello con ECH; Neutralizar IPv6 enruta v6 al TUN para que no se salte la VPN (destinos solo-v6 quedan inaccesibles durante la captura); las consultas bloqueadas responden 0.0.0.0 (A) o NOERROR vacío (resto).\n2.4.1: oisd.nl retiró /hosts (HTTP 404); la lista recomendada usa el espejo GitHub de OISD con respaldo automático en StevenBlack.\n2.5: lote recomendado de 3 listas fusionadas (OISD small, StevenBlack, HaGeZi Pro) con tolerancia a fallos por lista; ~180.000 dominios bloqueables por DNS/SNI. 2.5.1: ECH suavizado - los ClientHello con ECH ya no se rechazan (causaba reinicios de conexión y páginas que no cargaban); se dejan pasar y se clasifican por el SNI externo, que sigue filtrándose. El filtrado cosmético (ocultar elementos de anuncio dentro de la página) no es posible a nivel VPN: requiere un bloqueador del navegador.\nPendiente: compilación Android y pruebas reales. No es un cortafuegos integral. Anuncios servidos desde el mismo dominio que el contenido (YouTube y similares) no se pueden bloquear por dominio sin romper el servicio. MITM sigue experimental y no filtra rutas ni cuerpos HTTPS. No se certifica ausencia de fugas.",null)
+            5 -> dialog("Laboratorio", "Usa dispositivo/emulador de pruebas y datos ficticios. No crea aislamiento automáticamente.\n\nEn una build propia debuggable, referencia network_security_config desde el manifest y usa: <network-security-config><debug-overrides><trust-anchors><certificates src=\"user\" /></trust-anchors></debug-overrides></network-security-config>. No desactives la validación del servidor.\n\nRelease: revisar permisos, HTTP, validación TLS, secretos y eliminar datos de prueba.\n\nEl filtrado HTTPS añadido funciona por SNI cuando el nombre está visible. MITM sigue experimental; desde 2.6.0 filtra rutas de petición (no cuerpos); un error TLS no demuestra pinning.",null)
+            6 -> dialog("Estado", "Añadido en código: filtrado TCP por SNI TLS antes de reenviar el ClientHello, filtrado HTTP por Host y reglas más específicas, además de DoH/DoT, listas y registro local.\n2.4: lista recomendada (OISD small) en Herramientas; anti-DoH bloquea resolutores cifrados conocidos y el puerto 853 para forzar el DNS del sistema; Bloquear ECH responde vacío a las consultas HTTPS(65)/SVCB(64) y rechaza el ClientHello con ECH; Neutralizar IPv6 enruta v6 al TUN para que no se salte la VPN (destinos solo-v6 quedan inaccesibles durante la captura); las consultas bloqueadas responden 0.0.0.0 (A) o NOERROR vacío (resto).\n2.4.1: oisd.nl retiró /hosts (HTTP 404); la lista recomendada usa el espejo GitHub de OISD con respaldo automático en StevenBlack.\n2.5: lote recomendado de 3 listas fusionadas (OISD small, StevenBlack, HaGeZi Pro) con tolerancia a fallos por lista; ~180.000 dominios bloqueables por DNS/SNI. 2.5.1: ECH suavizado - los ClientHello con ECH ya no se rechazan (causaba reinicios de conexión y páginas que no cargaban); se dejan pasar y se clasifican por el SNI externo, que sigue filtrándose. 2.6.0: laboratorio MITM con filtrado de rutas de petición HTTP/1.1 mediante reglas -dominio.com/ruta (solo dentro del túnel MITM, con CA instalada y app objetivo única; los cuerpos y respuestas no se inspeccionan). El filtrado cosmético (ocultar elementos de anuncio dentro de la página) no es posible a nivel VPN: requiere un bloqueador del navegador.\nPendiente: compilación Android y pruebas reales. No es un cortafuegos integral. Anuncios servidos desde el mismo dominio que el contenido (YouTube y similares) no se pueden bloquear por dominio sin romper el servicio. MITM sigue experimental: filtra rutas de petición (2.6.0) pero no cuerpos ni respuestas HTTPS. No se certifica ausencia de fugas.",null)
             7 -> {
                 if (NetworkTools.savedUrl == null) dialog("Lista", "Primero descarga una lista HTTPS válida.", null)
                 else {
@@ -575,12 +575,12 @@ class MainActivity : AppCompatActivity() {
         sb.append("Protocolo: ").append(f.proto).append("\n")
         sb.append("Subido: ").append(fmt(f.up.get())).append("   Bajado: ").append(fmt(f.down.get())).append("\n")
         sb.append("Duración: ").append((f.last - f.start) / 1000).append(" s\n")
-        if (f.mitm) sb.append("\n⚠ MITM TLS activo: el proxy terminó TLS en ambos extremos y reenvía el tráfico; no inspecciona rutas ni cuerpos HTTP.\n")
+        if (f.mitm) sb.append("\n⚠ MITM TLS activo: el proxy terminó TLS en ambos extremos y reenvía el tráfico; desde 2.6.0 aplica reglas de ruta a las peticiones; no inspecciona cuerpos.\n")
         sb.append("\nLo que ve el DPI:\n")
         val notes = synchronized(f.notes) { ArrayList(f.notes) }
         if (notes.isEmpty()) sb.append("• (nada que decir de esta conexión)\n")
         for (n in notes) sb.append("• ").append(n).append("\n")
-        sb.append("\nLímites: sin MITM, el contenido TLS va cifrado. El filtrado HTTPS normal usa el dominio SNI visible; ECH puede ocultarlo. Incluso con MITM, esta versión no filtra rutas ni cuerpos HTTP y no es compatible con todas las apps.")
+        sb.append("\nLímites: sin MITM, el contenido TLS va cifrado. El filtrado HTTPS normal usa el dominio SNI visible; ECH puede ocultarlo. Incluso con MITM, esta versión solo filtra rutas de petición (2.6.0), no cuerpos ni respuestas, y no es compatible con todas las apps.")
         dialog("Detalle de la conexión", sb.toString(), null)
     }
 
