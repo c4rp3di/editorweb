@@ -1,25 +1,28 @@
-# NetLens 2.3.1-debug — proyecto Android para Fusion
+# NetLens 2.3.2-fix — proyecto Android para Fusion
 
-NetLens es un proyecto didáctico de VPN local para observar flujos IPv4 TCP/UDP, atribuirlos a aplicaciones cuando Android lo permite y aplicar reglas de dominio basadas en SNI visible o `Host` en HTTP sin cifrar. Incluye controles para QUIC, DNS y un MITM TLS experimental.
+NetLens es un proyecto didáctico de VPN local para observar flujos IPv4 TCP/UDP, atribuirlos a aplicaciones cuando Android lo permite y aplicar reglas de dominio basadas en SNI visible o `Host` en HTTP sin cifrar. Incluye controles para QUIC, DNS (DoH/DoT), lista de dominios por suscripción HTTPS, historial de sesiones y un MITM TLS experimental.
 
-**Estado de esta entrega:** correcciones estáticas y pruebas aisladas de Kotlin superadas; **no es un APK validado**. En este entorno no hay Android SDK ni Gradle ejecutable, así que no se pudo hacer el build Android completo ni probar `VpnService.protect()` en el móvil donde apareció el error.
+**Estado de esta entrega:** corrección de los errores que impedían compilar y del fallo que dejaba sin tráfico al activar la VPN. Queda pendiente la validación en dispositivo de la matriz de pruebas (ver abajo); no es un APK certificado.
 
-## Diagnóstico local nuevo
+## Errores corregidos en 2.3.2
 
-En **Herramientas → Depuración: ver / copiar log** se puede consultar el estado actual de VPN, MITM, QUIC, reglas y DNS, junto con hasta 500 eventos recientes. El botón **Copiar log** copia el diagnóstico al portapapeles; **Borrar log** vacía el búfer en memoria. Registra errores de inicio, lector TUN, `protect()` TCP/UDP, conexión upstream, clasificación TLS, bloqueos por reglas, UDP y QUIC.
+1. **El proyecto no compilaba**: `NetworkTools.kt`, `DebugLog.kt`, `SessionHistory.kt` y `ListUpdateWorker.kt` se usaban en toda la app pero no estaban en el proyecto. Se han vuelto a incluir, con `NetworkTools.autoUpdate`, `savedUrl` y `lastUpdated`, que el resto del código ya usaba sin estar definidos.
 
-El log es local y acotado. No registra el contenido de los paquetes, pero sí puede incluir IPs de destino, dominios y nombres de paquetes; revísalo antes de compartirlo. Es un búfer en memoria y se pierde si Android mata el proceso.
+2. **Con la VPN activa no funcionaban páginas ni apps** (causa raíz): Android crea el descriptor nativo de un `Socket` de forma perezosa, y `VpnService.protect()` sobre un socket sin descriptor devuelve `false`. Al tratar ese `false` como error fatal, **todas** las conexiones TCP se abortaban (y con ellas la navegación). Ahora:
+   - Los sockets TCP se crean con `Socket()` y se **enlazan a un puerto efímero antes de `protect()`**, garantizando que exista el descriptor.
+   - Los sockets UDP usan `DatagramSocket()`, que crea el descriptor en el constructor.
+   - `protect()` se reintenta hasta 3 veces (el binder puede fallar de forma transitoria).
+   - Si aun así no aplica, **no se aborta el tráfico**: el ámbito de la VPN (`addAllowedApplication`/`addDisallowedApplication`, verificado al inicio con error visible si falla) ya excluye al propio NetLens del TUN, por lo que un socket sin marcar no puede recursar hacia el túnel. El aviso queda registrado en el log de depuración.
 
-## Correcciones de esta revisión
+3. **DNS con respuestas paralelas perdidas**: el receptor UDP cortaba tras la primera respuesta DNS. El resolvedor de Android lanza las consultas A y AAAA en paralelo desde el mismo puerto, así que la segunda respuesta legítima se descartaba. Ahora el receptor DNS escucha hasta el timeout de inactividad (5 s).
 
-- Las conexiones TCP salientes se crean a través de `SocketChannel.open()` y las UDP a través de `DatagramChannel.open()`. El descriptor nativo se crea antes de llamar a `VpnService.protect()`, y la llamada se hace antes de `connect()` en los sockets remotos.
-- La conexión interna hacia `127.0.0.1:8888` en modo MITM no llama a `protect()`: es tráfico de loopback hacia el proxy local, no una conexión al servidor remoto.
-- Si `protect()` devuelve `false`, NetLens registra si Android detecta que el permiso VPN no está activo/revocado o si rechaza el descriptor pese a que el permiso parece activo. No se omite la protección ni se sigue por una ruta potencialmente recursiva.
-- MITM enlaza el socket servidor de forma síncrona antes de iniciar el lector TUN. Si el listener no puede arrancar, el inicio falla y la interfaz muestra el motivo.
-- Los cambios de MITM durante una captura se rechazan: hay que detener y volver a iniciar para evitar que el estado visual difiera del proxy real.
-- El proxy ya no corta voluntariamente una sesión después de 180 segundos ni aplica un timeout de 20 segundos a las lecturas de datos una vez terminado el handshake. Al detenerlo cierra las conexiones activas.
-- La selección de apps no oculta errores. Si la app elegida no está instalada o el ámbito VPN no puede configurarse, el servicio no arranca con el ámbito predeterminado por accidente.
-- Una petición HTTP completa sin `Host` (posible en HTTP/1.0) se reenvía con una nota en vez de quedarse retenida esperando el encabezado opcional.
+4. **Ventana TCP sin escalar (RFC 7323)**: el SYN del cliente anuncia un factor de escala que la pila no aplicaba, con lo que la ventana efectiva quedaba mal calculada (ralentización o atascos en descargas largas). Ahora se parsea la opción window scale del SYN y se aplica a todos los segmentos posteriores.
+
+5. El socket remoto del MITM y el socket DoT siguen el mismo patrón (bind → protect → connect) y no abortan la conexión si `protect()` no aplica.
+
+## Diagnóstico local
+
+En **Herramientas → Depuración: ver / copiar log** se consulta el estado actual de VPN, MITM, QUIC, reglas y DNS, junto con hasta 500 eventos recientes: errores de inicio, lector TUN, `protect()` TCP/UDP, conexión upstream, clasificación TLS, bloqueos por reglas, UDP y QUIC. No registra payloads; sí puede incluir IPs, dominios y paquetes. Revísalo antes de compartirlo.
 
 ## Prueba del filtro por dominio
 
@@ -27,39 +30,38 @@ El log es local y acotado. No registra el contenido de los paquetes, pero sí pu
 2. Mantén inicialmente **MITM TLS** y **Bloquear QUIC** desactivados.
 3. En **Herramientas → Protección**, activa las reglas y añade una regla como `-example.com`.
 4. Inicia la captura y prueba solo con una aplicación/dominio de laboratorio bajo tu control.
-5. Comprueba que un SNI visible de `example.com` se bloquea, `notexample.com` no se bloquea por coincidencia parcial, y una regla más específica como `+safe.example.com` permite ese subdominio. Si dos reglas cubren el mismo dominio, la regla por paquete tiene prioridad sobre la regla global.
+5. Comprueba que un SNI visible de `example.com` se bloquea, `notexample.com` no se bloquea por coincidencia parcial, y una regla más específica como `+safe.example.com` permite ese subdominio. Si dos reglas cubren el mismo dominio, la regla por paquete tiene prioridad sobre la global.
 6. Desactiva la regla y verifica que el tráfico vuelve a pasar.
 
 ## Significado de los controles
 
 - **Todas las apps / selector:** define qué aplicaciones entran al túnel. Si seleccionas una app concreta, las demás usan su conexión de red normal.
 - **Bloquear QUIC:** descarta UDP al puerto 443. La app puede intentar TCP como alternativa, pero depende de su implementación.
-- **MITM TLS:** termina y vuelve a establecer TLS para una app objetivo de laboratorio. Requiere confiar en una CA adecuada; no funciona con todas las apps y no elude certificate pinning.
+- **MITM TLS:** termina y vuelve a establecer TLS para una app objetivo de laboratorio. Requiere confiar en la CA local; no funciona con todas las apps y no elude certificate pinning.
 - **Ocultar DNS:** solo oculta filas DNS en la vista en vivo; no cifra por sí mismo el DNS.
 - **Pausar:** pausa la actualización de la vista, no la captura.
 - **Protección:** reglas/listas de dominio. No es lo mismo que iniciar la VPN.
+- **DoH/DoT:** resuelve por DNS cifrado (Cloudflare) las consultas UDP/53 capturadas; no afecta al DNS cifrado interno de otras apps. Sin fallback silencioso al DNS en claro.
+- **Actualización periódica:** WorkManager re-descarga la lista HTTPS cada ~24 h si hay una suscripción válida.
 
 ## Límites importantes
 
 - **IPv6 no se inspecciona en esta versión.** La ruta de VPN configurada es IPv4; no debe tratarse como cortafuegos integral ni como garantía de ausencia de fugas.
-- La implementación de TCP en espacio de usuario sigue siendo simplificada: no tiene una cola completa de retransmisión de los datos enviados al cliente ni un reensamblado fiable de segmentos fuera de orden en todos los casos.
-- Se descartan paquetes IPv4 fragmentados y datagramas UDP demasiado grandes para el formato de salida actual. Los flujos que dependan de ellos pueden fallar.
+- La implementación de TCP en espacio de usuario sigue siendo simplificada: no tiene cola completa de retransmisión de los datos enviados al cliente ni reensamblado fiable de segmentos fuera de orden en todos los casos.
+- Se descartan paquetes IPv4 fragmentados y datagramas UDP demasiado grandes para el formato de salida actual.
 - El bloqueo HTTPS normal trabaja por hostname/SNI visible, no por URL, ruta, cabeceras ni cuerpo cifrado. ECH o SNI ausente puede ocultar el nombre real.
 - El búfer de clasificación se limita a 64 KiB; si se supera, se reenvía sin clasificar para evitar memoria ilimitada.
-- DoH/DoT fallidos no tienen fallback silencioso al DNS en claro; el error se registra. La disponibilidad depende de la red y del proveedor configurado.
+- DoH/DoT fallidos no tienen fallback silencioso al DNS en claro; el error se registra.
 - MITM sigue siendo experimental; úsalo solo con apps/servidores propios o con autorización y datos ficticios.
 
-## Comprobaciones locales ejecutadas
+## Matriz mínima de validación en dispositivo
 
-- Compilación JVM aislada de `Dpi.kt`, `Store.kt`, `Engine.kt` y `NetworkTools.kt` con stubs mínimos de Android.
-- 2.000 entradas aleatorias al parser TLS sin excepción.
-- Pruebas aisladas de reglas de dominio: dominio exacto, subdominios, frontera contra `notexample.com`, especificidad y alcance por paquete.
-- Pruebas de control de `protect()` simulado como éxito y como fallo para TCP y UDP; se comprobó que el fallo no se silencia.
-- Compilación aislada de `MitmProxy.kt` con stubs de Android y BouncyCastle.
-- 16 comprobaciones estáticas de secuenciación, configuración y estado.
-- Prueba del registro de depuración: sanitización de saltos de línea, límite de 500 eventos y borrado.
-- Pruebas adicionales del relé TCP: ClientHello TLS permitido/bloqueado repartido entre segmentos, HTTP Host dividido/bloqueado, HTTP/1.0 completo sin Host, protocolo desconocido sin bloqueo y rama de bloqueo QUIC UDP/443.
-- Prueba de precedencia que confirma que una regla específica por paquete gana frente a una regla global para el mismo dominio.
-- Prueba de ciclo de vida MITM en JVM: `start()` devuelve con el puerto loopback enlazado y `stop()` cierra el listener y el socket de prueba.
-
-La compilación del motor/MITM en Kotlin/JVM con stubs y las pruebas del relé no reproducen el kernel, el descriptor real de Android ni la red de un dispositivo. Estas pruebas no validan el comportamiento de Android real. Consulta `VALIDACION.md` antes de considerar este proyecto una build funcional.
+| Caso | Criterio mínimo de aprobación |
+|---|---|
+| VPN detenida | Wi-Fi/datos y apps funcionan con normalidad. |
+| Todas las apps, reglas off, MITM off | HTTP, HTTPS y DNS funcionan; ninguna conexión abortada. |
+| Una sola app seleccionada | Esa app se captura; las demás quedan fuera del túnel. |
+| Reglas on/off | `-example.com` bloquea por SNI/Host visible; `+sub` permite; sin coincidencia parcial. |
+| DNS normal / DoH / DoT | Las consultas reciben respuesta en cada modo; el error del proveedor queda visible. |
+| MITM en app de laboratorio | Con la CA confiada, la conexión se descifra; con pinning, falla como se espera. |
+| Detener/revocar/iniciar | Red se recupera; el ámbito de captura no cambia en silencio. |
