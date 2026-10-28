@@ -1,23 +1,24 @@
-NetLens 2.2-review — 28/10/2026
-Estado: fuente mejorada con pruebas aisladas; NO es un APK validado.
+NetLens 2.3.0-audit — candidato para validación en dispositivo
 
-Cambios relevantes:
-- Dpi.kt: parser ClientHello con comprobación de límites, soporte de fragmentación TCP/varios registros TLS, SNI normalizado, ALPN, TLS 1.3 y señal ECH.
-- Engine.kt: búfer inicial de salida hasta clasificar el dominio, bloqueo por SNI antes de encolar los bytes iniciales, filtrado HTTP por Host y fallo explícito si VpnService.protect devuelve false. Búfer acotado a 64 KiB.
-- NetworkTools.kt: regla coincidente más específica, coincidencia por límites de dominio y soporte de reglas por paquete.
-- MitmProxy.kt: toma SNI desde ExtendedSSLSession / el key manager y activa identificación HTTPS al verificar el servidor remoto.
-- MainActivity.kt: avisos corregidos para no afirmar que puede verificarse la instalación de la CA ni que MITM inspecciona rutas/cuerpos.
-- Añadido app/src/test/java/com/lab/netlens/DpiTlsTest.kt para regresión de SNI/TLS.
+Cambios frente a 2.2.2:
+- Los sockets TCP salientes se obtienen de SocketChannel.open() y los UDP de DatagramChannel.open(), creando el descriptor nativo antes de VpnService.protect() y llamando a protect antes de connect(). No se usa bind() como supuesto remedio.
+- Los fallos de protect() distinguen permiso VPN ausente/revocado de descriptor rechazado. El código no permite seguir por una ruta no protegida para evitar bucles hacia el TUN.
+- MITM crea y enlaza el listener de forma síncrona antes de que empiece a procesarse el TUN. Los errores de bind detienen el inicio y se muestran en la UI.
+- El interruptor MITM no cambia durante una captura; hay que detener y reiniciar para que los componentes coincidan con la opción visible.
+- Se elimina el límite arbitrario de 180 segundos en la sesión proxy, se quita el timeout de lectura durante la transferencia TLS y se cierran sockets activos al detener el proxy.
+- La selección de ámbito por aplicación deja de ocultar errores: una app ausente o una configuración inválida impide iniciar la VPN en lugar de arrancar silenciosamente con un ámbito diferente.
+- Se muestra el motivo de fallo de inicio en el estado de la aplicación.
+- Una petición HTTP/1.0 completa sin Host ya no se queda retenida esperando un encabezado opcional.
+- Se mejora el cierre del listener MITM frente a una carrera entre `accept()` y `stop()`; el hilo de aceptación se espera y se drenan los sockets tras detenerlo.
+- Las reglas por aplicación ganan frente a las globales cuando ambas coinciden en el mismo dominio; se añade una prueba para esta precedencia.
 
-Pruebas ejecutadas en este entorno:
-- 5 pruebas del parser TLS ejecutadas mediante un arnés Kotlin local: PASS (SNI/ALPN/TLS 1.3, entrada parcial, varios registros, ECH y fuzz de 2.000 entradas aleatorias).
-- Prueba aislada de Engine.kt con stubs de Android: PASS (SNI bloqueado nunca entra en la cola de salida; ClientHello permitido y dividido se libera en orden completo).
-- Prueba aislada de NetworkTools.kt con stubs de SharedPreferences: PASS (subdominios, prioridad de regla específica, alcance por paquete, límites de coincidencia).
-- MitmProxy.kt compila de forma aislada con stubs de Android y BouncyCastle: PASS.
-- AndroidManifest.xml, strings.xml y themes.xml parseables: PASS.
+Cosas que NO se declaran corregidas ni verificadas:
+- No se ha hecho build Android/Gradle en este entorno porque no hay Android SDK/Gradle instalados.
+- No se ha probado protect() en el dispositivo del usuario. El error que se ve ahora incluirá si Android cree que el permiso ha sido revocado o si rechaza el descriptor pese a que el permiso parece activo.
+- La pila TCP manual todavía no tiene una implementación completa de retransmisión de datos ascendentes ni un buffer de reordenación robusto.
+- IPv6 no es inspeccionado; la ruta instalada cubre IPv4. No afirmar filtrado integral ni ausencia de fugas.
+- Se descartan fragmentos IPv4 y datagramas UDP demasiado grandes; requieren trabajo específico.
+- MITM sigue siendo experimental, solo para apps y servidores de laboratorio propios/autorizados; no filtra rutas ni contenido HTTP de forma general y algunas apps fallan por pinning/confianza de CA.
+- QUIC bloqueado significa descartar UDP/443; el fallback a TCP depende de cada app.
 
-No verificado:
-- Compilación Gradle completa, porque este entorno no tiene Gradle ni Android SDK instalados.
-- APK, funcionamiento en dispositivo/emulador, compatibilidad con cada proveedor TLS, rendimiento, fugas reales y operación integral de MITM.
-- IPv6 no está implementado en el motor; por ello el tráfico IPv6 puede evitar el filtrado y NetLens no garantiza un cortafuegos integral.
-- ECH puede ocultar el dominio real. El filtro HTTPS genérico es por SNI visible; no filtra rutas, parámetros ni cuerpos HTTP. MITM sigue siendo experimental y no supera certificate pinning.
+No se ha modificado Fusion-21.html.
