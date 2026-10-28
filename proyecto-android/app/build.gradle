@@ -26,7 +26,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode 6
-        versionName "v16.0"
+        versionName "v17.0"
     }
 
     compileOptions {
