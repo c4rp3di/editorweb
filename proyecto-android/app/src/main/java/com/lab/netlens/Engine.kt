@@ -204,16 +204,34 @@ class TcpConn(
         val http = Dpi.http(a)
         if (http != null) {
             val host = http.host?.substringBefore(':')?.trim()?.trimEnd('.')?.lowercase(java.util.Locale.ROOT)
-            if (host == null) return false
+            if (host == null) {
+                // An HTTP request line may arrive before its Host header. Keep
+                // buffering only while this still looks like an HTTP request.
+                return false
+            }
             if (NetworkTools.deny(flow.stat.pkg, host)) {
                 flow.noteHost(host)
                 flow.notes.add("⛔ HTTP bloqueado por Host: $host")
                 NetworkTools.record(flow.stat.pkg)
                 return true
             }
+            dpiDone = true
+            Dpi.inspectOut(flow, a, sPort)
+            return false
         }
 
-        dpiDone = Dpi.inspectOut(flow, a, sPort)
+        // Do not hold arbitrary TCP protocols waiting for the DPI classifier.
+        // Only a possible partial HTTP method is worth buffering; TLS candidates
+        // are handled above by Dpi.tls(). Unknown protocols are passed through.
+        val prefix = String(a, 0, minOf(a.size, 16), Charsets.US_ASCII)
+        val methods = listOf("GET ", "POST ", "PUT ", "HEAD ", "DELETE ", "OPTIONS ", "PATCH ", "CONNECT ")
+        val possiblePartialHttp = methods.any { it.startsWith(prefix) } &&
+            methods.none { prefix.startsWith(it) }
+        if (possiblePartialHttp) return false
+
+        dpiDone = true
+        Dpi.inspectOut(flow, a, sPort)
+        if (a.size < 8) flow.notes.add("DPI: protocolo no reconocido; se reenvía sin bloquear")
         return false
     }
 
