@@ -34,3 +34,4 @@ object Lab {
         "Probar la app en un perfil aislado antes de publicar."
     )
 }
+
