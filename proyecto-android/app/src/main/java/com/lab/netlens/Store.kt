@@ -47,6 +47,11 @@ object Store {
     @Volatile var lastRuntimeError: String? = null
     @Volatile var blockQuic = false
     @Volatile var mitmEnabled = false
+    /** 2.4 · Conmutadores de sesión (mismo modelo que blockQuic). */
+    @Volatile var rejectEch = false
+    @Volatile var blockDoh = false
+    /** Neutralizar IPv6: enrutar v6 al TUN para que no se salte la VPN. */
+    @Volatile var blockIpv6 = true
 
     fun app(pkg: String, label: String): AppStat = apps.getOrPut(pkg) { AppStat(pkg, label) }
     fun newFlow(stat: AppStat, proto: String, ip: String, port: Int): Flow {
