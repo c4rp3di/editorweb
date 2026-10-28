@@ -232,14 +232,16 @@ class TcpConn(
                 NetworkTools.record(flow.stat.pkg)
                 return true
             }
-            // 2.4 · Anti-ECH estricto: sin ECH el SNI queda visible y filtrable.
-            // El sitio reintenta sin ECH (el modo estricto era el plan B de
-            // «Bloquear ECH»; el primario es cortar las consultas 65/64).
+            // 2.5.1 · Anti-ECH suave: el filtro por dominio ya se aplicó
+            // arriba usando el SNI externo (visible incluso con ECH) y las
+            // consultas 65/64 se responden vacías. Rechazar el ClientHello
+            // causaba reinicios de conexión (ERR_CONNECTION_RESET) que
+            // impedían cargar sitios con ECH; ahora se deja pasar y se
+            // clasifica por el SNI externo, anotando que el nombre interno
+            // puede ir oculto.
             if (Store.rejectEch && tls.ech) {
-                DebugLog.log("DPI", "ECH rechazado host=${host ?: "oculto"} app=${flow.stat.pkg}")
-                flow.notes.add("⛔ ECH rechazado: el SNI debe ir visible para poder filtrarlo")
-                NetworkTools.record(flow.stat.pkg)
-                return true
+                DebugLog.log("DPI", "ECH presente (se deja pasar, filtro por SNI externo) host=${host ?: "oculto"} app=${flow.stat.pkg}")
+                flow.notes.add("🕶 ECH presente: se filtra por el SNI externo (${host ?: "oculto"}); el nombre interno puede ir oculto")
             }
             Dpi.inspectOut(flow, a, sPort)
             DebugLog.log("DPI", "TLS clasificado app=${flow.stat.pkg} host=${host ?: "SNI no visible"} destino=${flow.dstIp}:${sPort}")
