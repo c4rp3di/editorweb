@@ -1,55 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Sin INTERNET a propósito: La Bóveda no puede enviar nada fuera del teléfono. -->
-    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-
-    <!-- Para elegir la app vinculada a una contraseña sin pedir QUERY_ALL_PACKAGES. -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
-    </queries>
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"
+        tools:ignore="ScopedStorage" />
 
     <application
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false"
         android:label="@string/app_name"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.VigiaCore">
+        android:theme="@style/Theme.NetLens">
 
         <activity
-            android:name=".DesbloqueoActivity"
-            android:exported="true"
-            android:windowSoftInputMode="adjustResize">
+            android:name=".MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".PrincipalActivity"
-            android:exported="false" />
-
-        <activity
-            android:name=".EditarCredencialActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
-
         <service
-            android:name=".BovedaAutofillService"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:permission="android.permission.BIND_AUTOFILL_SERVICE">
+            android:name=".NetLensVpnService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>
-                <action android:name="android.service.autofill.AutofillService" />
+                <action android:name="android.net.VpnService" />
             </intent-filter>
-            <meta-data
-                android:name="android.autofill"
-                android:resource="@xml/autofill_service" />
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Local VPN used to inspect the device's own network traffic for educational purposes" />
         </service>
-
     </application>
-
 </manifest>
