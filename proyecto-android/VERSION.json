@@ -1,0 +1,43 @@
+{
+  "version": "2.2-review-20261028",
+  "input_archive_sha256": "88e0a19de4d89ffae136321e440dd7021f2d9d8e0cad01aadbc46797b28b9cc8",
+  "package_status": "source_review_only_not_device_validated",
+  "files_sha256": {
+    "ESTADO-Y-CAMBIOS.txt": "54139d4f3837695f0ca4680d2e03512edaf29212f14753cbe6127675ae52a8ef",
+    "NetLens-2.1-fusion.txt": "3ec53aae61017ecb67f58e04a7b4cdeaeaa559b9afe93a52001ad878c4108610",
+    "README.md": "657ccd3523aa093f3767473200265512cf0d74460ec1fabaa270012d1d4b6b02",
+    "VALIDACION.md": "514c0814bf555f398bd32a7a75b03e9f5beee82a13bbd0f58b00f9be0a6fe652",
+    "app/build.gradle": "da0862248afcb497eb5334cce8043b39aefb45631f052253c250c2f140a1378e",
+    "app/src/main/AndroidManifest.xml": "59e2ffd75f9b722dcba2f269d877e4b6c6d169b9ce1158c506b9ab30595a7be0",
+    "app/src/main/java/com/lab/netlens/CaManager.kt": "32d0f3881ae743b598d251ebf78bf7f50431e38658b0f6825aaa638d1536bdb8",
+    "app/src/main/java/com/lab/netlens/Dpi.kt": "0cbd64b74d921e4eb038107624949f9108798b7c5dd18653d6588dcf22bead1c",
+    "app/src/main/java/com/lab/netlens/Engine.kt": "eec01b27cf9c40a7e7b42b6eb201bed86f82ace093bc149101d6a3aab1e942f4",
+    "app/src/main/java/com/lab/netlens/Export.kt": "67faa7f7afb0c2bd452cbdc6fef9aebf13c4d2a5f6995884a5c62f019d44038e",
+    "app/src/main/java/com/lab/netlens/IpInfo.kt": "78ca6929157574a646c59eff3c6e7822016cfa523df8c3403a3c7903e2ae6684",
+    "app/src/main/java/com/lab/netlens/Lessons.kt": "8450440d116823a2bfc716bb07f15a08d6c2936925047fbcf69b7eddc6602057",
+    "app/src/main/java/com/lab/netlens/ListUpdateWorker.kt": "7eb3b68ff36a56ab09699fc0e0bd826589bdfdf046be5fc44c1d8c807e81972d",
+    "app/src/main/java/com/lab/netlens/MainActivity.kt": "32c8ae8603a41f2e210e986309db550ef93bde80d1c74c236108ebfed9cf69ad",
+    "app/src/main/java/com/lab/netlens/MitmProxy.kt": "0ca265d896a1cd8892f64854243d016e9be13bc34503d6b082a9e981127858b1",
+    "app/src/main/java/com/lab/netlens/NetLensVpnService.kt": "78d21f4fd63691875c46513f748fcdd3e9e5add963e1baeaaa2cb034c848d20c",
+    "app/src/main/java/com/lab/netlens/NetworkTools.kt": "8f04cea59bec9debc28f7ea94fae653ba4b2d6d0651d277b358330acf02a5861",
+    "app/src/main/java/com/lab/netlens/Perms.kt": "d059c175a47dd1d564bb2094f0895030a832cfb55d10dad0b9a64137358841eb",
+    "app/src/main/java/com/lab/netlens/SessionHistory.kt": "be9662545091e586206e014eb3ebdbe52b0bcfa1a7c6a1b6f63765b88054ef03",
+    "app/src/main/java/com/lab/netlens/Store.kt": "77d086acb6f1a7192169dc651270d8348f5c2b4b7dd5cd8c52a3f47f8fa0b04f",
+    "app/src/main/res/values/strings.xml": "222e89ad47a4e3a92c09d6beb0ff45e7336d868255be781535ea846c8e525537",
+    "app/src/main/res/values/themes.xml": "bf36437aa7ee399fee0f87498c29eae6263a3170fba43fc3d1ff93639966dbd1",
+    "app/src/test/java/com/lab/netlens/DpiTlsTest.kt": "b0454672f7197ab557a0bc51b75ea900508af5fcc2b0b056b2ed1c0a209977c9",
+    "build.gradle": "ce06f54f756c6231b6afb679d7cfc184409287e70f17f57ed28cd16b5ee68172",
+    "gradle.properties": "87279eac0ca504f3e94c25b2d90a9afd93527e6cb08be143705be9910373d2f3",
+    "settings.gradle": "07838d8fc5fea7be1b3e51d4576254c7fafb41385e2e24b7f96edafe0d9f078a"
+  },
+  "checks": [
+    "Dpi.kt, Store.kt, Engine.kt, NetworkTools.kt compiled with kotlinc 1.9.0 and minimal Android stubs",
+    "Five DpiTlsTest cases executed in local Kotlin harness: PASS",
+    "SNI block / allowed fragmented ClientHello engine relay test: PASS",
+    "Domain-rule precedence and subdomain matching test: PASS",
+    "MitmProxy.kt compiled with Android/BouncyCastle stubs: PASS",
+    "AndroidManifest.xml, strings.xml, themes.xml parsed: PASS",
+    "Full Android Gradle build not run: Gradle and Android SDK are unavailable in the environment",
+    "No APK produced; no physical device/emulator or IPv6 leak tests performed"
+  ]
+}
