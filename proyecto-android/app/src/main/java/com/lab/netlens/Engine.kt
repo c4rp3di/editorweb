@@ -232,6 +232,15 @@ class TcpConn(
                 NetworkTools.record(flow.stat.pkg)
                 return true
             }
+            // 2.4 · Anti-ECH estricto: sin ECH el SNI queda visible y filtrable.
+            // El sitio reintenta sin ECH (el modo estricto era el plan B de
+            // «Bloquear ECH»; el primario es cortar las consultas 65/64).
+            if (Store.rejectEch && tls.ech) {
+                DebugLog.log("DPI", "ECH rechazado host=${host ?: "oculto"} app=${flow.stat.pkg}")
+                flow.notes.add("⛔ ECH rechazado: el SNI debe ir visible para poder filtrarlo")
+                NetworkTools.record(flow.stat.pkg)
+                return true
+            }
             Dpi.inspectOut(flow, a, sPort)
             DebugLog.log("DPI", "TLS clasificado app=${flow.stat.pkg} host=${host ?: "SNI no visible"} destino=${flow.dstIp}:${sPort}")
             if (host == null) flow.notes.add("TLS: SNI no visible; este dominio no se puede filtrar por nombre")
@@ -338,6 +347,15 @@ class Engine(
     private val udp = ConcurrentHashMap<String, UdpCtx>()
     private val uidCache = ConcurrentHashMap<Int, AppStat>()
     @Volatile private var alive = true
+    @Volatile private var nonV4Seen = false
+
+    /** 2.4 · Aviso único: el motor solo procesa IPv4; lo demás se descarta. */
+    private fun noteNonV4Seen() {
+        if (!nonV4Seen) {
+            nonV4Seen = true
+            DebugLog.log("VPN", "Paquete no IPv4 recibido por el TUN: se descarta (motor solo IPv4). Apps dual-stack: decaerán a IPv4; destinos solo-v6 quedan inaccesibles mientras dure la captura.")
+        }
+    }
 
     init { timer.scheduleWithFixedDelay({ janitor() }, 20, 20, TimeUnit.SECONDS) }
     // 2.3.2 · protect() en capas, sin romper el tráfico:
@@ -401,7 +419,7 @@ class Engine(
 
     fun handle(b: ByteArray, n: Int) {
         if (n < 20) return
-        if (((b[0].toInt() shr 4) and 0xF) != 4) return
+        if (((b[0].toInt() shr 4) and 0xF) != 4) { noteNonV4Seen(); return }
         val ihl = (Pkt.u8(b, 0) and 0xF) * 4
         if (ihl < 20 || n < ihl) return
         val total = Pkt.u16(b, 2)
@@ -471,6 +489,13 @@ class Engine(
                     NetworkTools.record(stat.pkg);flow.notes.add("Bloqueado por reglas");flow.closed=true
                     write(Pkt.tcp(dst,src,dp,sp,0,seq+1,Pkt.RST or Pkt.ACK,0,null,0,0,0));return
                 }
+                // 2.4 · Anti-DoH: DoT directo (TCP 853) se rechaza con RST
+                // para que la app decaiga rápido al DNS del sistema (via VPN).
+                if (Store.blockDoh && dp == 853) {
+                    DebugLog.log("REGLAS", "BLOQUEO DoT 853 app=${stat.pkg} destino=${Pkt.ipStr(b,16)}:$dp")
+                    NetworkTools.record(stat.pkg);flow.notes.add("⛔ DoT (853) bloqueado: se fuerza el DNS del sistema (via VPN)");flow.closed=true
+                    write(Pkt.tcp(dst,src,dp,sp,0,seq+1,Pkt.RST or Pkt.ACK,0,null,0,0,0));return
+                }
                 val conn = TcpConn(this, key, src, dst, sp, dp, seq, flow, synWindowScale(b, t, doff))
                 tcp[key] = conn; conn.begin()
             } else if (!isRst) {
@@ -499,13 +524,27 @@ class Engine(
         val payloadEarly = b.copyOfRange(ihl + 8, ihl + 8 + dlen)
         val pkgStat=appFor(17,src,sp,dst,dp)
         val hostEarly=if(dp==53) Dpi.dnsQuery(payloadEarly) else Store.dns[Pkt.ipStr(b,16)]
+        // 2.4 · Anti-DoH: UDP 853 (DoT) se descarta para no bypassar la VPN.
+        if (Store.blockDoh && dp == 853) { DebugLog.log("REGLAS", "UDP 853 (DoT) descartado app=${pkgStat.pkg} destino=${Pkt.ipStr(b,16)}"); return }
         if(NetworkTools.deny(pkgStat.pkg,hostEarly)) {
             NetworkTools.record(pkgStat.pkg)
             if(dp==53 && payloadEarly.size>=12){
-                val reply=payloadEarly.copyOf();reply[2]=((reply[2].toInt() and 1) or 128).toByte();reply[3]=0x83.toByte()
-                for(p in 6..11)reply[p]=0
-                write(Pkt.udp(dst,src,dp,sp,reply,0,reply.size))
+                // 2.4 · A -> 0.0.0.0 (fallo rápido); resto -> NOERROR vacío.
+                val ok=Dpi.dnsBlockedReply(payloadEarly)
+                if(ok!=null){ DebugLog.log("REGLAS","DNS bloqueado (0.0.0.0/vacía) host=${hostEarly ?: "?"} app=${pkgStat.pkg}"); write(Pkt.udp(dst,src,dp,sp,ok,0,ok.size)) }
+                else { val reply=payloadEarly.copyOf();reply[2]=((reply[2].toInt() and 1) or 128).toByte();reply[3]=0x83.toByte()
+                    for(p in 6..11)reply[p]=0
+                    write(Pkt.udp(dst,src,dp,sp,reply,0,reply.size)) }
             };return
+        }
+        // 2.4 · Anti-ECH: HTTPS(65)/SVCB(64) entregan la configuración ECH.
+        // Responder NOERROR vacío evita que el ClientHello la lleve y el SNI
+        // quede visible (filtrable). Las apps reintentan como en DNS clásico.
+        if (dp == 53 && Store.rejectEch && payloadEarly.size >= 12) {
+            val qt = Dpi.dnsQType(payloadEarly)
+            if (qt == 64 || qt == 65) {
+                Dpi.dnsBlockedReply(payloadEarly)?.let { reply -> write(Pkt.udp(dst,src,dp,sp,reply,0,reply.size)); return }
+            }
         }
         if(dp==53 && NetworkTools.dnsMode!="normal") {
             val flow=Store.newFlow(pkgStat,"DNS·"+NetworkTools.dnsMode,Pkt.ipStr(b,16),dp)
