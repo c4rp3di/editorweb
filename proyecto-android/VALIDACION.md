@@ -1,10 +1,14 @@
-# Validación previa a Android — NetLens 2.3.0-audit
+# Validación previa a Android — NetLens 2.3.1-debug
 
 Fecha: 28/10/2026
 
 ## Estado
 
 **Candidato de código revisado; no es APK validado.** El precheck local pasó. No hay Gradle ejecutable ni Android SDK en el entorno, por lo que no se ha hecho una compilación Android completa ni una prueba real de la VPN.
+
+## Diagnóstico añadido
+
+La opción **Herramientas → Depuración: ver / copiar log** enseña un estado resumido y eventos recientes de VPN, `protect()`, conexión TCP upstream, clasificación TLS, reglas, UDP y QUIC. **Copiar log** usa el portapapeles; **Borrar log** vacía el búfer. El búfer está limitado a 500 eventos y es solo en memoria. Puede contener IPs, dominios y nombres de paquetes, pero no payloads.
 
 ## Pruebas ejecutadas en este entorno
 
@@ -17,7 +21,8 @@ Fecha: 28/10/2026
 7. Se probó la rama UDP/443 con `Bloquear QUIC` activado: se registra el bloqueo y no se abre/protege un socket saliente. El comportamiento de QUIC real y el fallback de las apps siguen pendientes en Android.
 8. Los stubs verificaron el tratamiento de `protect()` como verdadero/falso para TCP/UDP y que el error no se ignora. Esto **no** prueba el resultado de `VpnService.protect()` en Android real.
 9. Las 16 comprobaciones estáticas de `tools/precheck/static_precheck.py` pasaron, incluidos orden de creación/protección/conexión de sockets, arranque/cierre del listener MITM, comprobación de identidad HTTPS remota, alcance de apps, reglas y limitaciones anunciadas.
-10. `AndroidManifest.xml`, `strings.xml` y `themes.xml` parsean como XML válido.
+10. El registro de depuración superó la prueba de buffer acotado, sanitización de saltos de línea y borrado.
+11. `AndroidManifest.xml`, `strings.xml` y `themes.xml` parsean como XML válido.
 
 Para repetir las pruebas locales, desde la raíz del proyecto:
 
