@@ -83,3 +83,10 @@ Las cifras de esta sección corresponden a la auditoría inicial de las versione
 ## Criterio de salida actualizado
 
 La revisión del código y el precheck local del candidato 2.3.0-audit se completaron. El paso siguiente sigue siendo la compilación Android y la matriz descrita en `VALIDACION.md` en un dispositivo/emulador. No etiquetar el ZIP como «validado» hasta superar esas pruebas. Fusion-21.html se mantiene sin modificar.
+
+
+## Revisión 2.3.1-debug (28/10/2026)
+
+Se añadió un registro local de diagnóstico accesible desde **Herramientas → Depuración: ver / copiar log**. El búfer conserva un máximo de 500 eventos y no registra payloads; sí puede incluir IPs de destino, dominios y nombres de paquetes. El usuario puede copiarlo o borrarlo desde la interfaz.
+
+La precomprobación se volvió a ejecutar después de estos cambios: 19 comprobaciones estáticas, compilación Kotlin/JVM aislada, prueba de límite/sanitización/borrado del registro, parser TLS fuzz, reglas, relé TCP, QUIC y ciclo de vida del listener MITM pasan. Esto no sustituye una compilación Gradle/Android ni pruebas reales de `VpnService.protect()` en el dispositivo.
