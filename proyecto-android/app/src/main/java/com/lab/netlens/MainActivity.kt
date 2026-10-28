@@ -461,7 +461,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openTools() {
-        val titles=arrayOf("Protección: " + if(NetworkTools.enabled) "ACTIVA" else "INACTIVA", "DNS: ${NetworkTools.dnsMode}", "Reglas guardadas", "Actualizar lista HTTPS", "Estadísticas", "Laboratorio", "Estado y límites", "Actualización periódica", "Historial local", "Borrar historial", "Depuración: ver / copiar log (${DebugLog.count()})", "Suscribir lista recomendada (OISD)")
+        val titles=arrayOf("Protección: " + if(NetworkTools.enabled) "ACTIVA" else "INACTIVA", "DNS: ${NetworkTools.dnsMode}", "Reglas guardadas", "Actualizar lista HTTPS", "Estadísticas", "Laboratorio", "Estado y límites", "Actualización periódica", "Historial local", "Borrar historial", "Depuración: ver / copiar log (${DebugLog.count()})", "Suscribir listas recomendadas (3 fusionadas)")
         AlertDialog.Builder(this).setTitle("NetLens · Herramientas").setItems(titles){_,n -> when(n){
             0 -> {NetworkTools.enabled=!NetworkTools.enabled;DebugLog.log("UI", "Protección/reglas=${NetworkTools.enabled}");openTools()}
             1 -> AlertDialog.Builder(this).setTitle("DNS para consultas UDP/53 capturadas")
@@ -477,7 +477,7 @@ class MainActivity : AppCompatActivity() {
             3 -> {
                 val input=android.widget.EditText(this).apply{hint="https://servidor/lista.txt"}
                 AlertDialog.Builder(this).setTitle("Suscripción de dominios/hosts")
-                    .setMessage("Descarga manual de hasta 8 MiB, solo HTTPS sin redirecciones. Formato hosts (0.0.0.0 dominio) o dominios, uno por línea. Reemplaza la lista anterior solo si es válida. No interpreta EasyList completa. El servidor verá tu IP. Consejo: «Suscribir lista recomendada (OISD)» al final de esta lista.")
+                    .setMessage("Descarga manual de hasta 8 MiB, solo HTTPS sin redirecciones. Formato hosts (0.0.0.0 dominio) o dominios, uno por línea. Reemplaza la lista anterior solo si es válida. No interpreta EasyList completa. El servidor verá tu IP. Consejo: «Suscribir listas recomendadas (3 fusionadas)» al final de esta lista.")
                     .setView(input).setPositiveButton("Descargar"){_,_->val url=input.text.toString().trim()
                         Thread { val result=try{NetworkTools.updateList(url)}catch(e:Exception){"No actualizado: ${e.message}"}
                             runOnUiThread{dialog("Lista",result,null)} }.start()
@@ -485,7 +485,7 @@ class MainActivity : AppCompatActivity() {
             }
             4 -> dialog("Estadísticas",NetworkTools.stats(),null)
             5 -> dialog("Laboratorio", "Usa dispositivo/emulador de pruebas y datos ficticios. No crea aislamiento automáticamente.\n\nEn una build propia debuggable, referencia network_security_config desde el manifest y usa: <network-security-config><debug-overrides><trust-anchors><certificates src=\"user\" /></trust-anchors></debug-overrides></network-security-config>. No desactives la validación del servidor.\n\nRelease: revisar permisos, HTTP, validación TLS, secretos y eliminar datos de prueba.\n\nEl filtrado HTTPS añadido funciona por SNI cuando el nombre está visible. MITM sigue experimental y no filtra rutas/cuerpos HTTP; un error TLS no demuestra pinning.",null)
-            6 -> dialog("Estado", "Añadido en código: filtrado TCP por SNI TLS antes de reenviar el ClientHello, filtrado HTTP por Host y reglas más específicas, además de DoH/DoT, listas y registro local.\n2.4: lista recomendada (OISD small) en Herramientas; anti-DoH bloquea resolutores cifrados conocidos y el puerto 853 para forzar el DNS del sistema; Bloquear ECH responde vacío a las consultas HTTPS(65)/SVCB(64) y rechaza el ClientHello con ECH; Neutralizar IPv6 enruta v6 al TUN para que no se salte la VPN (destinos solo-v6 quedan inaccesibles durante la captura); las consultas bloqueadas responden 0.0.0.0 (A) o NOERROR vacío (resto).\n2.4.1: oisd.nl retiró /hosts (HTTP 404); la lista recomendada usa el espejo GitHub de OISD con respaldo automático en StevenBlack.\nPendiente: compilación Android y pruebas reales. No es un cortafuegos integral. Anuncios servidos desde el mismo dominio que el contenido (YouTube y similares) no se pueden bloquear por dominio sin romper el servicio. MITM sigue experimental y no filtra rutas ni cuerpos HTTPS. No se certifica ausencia de fugas.",null)
+            6 -> dialog("Estado", "Añadido en código: filtrado TCP por SNI TLS antes de reenviar el ClientHello, filtrado HTTP por Host y reglas más específicas, además de DoH/DoT, listas y registro local.\n2.4: lista recomendada (OISD small) en Herramientas; anti-DoH bloquea resolutores cifrados conocidos y el puerto 853 para forzar el DNS del sistema; Bloquear ECH responde vacío a las consultas HTTPS(65)/SVCB(64) y rechaza el ClientHello con ECH; Neutralizar IPv6 enruta v6 al TUN para que no se salte la VPN (destinos solo-v6 quedan inaccesibles durante la captura); las consultas bloqueadas responden 0.0.0.0 (A) o NOERROR vacío (resto).\n2.4.1: oisd.nl retiró /hosts (HTTP 404); la lista recomendada usa el espejo GitHub de OISD con respaldo automático en StevenBlack.\n2.5: lote recomendado de 3 listas fusionadas (OISD small, StevenBlack, HaGeZi Pro) con tolerancia a fallos por lista; ~180.000 dominios bloqueables por DNS/SNI. El filtrado cosmético (ocultar elementos de anuncio dentro de la página) no es posible a nivel VPN: requiere un bloqueador del navegador.\nPendiente: compilación Android y pruebas reales. No es un cortafuegos integral. Anuncios servidos desde el mismo dominio que el contenido (YouTube y similares) no se pueden bloquear por dominio sin romper el servicio. MITM sigue experimental y no filtra rutas ni cuerpos HTTPS. No se certifica ausencia de fugas.",null)
             7 -> {
                 if (NetworkTools.savedUrl == null) dialog("Lista", "Primero descarga una lista HTTPS válida.", null)
                 else {
@@ -503,9 +503,9 @@ class MainActivity : AppCompatActivity() {
                 .setMessage("Se eliminarán los resúmenes de sesiones, no las reglas ni listas.")
                 .setPositiveButton("Borrar") { _, _ -> SessionHistory.clear() }.setNegativeButton("Cancelar", null).show()
             10 -> showDebugLog()
-            11 -> AlertDialog.Builder(this).setTitle("Lista recomendada")
-                .setMessage("¿Suscribir la lista OISD small (${NetworkTools.DEFAULT_LIST_URL})? ~59.000 dominios de anuncios y rastreadores con pocos falsos positivos. Si el espejo falla, reintenta sola con la lista StevenBlack. Sustituye a la lista actual. El servidor verá tu IP.")
-                .setPositiveButton("Descargar"){_,_->Thread { val result=try{NetworkTools.updateList(NetworkTools.DEFAULT_LIST_URL)}catch(e:Exception){"No actualizado: ${e.message}"}; runOnUiThread{dialog("Lista",result,null)} }.start()}
+            11 -> AlertDialog.Builder(this).setTitle("Listas recomendadas")
+                .setMessage("¿Suscribir el lote recomendado (OISD small + StevenBlack + HaGeZi Pro)? ~180.000 dominios de anuncios, rastreadores, telemetría y estafas, fusionados en una sola lista. Si una falla, se usan las demás. Sustituye a la lista actual. El servidor verá tu IP.")
+                .setPositiveButton("Descargar"){_,_->Thread { val result=try{NetworkTools.updateList(NetworkTools.DEFAULT_LIST_URLS.joinToString("\n"))}catch(e:Exception){"No actualizado: ${e.message}"}; runOnUiThread{dialog("Listas",result,null)} }.start()}
                 .setNegativeButton("Cancelar",null).show()
         }}.show()
     }
