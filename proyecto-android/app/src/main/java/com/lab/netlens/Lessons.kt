@@ -20,3 +20,4 @@ object Lessons {
             "Observa tu propio móvil y tus propias apps. Inspeccionar el tráfico de otras personas o de redes ajenas sin permiso es ilegal en la mayoría de países. NetLens es una herramienta para entender y reducir el alcance de lo que programas: ¿cuántos dominios contacta tu app?, ¿envía algo en claro?, ¿pide permisos que no usa?"
     )
 }
+
