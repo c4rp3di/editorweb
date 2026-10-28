@@ -25,9 +25,13 @@ import java.util.concurrent.atomic.AtomicLong
  * protect(), porque Android crea el descriptor nativo de un Socket de forma
  * perezosa y protect() sobre un socket sin descriptor devuelve false.
  *
- * 2.4.0: lista recomendada por defecto (OISD small, formato hosts, ~17k
- * dominios), bloqueo de resolutores DoH/DoT conocidos (anti-bypass del DNS
- * de la VPN) y límite de descarga elevado a 8 MiB para listas grandes.
+ * 2.4.0: lista recomendada por defecto, bloqueo de resolutores DoH/DoT
+ * conocidos (anti-bypass del DNS de la VPN) y límite de descarga elevado a
+ * 8 MiB para listas grandes.
+ *
+ * 2.4.1: oisd.nl retiró la ruta /hosts (HTTP 404); la lista recomendada
+ * pasa al espejo GitHub de OISD small, con respaldo automático en
+ * StevenBlack/hosts si el espejo falla.
  */
 object NetworkTools {
     private lateinit var prefs: SharedPreferences
@@ -38,8 +42,11 @@ object NetworkTools {
     val errors = AtomicLong()
     val byApp = ConcurrentHashMap<String, AtomicLong>()
 
-    /** Lista recomendada: OISD small en formato hosts (anuncios/rastreadores, pocos falsos positivos). */
-    const val DEFAULT_LIST_URL = "https://small.oisd.nl/hosts"
+    /** Lista recomendada: OISD small (~59k dominios, formato de dominios; espejo GitHub oficial). */
+    const val DEFAULT_LIST_URL = "https://raw.githubusercontent.com/sjhgvr/oisd/refs/heads/main/domainswild2_small.txt"
+
+    /** Respaldo automático si OISD falla: StevenBlack (~76k dominios, formato hosts). */
+    const val FALLBACK_LIST_URL = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
 
     /**
      * 2.4 · Servidores DoH/DoT conocidos. Si una app resuelve por aquí, se
@@ -107,7 +114,13 @@ object NetworkTools {
 
     fun record(pkg: String) { blocked.incrementAndGet(); byApp.getOrPut(pkg) { AtomicLong() }.incrementAndGet() }
 
-    fun updateList(url: String): String {
+    fun updateList(url: String): String = try {
+        updateListOnce(url)
+    } catch (e: Exception) {
+        if (url == DEFAULT_LIST_URL) updateListOnce(FALLBACK_LIST_URL) else throw e
+    }
+
+    private fun updateListOnce(url: String): String {
         val u = URL(url); require(u.protocol == "https") { "Solo HTTPS" }
         val c = u.openConnection() as HttpsURLConnection
         c.instanceFollowRedirects = false; c.connectTimeout = 10000; c.readTimeout = 15000
