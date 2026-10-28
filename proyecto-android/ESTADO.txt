@@ -1,0 +1,9 @@
+NETLENS — siguiente iteración (NO COMPILADA)
+Proyecto completo reconstruido desde el texto disponible. Se han reintroducido controles de Protección, reglas, estadísticas y Laboratorio; no se ha recuperado el ZIP anterior, que no está disponible en esta sesión.
+Nuevas implementaciones: DoH POST a https://1.1.1.1/dns-query y DoT con validación de hostname a cloudflare-dns.com (IP 1.1.1.1). Captura consultas UDP/53; no fuerza ni intercepta DoH interno de otras apps. DoH usa exclusión de NetLens de su propia VPN. DoT protege socket explícitamente. Sin fallback silencioso en claro. IPv6 y DNS/TCP no cubiertos.
+Suscripción manual HTTPS: hosts/dominios, máximo 4 MiB, sin redirecciones, conserva lista anterior si descarga/parsing falla. No soporta sintaxis completa AdGuard/EasyList ni programación automática.
+Reglas guardadas con SharedPreferences; lista guardada en almacenamiento privado. Contadores solo proceso. Permitir prevalece sobre bloquear. Lista integrada pequeña.
+Bloqueo TCP/UDP por asociación DNS: puede carecer de dominio, o compartir IPs. No es cobertura universal.
+Laboratorio es guía, no contenedor aislado ni inspector HTTPS. Proxy original conservado. No certifica fugas ni detecta pinning concluyentemente.
+Pendientes: revisión integral del proxy, consentimiento MITM por objetivo, caché DNS con TTL, IPv6 completo, historial, suscripciones programadas, consumo y pruebas Android.
+Verificado: XML parseable, entradas ZIP íntegras y llamadas de UI presentes. No hay Java/Gradle/SDK: NO compilado, NO probado en móvil. No se afirma seguridad ni aptitud para producción.
