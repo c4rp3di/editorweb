@@ -18,15 +18,15 @@ android {
         }
     }
 
-    namespace 'com.vigia.adblock'
+    namespace 'com.vigia.adblab'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.vigia.adblockplus"
+        applicationId "com.vigia.adblab"
         minSdk 24
         targetSdk 34
-        versionCode 2
-        versionName "v4.0"
+        versionCode 1
+        versionName "v1.0"
     }
 
     compileOptions {
@@ -36,32 +36,14 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    // BouncyCastle (bcprov, bcpkix y bcutil) trae los mismos archivos de metadatos en cada JAR.
-    packaging {
-        resources {
-            excludes += [
-                'META-INF/versions/**/OSGI-INF/MANIFEST.MF',
-                'META-INF/DEPENDENCIES',
-                'META-INF/LICENSE*',
-                'META-INF/NOTICE*'
-            ]
-        }
-    }
 }
 
 dependencies {
-    // Núcleo de la suite (expone con «api» Material, corrutinas, AndroidX).
-    implementation project(':vigia-core')
+    // Shell con privilegios (Shizuku / ADB local). Arrastra :vigia-core con «api».
+    implementation project(':vigia-adb')
 
-    // MitM TLS (BouncyCastle vive solo aquí; el AdBlock 1.0 no lo incluye).
-    implementation project(':vigia-mitm')
-
-    // Ya llegan con «api» desde :vigia-core; se repiten para que el diagnóstico de Fusión las vea.
+    // Ya llegan con «api»; se repiten para que el diagnóstico de Fusión las vea.
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
-
-    // Actualización diaria de las listas.
-    implementation 'androidx.work:work-runtime-ktx:2.9.0'
 }
