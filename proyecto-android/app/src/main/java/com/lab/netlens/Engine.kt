@@ -12,6 +12,9 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
+import java.nio.channels.SocketChannel
+import java.nio.channels.DatagramChannel
+import java.io.IOException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -94,13 +97,21 @@ class TcpConn(
     fun begin() {
         eng.pool.execute {
             try {
-                val s = Socket(); eng.protect(s); s.tcpNoDelay = true
+                // Open the native descriptor first, but do not bind/connect it yet.
+                // Android requires the upstream socket to be excluded from the VPN
+                // before connect(), otherwise the relay can recurse into its own TUN.
+                val channel = SocketChannel.open()
+                val s = channel.socket()
+                sock = s
+                s.tcpNoDelay = true
                 if (Store.mitmEnabled && sPort == 443) {
+                    // Loopback does not traverse the VPN's default IP route; do not
+                    // ask Android to protect this local-only proxy connection.
                     s.connect(InetSocketAddress(InetAddress.getByName("127.0.0.1"), MitmProxy.PORT), 8000)
                 } else {
+                    eng.protect(s)
                     s.connect(InetSocketAddress(InetAddress.getByAddress(sIp), sPort), 8000)
                 }
-                sock = s
                 lk.withLock {
                     eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, iss, rcvNxt, Pkt.SYN or Pkt.ACK, 65535, null, 0, 0, MSS))
                     sndNxt = iss + 1; lastAck = iss + 1; established = true
@@ -170,6 +181,16 @@ class TcpConn(
         flow.addUp(bytes.size)
     }
 
+    private fun indexOfHeaderEnd(data: ByteArray): Int {
+        if (data.size < 2) return -1
+        for (i in 0 until data.size - 1) {
+            if (i + 3 < data.size && data[i] == 13.toByte() && data[i + 1] == 10.toByte() &&
+                data[i + 2] == 13.toByte() && data[i + 3] == 10.toByte()) return i + 4
+            if (data[i] == 10.toByte() && data[i + 1] == 10.toByte()) return i + 2
+        }
+        return -1
+    }
+
     /** Returns true when the first request must be blocked before its payload is relayed. */
     private fun inspect(d: ByteArray): Boolean {
         if (dpiDone) return false
@@ -205,8 +226,15 @@ class TcpConn(
         if (http != null) {
             val host = http.host?.substringBefore(':')?.trim()?.trimEnd('.')?.lowercase(java.util.Locale.ROOT)
             if (host == null) {
-                // An HTTP request line may arrive before its Host header. Keep
-                // buffering only while this still looks like an HTTP request.
+                // HTTP/1.0 permits requests without Host. Wait only while the
+                // header block is still incomplete; once complete, pass through
+                // rather than holding the stream forever waiting for a header
+                // that the protocol does not require.
+                val headerEnd = indexOfHeaderEnd(a)
+                if (headerEnd < 0) return false
+                dpiDone = true
+                flow.notes.add("HTTP sin Host; se reenvía sin filtro por dominio")
+                Dpi.inspectOut(flow, a, sPort)
                 return false
             }
             if (NetworkTools.deny(flow.stat.pkg, host)) {
@@ -293,8 +321,38 @@ class Engine(
     @Volatile private var alive = true
 
     init { timer.scheduleWithFixedDelay({ janitor() }, 20, 20, TimeUnit.SECONDS) }
-    fun protect(s: Socket) { check(svc.protect(s)) { "No se pudo excluir el socket TCP de la VPN" } }
-    fun protect(s: DatagramSocket) { check(svc.protect(s)) { "No se pudo excluir el socket UDP de la VPN" } }
+    fun protect(s: Socket) {
+        val ok = try { svc.protect(s) } catch (e: Exception) {
+            val message = "Android lanzó ${e.javaClass.simpleName} al proteger el socket TCP: ${e.message ?: "sin detalle"}"
+            Store.lastRuntimeError = message
+            throw IOException(message, e)
+        }
+        if (!ok) {
+            val permissionRevoked = try { VpnService.prepare(svc) != null } catch (_: Exception) { true }
+            val reason = if (permissionRevoked) {
+                "Android indica que el permiso VPN no está activo o fue revocado"
+            } else {
+                "Android rechazó el descriptor TCP aunque el permiso VPN parece activo"
+            }
+            val message = "No se pudo excluir el socket TCP de la VPN: $reason. No se reintenta por una ruta sin proteger."
+            Store.lastRuntimeError = message
+            throw IOException(message)
+        }
+    }
+    fun protect(s: DatagramSocket) {
+        val ok = try { svc.protect(s) } catch (e: Exception) {
+            val message = "Android lanzó ${e.javaClass.simpleName} al proteger el socket UDP: ${e.message ?: "sin detalle"}"
+            Store.lastRuntimeError = message
+            throw IOException(message, e)
+        }
+        if (!ok) {
+            val permissionRevoked = try { VpnService.prepare(svc) != null } catch (_: Exception) { true }
+            val reason = if (permissionRevoked) "el permiso VPN no está activo o fue revocado" else "Android rechazó el descriptor UDP"
+            val message = "No se pudo excluir el socket UDP de la VPN: $reason. No se reintenta por una ruta sin proteger."
+            Store.lastRuntimeError = message
+            throw IOException(message)
+        }
+    }
     fun write(p: ByteArray) { synchronized(out) { try { out.write(p) } catch (e: Exception) {} } }
     fun removeTcp(key: String) { tcp.remove(key) }
 
@@ -404,7 +462,7 @@ class Engine(
                     flow.addUp(payloadEarly.size);flow.addDown(reply.size)
                     Dpi.dnsAnswers(reply,reply.size)?.let{r->for(ip in r.second)Store.dns[ip]=r.first}
                     write(Pkt.udp(dst,src,dp,sp,reply,0,reply.size))
-                }catch(ex:Exception){NetworkTools.errors.incrementAndGet();flow.notes.add("DNS cifrado falló; sin fallback: "+ex.javaClass.simpleName)}
+                }catch(ex:Exception){NetworkTools.errors.incrementAndGet();flow.notes.add("DNS cifrado falló; sin fallback: "+(ex.message ?: ex.javaClass.simpleName))}
                 finally{flow.closed=true}
             };return
         }
@@ -420,12 +478,19 @@ class Engine(
         val stat = appFor(17, src, sp, dst, dp)
         val proto = if (dp == 53) "DNS" else if (dp == 443) "UDP·QUIC" else "UDP"
         val flow = Store.newFlow(stat, proto, dstStr, dp)
-        if (dp == 443 && Store.blockQuic) { flow.notes.add("⛔ QUIC bloqueado: la app caerá a TCP+TLS"); flow.closed = true; udp[key] = UdpCtx(null, flow); return udp[key] }
+        if (dp == 443 && Store.blockQuic) { flow.notes.add("⛔ QUIC/UDP 443 bloqueado; la app puede intentar TCP+TLS, pero el fallback depende de la app"); flow.closed = true; udp[key] = UdpCtx(null, flow); return udp[key] }
         val c: UdpCtx = try {
-            val s = DatagramSocket(); protect(s); s.connect(InetAddress.getByAddress(dst), dp)
+            val channel = DatagramChannel.open()
+            val s = channel.socket()
+            protect(s)
+            s.connect(InetAddress.getByAddress(dst), dp)
             s.soTimeout = if (dp == 53) 5000 else 30000
             UdpCtx(s, flow)
-        } catch (e: Exception) { flow.notes.add("✖ No se pudo abrir el socket UDP"); flow.closed = true; return null }
+        } catch (e: Exception) {
+            flow.notes.add("✖ No se pudo abrir el socket UDP: " + (e.message ?: e.javaClass.simpleName))
+            flow.closed = true
+            return null
+        }
         udp[key] = c
         if (dp == 443) flow.notes.add("QUIC/HTTP3: va cifrado. Activa «Bloquear QUIC» para forzar TCP+TLS")
         pool.execute { udpReceiver(key, c, src, dst, sp, dp) }
