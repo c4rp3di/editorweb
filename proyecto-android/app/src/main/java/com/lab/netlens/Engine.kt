@@ -104,6 +104,7 @@ class TcpConn(
                 val s = channel.socket()
                 sock = s
                 s.tcpNoDelay = true
+                DebugLog.log("TCP", "Conectando upstream ${flow.stat.pkg} ${flow.dstIp}:${sPort} MITM=${Store.mitmEnabled && sPort == 443}")
                 if (Store.mitmEnabled && sPort == 443) {
                     // Loopback does not traverse the VPN's default IP route; do not
                     // ask Android to protect this local-only proxy connection.
@@ -112,6 +113,7 @@ class TcpConn(
                     eng.protect(s)
                     s.connect(InetSocketAddress(InetAddress.getByAddress(sIp), sPort), 8000)
                 }
+                DebugLog.log("TCP", "Upstream conectado ${flow.stat.pkg} ${flow.dstIp}:${sPort}")
                 lk.withLock {
                     eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, iss, rcvNxt, Pkt.SYN or Pkt.ACK, 65535, null, 0, 0, MSS))
                     sndNxt = iss + 1; lastAck = iss + 1; established = true
@@ -119,6 +121,7 @@ class TcpConn(
                 eng.pool.execute { writerLoop(s) }
                 readerLoop(s)
             } catch (e: Exception) {
+                DebugLog.log("TCP", "ERROR upstream ${flow.stat.pkg} ${flow.dstIp}:${sPort}: ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}")
                 if (!closed) { flow.notes.add("✖ No se pudo conectar: " + (e.message ?: e.javaClass.simpleName)); lk.withLock { rst() } }
                 teardown()
             }
@@ -210,12 +213,14 @@ class TcpConn(
             dpiDone = true
             val host = tls.sni
             if (host != null && NetworkTools.deny(flow.stat.pkg, host)) {
+                DebugLog.log("DPI", "BLOQUEO TLS por SNI host=$host app=${flow.stat.pkg}")
                 flow.noteHost(host)
                 flow.notes.add("⛔ HTTPS bloqueado antes de enviar el ClientHello (SNI): $host")
                 NetworkTools.record(flow.stat.pkg)
                 return true
             }
             Dpi.inspectOut(flow, a, sPort)
+            DebugLog.log("DPI", "TLS clasificado app=${flow.stat.pkg} host=${host ?: "SNI no visible"} destino=${flow.dstIp}:${sPort}")
             if (host == null) flow.notes.add("TLS: SNI no visible; este dominio no se puede filtrar por nombre")
             return false
         }
@@ -238,6 +243,7 @@ class TcpConn(
                 return false
             }
             if (NetworkTools.deny(flow.stat.pkg, host)) {
+                DebugLog.log("DPI", "BLOQUEO HTTP por Host host=$host app=${flow.stat.pkg}")
                 flow.noteHost(host)
                 flow.notes.add("⛔ HTTP bloqueado por Host: $host")
                 NetworkTools.record(flow.stat.pkg)
@@ -324,6 +330,7 @@ class Engine(
     fun protect(s: Socket) {
         val ok = try { svc.protect(s) } catch (e: Exception) {
             val message = "Android lanzó ${e.javaClass.simpleName} al proteger el socket TCP: ${e.message ?: "sin detalle"}"
+            DebugLog.log("SOCKET", message)
             Store.lastRuntimeError = message
             throw IOException(message, e)
         }
@@ -335,13 +342,16 @@ class Engine(
                 "Android rechazó el descriptor TCP aunque el permiso VPN parece activo"
             }
             val message = "No se pudo excluir el socket TCP de la VPN: $reason. No se reintenta por una ruta sin proteger."
+            DebugLog.log("SOCKET", message)
             Store.lastRuntimeError = message
             throw IOException(message)
         }
+        DebugLog.log("SOCKET", "protect(TCP) correcto; socket aún sin conectar")
     }
     fun protect(s: DatagramSocket) {
         val ok = try { svc.protect(s) } catch (e: Exception) {
             val message = "Android lanzó ${e.javaClass.simpleName} al proteger el socket UDP: ${e.message ?: "sin detalle"}"
+            DebugLog.log("SOCKET", message)
             Store.lastRuntimeError = message
             throw IOException(message, e)
         }
@@ -349,9 +359,11 @@ class Engine(
             val permissionRevoked = try { VpnService.prepare(svc) != null } catch (_: Exception) { true }
             val reason = if (permissionRevoked) "el permiso VPN no está activo o fue revocado" else "Android rechazó el descriptor UDP"
             val message = "No se pudo excluir el socket UDP de la VPN: $reason. No se reintenta por una ruta sin proteger."
+            DebugLog.log("SOCKET", message)
             Store.lastRuntimeError = message
             throw IOException(message)
         }
+        DebugLog.log("SOCKET", "protect(UDP) correcto; socket aún sin conectar")
     }
     fun write(p: ByteArray) { synchronized(out) { try { out.write(p) } catch (e: Exception) {} } }
     fun removeTcp(key: String) { tcp.remove(key) }
@@ -413,7 +425,9 @@ class Engine(
                 val src = b.copyOfRange(12, 16); val dst = b.copyOfRange(16, 20)
                 val stat = appFor(6, src, sp, dst, dp)
                 val flow = Store.newFlow(stat, "TCP", Pkt.ipStr(b, 16), dp)
+                DebugLog.log("TCP", "SYN app=${stat.pkg} destino=${Pkt.ipStr(b,16)}:$dp")
                 if(NetworkTools.deny(stat.pkg, Store.dns[Pkt.ipStr(b,16)])) {
+                    DebugLog.log("REGLAS", "BLOQUEO TCP por IP/DNS app=${stat.pkg} destino=${Pkt.ipStr(b,16)}:$dp")
                     NetworkTools.record(stat.pkg);flow.notes.add("Bloqueado por reglas");flow.closed=true
                     write(Pkt.tcp(dst,src,dp,sp,0,seq+1,Pkt.RST or Pkt.ACK,0,null,0,0,0));return
                 }
@@ -478,7 +492,7 @@ class Engine(
         val stat = appFor(17, src, sp, dst, dp)
         val proto = if (dp == 53) "DNS" else if (dp == 443) "UDP·QUIC" else "UDP"
         val flow = Store.newFlow(stat, proto, dstStr, dp)
-        if (dp == 443 && Store.blockQuic) { flow.notes.add("⛔ QUIC/UDP 443 bloqueado; la app puede intentar TCP+TLS, pero el fallback depende de la app"); flow.closed = true; udp[key] = UdpCtx(null, flow); return udp[key] }
+        if (dp == 443 && Store.blockQuic) { DebugLog.log("QUIC", "BLOQUEADO UDP/443 app=${stat.pkg} destino=$dstStr:$dp"); flow.notes.add("⛔ QUIC/UDP 443 bloqueado; la app puede intentar TCP+TLS, pero el fallback depende de la app"); flow.closed = true; udp[key] = UdpCtx(null, flow); return udp[key] }
         val c: UdpCtx = try {
             val channel = DatagramChannel.open()
             val s = channel.socket()
@@ -487,11 +501,13 @@ class Engine(
             s.soTimeout = if (dp == 53) 5000 else 30000
             UdpCtx(s, flow)
         } catch (e: Exception) {
+            DebugLog.log("UDP", "ERROR app=${stat.pkg} destino=$dstStr:$dp ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}")
             flow.notes.add("✖ No se pudo abrir el socket UDP: " + (e.message ?: e.javaClass.simpleName))
             flow.closed = true
             return null
         }
         udp[key] = c
+        DebugLog.log("UDP", "Socket UDP conectado app=${stat.pkg} destino=$dstStr:$dp")
         if (dp == 443) flow.notes.add("QUIC/HTTP3: va cifrado. Activa «Bloquear QUIC» para forzar TCP+TLS")
         pool.execute { udpReceiver(key, c, src, dst, sp, dp) }
         return c
