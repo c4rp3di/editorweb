@@ -1,12 +1,12 @@
-# NetLens 2.4.0 — proyecto Android para Fusion
+# NetLens 2.4.1 — proyecto Android para Fusion
 
 NetLens es un proyecto didáctico de VPN local para observar flujos IPv4 TCP/UDP, atribuirlos a aplicaciones cuando Android lo permite y aplicar reglas de dominio basadas en SNI visible o `Host` en HTTP sin cifrar. Incluye controles para QUIC, DNS (DoH/DoT), lista de dominios por suscripción HTTPS, historial de sesiones y un MITM TLS experimental.
 
-**Estado de esta entrega:** sobre la 2.3.2-fix (que corrigió compilación y tráfico), la 2.4.0 añade las piezas de bloqueo de anuncios: lista recomendada por suscripción, anti-DoH, anti-ECH, neutralización de IPv6 y respuestas DNS bloqueadas sintéticas. Queda pendiente la validación en dispositivo de la matriz de pruebas; no es un APK certificado.
+**Estado de esta entrega:** sobre la 2.3.2-fix (que corrigió compilación y tráfico), la 2.4.0 añade las piezas de bloqueo de anuncios: lista recomendada por suscripción, anti-DoH, anti-ECH, neutralización de IPv6 y respuestas DNS bloqueadas sintéticas. La 2.4.1 corrige la lista recomendada: `small.oisd.nl/hosts` dejó de existir (HTTP 404), así que se usa el espejo GitHub de OISD small con respaldo automático en StevenBlack. Queda pendiente la validación en dispositivo de la matriz de pruebas; no es un APK certificado.
 
-## Novedades de 2.4.0 (bloqueo de anuncios en webs y apps)
+## Novedades de 2.4.0 y 2.4.1 (bloqueo de anuncios en webs y apps)
 
-1. **Lista recomendada por defecto**: Herramientas → *Suscribir lista recomendada (OISD)* descarga `https://small.oisd.nl/hosts` (~17.000 dominios de anuncios y rastreadores, formato hosts, pocos falsos positivos). El límite de descarga sube de 4 a 8 MiB para permitir listas mayores. El motor de bloqueo (DNS, SNI, `Host`, QUIC temprano, TCP por IP/DNS) ya existía desde 2.3.x; ahora hay contenido listo para usar.
+1. **Lista recomendada por defecto**: Herramientas → *Suscribir lista recomendada (OISD)* descarga el espejo GitHub de OISD small, `https://raw.githubusercontent.com/sjhgvr/oisd/refs/heads/main/domainswild2_small.txt` (~59.000 dominios de anuncios y rastreadores, formato de dominios, pocos falsos positivos). Si ese espejo falla, NetLens reintenta solo con StevenBlack, `https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts` (~76.000 dominios, formato hosts). El límite de descarga sube de 4 a 8 MiB para permitir listas mayores. El motor de bloqueo (DNS, SNI, `Host`, QUIC temprano, TCP por IP/DNS) ya existía desde 2.3.x; ahora hay contenido listo para usar.
 
 2. **Anti-DoH** (`Store.blockDoh`): las apps con DoH/DoT embebido resuelven solas y se saltan el filtrado por nombre. Se bloquean los dominios de resolutores cifrados conocidos (dns.google, cloudflare-dns.com y variantes, quad9, adguard, opendns, mullvad, etc.) y los puertos 853 TCP (RST) y UDP (descarte). El DoT/DoH interno de NetLens va con `protect()` y no se ve afectado.
 
