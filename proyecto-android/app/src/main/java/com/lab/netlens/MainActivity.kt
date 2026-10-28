@@ -159,7 +159,20 @@ class MainActivity : AppCompatActivity() {
         val cbMitm = CheckBox(this).apply {
             text = "MITM TLS"; setTextColor(cPurple); textSize = 12f
             isChecked = Store.mitmEnabled
+            var adjusting = false
             setOnCheckedChangeListener { _, on ->
+                if (adjusting) return@setOnCheckedChangeListener
+                if (Store.running) {
+                    // The proxy/listener lifecycle is tied to service startup.
+                    // Avoid UI state saying MITM is on when no listener exists.
+                    adjusting = true
+                    isChecked = Store.mitmEnabled
+                    adjusting = false
+                    Toast.makeText(this@MainActivity,
+                        "Detén NetLens antes de cambiar MITM TLS; vuelve a iniciar para aplicar el modo.",
+                        Toast.LENGTH_LONG).show()
+                    return@setOnCheckedChangeListener
+                }
                 Store.mitmEnabled = on
                 if (on) {
                     Toast.makeText(this@MainActivity,
@@ -283,6 +296,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startSelectedCapture(target: String?) {
+        Store.lastStartError = null
+        Store.lastRuntimeError = null
         Store.clear()
         val i = Intent(this, NetLensVpnService::class.java)
         i.action = NetLensVpnService.ACTION_START
@@ -332,10 +347,15 @@ class MainActivity : AppCompatActivity() {
         btnStart.text = if (running) "■ Detener" else "▶ Iniciar captura"
         spinner.isEnabled = !running
         val flows = Store.snapshot()
+        val runtimeSuffix = Store.lastRuntimeError?.let { " · ⚠ " + it } ?: ""
         status.text = if (running)
-            "● Capturando · " + flows.size + " conexiones · " + Store.apps.size + " apps" + (if (Store.mitmEnabled) " · MITM ON" else "")
+            "● Capturando IPv4 · " + flows.size + " conexiones · " + Store.apps.size + " apps" + (if (Store.mitmEnabled) " · MITM ON" else "") + " · IPv6 no inspeccionado" + runtimeSuffix
+        else if (!Store.lastStartError.isNullOrBlank())
+            "⚠ No se pudo iniciar: " + Store.lastStartError
+        else if (!Store.lastRuntimeError.isNullOrBlank())
+            "⚠ Último error de red: " + Store.lastRuntimeError
         else "○ Detenido · elige una app (o todas) y pulsa Iniciar"
-        status.setTextColor(if (running) cOk else cMuted)
+        status.setTextColor(if (running && Store.lastRuntimeError.isNullOrBlank()) cOk else if (!Store.lastStartError.isNullOrBlank() || !Store.lastRuntimeError.isNullOrBlank()) cBad else cMuted)
         if (paused && tab == 0) return
 
         val rows = ArrayList<Row>()
