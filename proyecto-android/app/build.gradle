@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'com.google.devtools.ksp'
 }
 
 android {
@@ -18,15 +19,16 @@ android {
         }
     }
 
-    namespace 'com.vigia.adblock'
+    namespace 'com.vigia.boveda'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.vigia.adblockplus"
-        minSdk 24
+        applicationId "com.vigia.boveda"
+        // 26: el framework de autocompletado de Android nace en esa versión.
+        minSdk 26
         targetSdk 34
         versionCode 1
-        versionName "v3.0"
+        versionName "v1.0"
     }
 
     compileOptions {
@@ -36,32 +38,22 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    // BouncyCastle (bcprov, bcpkix y bcutil) trae los mismos archivos de metadatos en cada JAR.
-    packaging {
-        resources {
-            excludes += [
-                'META-INF/versions/**/OSGI-INF/MANIFEST.MF',
-                'META-INF/DEPENDENCIES',
-                'META-INF/LICENSE*',
-                'META-INF/NOTICE*'
-            ]
-        }
-    }
 }
 
 dependencies {
-    // Núcleo de la suite (expone con «api» Material, corrutinas, AndroidX).
+    // Núcleo de la suite (expone con «api» Material, corrutinas, Room, SQLCipher y AndroidX).
     implementation project(':vigia-core')
-
-    // MitM TLS (BouncyCastle vive solo aquí; el AdBlock 1.0 no lo incluye).
-    implementation project(':vigia-mitm')
 
     // Ya llegan con «api» desde :vigia-core; se repiten para que el diagnóstico de Fusión las vea.
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
 
-    // Actualización diaria de las listas.
-    implementation 'androidx.work:work-runtime-ktx:2.9.0'
+    // Huella y rostro.
+    implementation 'androidx.biometric:biometric:1.1.0'
+
+    // El procesador de Room genera el código de las entidades de esta app.
+    ksp 'androidx.room:room-compiler:2.6.1'
 }
