@@ -27,9 +27,11 @@ class NetLensVpnService : VpnService() {
     private var reader: Thread? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent != null && intent.action == ACTION_STOP) { stopVpn(); return START_NOT_STICKY }
+        if (intent != null && intent.action == ACTION_STOP) { DebugLog.log("VPN", "Solicitud de parada recibida"); stopVpn(); return START_NOT_STICKY }
+        val target = intent?.getStringExtra(EXTRA_PKG)
+        DebugLog.log("VPN", "Solicitud de inicio; alcance=${target ?: "todas las apps"}; MITM=${Store.mitmEnabled}; bloquearQUIC=${Store.blockQuic}; reglas=${NetworkTools.enabled}; DNS=${NetworkTools.dnsMode}")
         startFg()
-        startVpn(intent?.getStringExtra(EXTRA_PKG))
+        startVpn(target)
         return START_NOT_STICKY
     }
 
@@ -53,8 +55,10 @@ class NetLensVpnService : VpnService() {
     private fun protectUpstreamSocket(socket: java.net.Socket): Boolean {
         val ok = try { protect(socket) } catch (e: Exception) {
             Store.lastRuntimeError = "Error al excluir el socket remoto MITM: ${e.message ?: e.javaClass.simpleName}"
+            DebugLog.log("MITM", "ERROR protect(socket remoto): ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}")
             throw e
         }
+        DebugLog.log("MITM", "protect(socket remoto)=${if (ok) "OK" else "FALLO"}")
         if (!ok) {
             val permissionRevoked = try { VpnService.prepare(this) != null } catch (_: Exception) { true }
             Store.lastRuntimeError = if (permissionRevoked)
@@ -69,6 +73,7 @@ class NetLensVpnService : VpnService() {
         if (pfd != null) return
         Store.lastStartError = null
         Store.lastRuntimeError = null
+        DebugLog.log("VPN", "Inicializando servicio VPN")
         try {
             NetworkTools.init(this)
             SessionHistory.init(this)
@@ -95,6 +100,7 @@ class NetLensVpnService : VpnService() {
                 "Android no estableció la VPN. Comprueba el permiso VPN y vuelve a iniciar."
             )
             pfd = fd
+            DebugLog.log("VPN", "Builder.establish() correcto; ruta=IPv4 por defecto; IPv6 no configurado")
 
             // For MITM, bind and start the listener synchronously before the TUN
             // reader starts forwarding any TCP/443 connection to 127.0.0.1:8888.
@@ -102,6 +108,7 @@ class NetLensVpnService : VpnService() {
                 val p = MitmProxy(protector = { s -> protectUpstreamSocket(s) })
                 p.start()
                 proxy = p
+                DebugLog.log("MITM", "Listener iniciado en puerto ${MitmProxy.PORT}")
             }
 
             val out = FileOutputStream(fd.fileDescriptor)
@@ -110,6 +117,7 @@ class NetLensVpnService : VpnService() {
 
             Store.running = true
             SessionHistory.begin(target)
+            DebugLog.log("VPN", "Captura activa; lector TUN iniciando")
             reader = Thread({
                 val buf = ByteArray(32767)
                 try {
@@ -122,6 +130,7 @@ class NetLensVpnService : VpnService() {
                 } catch (e: Exception) {
                     if (Store.running && !Thread.currentThread().isInterrupted) {
                         Store.lastStartError = "La lectura de la VPN terminó: ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}"
+                        DebugLog.log("VPN", "ERROR lector TUN: ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}")
                     }
                 }
             }, "netlens-reader").apply { isDaemon = true; start() }
@@ -132,6 +141,7 @@ class NetLensVpnService : VpnService() {
                 else -> e.message ?: (e.javaClass.simpleName)
             }
             Store.running = false
+            DebugLog.log("VPN", "ERROR al iniciar: ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}")
             try { engine?.stop() } catch (_: Exception) {}
             engine = null
             try { proxy?.stop() } catch (_: Exception) {}
@@ -144,6 +154,7 @@ class NetLensVpnService : VpnService() {
     }
 
     private fun stopVpn() {
+        DebugLog.log("VPN", "Deteniendo captura; estabaActiva=${Store.running}")
         if (Store.running) SessionHistory.finish()
         Store.running = false
         try { engine?.stop() } catch (e: Exception) {}
