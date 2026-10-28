@@ -1,8 +1,22 @@
-# NetLens 2.3.2-fix — proyecto Android para Fusion
+# NetLens 2.4.0 — proyecto Android para Fusion
 
 NetLens es un proyecto didáctico de VPN local para observar flujos IPv4 TCP/UDP, atribuirlos a aplicaciones cuando Android lo permite y aplicar reglas de dominio basadas en SNI visible o `Host` en HTTP sin cifrar. Incluye controles para QUIC, DNS (DoH/DoT), lista de dominios por suscripción HTTPS, historial de sesiones y un MITM TLS experimental.
 
-**Estado de esta entrega:** corrección de los errores que impedían compilar y del fallo que dejaba sin tráfico al activar la VPN. Queda pendiente la validación en dispositivo de la matriz de pruebas (ver abajo); no es un APK certificado.
+**Estado de esta entrega:** sobre la 2.3.2-fix (que corrigió compilación y tráfico), la 2.4.0 añade las piezas de bloqueo de anuncios: lista recomendada por suscripción, anti-DoH, anti-ECH, neutralización de IPv6 y respuestas DNS bloqueadas sintéticas. Queda pendiente la validación en dispositivo de la matriz de pruebas; no es un APK certificado.
+
+## Novedades de 2.4.0 (bloqueo de anuncios en webs y apps)
+
+1. **Lista recomendada por defecto**: Herramientas → *Suscribir lista recomendada (OISD)* descarga `https://small.oisd.nl/hosts` (~17.000 dominios de anuncios y rastreadores, formato hosts, pocos falsos positivos). El límite de descarga sube de 4 a 8 MiB para permitir listas mayores. El motor de bloqueo (DNS, SNI, `Host`, QUIC temprano, TCP por IP/DNS) ya existía desde 2.3.x; ahora hay contenido listo para usar.
+
+2. **Anti-DoH** (`Store.blockDoh`): las apps con DoH/DoT embebido resuelven solas y se saltan el filtrado por nombre. Se bloquean los dominios de resolutores cifrados conocidos (dns.google, cloudflare-dns.com y variantes, quad9, adguard, opendns, mullvad, etc.) y los puertos 853 TCP (RST) y UDP (descarte). El DoT/DoH interno de NetLens va con `protect()` y no se ve afectado.
+
+3. **Bloquear ECH** (`Store.rejectEch`), doble capa:
+   - Primaria: las consultas DNS de tipo HTTPS(65)/SVCB(64) se responden en local con NOERROR vacío, de modo que el navegador no recibe configuración ECH y el SNI del ClientHello queda visible y filtrable.
+   - Estricta: si aún llega un ClientHello con extensión ECH (0xFE0D), se rechaza antes de reenviarlo.
+
+4. **Neutralizar IPv6** (`Store.blockIpv6`, por defecto ON): sin rutas v6, las apps con IPv6 salían FUERA de la VPN y se saltaban todo el filtrado. Ahora el TUN enruta `2000::/3` y `fc00::/7`; el motor (solo IPv4) descarta esos paquetes con un aviso único en el log. Las apps dual-stack decaen a IPv4; los destinos solo-v6 quedan inaccesibles durante la captura (comportamiento esperado y documentado).
+
+5. **DNS bloqueado con respuesta sintética** (`Dpi.dnsBlockedReply`): las consultas bloqueadas responden `0.0.0.0` (TTL 300) para A y NOERROR vacío para el resto (AAAA, HTTPS...), en lugar del NXDOMAIN anterior: las apps fallan rápido y sin reintentos agresivos.
 
 ## Errores corregidos en 2.3.2
 
@@ -43,10 +57,13 @@ En **Herramientas → Depuración: ver / copiar log** se consulta el estado actu
 - **Protección:** reglas/listas de dominio. No es lo mismo que iniciar la VPN.
 - **DoH/DoT:** resuelve por DNS cifrado (Cloudflare) las consultas UDP/53 capturadas; no afecta al DNS cifrado interno de otras apps. Sin fallback silencioso al DNS en claro.
 - **Actualización periódica:** WorkManager re-descarga la lista HTTPS cada ~24 h si hay una suscripción válida.
+- **Bloquear ECH:** corta las consultas HTTPS(65)/SVCB(64) y rechaza el ClientHello con ECH para que el SNI quede filtrable.
+- **Anti-DoH:** bloquea resolutores cifrados conocidos (dominio y puerto 853) para forzar el DNS del sistema, que pasa por la VPN.
+- **Neutralizar IPv6:** enruta IPv6 al TUN y lo descarta; evita que las apps dual-stack se salten la VPN. Con destinos solo-v6, quedan inaccesibles durante la captura.
 
 ## Límites importantes
 
-- **IPv6 no se inspecciona en esta versión.** La ruta de VPN configurada es IPv4; no debe tratarse como cortafuegos integral ni como garantía de ausencia de fugas.
+- **IPv6**: con *Neutralizar IPv6* activo, el espacio v6 se enruta al TUN y se descarta (no hay fuga fuera de la VPN, pero tampoco inspección v6; destinos solo-v6 no funcionan durante la captura). Con el conmutador apagado, IPv6 queda fuera de la VPN. No debe tratarse como cortafuegos integral ni como garantía de ausencia de fugas.
 - La implementación de TCP en espacio de usuario sigue siendo simplificada: no tiene cola completa de retransmisión de los datos enviados al cliente ni reensamblado fiable de segmentos fuera de orden en todos los casos.
 - Se descartan paquetes IPv4 fragmentados y datagramas UDP demasiado grandes para el formato de salida actual.
 - El bloqueo HTTPS normal trabaja por hostname/SNI visible, no por URL, ruta, cabeceras ni cuerpo cifrado. ECH o SNI ausente puede ocultar el nombre real.
@@ -65,3 +82,7 @@ En **Herramientas → Depuración: ver / copiar log** se consulta el estado actu
 | DNS normal / DoH / DoT | Las consultas reciben respuesta en cada modo; el error del proveedor queda visible. |
 | MITM en app de laboratorio | Con la CA confiada, la conexión se descifra; con pinning, falla como se espera. |
 | Detener/revocar/iniciar | Red se recupera; el ámbito de captura no cambia en silencio. |
+| Lista OISD suscrita | Con Protección activa, un dominio de la lista se bloquea por DNS (0.0.0.0) o SNI; uno legítimo pasa. |
+| Anti-DoH activo | Una app con DoH embebido (p. ej. Chrome con «DNS seguro») vuelve al DNS del sistema; el 853 da RST. |
+| Bloquear ECH activo | Las consultas tipo 65/64 responden vacío; un sitio con ECH termina conectando con SNI visible. |
+| Neutralizar IPv6 activo | Una web solo-v6 no carga durante la captura; una dual-stack usa IPv4 y funciona. |
