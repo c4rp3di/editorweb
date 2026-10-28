@@ -194,6 +194,26 @@ class MainActivity : AppCompatActivity() {
         row2.addView(cbQuic); row2.addView(cbMitm); row2.addView(cbDns); row2.addView(cbPause)
         root.addView(row2)
 
+        // 2.4 · Conmutadores de bloqueo: ECH, DoH y IPv6.
+        val row2b = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val cbEch = CheckBox(this).apply {
+            text = "Bloquear ECH"; setTextColor(cText); textSize = 12f
+            isChecked = Store.rejectEch
+            setOnCheckedChangeListener { _, on -> Store.rejectEch = on }
+        }
+        val cbDoh = CheckBox(this).apply {
+            text = "Anti-DoH"; setTextColor(cText); textSize = 12f
+            isChecked = Store.blockDoh
+            setOnCheckedChangeListener { _, on -> Store.blockDoh = on }
+        }
+        val cbV6 = CheckBox(this).apply {
+            text = "Neutralizar IPv6"; setTextColor(cText); textSize = 12f
+            isChecked = Store.blockIpv6
+            setOnCheckedChangeListener { _, on -> Store.blockIpv6 = on }
+        }
+        row2b.addView(cbEch); row2b.addView(cbDoh); row2b.addView(cbV6)
+        root.addView(row2b)
+
         val row3 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val btnCsv = Button(this).apply {
             text = "CSV"; textSize = 12f
@@ -351,7 +371,7 @@ class MainActivity : AppCompatActivity() {
         val flows = Store.snapshot()
         val runtimeSuffix = Store.lastRuntimeError?.let { " · ⚠ " + it } ?: ""
         status.text = if (running)
-            "● Capturando IPv4 · " + flows.size + " conexiones · " + Store.apps.size + " apps" + (if (Store.mitmEnabled) " · MITM ON" else "") + " · IPv6 no inspeccionado" + runtimeSuffix
+            "● Capturando IPv4 · " + flows.size + " conexiones · " + Store.apps.size + " apps" + (if (Store.mitmEnabled) " · MITM ON" else "") + (if (Store.blockIpv6) " · IPv6 neutralizado" else " · IPv6 sin capturar") + runtimeSuffix
         else if (!Store.lastStartError.isNullOrBlank())
             "⚠ No se pudo iniciar: " + Store.lastStartError
         else if (!Store.lastRuntimeError.isNullOrBlank())
@@ -441,7 +461,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openTools() {
-        val titles=arrayOf("Protección: " + if(NetworkTools.enabled) "ACTIVA" else "INACTIVA", "DNS: ${NetworkTools.dnsMode}", "Reglas guardadas", "Actualizar lista HTTPS", "Estadísticas", "Laboratorio", "Estado y límites", "Actualización periódica", "Historial local", "Borrar historial", "Depuración: ver / copiar log (${DebugLog.count()})")
+        val titles=arrayOf("Protección: " + if(NetworkTools.enabled) "ACTIVA" else "INACTIVA", "DNS: ${NetworkTools.dnsMode}", "Reglas guardadas", "Actualizar lista HTTPS", "Estadísticas", "Laboratorio", "Estado y límites", "Actualización periódica", "Historial local", "Borrar historial", "Depuración: ver / copiar log (${DebugLog.count()})", "Suscribir lista recomendada (OISD)")
         AlertDialog.Builder(this).setTitle("NetLens · Herramientas").setItems(titles){_,n -> when(n){
             0 -> {NetworkTools.enabled=!NetworkTools.enabled;DebugLog.log("UI", "Protección/reglas=${NetworkTools.enabled}");openTools()}
             1 -> AlertDialog.Builder(this).setTitle("DNS para consultas UDP/53 capturadas")
@@ -457,7 +477,7 @@ class MainActivity : AppCompatActivity() {
             3 -> {
                 val input=android.widget.EditText(this).apply{hint="https://servidor/lista.txt"}
                 AlertDialog.Builder(this).setTitle("Suscripción de dominios/hosts")
-                    .setMessage("Descarga manual de hasta 4 MiB, solo HTTPS sin redirecciones. Reemplaza la lista anterior solo si es válida. No interpreta EasyList completa. El servidor verá tu IP.")
+                    .setMessage("Descarga manual de hasta 8 MiB, solo HTTPS sin redirecciones. Formato hosts (0.0.0.0 dominio) o dominios, uno por línea. Reemplaza la lista anterior solo si es válida. No interpreta EasyList completa. El servidor verá tu IP. Consejo: «Suscribir lista recomendada (OISD)» al final de esta lista.")
                     .setView(input).setPositiveButton("Descargar"){_,_->val url=input.text.toString().trim()
                         Thread { val result=try{NetworkTools.updateList(url)}catch(e:Exception){"No actualizado: ${e.message}"}
                             runOnUiThread{dialog("Lista",result,null)} }.start()
@@ -465,7 +485,7 @@ class MainActivity : AppCompatActivity() {
             }
             4 -> dialog("Estadísticas",NetworkTools.stats(),null)
             5 -> dialog("Laboratorio", "Usa dispositivo/emulador de pruebas y datos ficticios. No crea aislamiento automáticamente.\n\nEn una build propia debuggable, referencia network_security_config desde el manifest y usa: <network-security-config><debug-overrides><trust-anchors><certificates src=\"user\" /></trust-anchors></debug-overrides></network-security-config>. No desactives la validación del servidor.\n\nRelease: revisar permisos, HTTP, validación TLS, secretos y eliminar datos de prueba.\n\nEl filtrado HTTPS añadido funciona por SNI cuando el nombre está visible. MITM sigue experimental y no filtra rutas/cuerpos HTTP; un error TLS no demuestra pinning.",null)
-            6 -> dialog("Estado", "Añadido en código: filtrado TCP por SNI TLS antes de reenviar el ClientHello, filtrado HTTP por Host y reglas más específicas, además de DoH/DoT, listas y registro local.\nPendiente: compilación Android y pruebas reales. IPv6 no se inspecciona en esta versión y podría salir fuera de la VPN; no es un cortafuegos integral. ECH puede ocultar SNI. MITM sigue experimental y no filtra rutas ni cuerpos HTTPS. No se certifica ausencia de fugas.",null)
+            6 -> dialog("Estado", "Añadido en código: filtrado TCP por SNI TLS antes de reenviar el ClientHello, filtrado HTTP por Host y reglas más específicas, además de DoH/DoT, listas y registro local.\n2.4: lista recomendada (OISD small) en Herramientas; anti-DoH bloquea resolutores cifrados conocidos y el puerto 853 para forzar el DNS del sistema; Bloquear ECH responde vacío a las consultas HTTPS(65)/SVCB(64) y rechaza el ClientHello con ECH; Neutralizar IPv6 enruta v6 al TUN para que no se salte la VPN (destinos solo-v6 quedan inaccesibles durante la captura); las consultas bloqueadas responden 0.0.0.0 (A) o NOERROR vacío (resto).\nPendiente: compilación Android y pruebas reales. No es un cortafuegos integral. Anuncios servidos desde el mismo dominio que el contenido (YouTube y similares) no se pueden bloquear por dominio sin romper el servicio. MITM sigue experimental y no filtra rutas ni cuerpos HTTPS. No se certifica ausencia de fugas.",null)
             7 -> {
                 if (NetworkTools.savedUrl == null) dialog("Lista", "Primero descarga una lista HTTPS válida.", null)
                 else {
@@ -483,6 +503,10 @@ class MainActivity : AppCompatActivity() {
                 .setMessage("Se eliminarán los resúmenes de sesiones, no las reglas ni listas.")
                 .setPositiveButton("Borrar") { _, _ -> SessionHistory.clear() }.setNegativeButton("Cancelar", null).show()
             10 -> showDebugLog()
+            11 -> AlertDialog.Builder(this).setTitle("Lista recomendada")
+                .setMessage("¿Suscribir la lista OISD small (${NetworkTools.DEFAULT_LIST_URL})? ~17.000 dominios de anuncios y rastreadores con pocos falsos positivos, en formato hosts. Sustituye a la lista actual. El servidor verá tu IP.")
+                .setPositiveButton("Descargar"){_,_->Thread { val result=try{NetworkTools.updateList(NetworkTools.DEFAULT_LIST_URL)}catch(e:Exception){"No actualizado: ${e.message}"}; runOnUiThread{dialog("Lista",result,null)} }.start()}
+                .setNegativeButton("Cancelar",null).show()
         }}.show()
     }
 
@@ -492,6 +516,9 @@ class MainActivity : AppCompatActivity() {
             append("; protección/reglas=").append(NetworkTools.enabled)
             append("; MITM=").append(Store.mitmEnabled)
             append("; bloquearQUIC=").append(Store.blockQuic)
+            append("; bloquearECH=").append(Store.rejectEch)
+            append("; antiDoH=").append(Store.blockDoh)
+            append("; neutralizarIPv6=").append(Store.blockIpv6)
             append("; DNS=").append(NetworkTools.dnsMode)
             append("; flujos=").append(Store.snapshot().size).append("\n")
             append("Último error de inicio: ").append(Store.lastStartError ?: "ninguno").append("\n")
