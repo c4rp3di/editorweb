@@ -46,8 +46,7 @@ class Reenviador(
     private val alEvento: (EventoRed) -> Unit,
     private val alDns: (Int, String, ByteArray, ByteArray) -> Unit,
     private val alBloqueo: (String) -> Unit,
-    private val alFallar: (String) -> Unit,
-    private val desvioTcp: DesvioTcp? = null
+    private val alFallar: (String) -> Unit
 ) {
     private class Segmento(val seq: Long, val datos: ByteArray, val fin: Boolean) {
         var enviado = System.currentTimeMillis()
@@ -96,10 +95,6 @@ class Reenviador(
         var uid = -1
         var app = "desconocida"
         var esperaSni = false
-
-        /** Conexión redirigida a un proxy local: el SNI lo decide el proxy, no la retención del núcleo. */
-        @Volatile
-        var desviada = false
         val retenido = ArrayList<ByteArray>()
         var tRet = 0L
         var bloqueada = false
@@ -245,7 +240,7 @@ class Reenviador(
     }
 
     private fun nueva(d: ByteArray, ihl: Int, origen: Int, destino: Int, sp: Int, dp: Int, seq: Long, vent: Int, clave: Long) {
-        if (filtro.ipBloqueada(destino) || filtro.destinoBloqueado(destino, dp)) {
+        if (filtro.ipBloqueada(destino)) {
             // Escudo: la IP está bloqueada, la conexión se rechaza al instante.
             val uid = uidDe(Paquetes.PROTO_TCP, sp, destino, dp)
             if (grabando()) {
@@ -307,16 +302,7 @@ class Reenviador(
             socket.bind(null)
             protegerTcp(socket)
             socket.tcpNoDelay = true
-            var destino = InetSocketAddress(Paquetes.ipObjeto(t.destinoIp), t.destinoPuerto)
-            val desvio = desvioTcp
-            if (desvio != null) {
-                val alterno = desvio.desviar(t.uid, t.app, ipTexto(t.destinoIp), t.destinoPuerto, socket.localPort)
-                if (alterno != null) {
-                    destino = alterno
-                    t.desviada = true
-                }
-            }
-            socket.connect(destino, 8000)
+            socket.connect(InetSocketAddress(Paquetes.ipObjeto(t.destinoIp), t.destinoPuerto), 8000)
         } catch (e: Exception) {
             try {
                 socket.close()
@@ -335,7 +321,6 @@ class Reenviador(
             if (t.estado != 2) {
                 t.socket = socket
                 t.estado = 1
-                if (t.desviada) t.esperaSni = false
                 enviar(t, t.isn, SYN or ACK, null, MSS_SALIDA)
                 t.sndNxt = (t.isn + 1L) and MASK
                 listo = true
@@ -757,13 +742,13 @@ class Reenviador(
         if (largo < 8) return
         val carga = d.copyOfRange(ihl + 8, ihl + largo)
         if (((destino ushr 24) and 0xFF) >= 224) return // multicast, difusión y reservadas
-        if (filtro.ipBloqueada(destino) || filtro.destinoBloqueado(destino, dp)) {
+        if (filtro.ipBloqueada(destino)) {
             escribir(Paquetes.construirIcmpPuertoInalcanzable(destino, origen, d, total, ihl))
             return
         }
         if (dp == 53 && filtro.hayDominios) {
             val consulta = DnsParser.parseConsulta(carga)
-            if (consulta != null && filtro.dominioBloqueadoEnDns(consulta.nombre)) {
+            if (consulta != null && filtro.dominioBloqueado(consulta.nombre)) {
                 val respuesta = DnsParser.construirBloqueo(carga, respuestaBloqueo)
                 escribir(Paquetes.construirUdp(destino, origen, 53, sp, respuesta))
                 alBloqueo(consulta.nombre)
