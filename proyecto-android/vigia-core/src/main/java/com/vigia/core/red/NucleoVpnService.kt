@@ -325,7 +325,7 @@ abstract class NucleoVpnService : VpnService() {
         val uid = if (detalle) resolverUid(origenIp, puertoOrigen) else -1
 
         val filtro = cfg.filtro
-        if (q != null && filtro.hayDominios && filtro.dominioBloqueadoEnDns(q.nombre)) {
+        if (q != null && filtro.hayDominios && filtro.dominioBloqueado(q.nombre)) {
             val respuesta = DnsParser.construirBloqueo(consulta, cfg.respuestaBloqueo)
             escribirTunel(ej, Paquetes.construirUdp(IP_DNS_INT, origenIp, 53, puertoOrigen, respuesta))
             if (obs != null) {
@@ -481,8 +481,7 @@ abstract class NucleoVpnService : VpnService() {
             alEvento = { evento -> obs?.alConexion(evento) },
             alDns = { uid, aplicacion, consulta, respuesta -> registrarDnsExterno(ej, uid, aplicacion, consulta, respuesta) },
             alBloqueo = { dominio -> obs?.alBloqueo(dominio) },
-            alFallar = { motivo -> alFallarReenvio(ej, motivo) },
-            desvioTcp = cfg.desvioTcp
+            alFallar = { motivo -> alFallarReenvio(ej, motivo) }
         )
     }
 
