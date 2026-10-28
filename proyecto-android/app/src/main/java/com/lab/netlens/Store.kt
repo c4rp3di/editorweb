@@ -43,6 +43,8 @@ object Store {
     val dns = ConcurrentHashMap<String, String>()
     val ipOrg = ConcurrentHashMap<String, String>()
     @Volatile var running = false
+    @Volatile var lastStartError: String? = null
+    @Volatile var lastRuntimeError: String? = null
     @Volatile var blockQuic = false
     @Volatile var mitmEnabled = false
 
