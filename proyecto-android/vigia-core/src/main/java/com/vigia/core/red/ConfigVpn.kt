@@ -6,19 +6,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 /** DNS: solo la consulta DNS entra en el túnel (ligero). CONEXIONES: todo el tráfico IPv4 pasa por el reenviador. */
 enum class ModoVpn { DNS, CONEXIONES }
 
-/**
- * Gancho opcional para redirigir ciertas conexiones TCP a un destino local (p. ej. un proxy). El núcleo no sabe
- * qué hay detrás: así :vigia-core no depende de BouncyCastle ni de ninguna lógica TLS.
- */
-interface DesvioTcp {
-    /**
-     * Se llama antes de conectar cada TCP saliente. Devuelve la dirección a la que conectar en su lugar, o null para
-     * conectar al destino real. [app] es «desconocida» si no se pudo resolver (Android < 10). [puertoLocal] es el
-     * puerto local del socket saliente (ya enlazado): el proxy lo usa para reconocer la conexión.
-     */
-    fun desviar(uid: Int, app: String, ip: String, puerto: Int, puertoLocal: Int): java.net.InetSocketAddress?
-}
-
 /** Qué contesta el túnel a un dominio bloqueado. */
 enum class RespuestaBloqueo { NXDOMAIN, CERO }
 
@@ -41,8 +28,7 @@ class ConfigVpn(
     val observador: ObservadorTrafico? = null,
     val grabando: () -> Boolean = { true },
     val reiniciarSiMuere: Boolean = false,
-    val excluirApps: List<String> = emptyList(),
-    val desvioTcp: DesvioTcp? = null
+    val excluirApps: List<String> = emptyList()
 )
 
 /** Estado visible para la interfaz (un único túnel por app). */
