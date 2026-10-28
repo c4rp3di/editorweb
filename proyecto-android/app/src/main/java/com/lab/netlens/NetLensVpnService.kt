@@ -50,51 +50,97 @@ class NetLensVpnService : VpnService() {
         else startForeground(1, n)
     }
 
-    private fun startVpn(target: String?) {
-        NetworkTools.init(this)
-        SessionHistory.init(this)
-        if (pfd != null) return
-        val b = Builder()
-            .setSession("NetLens")
-            .addAddress("10.215.173.1", 32)
-            .addRoute("0.0.0.0", 0)
-            .addDnsServer("8.8.8.8")
-            .addDnsServer("1.1.1.1")
-            .setMtu(1500)
-            .setBlocking(true)
-        try {
-            if (target != null && target.isNotEmpty()) b.addAllowedApplication(target)
-            else b.addDisallowedApplication(packageName)
-        } catch (e: Exception) {}
-        val fd = b.establish() ?: run { stopVpn(); return }
-        pfd = fd
-        val out = FileOutputStream(fd.fileDescriptor)
-        val inp = FileInputStream(fd.fileDescriptor)
-        val eng = Engine(this, out, packageManager, getSystemService(ConnectivityManager::class.java))
-        engine = eng
-
-        if (Store.mitmEnabled) {
-            try {
-            val p = MitmProxy(protector = { s -> protect(s) })
-                proxy = p; p.start()
-            } catch (e: Exception) {
-                Store.mitmEnabled = false
-            }
+    private fun protectUpstreamSocket(socket: java.net.Socket): Boolean {
+        val ok = try { protect(socket) } catch (e: Exception) {
+            Store.lastRuntimeError = "Error al excluir el socket remoto MITM: ${e.message ?: e.javaClass.simpleName}"
+            throw e
         }
+        if (!ok) {
+            val permissionRevoked = try { VpnService.prepare(this) != null } catch (_: Exception) { true }
+            Store.lastRuntimeError = if (permissionRevoked)
+                "Android no pudo excluir el socket MITM: el permiso VPN no está activo o fue revocado."
+            else
+                "Android rechazó el socket remoto MITM aunque el permiso VPN parece activo."
+        }
+        return ok
+    }
 
-        Store.running = true
-        SessionHistory.begin(target)
-        reader = Thread({
-            val buf = ByteArray(32767)
-            try {
-                while (!Thread.currentThread().isInterrupted) {
-                    val n = inp.read(buf)
-                    if (n > 0) eng.handle(buf, n)
-                    else if (n < 0) break
-                    else Thread.sleep(5)
+    private fun startVpn(target: String?) {
+        if (pfd != null) return
+        Store.lastStartError = null
+        Store.lastRuntimeError = null
+        try {
+            NetworkTools.init(this)
+            SessionHistory.init(this)
+
+            val b = Builder()
+                .setSession("NetLens")
+                .addAddress("10.215.173.1", 32)
+                .addRoute("0.0.0.0", 0)
+                .addDnsServer("8.8.8.8")
+                .addDnsServer("1.1.1.1")
+                .setMtu(1500)
+                .setBlocking(true)
+
+            // App scope is security-critical: never swallow a bad package/scope
+            // selection, because Builder would otherwise default to all apps.
+            if (!target.isNullOrBlank()) {
+                packageManager.getApplicationInfo(target, 0)
+                b.addAllowedApplication(target)
+            } else {
+                b.addDisallowedApplication(packageName)
+            }
+
+            val fd = b.establish() ?: throw IllegalStateException(
+                "Android no estableció la VPN. Comprueba el permiso VPN y vuelve a iniciar."
+            )
+            pfd = fd
+
+            // For MITM, bind and start the listener synchronously before the TUN
+            // reader starts forwarding any TCP/443 connection to 127.0.0.1:8888.
+            if (Store.mitmEnabled) {
+                val p = MitmProxy(protector = { s -> protectUpstreamSocket(s) })
+                p.start()
+                proxy = p
+            }
+
+            val out = FileOutputStream(fd.fileDescriptor)
+            val inp = FileInputStream(fd.fileDescriptor)
+            engine = Engine(this, out, packageManager, getSystemService(ConnectivityManager::class.java))
+
+            Store.running = true
+            SessionHistory.begin(target)
+            reader = Thread({
+                val buf = ByteArray(32767)
+                try {
+                    while (!Thread.currentThread().isInterrupted) {
+                        val n = inp.read(buf)
+                        if (n > 0) engine?.handle(buf, n)
+                        else if (n < 0) break
+                        else Thread.sleep(5)
+                    }
+                } catch (e: Exception) {
+                    if (Store.running && !Thread.currentThread().isInterrupted) {
+                        Store.lastStartError = "La lectura de la VPN terminó: ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}"
+                    }
                 }
-            } catch (e: Exception) {}
-        }, "netlens-reader").apply { start() }
+            }, "netlens-reader").apply { isDaemon = true; start() }
+        } catch (e: Exception) {
+            if (Store.running) try { SessionHistory.finish() } catch (_: Exception) {}
+            Store.lastStartError = when (e) {
+                is android.content.pm.PackageManager.NameNotFoundException -> "La app seleccionada ya no está instalada; no se inició la captura."
+                else -> e.message ?: (e.javaClass.simpleName)
+            }
+            Store.running = false
+            try { engine?.stop() } catch (_: Exception) {}
+            engine = null
+            try { proxy?.stop() } catch (_: Exception) {}
+            proxy = null
+            try { pfd?.close() } catch (_: Exception) {}
+            pfd = null
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
     }
 
     private fun stopVpn() {
