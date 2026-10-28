@@ -7,6 +7,7 @@ import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.nio.channels.SocketChannel
 import java.security.KeyStore
 import java.security.Principal
 import java.security.PrivateKey
@@ -34,34 +35,66 @@ class MitmProxy(
         private const val TAG = "MitmProxy"
     }
 
-    private var serverSocket: ServerSocket? = null
+    @Volatile private var serverSocket: ServerSocket? = null
+    @Volatile private var acceptThread: Thread? = null
     @Volatile private var running = false
+    private val activeSockets = java.util.Collections.newSetFromMap(ConcurrentHashMap<Socket, Boolean>())
     private lateinit var sslContext: SSLContext
     private lateinit var sniKeyManager: DynamicSniKeyManager
 
-    fun start() {
+    /** Bind synchronously: the VPN must not route the first TLS flow here until listen() is ready. */
+    @Synchronized fun start() {
+        if (running) return
         if (!Security.getProviders().any { it.name == BouncyCastleProvider.PROVIDER_NAME }) {
             Security.addProvider(BouncyCastleProvider())
         }
         sslContext = buildSslContext()
+        val listener = ServerSocket()
+        try {
+            listener.reuseAddress = true
+            listener.bind(InetSocketAddress(java.net.InetAddress.getByName("127.0.0.1"), port), 50)
+        } catch (e: Exception) {
+            try { listener.close() } catch (_: Exception) {}
+            throw IllegalStateException("No se pudo iniciar el listener MITM en 127.0.0.1:$port", e)
+        }
+        serverSocket = listener
         running = true
-        Thread({
-            try {
-                serverSocket = ServerSocket(port, 50, java.net.InetAddress.getByName("127.0.0.1"))
-                Log.i(TAG, "MITM escuchando en 127.0.0.1:$port")
-                while (running) {
-                    val client = serverSocket!!.accept()
-                    Thread { handleClient(client) }.start()
+        Log.i(TAG, "MITM escuchando en 127.0.0.1:$port")
+        val acceptor = Thread({
+            while (running) {
+                try {
+                    val client = listener.accept()
+                    activeSockets.add(client)
+                    // stop() may race with accept(); close any late socket rather
+                    // than leaving a client alive after activeSockets was drained.
+                    if (!running) {
+                        activeSockets.remove(client)
+                        try { client.close() } catch (_: Exception) {}
+                        break
+                    }
+                    Thread({ handleClient(client) }, "mitm-client").apply { isDaemon = true; start() }
+                } catch (e: Exception) {
+                    if (running) Log.e(TAG, "Error en accept", e)
                 }
-            } catch (e: Exception) {
-                if (running) Log.e(TAG, "Error en accept", e)
             }
-        }, "mitm-accept").start()
+        }, "mitm-accept").apply { isDaemon = true }
+        acceptThread = acceptor
+        acceptor.start()
     }
 
-    fun stop() {
+    @Synchronized fun stop() {
         running = false
-        try { serverSocket?.close() } catch (e: Exception) {}
+        try { serverSocket?.close() } catch (_: Exception) {}
+        serverSocket = null
+        val acceptor = acceptThread
+        if (acceptor != null && acceptor !== Thread.currentThread()) {
+            try { acceptor.join(1500) } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
+        }
+        // Drain after the acceptor has stopped, so a late accept cannot escape
+        // the first pass and leave a socket alive after stop() returns.
+        for (socket in activeSockets) try { socket.close() } catch (_: Exception) {}
+        activeSockets.clear()
+        acceptThread = null
     }
 
     private fun buildSslContext(): SSLContext {
@@ -75,35 +108,42 @@ class MitmProxy(
     private fun handleClient(client: Socket) {
         var sslClient: SSLSocket? = null
         try {
-            client.soTimeout = 20000
+            client.soTimeout = 15000 // Deadline for the inbound TLS handshake only.
             val sslFactory: SSLSocketFactory = sslContext.socketFactory as SSLSocketFactory
             sslClient = sslFactory.createSocket(client, client.inetAddress.hostAddress, client.port, false) as SSLSocket
             sslClient.useClientMode = false
-            sslClient.soTimeout = 20000
+            sslClient.soTimeout = 15000
             sslClient.startHandshake()
+            // Do not close healthy long-lived HTTPS connections after 20 seconds idle.
+            sslClient.soTimeout = 0
+            client.soTimeout = 0
 
             // In server mode peerHost is not a reliable source of SNI; use the
             // name parsed from ExtendedSSLSession by the key manager instead.
             val sni = sniKeyManager.serverName(sslClient)
             if (sni.isNullOrEmpty()) {
                 Log.w(TAG, "SNI vacío, cerrando")
-                try { sslClient.close() } catch (_: Exception) {}
                 return
             }
             Log.i(TAG, "Cliente TLS OK para $sni")
             handleTlsMitm(sslClient, sni)
         } catch (e: Exception) {
-            Log.e(TAG, "handleClient: ${e.javaClass.simpleName}: ${e.message}")
+            if (running) Log.e(TAG, "handleClient: ${e.javaClass.simpleName}: ${e.message}")
+        } finally {
             try { sslClient?.close() } catch (_: Exception) {}
             try { client.close() } catch (_: Exception) {}
+            activeSockets.remove(client)
         }
     }
 
     private fun handleTlsMitm(sslClient: SSLSocket, sni: String) {
         var sslRemote: SSLSocket? = null
+        var rawRemote: Socket? = null
         try {
-            val remote = Socket()
-            check(protector(remote)) { "No se pudo excluir el socket remoto de la VPN" }
+            val remote = SocketChannel.open().socket()
+            rawRemote = remote
+            activeSockets.add(remote)
+            check(protector(remote)) { "Android no pudo excluir el socket remoto MITM de la VPN; se aborta para evitar un bucle" }
             remote.connect(InetSocketAddress(sni, 443), 10000)
             val defaultFactory: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
             sslRemote = defaultFactory.createSocket(remote, sni, 443, false) as SSLSocket
@@ -112,7 +152,9 @@ class MitmProxy(
             val remoteParams = sslRemote.sslParameters
             remoteParams.endpointIdentificationAlgorithm = "HTTPS"
             sslRemote.sslParameters = remoteParams
+            sslRemote.soTimeout = 15000
             sslRemote.startHandshake()
+            sslRemote.soTimeout = 0
             Log.i(TAG, "Remoto TLS OK para $sni")
 
             markMitm(sni)
@@ -124,13 +166,21 @@ class MitmProxy(
 
             val t1 = Thread { pipe(in1, out1) }
             val t2 = Thread { pipe(in2, out2) }
+            t1.isDaemon = true; t2.isDaemon = true
             t1.start(); t2.start()
-            t1.join(180000); t2.join(180000)
+            // The pipes close their opposite streams when one side ends. Wait for
+            // the first termination instead of imposing a 3-minute lifetime cap.
+            t1.join()
+            try { sslClient.close() } catch (_: Exception) {}
+            try { sslRemote.close() } catch (_: Exception) {}
+            t2.join(5000)
         } catch (e: Exception) {
             Log.w(TAG, "MITM falló para $sni: ${e.javaClass.simpleName}: ${e.message}")
         } finally {
             try { sslClient.close() } catch (_: Exception) {}
             try { sslRemote?.close() } catch (_: Exception) {}
+            try { rawRemote?.close() } catch (_: Exception) {}
+            try { rawRemote?.let { activeSockets.remove(it) } } catch (_: Exception) {}
         }
     }
 
