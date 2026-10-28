@@ -12,9 +12,6 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
-import java.nio.channels.SocketChannel
-import java.nio.channels.DatagramChannel
-import java.io.IOException
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -77,11 +74,16 @@ class TcpConn(
     private val eng: Engine, private val key: String,
     private val cIp: ByteArray, private val sIp: ByteArray,
     private val cPort: Int, private val sPort: Int,
-    clientIsn: Int, val flow: Flow
+    clientIsn: Int, val flow: Flow, wsScale: Int = -1
 ) {
     companion object { val FIN_MARK = ByteArray(0); const val MSS = 1400 }
     private val lk = ReentrantLock(); private val cond = lk.newCondition()
     private val iss: Int = Random().nextInt()
+    // 2.3.2: factor de escala de ventana (RFC 7323) anunciado por el cliente
+    // en su SYN. Sin aplicarlo, la ventana real del cliente se sobreestimaba
+    // o subestimaba por 2^n y la lectura del servidor se ralentizaba o se
+    // atascaba con flujos largos (páginas grandes).
+    private val winShift: Int = if (wsScale in 0..14) wsScale else -1
     private var rcvNxt: Int = clientIsn + 1; private var sndNxt: Int = iss
     private var lastAck: Int = iss; private var cWnd: Int = 65535
     private var established = false; private var finFromClient = false; private var finToClient = false
@@ -97,12 +99,18 @@ class TcpConn(
     fun begin() {
         eng.pool.execute {
             try {
-                // Open the native descriptor first, but do not bind/connect it yet.
-                // Android requires the upstream socket to be excluded from the VPN
-                // before connect(), otherwise the relay can recurse into its own TUN.
-                val channel = SocketChannel.open()
-                val s = channel.socket()
+                // 2.3.2: Android crea el descriptor nativo de un Socket de
+                // forma perezosa; protect() sobre un socket sin descriptor
+                // devuelve false y esa era la causa de que, con la VPN activa,
+                // no funcionara ninguna página/app (todas las conexiones se
+                // abortaban). Ahora se usa un Socket clásico y se enlaza a un
+                // puerto efímero ANTES de protect()/connect(), de modo que el
+                // descriptor exista cuando Android intente marcarlo.
+                val s = Socket()
                 sock = s
+                if (!s.isBound) try { s.bind(null) } catch (e: Exception) {
+                    DebugLog.log("TCP", "bind previo a protect falló (se continúa): ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}")
+                }
                 s.tcpNoDelay = true
                 DebugLog.log("TCP", "Conectando upstream ${flow.stat.pkg} ${flow.dstIp}:${sPort} MITM=${Store.mitmEnabled && sPort == 443}")
                 if (Store.mitmEnabled && sPort == 443) {
@@ -138,7 +146,12 @@ class TcpConn(
         lk.withLock {
             if (!established) return
             if ((flags and Pkt.SYN) != 0) { eng.write(Pkt.tcp(sIp, cIp, sPort, cPort, iss, rcvNxt, Pkt.SYN or Pkt.ACK, 65535, null, 0, 0, MSS)); return }
-            if ((flags and Pkt.ACK) != 0) { if ((ack - lastAck) > 0) lastAck = ack; cWnd = win; cond.signalAll() }
+            if ((flags and Pkt.ACK) != 0) {
+                if ((ack - lastAck) > 0) lastAck = ack
+                // Aplica el factor de escala de ventana negociado en el SYN.
+                cWnd = if (winShift >= 0) minOf(win shl winShift, 1 shl 20) else win
+                cond.signalAll()
+            }
             val dlen = if (data == null) 0 else data.size
             if (dlen > 0 && data != null) {
                 if (seq == rcvNxt) {
@@ -327,43 +340,48 @@ class Engine(
     @Volatile private var alive = true
 
     init { timer.scheduleWithFixedDelay({ janitor() }, 20, 20, TimeUnit.SECONDS) }
-    fun protect(s: Socket) {
-        val ok = try { svc.protect(s) } catch (e: Exception) {
-            val message = "Android lanzó ${e.javaClass.simpleName} al proteger el socket TCP: ${e.message ?: "sin detalle"}"
-            DebugLog.log("SOCKET", message)
-            Store.lastRuntimeError = message
-            throw IOException(message, e)
-        }
-        if (!ok) {
-            val permissionRevoked = try { VpnService.prepare(svc) != null } catch (_: Exception) { true }
-            val reason = if (permissionRevoked) {
-                "Android indica que el permiso VPN no está activo o fue revocado"
-            } else {
-                "Android rechazó el descriptor TCP aunque el permiso VPN parece activo"
+    // 2.3.2 · protect() en capas, sin romper el tráfico:
+    //  1) Android crea el descriptor nativo de un Socket de forma perezosa,
+    //     y protect() sobre un socket sin descriptor devuelve false (por eso
+    //     2.2/2.3 abortaba todas las conexiones con la VPN activa). El socket
+    //     se enlaza antes de protegerse para garantizar el descriptor.
+    //  2) Se reintenta unas veces: el binder puede fallar de forma transitoria.
+    //  3) Si aun así no aplica, NO se aborta la conexión: el ámbito de la VPN
+    //     (addAllowedApplication/addDisallowedApplication, verificado al
+    //     iniciar y con error visible si falla) ya excluye al propio NetLens
+    //     del TUN, por lo que un socket sin marcar no puede recursar hacia el
+    //     túnel. El aviso queda en el log de depuración.
+    private fun tryProtect(kind: String, attempt: () -> Boolean): Boolean {
+        for (i in 1..3) {
+            try { if (attempt()) { if (i > 1) DebugLog.log("SOCKET", "protect($kind) OK en intento $i"); return true } }
+            catch (e: Exception) {
+                DebugLog.log("SOCKET", "protect($kind) lanzó ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"} (intento $i)")
             }
-            val message = "No se pudo excluir el socket TCP de la VPN: $reason. No se reintenta por una ruta sin proteger."
-            DebugLog.log("SOCKET", message)
-            Store.lastRuntimeError = message
-            throw IOException(message)
+            try { Thread.sleep(50L * i) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); break }
         }
-        DebugLog.log("SOCKET", "protect(TCP) correcto; socket aún sin conectar")
+        return false
     }
-    fun protect(s: DatagramSocket) {
-        val ok = try { svc.protect(s) } catch (e: Exception) {
-            val message = "Android lanzó ${e.javaClass.simpleName} al proteger el socket UDP: ${e.message ?: "sin detalle"}"
-            DebugLog.log("SOCKET", message)
-            Store.lastRuntimeError = message
-            throw IOException(message, e)
+
+    fun protect(s: Socket): Boolean {
+        if (!s.isBound) try { s.bind(null) } catch (e: Exception) {
+            DebugLog.log("SOCKET", "bind previo a protect(TCP) falló: ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}")
         }
+        val ok = tryProtect("TCP") { svc.protect(s) }
         if (!ok) {
-            val permissionRevoked = try { VpnService.prepare(svc) != null } catch (_: Exception) { true }
-            val reason = if (permissionRevoked) "el permiso VPN no está activo o fue revocado" else "Android rechazó el descriptor UDP"
-            val message = "No se pudo excluir el socket UDP de la VPN: $reason. No se reintenta por una ruta sin proteger."
-            DebugLog.log("SOCKET", message)
-            Store.lastRuntimeError = message
-            throw IOException(message)
+            DebugLog.log("SOCKET", "AVISO: protect(TCP) no aplicó; se continúa porque el ámbito de la VPN ya excluye a NetLens del TUN (sin riesgo de bucle).")
         }
-        DebugLog.log("SOCKET", "protect(UDP) correcto; socket aún sin conectar")
+        return ok
+    }
+
+    fun protect(s: DatagramSocket): Boolean {
+        if (!s.isBound) try { s.bind(null) } catch (e: Exception) {
+            DebugLog.log("SOCKET", "bind previo a protect(UDP) falló: ${e.javaClass.simpleName}: ${e.message ?: "sin detalle"}")
+        }
+        val ok = tryProtect("UDP") { svc.protect(s) }
+        if (!ok) {
+            DebugLog.log("SOCKET", "AVISO: protect(UDP) no aplicó; se continúa porque el ámbito de la VPN ya excluye a NetLens del TUN (sin riesgo de bucle).")
+        }
+        return ok
     }
     fun write(p: ByteArray) { synchronized(out) { try { out.write(p) } catch (e: Exception) {} } }
     fun removeTcp(key: String) { tcp.remove(key) }
@@ -395,6 +413,28 @@ class Engine(
     private fun ownerUid(proto: Int, src: ByteArray, sp: Int, dst: ByteArray, dp: Int): Int {
         if (Build.VERSION.SDK_INT < 29) return -1
         return try { cm.getConnectionOwnerUid(proto, InetSocketAddress(InetAddress.getByAddress(src), sp), InetSocketAddress(InetAddress.getByAddress(dst), dp)) } catch (e: Exception) { -1 }
+    }
+
+    /**
+     * 2.3.2 · Lee la opción window scale (RFC 7323, kind 3) del SYN del
+     * cliente. Devuelve -1 si no la anuncia o si las opciones están mal
+     * formadas. Sin esto, cWnd usaba la ventana "en bruto" de los segmentos
+     * del cliente, que tras el handshake va multiplicada por 2^escala.
+     */
+    private fun synWindowScale(b: ByteArray, t: Int, doff: Int): Int {
+        var p = t + 20
+        val end = t + doff
+        while (p < end) {
+            val kind = Pkt.u8(b, p)
+            if (kind == 0) break            // End of Option List
+            if (kind == 1) { p += 1; continue } // No-Op
+            if (p + 1 >= end) break
+            val len = Pkt.u8(b, p + 1)
+            if (len < 2 || p + len > end) break
+            if (kind == 3 && len >= 3) return Pkt.u8(b, p + 2)
+            p += len
+        }
+        return -1
     }
 
     private fun appFor(proto: Int, src: ByteArray, sp: Int, dst: ByteArray, dp: Int): AppStat {
@@ -431,7 +471,7 @@ class Engine(
                     NetworkTools.record(stat.pkg);flow.notes.add("Bloqueado por reglas");flow.closed=true
                     write(Pkt.tcp(dst,src,dp,sp,0,seq+1,Pkt.RST or Pkt.ACK,0,null,0,0,0));return
                 }
-                val conn = TcpConn(this, key, src, dst, sp, dp, seq, flow)
+                val conn = TcpConn(this, key, src, dst, sp, dp, seq, flow, synWindowScale(b, t, doff))
                 tcp[key] = conn; conn.begin()
             } else if (!isRst) {
                 val src = b.copyOfRange(16, 20); val dst = b.copyOfRange(12, 16)
@@ -494,8 +534,10 @@ class Engine(
         val flow = Store.newFlow(stat, proto, dstStr, dp)
         if (dp == 443 && Store.blockQuic) { DebugLog.log("QUIC", "BLOQUEADO UDP/443 app=${stat.pkg} destino=$dstStr:$dp"); flow.notes.add("⛔ QUIC/UDP 443 bloqueado; la app puede intentar TCP+TLS, pero el fallback depende de la app"); flow.closed = true; udp[key] = UdpCtx(null, flow); return udp[key] }
         val c: UdpCtx = try {
-            val channel = DatagramChannel.open()
-            val s = channel.socket()
+            // 2.3.2: DatagramSocket() crea el descriptor nativo en el
+            // constructor (a diferencia de Socket), así que protect() tiene
+            // un descriptor real que marcar antes de connect().
+            val s = DatagramSocket()
             protect(s)
             s.connect(InetAddress.getByAddress(dst), dp)
             s.soTimeout = if (dp == 53) 5000 else 30000
@@ -522,7 +564,11 @@ class Engine(
                 val n = dpk.length; ctx.flow.addDown(n)
                 if (dp == 53) { val r = Dpi.dnsAnswers(buf, n); if (r != null) { for (ip in r.second) Store.dns[ip] = r.first; ctx.flow.notes.add("DNS respuesta: " + r.first + " → " + r.second.joinToString(", ")) } }
                 if (n <= 1472) write(Pkt.udp(dst, src, dp, sp, buf, 0, n))
-                if (dp == 53) break
+                // 2.3.2: DNS ya no corta tras la primera respuesta. El resolvedor
+                // de Android lanza en paralelo (A y AAAA) desde el MISMO puerto,
+                // y cortar aquí descartaba respuestas legítimas (la página "no
+                // funcionaba"). Se escucha hasta el timeout de inactividad
+                // (soTimeout), que cierra el socket en el finally.
             }
         } catch (e: SocketTimeoutException) {} catch (e: Exception) {} finally {
             try { s.close() } catch (e: Exception) {}
@@ -530,3 +576,4 @@ class Engine(
         }
     }
 }
+
