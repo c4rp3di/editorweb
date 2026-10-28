@@ -31,6 +31,8 @@ interface PoliticaMitm {
 interface EventosMitm {
     fun alBloquear(host: String, ruta: String, tipo: TipoRecurso) {}
     fun alInyectarCss(host: String) {}
+    /** El cliente aceptó nuestro certificado: la conexión está siendo descifrada. */
+    fun alConexionDescifrada(host: String) {}
     fun alFallbackPinning(app: String, host: String, motivo: String) {}
     fun alError(host: String, mensaje: String) {}
 }
