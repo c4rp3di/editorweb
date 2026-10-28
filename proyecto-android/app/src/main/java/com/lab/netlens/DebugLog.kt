@@ -31,3 +31,4 @@ object DebugLog {
 
     fun count(): Int = synchronized(lock) { entries.size }
 }
+
