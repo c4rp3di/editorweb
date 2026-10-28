@@ -14,4 +14,13 @@ object BaseDatosCifrada {
         System.loadLibrary("sqlcipher")
         return SupportOpenHelperFactory(almacen.obtenerClaveBd(nombreBd))
     }
+
+    /**
+     * Fábrica con una clave que la app ya tiene en memoria (por ejemplo, derivada de una contraseña maestra).
+     * SQLCipher puede poner a cero el array que recibe, así que se le entrega una copia.
+     */
+    fun fabricaConClave(clave: ByteArray): SupportOpenHelperFactory {
+        System.loadLibrary("sqlcipher")
+        return SupportOpenHelperFactory(clave.copyOf())
+    }
 }
