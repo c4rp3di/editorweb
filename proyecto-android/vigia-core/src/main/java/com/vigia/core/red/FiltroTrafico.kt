@@ -15,13 +15,6 @@ interface FiltroTrafico {
     /** Verdadero si la IPv4 (como Int de 32 bits) está bloqueada. */
     fun ipBloqueada(ip: Int): Boolean
 
-    /**
-     * Igual que [dominioBloqueado] pero solo para consultas DNS. Por defecto es idéntico, así que el AdBlock 1.0
-     * no cambia. El AdBlock+ en modo MitM lo devuelve falso para que el dominio se resuelva y la petición llegue al
-     * proxy, que contesta 200 vacío en lugar de cortar la conexión.
-     */
-    fun dominioBloqueadoEnDns(nombre: String): Boolean = dominioBloqueado(nombre)
-
     companion object {
         val NINGUNO: FiltroTrafico = object : FiltroTrafico {
             override val hayDominios: Boolean get() = false
