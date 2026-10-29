@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- No se concede al instalar: la app se la pide a sí misma una vez, por el propio shell (pm grant). -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+
+    <application>
+        <!-- Recibe el código de 6 dígitos que la persona escribe en la notificación. -->
+        <receiver
+            android:name="com.vigia.adbwifi.CodigoReceiver"
+            android:exported="false" />
+    </application>
+
+</manifest>
