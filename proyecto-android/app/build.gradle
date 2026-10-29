@@ -18,15 +18,15 @@ android {
         }
     }
 
-    namespace 'com.vigia.adblock'
+    namespace 'com.vigia.adblab'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.vigia.adblockplus"
+        applicationId "com.vigia.adblab"
         minSdk 24
         targetSdk 34
-        versionCode 2
-        versionName "v5.0"
+        versionCode 1
+        versionName "v2.0"
     }
 
     compileOptions {
@@ -37,31 +37,34 @@ android {
         jvmTarget = '17'
     }
 
-    // BouncyCastle (bcprov, bcpkix y bcutil) trae los mismos archivos de metadatos en cada JAR.
-    packaging {
+    // Bouncy Castle y Conscrypt traen los mismos archivos META-INF: se descartan los que no hacen falta en Android.
+    packagingOptions {
         resources {
             excludes += [
-                'META-INF/versions/**/OSGI-INF/MANIFEST.MF',
+                'META-INF/versions/**',
+                'META-INF/INDEX.LIST',
                 'META-INF/DEPENDENCIES',
-                'META-INF/LICENSE*',
-                'META-INF/NOTICE*'
+                'META-INF/LICENSE',
+                'META-INF/LICENSE.md',
+                'META-INF/LICENSE.txt',
+                'META-INF/NOTICE',
+                'META-INF/NOTICE.md',
+                'META-INF/NOTICE.txt',
+                'META-INF/AL2.0',
+                'META-INF/LGPL2.1'
             ]
         }
     }
 }
 
 dependencies {
-    // Núcleo de la suite (expone con «api» Material, corrutinas, AndroidX).
-    implementation project(':vigia-core')
+    // Shell con privilegios (Shizuku / ADB local). Arrastra :vigia-core con «api».
+    implementation project(':vigia-adb')
+    // ADB inalámbrico propio (sin Shizuku). Si diera problemas al compilar, quita esta línea y ':vigia-adb-wifi' de settings.gradle.
+    implementation project(':vigia-adb-wifi')
 
-    // MitM TLS (BouncyCastle vive solo aquí; el AdBlock 1.0 no lo incluye).
-    implementation project(':vigia-mitm')
-
-    // Ya llegan con «api» desde :vigia-core; se repiten para que el diagnóstico de Fusión las vea.
+    // Ya llegan con «api»; se repiten para que el diagnóstico de Fusión las vea.
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
-
-    // Actualización diaria de las listas.
-    implementation 'androidx.work:work-runtime-ktx:2.9.0'
 }
