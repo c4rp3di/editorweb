@@ -1,7 +1,7 @@
 package com.vigia.adblock
 
-import 
-import com.vigia.core.red.UtilRedandroid.content.Context
+import android.content.Context
+import com.vigia.core.red.UtilRed
 
 class ListaDef(val id: String, val nombre: String, val descripcion: String, val url: String, val propia: Boolean = false)
 
