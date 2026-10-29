@@ -10,18 +10,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // Solo para libadb-android (emparejamiento propio de la depuración inalámbrica). Se limita a com.github.*.
-        maven {
-            url 'https://jitpack.io'
-            content {
-                includeGroupByRegex 'com\\.github\\..*'
-            }
-        }
     }
 }
 
 rootProject.name = "app"
-
-// Si :vigia-adb-wifi diera problemas al compilar, basta quitar su línea y la dependencia de app/build.gradle:
-// el resto de la suite no depende de él.
-include ':app', ':vigia-core', ':vigia-adb', ':vigia-adb-wifi'
+include ':app'
