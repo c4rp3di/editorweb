@@ -41,7 +41,13 @@ class ShellManager(contexto: Context) {
     val shizuku = ShizukuShell(contexto.applicationContext)
     val adbLocal = AdbTcpShell(contexto.applicationContext)
 
-    val proveedores: List<ShellProvider> = listOf(shizuku, adbLocal)
+    /** Orden de preferencia. Otros módulos (por ejemplo :vigia-adb-wifi) se añaden con [agregar]. */
+    val proveedores: MutableList<ShellProvider> = ArrayList(listOf(shizuku, adbLocal))
+
+    fun agregar(proveedor: ShellProvider, alPrincipio: Boolean = false) {
+        if (proveedores.any { it === proveedor }) return
+        if (alPrincipio) proveedores.add(0, proveedor) else proveedores.add(proveedor)
+    }
 
     private val _activo = MutableStateFlow<ShellProvider?>(null)
 
