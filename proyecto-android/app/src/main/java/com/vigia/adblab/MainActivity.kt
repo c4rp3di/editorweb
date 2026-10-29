@@ -3,6 +3,7 @@ package com.vigia.adblab
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.text.InputType
 import android.widget.EditText
 import android.widget.ScrollView
@@ -12,6 +13,9 @@ import com.vigia.adb.Comandos
 import com.vigia.adb.EstadoShell
 import com.vigia.adb.ShellManager
 import com.vigia.adb.ShizukuShell
+import com.vigia.adbwifi.AdbInalambricoShell
+import com.vigia.adbwifi.AdbWifi
+import com.vigia.adbwifi.AsistenteEmparejamiento
 import com.vigia.core.R
 import com.vigia.core.ui.ActividadBase
 import com.vigia.core.ui.TipoBoton
@@ -25,10 +29,15 @@ class MainActivity : ActividadBase() {
     private lateinit var estadoTexto: TextView
     private lateinit var salida: TextView
     private lateinit var campo: EditText
+    private lateinit var campoPuerto: EditText
+    private lateinit var campoCodigo: EditText
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         gestor = ShellManager(this)
+        // El ADB inalámbrico propio va primero: es el que no depende de ninguna app externa.
+        if (gestor.proveedores.none { it is AdbInalambricoShell }) gestor.agregar(AdbWifi.proveedor(this), true)
+        pedirPermisoNotificaciones()
         construirUi()
     }
 
@@ -50,7 +59,7 @@ class MainActivity : ActividadBase() {
     private fun construirUi() {
         val raiz = Vistas.columna(this, 16)
         raiz.addView(Vistas.titulo(this, "ADB Lab"), Vistas.anchoCompleto(this, 2))
-        raiz.addView(Vistas.texto(this, ":vigia-adb · entrega 0B · shell con privilegios sin PC", true), Vistas.anchoCompleto(this, 14))
+        raiz.addView(Vistas.texto(this, ":vigia-adb · entrega 0C · shell con privilegios sin PC", true), Vistas.anchoCompleto(this, 14))
 
         val estado = Vistas.tarjeta(this)
         estado.addView(Vistas.subtitulo(this, "Estado"), Vistas.anchoCompleto(this, 6))
@@ -87,6 +96,40 @@ class MainActivity : ActividadBase() {
         )
         adb.addView(Vistas.boton(this, "Autorizar ADB local", TipoBoton.TONAL) { autorizarAdb() }, Vistas.anchoCompleto(this, 0))
         raiz.addView(adb, Vistas.anchoCompleto(this, 12))
+
+        val wifi = Vistas.tarjeta(this)
+        wifi.addView(Vistas.subtitulo(this, "Opción C · ADB inalámbrico propio (sin Shizuku ni PC)"), Vistas.anchoCompleto(this, 6))
+        wifi.addView(
+            Vistas.texto(
+                this,
+                "Android 11+ y Wi-Fi. 1) Opciones de desarrollador › activa «Depuración inalámbrica». 2) Entra en ella y pulsa «Emparejar dispositivo con código de vinculación»: " +
+                    "deja ese diálogo ABIERTO. 3) Aquí, pulsa «Buscar y pedir código» y baja la barra de notificaciones. 4) Toca «Escribir código» y escribe los 6 dígitos " +
+                    "en la propia notificación. 5) Pulsa «Conectar». Tras reiniciar solo hay que repetir el 5.",
+                true
+            ),
+            Vistas.anchoCompleto(this, 8)
+        )
+        wifi.addView(Vistas.boton(this, "Abrir opciones de desarrollador", TipoBoton.TONAL) { abrirDesarrollador() }, Vistas.anchoCompleto(this, 8))
+        wifi.addView(Vistas.boton(this, "Buscar y pedir código (notificación)", TipoBoton.TONAL) { AsistenteEmparejamiento.iniciar(this) }, Vistas.anchoCompleto(this, 8))
+        wifi.addView(Vistas.boton(this, "Conectar", TipoBoton.TONAL) { conectarWifi() }, Vistas.anchoCompleto(this, 8))
+        wifi.addView(Vistas.boton(this, "Permitir que la app active sola la depuración inalámbrica", TipoBoton.TONAL) { concederAuto() }, Vistas.anchoCompleto(this, 8))
+        wifi.addView(Vistas.boton(this, "Apagar la depuración inalámbrica", TipoBoton.TONAL) { apagarWifi() }, Vistas.anchoCompleto(this, 8))
+        wifi.addView(
+            Vistas.texto(this, "Alternativa en pantalla dividida: escribe el puerto y el código que muestra el diálogo.", true),
+            Vistas.anchoCompleto(this, 4)
+        )
+        campoPuerto = EditText(this)
+        campoPuerto.hint = "Puerto de emparejamiento"
+        campoPuerto.inputType = InputType.TYPE_CLASS_NUMBER
+        campoPuerto.setTextColor(Vistas.color(this, R.color.vc_texto))
+        wifi.addView(campoPuerto, Vistas.anchoCompleto(this, 4))
+        campoCodigo = EditText(this)
+        campoCodigo.hint = "Código de 6 dígitos"
+        campoCodigo.inputType = InputType.TYPE_CLASS_NUMBER
+        campoCodigo.setTextColor(Vistas.color(this, R.color.vc_texto))
+        wifi.addView(campoCodigo, Vistas.anchoCompleto(this, 4))
+        wifi.addView(Vistas.boton(this, "Emparejar con estos datos", TipoBoton.TONAL) { emparejarManual() }, Vistas.anchoCompleto(this, 0))
+        raiz.addView(wifi, Vistas.anchoCompleto(this, 12))
 
         val prueba = Vistas.tarjeta(this)
         prueba.addView(Vistas.subtitulo(this, "Probar comandos"), Vistas.anchoCompleto(this, 6))
@@ -127,8 +170,14 @@ class MainActivity : ActividadBase() {
             } catch (e: Exception) {
                 EstadoShell.NO_DISPONIBLE
             }
+            val w = try {
+                AdbWifi.proveedor(this@MainActivity).estado()
+            } catch (e: Exception) {
+                EstadoShell.NO_DISPONIBLE
+            }
             val mejor = gestor.detectar()
-            estadoTexto.text = "Shizuku: " + describir(s) + "\nADB local: " + describir(a) + "\n\nProveedor en uso: " + (mejor?.nombre ?: "ninguno")
+            estadoTexto.text = "ADB inalámbrico propio: " + describir(w) + "\nShizuku: " + describir(s) + "\nADB local: " + describir(a) +
+                "\n\nProveedor en uso: " + (mejor?.nombre ?: "ninguno")
         }
     }
 
@@ -154,6 +203,62 @@ class MainActivity : ActividadBase() {
         lifecycleScope.launch {
             val e = gestor.adbLocal.autorizar()
             escribir("ADB local: " + describir(e))
+            refrescar()
+        }
+    }
+
+    private fun abrirDesarrollador() {
+        try {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+        } catch (e: Exception) {
+            escribir("No se pudo abrir: ve a Ajustes › Opciones de desarrollador.")
+        }
+    }
+
+    private fun conectarWifi() {
+        escribir("ADB inalámbrico: buscando la depuración inalámbrica…")
+        lifecycleScope.launch {
+            val ok = AdbWifi.proveedor(this@MainActivity).conectar()
+            escribir(if (ok) "ADB inalámbrico: conectado." else "ADB inalámbrico: no se pudo conectar (¿está activa la depuración inalámbrica y hay Wi-Fi? ¿estás emparejado?).")
+            refrescar()
+        }
+    }
+
+    private fun concederAuto() {
+        lifecycleScope.launch {
+            val p = AdbWifi.proveedor(this@MainActivity)
+            if (p.puedeActivarSola()) {
+                escribir("Ya tienes concedido el permiso: la app puede activar y apagar la depuración inalámbrica.")
+                return@launch
+            }
+            try {
+                val r = p.concederActivacionAutomatica()
+                escribir(if (r.ok) "Concedido. A partir de ahora «Conectar» enciende sola la depuración inalámbrica." else "No se pudo conceder (código " + r.codigo + "): " + r.salida.take(300))
+            } catch (e: Exception) {
+                escribir("Primero conecta el ADB inalámbrico: " + (e.message ?: e.javaClass.simpleName))
+            }
+            refrescar()
+        }
+    }
+
+    private fun apagarWifi() {
+        lifecycleScope.launch {
+            val ok = AdbWifi.proveedor(this@MainActivity).apagarDepuracionInalambrica()
+            escribir(if (ok) "Depuración inalámbrica apagada." else "No se puede apagar desde la app: falta el permiso (usa «Permitir que la app active sola…»).")
+            refrescar()
+        }
+    }
+
+    private fun emparejarManual() {
+        val puerto = campoPuerto.text.toString().trim().toIntOrNull()
+        if (puerto == null) {
+            escribir("Escribe el puerto de emparejamiento.")
+            return
+        }
+        escribir("ADB inalámbrico: emparejando…")
+        lifecycleScope.launch {
+            val r = AdbWifi.proveedor(this@MainActivity).emparejar(puerto, campoCodigo.text.toString())
+            escribir("ADB inalámbrico: " + r.mensaje)
             refrescar()
         }
     }
