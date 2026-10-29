@@ -1,4 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ADB Lab</string>
+    <string name="app_name">Descompresor</string>
+    <string name="tab_contenedor">Contenedor</string>
+    <string name="tab_apk">APK</string>
+    <string name="tab_ajustes">Ajustes</string>
 </resources>
