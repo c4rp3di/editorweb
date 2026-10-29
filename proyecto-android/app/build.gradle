@@ -18,15 +18,15 @@ android {
         }
     }
 
-    namespace 'com.vigia.adblab'
+    namespace 'org.nododeverdad.app'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.vigia.adblab"
+        applicationId "org.nododeverdad.app"
         minSdk 24
         targetSdk 34
         versionCode 1
-        versionName "v2.0"
+        versionName "v1.0"
     }
 
     compileOptions {
@@ -36,35 +36,10 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    // Bouncy Castle y Conscrypt traen los mismos archivos META-INF: se descartan los que no hacen falta en Android.
-    packagingOptions {
-        resources {
-            excludes += [
-                'META-INF/versions/**',
-                'META-INF/INDEX.LIST',
-                'META-INF/DEPENDENCIES',
-                'META-INF/LICENSE',
-                'META-INF/LICENSE.md',
-                'META-INF/LICENSE.txt',
-                'META-INF/NOTICE',
-                'META-INF/NOTICE.md',
-                'META-INF/NOTICE.txt',
-                'META-INF/AL2.0',
-                'META-INF/LGPL2.1'
-            ]
-        }
-    }
 }
 
 dependencies {
-    // Shell con privilegios (Shizuku / ADB local). Arrastra :vigia-core con «api».
-    implementation project(':vigia-adb')
-    // ADB inalámbrico propio (sin Shizuku). Si diera problemas al compilar, quita esta línea y ':vigia-adb-wifi' de settings.gradle.
-    implementation project(':vigia-adb-wifi')
-
-    // Ya llegan con «api»; se repiten para que el diagnóstico de Fusión las vea.
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
 }
