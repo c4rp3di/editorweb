@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="nvBg" format="color" />
+    <attr name="nvSurface" format="color" />
+    <attr name="nvSurface2" format="color" />
+    <attr name="nvLine" format="color" />
+    <attr name="nvText" format="color" />
+    <attr name="nvMuted" format="color" />
+    <attr name="nvAccent" format="color" />
+    <attr name="nvOnAccent" format="color" />
+    <attr name="nvAccent2" format="color" />
+    <attr name="nvPub" format="color" />
+    <attr name="nvAna" format="color" />
+    <attr name="nvAtr" format="color" />
+    <attr name="nvSoc" format="color" />
+    <attr name="nvCra" format="color" />
+    <attr name="nvPush" format="color" />
+</resources>
