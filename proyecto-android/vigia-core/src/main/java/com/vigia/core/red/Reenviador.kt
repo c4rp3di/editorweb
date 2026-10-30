@@ -47,7 +47,9 @@ class Reenviador(
     private val alDns: (Int, String, ByteArray, ByteArray) -> Unit,
     private val alBloqueo: (String) -> Unit,
     private val alFallar: (String) -> Unit,
-    private val desvioTcp: DesvioTcp? = null
+    private val desvioTcp: DesvioTcp? = null,
+    private val bloquearDot: Boolean = false,
+    private val bloquearEch: Boolean = false
 ) {
     private class Segmento(val seq: Long, val datos: ByteArray, val fin: Boolean) {
         var enviado = System.currentTimeMillis()
@@ -150,7 +152,28 @@ class Reenviador(
     private val fallaAvisada = java.util.concurrent.atomic.AtomicBoolean(false)
 
     init {
-        programador.scheduleWithFixedDelay({ mantenimiento() }, 250L, 250L, TimeUnit.MILLISECONDS)
+        programarMantenimiento(TICK_ACTIVO)
+    }
+
+    /**
+     * En vez de un scheduleWithFixedDelay fijo a 250ms (que despierta la CPU 4 veces por segundo las 24h, haya
+     * o no tráfico), cada pasada se reprograma a sí misma: 250ms mientras hay sesiones TCP o UDP abiertas, y
+     * 2000ms cuando no hay ninguna (la app está en reposo, pantalla apagada, sin tráfico de red). En cuanto
+     * llega una conexión nueva, la siguiente pasada de mantenimiento ya ve sesiones y vuelve a 250ms.
+     */
+    private fun programarMantenimiento(retraso: Long) {
+        if (!activo) return
+        try {
+            programador.schedule({
+                try {
+                    mantenimiento()
+                } finally {
+                    val siguiente = if (sesionesTcp.isEmpty() && sesionesUdp.isEmpty()) TICK_INACTIVO else TICK_ACTIVO
+                    programarMantenimiento(siguiente)
+                }
+            }, retraso, TimeUnit.MILLISECONDS)
+        } catch (e: RejectedExecutionException) {
+        }
     }
 
     // ------------------------------------------------------------------ entrada desde el túnel
@@ -245,7 +268,7 @@ class Reenviador(
     }
 
     private fun nueva(d: ByteArray, ihl: Int, origen: Int, destino: Int, sp: Int, dp: Int, seq: Long, vent: Int, clave: Long) {
-        if (filtro.ipBloqueada(destino) || filtro.destinoBloqueado(destino, dp)) {
+        if (filtro.ipBloqueada(destino)) {
             // Escudo: la IP está bloqueada, la conexión se rechaza al instante.
             val uid = uidDe(Paquetes.PROTO_TCP, sp, destino, dp)
             if (grabando()) {
@@ -256,6 +279,11 @@ class Reenviador(
                     )
                 )
             }
+            rstDesconocido(origen, destino, sp, dp, seq, 0L, SYN, 0)
+            return
+        }
+        if (bloquearDot && dp == 853) {
+            // DNS sobre TLS directo: se rechaza al instante para que la app vuelva al DNS del sistema (que pasa por el túnel).
             rstDesconocido(origen, destino, sp, dp, seq, 0L, SYN, 0)
             return
         }
@@ -757,9 +785,19 @@ class Reenviador(
         if (largo < 8) return
         val carga = d.copyOfRange(ihl + 8, ihl + largo)
         if (((destino ushr 24) and 0xFF) >= 224) return // multicast, difusión y reservadas
-        if (filtro.ipBloqueada(destino) || filtro.destinoBloqueado(destino, dp)) {
+        if (filtro.ipBloqueada(destino)) {
             escribir(Paquetes.construirIcmpPuertoInalcanzable(destino, origen, d, total, ihl))
             return
+        }
+        if (bloquearDot && dp == 853) return // DoT sobre UDP: se descarta
+        if (dp == 53 && bloquearEch) {
+            val q = DnsParser.parseConsulta(carga)
+            if (q != null && DnsParser.esTipoEch(q.tipo)) {
+                val vacia = DnsParser.construirBloqueo(carga, RespuestaBloqueo.CERO)
+                escribir(Paquetes.construirUdp(destino, origen, 53, sp, vacia))
+                alDns(-1, "desconocida", carga, vacia)
+                return
+            }
         }
         if (dp == 53 && filtro.hayDominios) {
             val consulta = DnsParser.parseConsulta(carga)
@@ -878,5 +916,7 @@ class Reenviador(
         private const val MSS_SALIDA = 1400
         private const val MAX_TCP = 250
         private const val MAX_UDP = 100
+        private const val TICK_ACTIVO = 250L
+        private const val TICK_INACTIVO = 2000L
     }
 }
