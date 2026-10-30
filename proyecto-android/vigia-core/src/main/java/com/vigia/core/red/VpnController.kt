@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import androidx.core.content.ContextCompat
+import com.vigia.core.ui.NotificacionSesion
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -49,7 +50,18 @@ internal class ControladorVpn(
         ContextCompat.startForegroundService(contexto, Intent(contexto, servicio))
     }
 
+    /**
+     * OJO: stopService() NO basta. Mientras el túnel está abierto, Android mantiene enlazado el servicio de la VPN, y un
+     * servicio enlazado no se destruye con stopService(): el túnel seguía vivo y la pantalla seguía en «activa».
+     * Se le pide al propio servicio que cierre el túnel y se pare (es lo que ya hacía el botón de la notificación).
+     * Se usa startService (no startForegroundService): esta orden no publica ninguna notificación.
+     */
     override fun stop() {
-        contexto.stopService(Intent(contexto, servicio))
+        try {
+            contexto.startService(Intent(contexto, servicio).setAction(NotificacionSesion.ACCION_DETENER))
+        } catch (e: Exception) {
+            // App en segundo plano sin permiso para arrancar servicios: lo mejor que queda.
+            contexto.stopService(Intent(contexto, servicio))
+        }
     }
 }
