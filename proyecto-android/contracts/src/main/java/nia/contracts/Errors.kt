@@ -30,7 +30,7 @@ enum class Retryability { NONE, RETRY_LATER, RETRY_SAME }
  * con el tiempo. TLS y DENIED no se reintentan tal cual: requieren decisión.
  */
 fun ErrorCode.defaultRetryability(): Retryability = when (this) {
-    NETWORK, DEADLINE, QUOTA, PROCESS_GONE, INTERNAL -> Retryability.RETRY_LATER
+    ErrorCode.NETWORK, ErrorCode.DEADLINE, ErrorCode.QUOTA, ErrorCode.PROCESS_GONE, ErrorCode.INTERNAL -> Retryability.RETRY_LATER
     else -> Retryability.NONE
 }
 
@@ -66,11 +66,16 @@ sealed class Outcome<out T> {
     data class Failure(val error: ErrorInfo) : Outcome<Nothing>()
 
     val isFailure: Boolean get() = this is Failure
+
+    companion object {
+        /** Fábricas canónicas (R0007): crear resultados con Outcome.success/failure, no con las subclases a mano. */
+        fun <T> success(value: T): Outcome<T> = Success(value)
+        fun failure(error: ErrorInfo): Outcome<Nothing> = Failure(error)
+    }
 }
 
 inline fun <T> Outcome<T>.onSuccess(block: (T) -> Unit): Outcome<T> {
-    if 
-(this is Outcome.Success) block(value)
+    if (this is Outcome.Success) block(value)
     return this
 }
 
