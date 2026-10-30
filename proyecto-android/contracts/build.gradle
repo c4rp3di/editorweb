@@ -1,0 +1,22 @@
+// :contracts — Kotlin JVM puro, sin Android (ADR-001). Aquí viven los
+// contratos congelables del maestro (sección 4) y SUS tests: el
+// importador de Fusion descarta los tests del módulo :app, por lo que
+// todo el testing unitario de contratos se hace en este módulo.
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    testImplementation(kotlin('test'))
+}
