@@ -127,7 +127,7 @@ class LaboratorioActivity : ActividadBase() {
         sb.append("Técnicas: ").append(Laboratorio.TECNICAS.joinToString(", ") { it.id + "=" + (if (Laboratorio.activa(this, it.id)) "sí" else "no") }).append('\n')
         sb.append("Sin descifrar: ").append(Ajustes.mitmExentas(this).sorted().joinToString(", ").ifEmpty { "ninguna" }).append('\n')
         sb.append("Conteo: ").append(Laboratorio.TECNICAS.joinToString(", ") { it.id + "=" + Laboratorio.veces(it.id) }).append("\n\n")
-        sb.append(Diagnostico.texto(300))
+        sb.append(Diagnostico.texto(450))
         return sb.toString()
     }
 
