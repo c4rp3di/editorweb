@@ -39,6 +39,10 @@
             android:name=".RegistroDnsActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".LaboratorioActivity"
+            android:exported="false" />
+
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
