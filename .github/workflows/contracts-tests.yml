@@ -4,6 +4,10 @@ on:
   push:
   workflow_dispatch:
 
+defaults:
+  run:
+    working-directory: proyecto-android
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -22,6 +26,31 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Plataforma y build-tools android-34 (solo si faltan)
+        run: |
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          if [ -d "$SDK/platforms/android-34" ] && [ -d "$SDK/build-tools/34.0.0" ]; then
+            echo "SDK android-34 ya presente, se omite la descarga."
+          else
+            yes | sdkmanager --licenses > /dev/null || true
+            sdkmanager "platforms;android-34" "build-tools;34.0.0"
+          fi
+
+      - name: Keystore debug si falta (el repo suele traerlo en apk-build/)
+        run: |
+          mkdir -p apk-build
+          if [ -f apk-build/debug.keystore ]; then
+            echo "Keystore debug del repo presente; firma estable."
+          else
+            keytool -genkeypair -v \
+              -keystore apk-build/debug.keystore \
+              -storepass android -keypass android \
+              -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "::warning::No habia keystore en el repo; se genera uno local para este run."
+          fi
+
       - name: Tests unitarios del modulo contracts (T002)
         run: gradle --no-daemon :contracts:test
 
@@ -33,4 +62,4 @@ jobs:
         if: always()
         with:
           name: navegador-nia-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: proyecto-android/app/build/outputs/apk/debug/*.apk
