@@ -29,6 +29,11 @@ enum class RespuestaBloqueo { NXDOMAIN, CERO }
  * @param grabando se consulta en cada evento: devolver falso pone en pausa el detalle (no el bloqueo).
  * @param reiniciarSiMuere si es verdadero, Android relanza el servicio tras matarlo (bloqueador 24/7).
  * @param excluirApps paquetes que NO pasan por el túnel (en ambos modos).
+ * @param bloquearDot rechaza DNS sobre TLS directo (TCP/UDP 853) para forzar el DNS del sistema. Solo modo CONEXIONES.
+ * @param bloquearEch contesta vacío a las consultas DNS HTTPS(65)/SVCB(64): sin ellas el navegador no recibe la
+ *   configuración ECH y el nombre de servidor (SNI) queda visible. Funciona en ambos modos.
+ * @param neutralizarIpv6 enruta IPv6 al túnel y lo descarta, para que las apps dual-stack no se salten el filtro por
+ *   IPv6. Solo modo CONEXIONES. Los destinos que solo existan en IPv6 quedan inaccesibles mientras la VPN esté activa.
  */
 class ConfigVpn(
     val nombreSesion: String,
@@ -42,7 +47,10 @@ class ConfigVpn(
     val grabando: () -> Boolean = { true },
     val reiniciarSiMuere: Boolean = false,
     val excluirApps: List<String> = emptyList(),
-    val desvioTcp: DesvioTcp? = null
+    val desvioTcp: DesvioTcp? = null,
+    val bloquearDot: Boolean = false,
+    val bloquearEch: Boolean = false,
+    val neutralizarIpv6: Boolean = false
 )
 
 /** Estado visible para la interfaz (un único túnel por app). */
