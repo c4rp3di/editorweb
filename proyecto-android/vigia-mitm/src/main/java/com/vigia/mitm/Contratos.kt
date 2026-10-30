@@ -3,6 +3,15 @@ package com.vigia.mitm
 /** Qué tipo de recurso pide una petición HTTP (según Sec-Fetch-Dest, la extensión o Accept). */
 enum class TipoRecurso { SCRIPT, IMAGEN, ESTILO, DOCUMENTO, OTRO }
 
+/** Respuesta inventada por el proxy en lugar de ir al servidor (VAST vacío, script sustituto…). */
+class RespuestaFalsa(
+    val tecnica: String,
+    val tipo: String,
+    val cuerpo: ByteArray,
+    val codigo: Int = 200,
+    val cabeceras: List<Pair<String, String>> = emptyList()
+)
+
 /** Lo que el MitM necesita saber del filtro. Lo implementa la app: el módulo no conoce listas ni preferencias. */
 interface FiltroContenido {
     /** Verdadero si el recurso debe sustituirse por un 200 OK vacío. [host] llega en minúsculas, sin puerto. */
@@ -10,6 +19,18 @@ interface FiltroContenido {
 
     /** Reglas CSS (sin etiquetas <style>) para ocultar huecos de anuncios en [host], o null/vacío si ninguna. */
     fun cssCosmetico(host: String): String?
+
+    /** Se consulta ANTES que [bloquear]: si devuelve algo, se contesta eso sin llegar al servidor. */
+    fun responder(host: String, ruta: String, tipo: TipoRecurso, metodo: String, origen: String?): RespuestaFalsa? = null
+
+    /** JavaScript que se ejecuta al principio de la página (justo tras <head>), antes que los de la propia web. */
+    fun scriptInicial(host: String): String? = null
+
+    /** ¿Hay que reescribir esta lista de reproducción HLS (.m3u8)? */
+    fun tratarHls(host: String, ruta: String): Boolean = false
+
+    /** Nuevo texto para la respuesta, o null para dejarla igual. */
+    fun reescribirTexto(host: String, ruta: String, texto: String): String? = null
 }
 
 /** Decisiones de intermediación y lista blanca automática de SSL pinning. Lo implementa la app. */
@@ -33,6 +54,8 @@ interface EventosMitm {
     fun alInyectarCss(host: String) {}
     /** El cliente aceptó nuestro certificado: la conexión está siendo descifrada. */
     fun alConexionDescifrada(host: String) {}
+    /** Una técnica del laboratorio actuó sobre esta petición o página. */
+    fun alTecnica(tecnica: String, host: String, ruta: String) {}
     fun alFallbackPinning(app: String, host: String, motivo: String) {}
     fun alError(host: String, mensaje: String) {}
 }
