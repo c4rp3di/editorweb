@@ -22,3 +22,12 @@ Solo puede haber una VPN activa: desactiva el Soberano+ antes de usar AntiAds.
 ## Hallazgos de la primera prueba (es.pornhub.com en Chrome)
 - Sus anuncios NO usan VAST/IMA/GPT: el reproductor pide los vídeos (.mp4) y las imágenes a adtng.com / trafficjunky.net y envía eventos a etahub.com. Por eso vast/stubs no actuaban.
 - Se añadió la técnica «juguete»: esos .mp4 se sustituyen por un MP4 válido de 0,3 s (assets/anuncio_vacio.mp4).
+
+## Segunda prueba (es.pornhub.com)
+- Los scripts de anuncios (embeddedads, popunder, gtm) quedan vaciados desde el origen: no llegan a pedirse los .mp4 (por eso «juguete» = 0).
+- `media.trafficjunky.net/delivery/js/abp/js1.js` parece un detector de bloqueadores (abp). Hipótesis: al vaciarlo, el sitio detecta bloqueo y no reproduce. Se añade la clave `permitir` en reglas.json: esa URL ya no se bloquea.
+- Los eventos de etahub.com se repetían (mismo ndate): la respuesta vacía no llevaba cabeceras CORS y el emisor la tomaba por fallo. Ahora el bloqueo clásico responde con CORS y atiende el preflight.
+
+## Tercera prueba: el pre-roll seguía saliendo
+- El diagnóstico solo anotaba lo que las técnicas modificaban; no se veía qué peticiones pasaban sin tocar. Nuevo interruptor del Laboratorio: «Registrar vídeo y audio (diagnóstico)», que anota (req) las peticiones de vídeo/audio/HLS/archivos grandes con código, tipo y tamaño.
+- El túnel solo enruta IPv4. Con el Modo Profundo activo, las consultas DNS de tipo AAAA se contestan «sin datos» (FiltroTrafico.filtrarAaaa) para que las apps usen IPv4 y pasen por el proxy.
