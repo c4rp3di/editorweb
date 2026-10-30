@@ -25,7 +25,7 @@ android {
         applicationId "com.vigia.antiads"
         minSdk 24
         targetSdk 34
-        versionCode 1
+        versionCode 2
         versionName "v3.0"
     }
 
