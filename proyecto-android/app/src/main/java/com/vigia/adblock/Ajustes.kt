@@ -72,7 +72,7 @@ object Ajustes {
     fun laboratorio(c: Context): Boolean = p(c).getBoolean("laboratorio", false)
     fun setLaboratorio(c: Context, v: Boolean) = p(c).edit().putBoolean("laboratorio", v).apply()
 
-    /** Reglas de ruta propias del MitM, una por línea: «dominio.com/ruta/*». Solo se aplican con el descifrado activo. */
+    /** Reglas de ruta propias del MitM, una por línea: «dominio.com/ruta/» seguido de asterisco opcional. Solo se aplican con el descifrado activo. */
     fun rutasExtra(c: Context): String = p(c).getString("rutas_extra", "") ?: ""
     fun setRutasExtra(c: Context, v: String) = p(c).edit().putString("rutas_extra", v).apply()
 
