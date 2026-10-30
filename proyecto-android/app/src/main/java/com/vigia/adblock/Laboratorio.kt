@@ -1,181 +1,246 @@
 package com.vigia.adblock
 
 import android.content.Context
-import com.vigia.core.red.EventoDns
-import com.vigia.core.red.EventoRed
-import com.vigia.core.util.Formato
+import com.vigia.mitm.EventosMitm
+import com.vigia.mitm.FiltroContenido
+import com.vigia.mitm.RespuestaFalsa
+import com.vigia.mitm.TipoRecurso
+import org.json.JSONObject
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.ArrayDeque
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
+
+/** Las técnicas de AntiAds. Cada una se activa por separado en el Laboratorio. */
+object Laboratorio {
+    class Tecnica(val id: String, val nombre: String, val descripcion: String, val porDefecto: Boolean)
+
+    val TECNICAS = listOf(
+        Tecnica("clasico", "Bloqueo clásico (0 bytes)", "Lo que hace el Soberano+: los recursos de la lista se sustituyen por un 200 vacío. Apágalo para ver qué pasa sin él.", true),
+        Tecnica("vast", "VAST vacío válido", "Las peticiones de anuncios de vídeo reciben un «no hay anuncio» bien formado en lugar de nada. El reproductor arranca el vídeo.", true),
+        Tecnica("juguete", "Anuncio de juguete (vídeo válido)", "Los vídeos de anuncio (.mp4) de dominios bloqueados se sustituyen por un vídeo mínimo y válido de 0,3 s. El reproductor lo da por visto y sigue con el contenido, en vez de quedarse esperando un archivo vacío.", true),
+        Tecnica("stubs", "Scripts sustitutos", "Google Publisher Tag, IMA SDK y adsbygoogle se sustituyen por versiones que no hacen nada pero no rompen la página.", true),
+        Tecnica("yt", "YouTube: borrar datos de anuncios", "Script que quita adPlacements/playerAds de las respuestas del reproductor antes de que la web los lea.", true),
+        Tecnica("skip", "Saltador por JavaScript", "Si un anuncio llega a sonar: lo silencia, lo adelanta al final y pulsa «Saltar». En YouTube y, de forma genérica, en otras webs.", true),
+        Tecnica("css", "Ocultar huecos (CSS)", "Oculta los contenedores de anuncios que quedan vacíos.", true),
+        Tecnica("hls", "Limpiar listas HLS (experimental)", "Quita de las listas .m3u8 los tramos marcados como anuncio (CUE-OUT/CUE-IN). Solo sirve si el sitio los marca.", false)
+    )
+
+    private val cache = ConcurrentHashMap<String, Boolean>()
+    private fun prefs(c: Context) = c.applicationContext.getSharedPreferences("antiads_lab", Context.MODE_PRIVATE)
+
+    fun activa(c: Context, id: String): Boolean =
+        cache.getOrPut(id) { prefs(c).getBoolean("t_" + id, TECNICAS.firstOrNull { it.id == id }?.porDefecto ?: false) }
+
+    fun poner(c: Context, id: String, v: Boolean) {
+        cache[id] = v
+        prefs(c).edit().putBoolean("t_" + id, v).apply()
+    }
+
+    private val conteo = ConcurrentHashMap<String, AtomicInteger>()
+    fun contar(t: String) { conteo.getOrPut(t) { AtomicInteger() }.incrementAndGet() }
+    fun veces(t: String): Int = conteo[t]?.get() ?: 0
+    fun reiniciarConteo() = conteo.clear()
+}
+
+/** Registro de lo que han hecho las técnicas. Solo en memoria. Se puede copiar y enviar para diagnosticar. */
+object Diagnostico {
+    private const val MAX = 600
+    private val lineas = ArrayDeque<String>()
+    private val hora = SimpleDateFormat("HH:mm:ss", Locale.US)
+
+    @Synchronized
+    fun anotar(tipo: String, texto: String) {
+        if (lineas.size >= MAX) lineas.removeFirst()
+        lineas.addLast(hora.format(Date()) + "  " + tipo.padEnd(10) + " " + texto.take(110))
+    }
+
+    @Synchronized
+    fun texto(ultimas: Int = MAX): String = lineas.toList().takeLast(ultimas).joinToString("\n")
+
+    @Synchronized
+    fun vaciar() = lineas.clear()
+}
+
+/** Reglas editables (JSON): patrones de peticiones y técnicas por sitio. */
+class Reglas(val vast: List<String>, val stubs: List<Pair<String, String>>, val sitios: List<Pair<String, Set<String>>>) {
+
+    /** Técnicas de página para [host]: las de «*» más las del sitio que mejor encaje (sufijo de dominio). */
+    fun tecnicasPara(host: String): Set<String> {
+        val res = HashSet<String>()
+        for ((h, t) in sitios) if (h == "*") res.addAll(t)
+        val mejor = sitios.filter { it.first != "*" && (host == it.first || host.endsWith("." + it.first)) }.maxByOrNull { it.first.length }
+        if (mejor != null) res.addAll(mejor.second)
+        return res
+    }
+
+    companion object {
+        fun parse(texto: String): Reglas {
+            val j = JSONObject(texto)
+            val vast = ArrayList<String>()
+            j.optJSONArray("vast")?.let { for (i in 0 until it.length()) vast.add(it.getString(i).lowercase()) }
+            val stubs = ArrayList<Pair<String, String>>()
+            j.optJSONArray("stubs")?.let {
+                for (i in 0 until it.length()) {
+                    val o = it.getJSONObject(i)
+                    stubs.add(Pair(o.getString("patron").lowercase(), o.getString("stub")))
+                }
+            }
+            val sitios = ArrayList<Pair<String, Set<String>>>()
+            j.optJSONArray("sitios")?.let {
+                for (i in 0 until it.length()) {
+                    val o = it.getJSONObject(i)
+                    val t = HashSet<String>()
+                    val a = o.optJSONArray("tecnicas")
+                    if (a != null) for (k in 0 until a.length()) t.add(a.getString(k))
+                    sitios.add(Pair(o.getString("host").lowercase(), t))
+                }
+            }
+            return Reglas(vast, stubs, sitios)
+        }
+
+        fun archivo(c: Context) = File(c.filesDir, "reglas.json")
+
+        /** Las importadas si existen y son válidas; si no, las integradas. */
+        fun cargar(c: Context): Reglas {
+            val f = archivo(c)
+            if (f.exists()) {
+                try { return parse(f.readText()) } catch (e: Exception) { Diagnostico.anotar("reglas", "importadas no válidas, uso las integradas: " + e.message) }
+            }
+            return parse(c.assets.open("reglas.json").bufferedReader().use { it.readText() })
+        }
+    }
+}
+
+object ReglasEstado {
+    @Volatile
+    var actual: Reglas? = null
+
+    fun asegurar(c: Context): Reglas = actual ?: Reglas.cargar(c.applicationContext).also { actual = it }
+    fun recargar(c: Context) { actual = Reglas.cargar(c.applicationContext) }
+}
 
 /**
- * Registro del Laboratorio (lo que antes era NetLens): quién hace qué conexión. Todo vive en memoria y se pierde al
- * cerrarse el proceso; solo sale del móvil si el usuario pulsa «Exportar». No guarda contenido, solo metadatos:
- * app, nombre consultado, destino, bytes.
- *
- * Mientras [activo] sea falso el túnel no resuelve la app de origen ni lee respuestas: es el modo ligero de siempre.
+ * El filtro de contenido de AntiAds: aplica las técnicas activas. Las de red (VAST, scripts sustitutos, bloqueo
+ * clásico) actúan sobre cualquier petición según su URL; las de página (scriptlets, saltador, CSS, HLS) según el
+ * sitio que se está viendo, que sale de las reglas.
  */
-object Laboratorio {
+class MotorReglas(contexto: Context, private val base: FiltroAdBlock) : FiltroContenido {
+    private val c = contexto.applicationContext
+    private val clasico = FiltroContenidoAdBlock(base)
 
-    @Volatile
-    var activo: Boolean = false
-        private set
+    private fun reglas(): Reglas = ReglasEstado.asegurar(c)
 
-    @Volatile
-    var desde: Long = 0L
-        private set
-
-    class Linea(val ts: Long, val tipo: String, val app: String, val texto: String, val bloqueado: Boolean)
-
-    class FilaApp(
-        val app: String,
-        val consultasDns: Int,
-        val bloqueadas: Int,
-        val bytesIn: Long,
-        val bytesOut: Long,
-        val httpClaro: Int,
-        val destinos: List<Pair<String, Long>>,
-        val dominiosDns: List<String>
-    ) {
-        val bytes: Long get() = bytesIn + bytesOut
+    /** Vídeo mínimo válido (H.264, 16x16, 0,3 s) que va en los assets. */
+    private val juguete: ByteArray? by lazy {
+        try { c.assets.open("anuncio_vacio.mp4").use { it.readBytes() } } catch (e: Exception) { null }
     }
 
-    private class Acumulado {
-        var consultasDns = 0
-        var bloqueadas = 0
-        var bytesIn = 0L
-        var bytesOut = 0L
-        var httpClaro = 0
-        val destinos = HashMap<String, Long>()
-        val dominiosDns = HashSet<String>()
-    }
-
-    private const val MAX_LINEAS = 1500
-    private const val MAX_POR_APP = 300
-
-    private val cerrojo = Any()
-    private val lineas = ArrayDeque<Linea>()
-    private val apps = HashMap<String, Acumulado>()
-
-    fun configurar(c: Context) {
-        activo = Ajustes.laboratorio(c)
-        if (activo && desde == 0L) desde = System.currentTimeMillis()
-    }
-
-    fun activar(c: Context, v: Boolean) {
-        Ajustes.setLaboratorio(c, v)
-        activo = v
-        if (v && desde == 0L) desde = System.currentTimeMillis()
-    }
-
-    fun limpiar() {
-        synchronized(cerrojo) {
-            lineas.clear()
-            apps.clear()
-            desde = if (activo) System.currentTimeMillis() else 0L
+    override fun responder(host: String, ruta: String, tipo: TipoRecurso, metodo: String, origen: String?): RespuestaFalsa? {
+        val url = (host + ruta).lowercase()
+        val r = reglas()
+        if (tipo != TipoRecurso.DOCUMENTO && Laboratorio.activa(c, "juguete") &&
+            ruta.substringBefore('?').lowercase().endsWith(".mp4") && base.dominioBloqueado(host)
+        ) {
+            val v = juguete
+            if (v != null) return RespuestaFalsa("juguete", "video/mp4", v)
         }
-    }
-
-    // ------------------------------------------------------------------ entrada (hilos del túnel: rápido y sin bloquear)
-
-    fun registrarDns(e: EventoDns) {
-        if (!activo) return
-        synchronized(cerrojo) {
-            val a = apps.getOrPut(e.app) { Acumulado() }
-            a.consultasDns++
-            if (e.bloqueado) a.bloqueadas++
-            if (a.dominiosDns.size < MAX_POR_APP) a.dominiosDns.add(e.dominio)
-            anotar(Linea(e.ts, "DNS " + e.tipo, e.app, e.dominio + " → " + e.respuesta, e.bloqueado))
-        }
-    }
-
-    fun registrarConexion(e: EventoRed) {
-        if (!activo) return
-        synchronized(cerrojo) {
-            val a = apps.getOrPut(e.app) { Acumulado() }
-            a.bytesIn += e.bytesIn
-            a.bytesOut += e.bytesOut
-            val nombre = if (e.sni.isNotEmpty()) e.sni else e.ip
-            if (a.destinos.containsKey(nombre) || a.destinos.size < MAX_POR_APP) {
-                a.destinos[nombre] = (a.destinos[nombre] ?: 0L) + e.bytesIn + e.bytesOut
+        if (Laboratorio.activa(c, "stubs")) {
+            for ((patron, stub) in r.stubs) {
+                if (url.contains(patron)) {
+                    val js = when (stub) {
+                        "gpt" -> LaboratorioJs.STUB_GPT
+                        "ima" -> LaboratorioJs.STUB_IMA
+                        "adsbygoogle" -> LaboratorioJs.STUB_ADSBYGOOGLE
+                        else -> null
+                    } ?: continue
+                    return RespuestaFalsa("stub:" + stub, "application/javascript; charset=utf-8", js.toByteArray(Charsets.UTF_8))
+                }
             }
-            // Puerto 80 = HTTP sin cifrar: cualquiera en la red puede leerlo. Es una pista; aquí no se mira el contenido.
-            if (e.puerto == 80 && e.proto.startsWith("TCP") && !e.proto.contains("bloqueada")) a.httpClaro++
-            val bloqueada = e.proto.contains("bloqueada") || e.proto.contains("rechazada")
-            anotar(
-                Linea(
-                    e.ts, e.proto, e.app,
-                    nombre + ":" + e.puerto + "  ↑" + Formato.bytes(e.bytesOut) + " ↓" + Formato.bytes(e.bytesIn),
-                    bloqueada
-                )
+        }
+        if (Laboratorio.activa(c, "vast") && r.vast.any { url.contains(it) }) {
+            val vmap = url.contains("vmap")
+            return RespuestaFalsa(
+                if (vmap) "vmap" else "vast", "application/xml; charset=utf-8",
+                (if (vmap) LaboratorioJs.VMAP_VACIO else LaboratorioJs.VAST_VACIO).toByteArray(Charsets.UTF_8)
             )
         }
+        return null
     }
 
-    /** Anotación suelta (por ejemplo, un bloqueo del descifrado MitM). */
-    fun nota(tipo: String, app: String, texto: String, bloqueado: Boolean) {
-        if (!activo) return
-        synchronized(cerrojo) { anotar(Linea(System.currentTimeMillis(), tipo, app, texto, bloqueado)) }
+    override fun bloquear(host: String, ruta: String, tipo: TipoRecurso): Boolean =
+        Laboratorio.activa(c, "clasico") && clasico.bloquear(host, ruta, tipo)
+
+    override fun cssCosmetico(host: String): String? {
+        if (!Laboratorio.activa(c, "css")) return null
+        val t = reglas().tecnicasPara(host)
+        if (!t.contains("css")) return null
+        return FiltroContenidoAdBlock.CSS + (if (t.contains("yt")) "\n" + LaboratorioJs.CSS_YOUTUBE else "")
     }
 
-    private fun anotar(l: Linea) {
-        lineas.addLast(l)
-        while (lineas.size > MAX_LINEAS) lineas.removeFirst()
-    }
-
-    // ------------------------------------------------------------------ lectura (hilo principal)
-
-    /** Las [max] líneas más recientes, la más nueva primero. */
-    fun recientes(max: Int): List<Linea> {
-        synchronized(cerrojo) {
-            val res = ArrayList<Linea>(minOf(max, lineas.size))
-            var i = lineas.size - 1
-            while (i >= 0 && res.size < max) {
-                res.add(lineas[i])
-                i--
-            }
-            return res
+    override fun scriptInicial(host: String): String? {
+        val t = reglas().tecnicasPara(host)
+        val sb = StringBuilder()
+        if (t.contains("yt") && Laboratorio.activa(c, "yt")) sb.append(LaboratorioJs.YT_PRUNE).append('\n')
+        if (t.contains("skip") && Laboratorio.activa(c, "skip")) {
+            val yt = host == "youtube.com" || host.endsWith(".youtube.com") || host.endsWith("youtube-nocookie.com")
+            sb.append(if (yt) LaboratorioJs.SKIP_YT else LaboratorioJs.SKIP_GENERICO).append('\n')
         }
+        return if (sb.isEmpty()) null else sb.toString()
     }
 
-    /** Resumen por app, de más a menos tráfico. */
-    fun resumen(): List<FilaApp> {
-        synchronized(cerrojo) {
-            val res = ArrayList<FilaApp>(apps.size)
-            for ((app, a) in apps) {
-                res.add(
-                    FilaApp(
-                        app, a.consultasDns, a.bloqueadas, a.bytesIn, a.bytesOut, a.httpClaro,
-                        a.destinos.entries.sortedByDescending { it.value }.map { Pair(it.key, it.value) },
-                        a.dominiosDns.sorted()
-                    )
-                )
-            }
-            res.sortWith(compareByDescending<FilaApp> { it.bytes }.thenByDescending { it.consultasDns })
-            return res
-        }
-    }
+    override fun tratarHls(host: String, ruta: String): Boolean =
+        Laboratorio.activa(c, "hls") && reglas().tecnicasPara(host).contains("hls")
 
-    fun totalLineas(): Int = synchronized(cerrojo) { lineas.size }
-
-    // ------------------------------------------------------------------ exportar
-
-    /** CSV listo para abrir en una hoja de cálculo. Los textos que empiezan por = + - @ se neutralizan (inyección de fórmulas). */
-    fun csv(): String {
-        val sb = StringBuilder("﻿")
-        sb.append("hora,tipo,app,detalle,bloqueado\n")
-        synchronized(cerrojo) {
-            for (l in lineas) {
-                sb.append(q(Formato.fechaHoraCompleta(l.ts))).append(',')
-                    .append(q(l.tipo)).append(',')
-                    .append(q(l.app)).append(',')
-                    .append(q(l.texto)).append(',')
-                    .append(if (l.bloqueado) "si" else "no").append('\n')
+    /** Quita de una lista HLS los tramos entre #EXT-X-CUE-OUT y #EXT-X-CUE-IN y las marcas de intersticiales. */
+    override fun reescribirTexto(host: String, ruta: String, texto: String): String? {
+        if (!texto.startsWith("#EXTM3U")) return null
+        val salida = ArrayList<String>()
+        var enAnuncio = false
+        var cambio = false
+        for (l in texto.split('\n')) {
+            val t = l.trim()
+            when {
+                t.startsWith("#EXT-X-CUE-OUT") -> { enAnuncio = true; cambio = true }
+                t.startsWith("#EXT-X-CUE-IN") -> { enAnuncio = false; cambio = true }
+                t.startsWith("#EXT-X-DATERANGE") && (t.contains("SCTE35-OUT") || t.contains("com.apple.hls.interstitial")) -> cambio = true
+                enAnuncio && !t.startsWith("#EXT-X-ENDLIST") -> cambio = true
+                else -> salida.add(l)
             }
         }
-        return sb.toString()
+        return if (cambio) salida.joinToString("\n") else null
+    }
+}
+
+/** Contadores y diagnóstico de lo que ocurre en el proxy. */
+object EventosLab : EventosMitm {
+    override fun alBloquear(host: String, ruta: String, tipo: TipoRecurso) {
+        MitmEstado.vaciados.incrementAndGet()
+        Laboratorio.contar("clasico")
+        Estadisticas.registrar(host)
+        Diagnostico.anotar("clasico", host + ruta)
     }
 
-    private fun q(s: String): String {
-        var v = s.replace("\r", " ").replace("\n", " | ")
-        if (v.isNotEmpty() && (v[0] == '=' || v[0] == '+' || v[0] == '-' || v[0] == '@')) v = "'" + v
-        return "\"" + v.replace("\"", "\"\"") + "\""
+    override fun alInyectarCss(host: String) {
+        MitmEstado.paginasLimpias.incrementAndGet()
+        Laboratorio.contar("css")
+        Diagnostico.anotar("css", host)
     }
+
+    override fun alConexionDescifrada(host: String) { MitmEstado.descifradas.incrementAndGet() }
+
+    override fun alFallbackPinning(app: String, host: String, motivo: String) {
+        MitmEstado.rechazos.incrementAndGet()
+        Diagnostico.anotar("rechazo", app + " → " + host + " (" + motivo.take(50) + ")")
+    }
+
+    override fun alTecnica(tecnica: String, host: String, ruta: String) {
+        Laboratorio.contar(tecnica.substringBefore(':'))
+        Diagnostico.anotar(tecnica, host + ruta)
+    }
+
+    override fun alError(host: String, mensaje: String) { Diagnostico.anotar("error", host + " " + mensaje) }
 }
