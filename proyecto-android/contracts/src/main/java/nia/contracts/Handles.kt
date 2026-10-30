@@ -62,7 +62,8 @@ class HandleRegistry {
     fun <T> validate(handle: Handle<T>): Outcome<Handle<T>> =
         if (handle.isStale(clock.current())) {
             Outcome.failure(
-                ErrorInfo(
+         
+       ErrorInfo(
                     ErrorCode.STALE_HANDLE,
                     "el recurso cambió de generación; pide un handle nuevo"
                 )
