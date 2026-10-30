@@ -22,12 +22,6 @@ interface FiltroTrafico {
      */
     fun dominioBloqueadoEnDns(nombre: String): Boolean = dominioBloqueado(nombre)
 
-    /**
-     * Bloqueo por IP + puerto de destino (TCP y UDP). Por defecto nunca bloquea, así que el AdBlock 1.0 no cambia.
-     * Solo ve el tráfico que entra en el túnel: en modo DNS (solo se enruta el DNS) no se llega a llamar.
-     */
-    fun destinoBloqueado(ip: Int, puerto: Int): Boolean = false
-
     companion object {
         val NINGUNO: FiltroTrafico = object : FiltroTrafico {
             override val hayDominios: Boolean get() = false
