@@ -62,6 +62,7 @@ class AdBlockVpnService : NucleoVpnService() {
         AdBlockEstado.filtro.bloquearDnsCifrado = Ajustes.bloquearDnsCifrado(c)
         MitmEstado.reiniciar()
         MitmEstado.activo = mitm
+        AdBlockEstado.filtro.ocultarIpv6 = mitm
         val profundo = mitm || Ajustes.modoProfundo(c)
         return ConfigVpn(
             nombreSesion = "AntiAds",
