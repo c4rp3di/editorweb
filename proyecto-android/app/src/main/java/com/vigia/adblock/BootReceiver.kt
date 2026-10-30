@@ -30,7 +30,7 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     private fun avisar(c: Context, texto: String) {
-        val datos = NotificacionSesion.Datos("adblock_aviso", "Avisos de AdBlock", 102, "AdBlock Soberano Lab", texto, textoDetener = null)
+        val datos = NotificacionSesion.Datos("adblock_aviso", "Avisos de AdBlock", 102, "AntiAds", texto, textoDetener = null)
         NotificacionSesion.crearCanal(c, datos)
         val abrir = PendingIntent.getActivity(
             c, 0, Intent(c, MainActivity::class.java),
