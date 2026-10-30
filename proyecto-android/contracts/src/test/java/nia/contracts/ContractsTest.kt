@@ -55,8 +55,7 @@ class ErrorsTest {
 
     @Test
     fun outcomeDistingueSuccessDeFailure() {
-        val ok: Outcome<Int>
- = Outcome.Success(7)
+        val ok: Outcome<Int> = Outcome.Success(7)
         val ko: Outcome<Int> = Outcome.Failure(ErrorInfo(ErrorCode.QUOTA, "cuota agotada"))
         assertEquals(7, ok.valueOrNull)
         assertNull(ko.valueOrNull)
@@ -115,8 +114,7 @@ class CancellationTest {
         var llamadas = 0
         source.token.onCancel { llamadas++ }
         assertTrue(source.cancel())
-        // La segunda cancelación no gana ni vuelve a notifi
-car.
+        // La segunda cancelación no gana ni vuelve a notificar.
         assertFalse(source.cancel(CancelReason.Replaced("otra")))
         assertEquals(1, llamadas)
         assertTrue(source.token.isCancelled)
@@ -174,8 +172,7 @@ class IpcTest {
 
     @Test
     fun requestSinCorrelationYResultConCorrelation() {
-        val req = IpcMessages.request("ctx-1", generation = 7
-, operation = "navigate")
+        val req = IpcMessages.request("ctx-1", generation = 7, operation = "navigate")
         assertNull(req.correlationId)
         assertEquals(IpcKind.REQUEST, req.kind)
         val res = IpcMessages.result(req, "navigate.result")
