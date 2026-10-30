@@ -39,8 +39,8 @@ import java.util.concurrent.TimeUnit
  *  - no se registra ningún Provider de BouncyCastle: Android ya trae uno interno llamado «BC» y no hace falta.
  */
 object CaManager {
-    private const val CA_ALIAS = "adblockplus-ca"
-    private const val KS_FILE = "adblockplus-ca.p12"
+    private const val CA_ALIAS = "antiads-ca"
+    private const val KS_FILE = "antiads-ca.p12"
     private const val SECRETO = "ca_pkcs12_pass"
     private const val CA_DIAS = 3650L
     private const val HOJA_DIAS = 300L
@@ -55,7 +55,7 @@ object CaManager {
     fun iniciar(contexto: Context) {
         if (caKey != null) return
         val c = contexto.applicationContext
-        val almacen = AlmacenClaves.paraApp(c, "adblockplus_ca")
+        val almacen = AlmacenClaves.paraApp(c, "antiads_ca")
         val archivo = File(c.filesDir, KS_FILE)
         val guardada = almacen.leerSecreto(SECRETO)
         val ks = KeyStore.getInstance("PKCS12")
@@ -74,7 +74,7 @@ object CaManager {
             almacen.guardarSecreto(SECRETO, clave)
             val kp = nuevoRsa()
             val ahora = System.currentTimeMillis()
-            val nombre = X500Name("CN=AdBlock Soberano Plus CA (local), O=AdBlock Soberano Plus")
+            val nombre = X500Name("CN=AntiAds CA (local), O=AntiAds")
             val b = JcaX509v3CertificateBuilder(
                 nombre, serie(), Date(ahora - TimeUnit.DAYS.toMillis(1)),
                 Date(ahora + TimeUnit.DAYS.toMillis(CA_DIAS)), nombre, kp.public
