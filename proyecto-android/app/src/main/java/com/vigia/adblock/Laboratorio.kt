@@ -21,6 +21,7 @@ object Laboratorio {
     val TECNICAS = listOf(
         Tecnica("clasico", "Bloqueo clásico (0 bytes)", "Lo que hace el Soberano+: los recursos de la lista se sustituyen por un 200 vacío. Apágalo para ver qué pasa sin él.", true),
         Tecnica("vast", "VAST vacío válido", "Las peticiones de anuncios de vídeo reciben un «no hay anuncio» bien formado en lugar de nada. El reproductor arranca el vídeo.", true),
+        Tecnica("juguete", "Anuncio de juguete (vídeo válido)", "Los vídeos de anuncio (.mp4) de dominios bloqueados se sustituyen por un vídeo mínimo y válido de 0,3 s. El reproductor lo da por visto y sigue con el contenido, en vez de quedarse esperando un archivo vacío.", true),
         Tecnica("stubs", "Scripts sustitutos", "Google Publisher Tag, IMA SDK y adsbygoogle se sustituyen por versiones que no hacen nada pero no rompen la página.", true),
         Tecnica("yt", "YouTube: borrar datos de anuncios", "Script que quita adPlacements/playerAds de las respuestas del reproductor antes de que la web los lea.", true),
         Tecnica("skip", "Saltador por JavaScript", "Si un anuncio llega a sonar: lo silencia, lo adelanta al final y pulsa «Saltar». En YouTube y, de forma genérica, en otras webs.", true),
@@ -127,15 +128,26 @@ object ReglasEstado {
  * clásico) actúan sobre cualquier petición según su URL; las de página (scriptlets, saltador, CSS, HLS) según el
  * sitio que se está viendo, que sale de las reglas.
  */
-class MotorReglas(contexto: Context, base: FiltroAdBlock) : FiltroContenido {
+class MotorReglas(contexto: Context, private val base: FiltroAdBlock) : FiltroContenido {
     private val c = contexto.applicationContext
     private val clasico = FiltroContenidoAdBlock(base)
 
     private fun reglas(): Reglas = ReglasEstado.asegurar(c)
 
+    /** Vídeo mínimo válido (H.264, 16x16, 0,3 s) que va en los assets. */
+    private val juguete: ByteArray? by lazy {
+        try { c.assets.open("anuncio_vacio.mp4").use { it.readBytes() } } catch (e: Exception) { null }
+    }
+
     override fun responder(host: String, ruta: String, tipo: TipoRecurso, metodo: String, origen: String?): RespuestaFalsa? {
         val url = (host + ruta).lowercase()
         val r = reglas()
+        if (tipo != TipoRecurso.DOCUMENTO && Laboratorio.activa(c, "juguete") &&
+            ruta.substringBefore('?').lowercase().endsWith(".mp4") && base.dominioBloqueado(host)
+        ) {
+            val v = juguete
+            if (v != null) return RespuestaFalsa("juguete", "video/mp4", v)
+        }
         if (Laboratorio.activa(c, "stubs")) {
             for ((patron, stub) in r.stubs) {
                 if (url.contains(patron)) {
