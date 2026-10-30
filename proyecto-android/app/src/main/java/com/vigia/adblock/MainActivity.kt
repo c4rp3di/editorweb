@@ -2,9 +2,6 @@ package com.vigia.adblock
 
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.graphics.Color
-import android.text.SpannableStringBuilder
-import android.text.style.RelativeSizeSpan
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
@@ -76,10 +73,10 @@ class MainActivity : ActividadBase() {
 
     private fun construirUi() {
         val raiz = Vistas.columna(this, 16)
-        raiz.addView(Vistas.titulo(this, "AntiAds"), Vistas.anchoCompleto(this, 2))
+        raiz.addView(Vistas.titulo(this, "AdBlock Soberano Lab"), Vistas.anchoCompleto(this, 2))
         raiz.addView(Vistas.texto(this, "Bloqueo de anuncios y rastreadores en tu teléfono. Sin cuentas, sin nubes.", true), Vistas.anchoCompleto(this, 16))
 
-        botonProteccion = Vistas.boton(this, "Protección desactivada") { alternar() }
+        botonProteccion = Vistas.boton(this, "Protección inactiva") { alternar() }
         botonProteccion.textSize = 22f
         val lpGrande = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Vistas.dp(this, 112))
         lpGrande.bottomMargin = Vistas.dp(this, 8)
@@ -116,10 +113,6 @@ class MainActivity : ActividadBase() {
         raiz.addView(textoProgreso, Vistas.anchoCompleto(this, 12))
         raiz.addView(
             Vistas.boton(this, "Laboratorio", TipoBoton.TONAL) { startActivity(Intent(this, LaboratorioActivity::class.java)) },
-            Vistas.anchoCompleto(this, 8)
-        )
-        raiz.addView(
-            Vistas.boton(this, "Registro DNS por app", TipoBoton.TONAL) { startActivity(Intent(this, RegistroDnsActivity::class.java)) },
             Vistas.anchoCompleto(this, 8)
         )
         raiz.addView(
@@ -161,42 +154,26 @@ class MainActivity : ActividadBase() {
 
     private fun refrescar() {
         val activa = vpn.activa.value
-        // Un solo botón para las dos cosas: verde = activa (tócalo para desactivar), rojo = desactivada (tócalo para activar).
-        val titulo = if (activa) "Protección activa" else "Protección desactivada"
-        val pista = if (activa) "Toca para desactivar" else "Toca para activar"
-        val texto = SpannableStringBuilder(titulo + "\n" + pista)
-        texto.setSpan(RelativeSizeSpan(0.6f), titulo.length + 1, texto.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        botonProteccion.text = texto
-        val fondo = if (activa) Vistas.color(this, R.color.vc_ok) else Vistas.color(this, R.color.vc_peligro)
-        val letra = if (activa) Vistas.color(this, R.color.vc_fondo) else Color.WHITE
+        botonProteccion.text = if (activa) "Protección activa" else "Protección inactiva"
+        val fondo = if (activa) Vistas.color(this, R.color.vc_ok) else Vistas.color(this, R.color.vc_superficie_alta)
+        val letra = if (activa) Vistas.color(this, R.color.vc_fondo) else Vistas.color(this, R.color.vc_texto)
         botonProteccion.backgroundTintList = ColorStateList.valueOf(fondo)
         botonProteccion.setTextColor(letra)
 
         val n = AdBlockEstado.filtro.totalDominios
         val ultima = Ajustes.ultimaActualizacion(this)
-        val base = if (n == 0) {
-            "Sin listas cargadas. Pulsa «Actualizar listas ahora»."
+        val modo = if (Ajustes.esProfundo(this)) "Modo Profundo" else "Modo Ligero"
+        val detalleFiltro = if (n == 0) {
+            "sin listas cargadas. Pulsa «Actualizar listas ahora»."
         } else {
             numeros.format(n) + " dominios en el filtro" + (if (ultima > 0L) " · listas del " + Formato.fecha(ultima) else "")
         }
-        textoFiltro.text = base + textoMitm(activa)
+        textoFiltro.text = modo + " · " + detalleFiltro
 
         numHoy.text = numeros.format(Estadisticas.hoy())
         numTotal.text = numeros.format(Estadisticas.total()) + " bloqueados en total"
         pintarBarras()
         pintarTop()
-    }
-
-    /** Línea de estado del Modo Profundo: si no sube «descifradas» al navegar, no está funcionando. */
-    private fun textoMitm(activa: Boolean): String {
-        if (!Ajustes.mitmActivo(this)) return ""
-        if (!activa) return "\nModo Profundo (MitM): activado en Ajustes, la protección está parada"
-        if (!MitmEstado.activo) return "\nModo Profundo (MitM): NO activo · falta instalar el certificado CA (usa bloqueo DNS)"
-        return "\nModo Profundo (MitM): activo\n" +
-            numeros.format(MitmEstado.descifradas.get()) + " conexiones descifradas · " +
-            numeros.format(MitmEstado.vaciados.get()) + " recursos vaciados · " +
-            numeros.format(MitmEstado.paginasLimpias.get()) + " páginas limpiadas\n" +
-            Ajustes.mitmExentas(this).size.toString() + " apps sin descifrar (rechazan el certificado)"
     }
 
     private fun pintarBarras() {
