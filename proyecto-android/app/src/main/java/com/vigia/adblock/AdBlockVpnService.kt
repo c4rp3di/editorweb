@@ -64,7 +64,7 @@ class AdBlockVpnService : NucleoVpnService() {
         MitmEstado.activo = mitm
         val profundo = mitm || Ajustes.modoProfundo(c)
         return ConfigVpn(
-            nombreSesion = "AdBlock Soberano+",
+            nombreSesion = "AntiAds",
             notificacion = datosNotificacion(),
             modo = if (profundo) ModoVpn.CONEXIONES else ModoVpn.DNS,
             dnsUpstream = Ajustes.dnsUpstream(c),
@@ -95,8 +95,8 @@ class AdBlockVpnService : NucleoVpnService() {
             val p = proxy ?: MitmProxy(
                 protector = { socket -> protect(socket) },
                 politica = pol,
-                filtro = FiltroContenidoAdBlock(AdBlockEstado.filtro),
-                eventos = EventosAdBlock
+                filtro = MotorReglas(c, AdBlockEstado.filtro),
+                eventos = EventosLab
             ).also { proxy = it }
             p.iniciar()
             DesvioMitm(p, pol)
@@ -154,7 +154,7 @@ class AdBlockVpnService : NucleoVpnService() {
             canalId = "adblock_proteccion",
             canalNombre = "Protección AdBlock",
             id = 101,
-            titulo = "AdBlock Soberano+",
+            titulo = "AntiAds",
             texto = texto,
             actividad = MainActivity::class.java,
             textoDetener = "Desactivar"
