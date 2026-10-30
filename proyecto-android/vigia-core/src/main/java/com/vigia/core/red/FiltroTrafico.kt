@@ -28,6 +28,12 @@ interface FiltroTrafico {
      */
     fun destinoBloqueado(ip: Int, puerto: Int): Boolean = false
 
+    /**
+     * Si es verdadero, las consultas DNS de tipo AAAA (IPv6) se contestan «sin datos». El túnel solo enruta IPv4: una app
+     * que reciba una dirección IPv6 la usaría por fuera de la VPN y se saltaría el filtro. Por defecto no se toca nada.
+     */
+    fun filtrarAaaa(): Boolean = false
+
     companion object {
         val NINGUNO: FiltroTrafico = object : FiltroTrafico {
             override val hayDominios: Boolean get() = false
