@@ -76,7 +76,7 @@ class MainActivity : ActividadBase() {
 
     private fun construirUi() {
         val raiz = Vistas.columna(this, 16)
-        raiz.addView(Vistas.titulo(this, "AdBlock Soberano+"), Vistas.anchoCompleto(this, 2))
+        raiz.addView(Vistas.titulo(this, "AntiAds"), Vistas.anchoCompleto(this, 2))
         raiz.addView(Vistas.texto(this, "Bloqueo de anuncios y rastreadores en tu teléfono. Sin cuentas, sin nubes.", true), Vistas.anchoCompleto(this, 16))
 
         botonProteccion = Vistas.boton(this, "Protección desactivada") { alternar() }
@@ -114,6 +114,10 @@ class MainActivity : ActividadBase() {
         raiz.addView(botonActualizar, Vistas.anchoCompleto(this, 4))
         textoProgreso = Vistas.texto(this, "", true)
         raiz.addView(textoProgreso, Vistas.anchoCompleto(this, 12))
+        raiz.addView(
+            Vistas.boton(this, "Laboratorio", TipoBoton.TONAL) { startActivity(Intent(this, LaboratorioActivity::class.java)) },
+            Vistas.anchoCompleto(this, 8)
+        )
         raiz.addView(
             Vistas.boton(this, "Registro DNS por app", TipoBoton.TONAL) { startActivity(Intent(this, RegistroDnsActivity::class.java)) },
             Vistas.anchoCompleto(this, 8)
