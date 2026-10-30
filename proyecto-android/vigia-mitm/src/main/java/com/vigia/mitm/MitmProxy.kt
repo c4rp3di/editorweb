@@ -444,6 +444,20 @@ class MitmProxy(
         o.flush()
     }
 
+    private fun nuevoNonce(): String = ByteArray(12).also { azar.nextBytes(it) }.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+
+    /** 200 OK sin cuerpo. Lleva CORS y contesta al preflight: sin eso, una petición fetch/XHR a otro dominio parece FALLAR y la web la reintenta en bucle. */
+    private fun respuestaVacia(o: OutputStream, tipo: TipoRecurso, req: CabezaPeticion) {
+        val ct = when (tipo) {
+            TipoRecurso.SCRIPT -> "application/javascript"
+            TipoRecurso.IMAGEN -> "image/gif"
+            TipoRecurso.ESTILO -> "text/css"
+            TipoRecurso.DOCUMENTO -> "text/html; charset=utf-8"
+            TipoRecurso.OTRO -> "text/plain"
+        }
+        respuestaFalsa(o, RespuestaFalsa("clasico", ct, ByteArray(0)), req)
+    }
+
     /** Origin-form (/ruta?q) tal cual; absolute-form (http://h/ruta) se reduce a /ruta. */
     private fun rutaDe(destino: String): String =
         if (destino.startsWith("/") || !destino.contains("://")) destino else "/" + destino.substringAfter("://").substringAfter('/', "")
