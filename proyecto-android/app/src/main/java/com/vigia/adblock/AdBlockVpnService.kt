@@ -4,6 +4,10 @@ import android.content.Context
 import android.content.Intent
 import com.vigia.core.red.ConfigVpn
 import com.vigia.core.red.DesvioTcp
+import com.vigia.core.red.EventoDns
+import com.vigia.core.red.EventoRed
+import com.vigia.core.red.FiltroAntiDoh
+import com.vigia.core.red.FiltroTrafico
 import com.vigia.core.red.VpnEstado
 import com.vigia.core.red.ModoVpn
 import com.vigia.core.red.NucleoVpnService
@@ -21,17 +25,24 @@ import com.vigia.mitm.DesvioMitm
 import com.vigia.mitm.MitmProxy
 import java.text.NumberFormat
 
-/** Solo cuenta bloqueos: el túnel no resuelve la app de origen ni lee respuestas (mínimo coste de batería). */
+/**
+ * Con el Laboratorio apagado solo cuenta bloqueos: el túnel no resuelve la app de origen ni lee respuestas (mínimo coste
+ * de batería). Con el Laboratorio encendido pide el detalle y lo reparte en el registro en memoria.
+ */
 object ObservadorAdBlock : ObservadorTrafico {
-    // Sin registro DNS el túnel no resuelve la app de origen ni lee respuestas (menos batería).
-    override val quiereDetalle: Boolean get() = RegistroDns.activo
-
-    override fun alDns(evento: com.vigia.core.red.EventoDns) {
-        if (RegistroDns.activo) RegistroDns.registrar(evento)
-    }
+    override val quiereDetalle: Boolean get() = Laboratorio.activo
 
     override fun alBloqueo(dominio: String) {
-        Estadisticas.registrar(dominio)
+        // Los resolutores DoH/DoT bloqueados por la opción anti-evasión no son anuncios: no ensucian las estadísticas.
+        if (!FiltroAntiDoh.esResolutorCifrado(dominio)) Estadisticas.registrar(dominio)
+    }
+
+    override fun alDns(evento: EventoDns) {
+        Laboratorio.registrarDns(evento)
+    }
+
+    override fun alConexion(evento: EventoRed) {
+        Laboratorio.registrarConexion(evento)
     }
 }
 
@@ -53,29 +64,32 @@ class AdBlockVpnService : NucleoVpnService() {
         Estadisticas.iniciar(c)
         ListasManager.asegurarCargado(c)
         Ajustes.setActiva(c, true)
+        Laboratorio.configurar(c)
         iniciarTicker()
         // Modo Profundo (MitM) apagado -> exactamente el AdBlock 1.0 (DNS, o SNI si se activó el modo experimental).
         // Encendido -> modo CONEXIONES + el TCP 443 se desvía al MitmProxy.
         val desvio: DesvioTcp? = if (Ajustes.mitmActivo(c)) prepararMitm(c) else null
         val mitm = desvio != null
-        RegistroDns.activo = Ajustes.registroDns(c)
-        AdBlockEstado.filtro.bloquearDnsCifrado = Ajustes.bloquearDnsCifrado(c)
-        MitmEstado.reiniciar()
-        MitmEstado.activo = mitm
         val profundo = mitm || Ajustes.modoProfundo(c)
+        val antiDoh = Ajustes.antiDoh(c)
+        // En MitM el DNS deja pasar los dominios bloqueados: el proxy contesta 200 vacío en vez de cortar.
+        val filtroBase: FiltroTrafico = if (mitm) FiltroProfundo(AdBlockEstado.filtro) else AdBlockEstado.filtro
         return ConfigVpn(
-            nombreSesion = "AntiAds",
+            nombreSesion = "AdBlock Soberano Lab",
             notificacion = datosNotificacion(),
             modo = if (profundo) ModoVpn.CONEXIONES else ModoVpn.DNS,
             dnsUpstream = Ajustes.dnsUpstream(c),
             bloquearQuic = profundo,
-            // En MitM el DNS deja pasar los dominios bloqueados: el proxy contesta 200 vacío en vez de cortar.
-            filtro = if (mitm) FiltroProfundo(AdBlockEstado.filtro) else AdBlockEstado.filtro,
+            filtro = if (antiDoh) FiltroAntiDoh(filtroBase) else filtroBase,
             respuestaBloqueo = if (Ajustes.bloqueoNxdomain(c)) RespuestaBloqueo.NXDOMAIN else RespuestaBloqueo.CERO,
             observador = ObservadorAdBlock,
             reiniciarSiMuere = true,
             excluirApps = Ajustes.excluidas(c).toList(),
-            desvioTcp = desvio
+            desvioTcp = desvio,
+            // Anti-evasión (de NetLens): el 853 y IPv6 solo tienen sentido cuando todo el IPv4 pasa por el túnel.
+            bloquearDot = profundo && antiDoh,
+            bloquearEch = Ajustes.antiEch(c),
+            neutralizarIpv6 = profundo && Ajustes.neutralizarIpv6(c)
         )
     }
 
@@ -88,15 +102,15 @@ class AdBlockVpnService : NucleoVpnService() {
             CaManager.iniciar(c)
             if (!CaManager.estaInstalada()) {
                 VpnEstado.mensaje.value = "Modo Profundo (MitM) no activado: falta instalar el certificado CA en Android. " +
-                    "Se usa el bloqueo DNS normal."
+                    "Se usa el bloqueo normal del modo elegido."
                 return null
             }
             val pol = politica ?: PoliticaAdBlock(c).also { politica = it }
             val p = proxy ?: MitmProxy(
                 protector = { socket -> protect(socket) },
                 politica = pol,
-                filtro = MotorReglas(c, AdBlockEstado.filtro),
-                eventos = EventosLab
+                filtro = FiltroContenidoAdBlock(AdBlockEstado.filtro, ReglasRuta.parsear(Ajustes.rutasExtra(c))),
+                eventos = EventosAdBlock
             ).also { proxy = it }
             p.iniciar()
             DesvioMitm(p, pol)
@@ -126,7 +140,6 @@ class AdBlockVpnService : NucleoVpnService() {
         ambito.cancel()
         proxy?.detener()
         proxy = null
-        MitmEstado.activo = false
         Estadisticas.guardar(applicationContext)
         super.onDestroy()
     }
@@ -154,7 +167,7 @@ class AdBlockVpnService : NucleoVpnService() {
             canalId = "adblock_proteccion",
             canalNombre = "Protección AdBlock",
             id = 101,
-            titulo = "AntiAds",
+            titulo = "AdBlock Soberano Lab",
             texto = texto,
             actividad = MainActivity::class.java,
             textoDetener = "Desactivar"
