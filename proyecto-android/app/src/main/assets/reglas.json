@@ -8,6 +8,7 @@
     {"patron": "imasdk.googleapis.com/js/sdkloader/ima3", "stub": "ima"},
     {"patron": "/pagead/js/adsbygoogle.js", "stub": "adsbygoogle"}
   ],
+  "permitir": ["trafficjunky.net/delivery/js/abp"],
   "sitios": [
     {"host": "*", "tecnicas": ["css", "hls"]},
     {"host": "youtube.com", "tecnicas": ["yt", "skip", "css"]},
