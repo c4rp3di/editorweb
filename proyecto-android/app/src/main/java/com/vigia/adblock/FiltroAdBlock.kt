@@ -146,12 +146,6 @@ class FiltroAdBlock : FiltroTrafico {
 
     override fun ipBloqueada(ip: Int): Boolean = false
 
-    /** Bloqueo de DoT/DoH por IP y puerto (ver [DnsCifrado]). Lo fija el servicio desde los ajustes. */
-    @Volatile
-    var bloquearDnsCifrado = false
-
-    override fun destinoBloqueado(ip: Int, puerto: Int): Boolean = bloquearDnsCifrado && DnsCifrado.bloquea(ip, puerto)
-
     override fun dominioBloqueado(nombre: String): Boolean {
         val t = tablas ?: return false
         return evaluar(t, nombre) == BLOQUEADO
