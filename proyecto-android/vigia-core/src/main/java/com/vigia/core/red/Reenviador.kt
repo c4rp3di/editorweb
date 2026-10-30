@@ -761,6 +761,13 @@ class Reenviador(
             escribir(Paquetes.construirIcmpPuertoInalcanzable(destino, origen, d, total, ihl))
             return
         }
+        if (dp == 53 && filtro.filtrarAaaa()) {
+            val c6 = DnsParser.parseConsulta(carga)
+            if (c6 != null && c6.tipo == 28) {
+                escribir(Paquetes.construirUdp(destino, origen, 53, sp, DnsParser.construirSinDatos(carga)))
+                return
+            }
+        }
         if (dp == 53 && filtro.hayDominios) {
             val consulta = DnsParser.parseConsulta(carga)
             if (consulta != null && filtro.dominioBloqueadoEnDns(consulta.nombre)) {
