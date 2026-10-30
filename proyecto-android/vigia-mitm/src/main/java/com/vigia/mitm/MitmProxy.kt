@@ -198,7 +198,7 @@ class MitmProxy(
                 }
                 if (filtro.bloquear(host, ruta, tipo)) {
                     cuerpoReq.descartar()
-                    respuestaVacia(cout, tipo)
+                    respuestaVacia(cout, tipo, req)
                     eventos.alBloquear(host, ruta, tipo)
                     if (cerrarTras) return
                     continue
@@ -236,6 +236,7 @@ class MitmProxy(
 
             val fin: CabezaRespuesta = resp ?: return
             if (fin.codigo == 101 || req.metodo == "CONNECT") {
+                eventos.alPeticion(host, ruta, fin.codigo, "websocket/upgrade", -1)
                 // WebSocket u otro upgrade: a partir de aquí son bytes opacos en ambos sentidos.
                 HttpCodec.escribirRespuesta(cout, fin); cout.flush()
                 tunel(c, r, cin, rin)
@@ -252,6 +253,7 @@ class MitmProxy(
     /** @return false si la conexión no puede reutilizarse. */
     private fun responder(cout: OutputStream, resp: CabezaRespuesta, cuerpo: Cuerpo, host: String, ruta: String): Boolean {
         val ct = (resp.cab.get("Content-Type") ?: "").lowercase()
+        eventos.alPeticion(host, ruta, resp.codigo, ct, if (cuerpo.encuadre == Encuadre.LONGITUD) cuerpo.longitud else -1L)
         val enc = (resp.cab.get("Content-Encoding") ?: "identity").trim().lowercase()
         val encOk = enc == "identity" || enc == "gzip" || enc == "x-gzip" || enc == "deflate"
         val tamOk = !(cuerpo.encuadre == Encuadre.LONGITUD && cuerpo.longitud > LIMITE_HTML)
@@ -419,7 +421,8 @@ class MitmProxy(
 
     private fun nuevoNonce(): String = ByteArray(12).also { azar.nextBytes(it) }.let { Base64.encodeToString(it, Base64.NO_WRAP) }
 
-    private fun respuestaVacia(o: OutputStream, tipo: TipoRecurso) {
+    /** 200 OK sin cuerpo. Lleva CORS y contesta al preflight: sin eso, una petición fetch/XHR a otro dominio parece FALLAR y la web la reintenta en bucle. */
+    private fun respuestaVacia(o: OutputStream, tipo: TipoRecurso, req: CabezaPeticion) {
         val ct = when (tipo) {
             TipoRecurso.SCRIPT -> "application/javascript"
             TipoRecurso.IMAGEN -> "image/gif"
@@ -427,9 +430,7 @@ class MitmProxy(
             TipoRecurso.DOCUMENTO -> "text/html; charset=utf-8"
             TipoRecurso.OTRO -> "text/plain"
         }
-        val r = "HTTP/1.1 200 OK\r\nContent-Type: " + ct + "\r\nContent-Length: 0\r\nCache-Control: no-store\r\n\r\n"
-        o.write(r.toByteArray(Charsets.ISO_8859_1))
-        o.flush()
+        respuestaFalsa(o, RespuestaFalsa("clasico", ct, ByteArray(0)), req)
     }
 
     /** Origin-form (/ruta?q) tal cual; absolute-form (http://h/ruta) se reduce a /ruta. */
