@@ -27,6 +27,7 @@ object Laboratorio {
         Tecnica("skip", "Saltador por JavaScript", "Si un anuncio llega a sonar: lo silencia, lo adelanta al final y pulsa «Saltar». En YouTube y, de forma genérica, en otras webs.", true),
         Tecnica("css", "Ocultar huecos (CSS)", "Oculta los contenedores de anuncios que quedan vacíos.", true),
         Tecnica("peticiones", "Registrar vídeo y audio (diagnóstico)", "No cambia nada: anota en el diagnóstico las peticiones de vídeo, audio, listas de reproducción y archivos grandes. Actívalo, reproduce el anuncio y comparte el informe: así se ve de dónde llega.", false),
+        Tecnica("todas", "Registrar TODAS las peticiones (diagnóstico)", "Como el anterior, pero anota cada petición que pasa sin modificar. Úsalo en una prueba corta: pulsa «Vaciar», abre el vídeo, espera al anuncio y comparte.", false),
         Tecnica("hls", "Limpiar listas HLS (experimental)", "Quita de las listas .m3u8 los tramos marcados como anuncio (CUE-OUT/CUE-IN). Solo sirve si el sitio los marca.", false)
     )
 
@@ -52,7 +53,7 @@ object Laboratorio {
 
 /** Registro de lo que han hecho las técnicas. Solo en memoria. Se puede copiar y enviar para diagnosticar. */
 object Diagnostico {
-    private const val MAX = 600
+    private const val MAX = 2500
     private val lineas = ArrayDeque<String>()
     private val hora = SimpleDateFormat("HH:mm:ss", Locale.US)
 
@@ -157,6 +158,7 @@ class MotorReglas(contexto: Context, private val base: FiltroAdBlock) : FiltroCo
         val url = (host + ruta).lowercase()
         val r = reglas()
         Laboratorio.activa(c, "peticiones") // solo para que el valor esté leído cuando lo mire EventosLab
+        Laboratorio.activa(c, "todas")
         // Vídeo de anuncio: o está en un dominio de la lista (y es .mp4), o la URL encaja con un patrón de «juguete»
         // de las reglas (anuncios que se sirven desde el mismo dominio que el contenido, como /pre_videos/ de phncdn.com).
         val esVideoDeLista = ruta.substringBefore('?').lowercase().endsWith(".mp4") && base.dominioBloqueado(host)
@@ -269,12 +271,13 @@ object EventosLab : EventosMitm {
     }
 
     override fun alPeticion(host: String, ruta: String, codigo: Int, tipo: String, longitud: Long) {
-        if (!Laboratorio.activaCache("peticiones")) return
+        val todas = Laboratorio.activaCache("todas")
+        if (!todas && !Laboratorio.activaCache("peticiones")) return
         val r = ruta.substringBefore('?').lowercase()
         val multimedia = codigo == 101 || tipo.startsWith("video/") || tipo.startsWith("audio/") || tipo.contains("mpegurl") ||
             tipo.contains("dash") || tipo.contains("octet-stream") || longitud >= 300_000L ||
             r.endsWith(".mp4") || r.endsWith(".m4s") || r.endsWith(".ts") || r.endsWith(".m3u8") || r.endsWith(".webm") || r.endsWith(".mpd")
-        if (!multimedia) return
+        if (!multimedia && !todas) return
         Diagnostico.anotar("req", codigo.toString() + " " + tipo.take(22) + " " + (if (longitud >= 0) (longitud / 1024).toString() + "KB" else "?KB") + "  " + host + ruta)
     }
 
