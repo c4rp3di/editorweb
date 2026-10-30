@@ -66,6 +66,18 @@ object DnsParser {
         return r
     }
 
+    /** NOERROR sin respuestas («ese nombre no tiene datos de ese tipo»). Se usa para ocultar direcciones IPv6. */
+    fun construirSinDatos(d: ByteArray): ByteArray {
+        val n = leerNombre(d, 12) ?: return construirNxdomain(d)
+        if (n.siguiente + 4 > d.size) return construirNxdomain(d)
+        val r = d.copyOf(n.siguiente + 4)
+        r[2] = (0x80 or (d[2].toInt() and 0x01)).toByte()
+        r[3] = 0x80.toByte()
+        r[4] = 0; r[5] = 1
+        for (i in 6..11) r[i] = 0
+        return r
+    }
+
     /**
      * Respuesta de bloqueo. NXDOMAIN: «el dominio no existe». CERO: «0.0.0.0» para A, «::» para AAAA y
      * respuesta vacía (NOERROR sin datos) para el resto de tipos, que es lo que hacen los bloqueadores de DNS.
