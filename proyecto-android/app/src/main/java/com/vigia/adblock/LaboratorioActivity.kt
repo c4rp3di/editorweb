@@ -12,6 +12,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import com.vigia.core.R
 import com.vigia.core.ui.ActividadBase
 import com.vigia.core.ui.Dialogos
 import com.vigia.core.ui.TipoBoton
