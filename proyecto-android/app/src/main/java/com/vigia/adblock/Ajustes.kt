@@ -14,6 +14,8 @@ object Ajustes {
         ListaDef("adaway", "AdAway", "Lista clásica de anuncios móviles. ~6 000 dominios.", "https://adaway.org/hosts.txt"),
         ListaDef("oisd_big", "OISD big", "Más agresiva: añade más rastreadores y telemetría. ~200 000 dominios.", "https://big.oisd.nl/domainswild2"),
         ListaDef("hagezi_pro", "HaGeZi Pro", "Anuncios, rastreadores y malware. ~350 000 dominios.", "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt"),
+        ListaDef("adguard_dns", "AdGuard DNS filter", "Anuncios y rastreadores pensada para DNS (base de AdGuard). ~100 000 dominios.", "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt"),
+        ListaDef("onehosts_lite", "1Hosts Lite", "Anuncios, rastreadores y malware, equilibrada y con pocos falsos positivos. ~90 000 dominios.", "https://raw.githubusercontent.com/badmojr/1Hosts/master/Lite/hosts.txt"),
         ListaDef("stevenblack", "StevenBlack", "Anuncios y malware unificados. ~150 000 dominios.", "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"),
         ListaDef("easylist", "EasyList", "Solo se usan sus reglas de dominio entero; la mayoría de EasyList no es aplicable en DNS.", "https://easylist.to/easylist/easylist.txt"),
         ListaDef("easyprivacy", "EasyPrivacy", "Rastreadores. Igual que EasyList: solo reglas de dominio entero.", "https://easylist.to/easylist/easyprivacy.txt")
@@ -33,48 +35,8 @@ object Ajustes {
     fun soloWifi(c: Context): Boolean = p(c).getBoolean("solo_wifi", true)
     fun setSoloWifi(c: Context, v: Boolean) = p(c).edit().putBoolean("solo_wifi", v).apply()
 
-    // Se mantiene la clave histórica «modo_profundo»: ahora significa «Modo Profundo» (todo el IPv4 pasa por el túnel).
     fun modoProfundo(c: Context): Boolean = p(c).getBoolean("modo_profundo", false)
     fun setModoProfundo(c: Context, v: Boolean) = p(c).edit().putBoolean("modo_profundo", v).apply()
-
-    /** Ligero = solo DNS (el de siempre). Profundo = conexiones: SNI, QUIC y las opciones anti-evasión. El MitM implica Profundo. */
-    fun esProfundo(c: Context): Boolean = modoProfundo(c) || mitmActivo(c)
-
-    /** Pasar a Ligero apaga también el descifrado MitM, que solo tiene sentido en Profundo. */
-    fun setProfundo(c: Context, v: Boolean) {
-        val e = p(c).edit().putBoolean("modo_profundo", v)
-        if (!v) e.putBoolean("mitm_activo", false)
-        e.apply()
-    }
-
-    // ---- Anti-evasión (de NetLens 2.4). Anti-DoH y anti-ECH funcionan en ambos modos; el puerto 853 y IPv6, solo en Profundo.
-    fun antiDoh(c: Context): Boolean = p(c).getBoolean("anti_doh", false)
-    fun setAntiDoh(c: Context, v: Boolean) = p(c).edit().putBoolean("anti_doh", v).apply()
-
-    fun antiEch(c: Context): Boolean = p(c).getBoolean("anti_ech", false)
-    fun setAntiEch(c: Context, v: Boolean) = p(c).edit().putBoolean("anti_ech", v).apply()
-
-    fun neutralizarIpv6(c: Context): Boolean = p(c).getBoolean("neutralizar_ipv6", false)
-    fun setNeutralizarIpv6(c: Context, v: Boolean) = p(c).edit().putBoolean("neutralizar_ipv6", v).apply()
-
-    /** La primera vez que se pasa a Profundo se proponen las tres opciones recomendadas; después manda lo que elija el usuario. */
-    fun aplicarRecomendadosUnaVez(c: Context) {
-        if (p(c).getBoolean("antievasion_definido", false)) return
-        p(c).edit()
-            .putBoolean("antievasion_definido", true)
-            .putBoolean("anti_doh", true)
-            .putBoolean("anti_ech", true)
-            .putBoolean("neutralizar_ipv6", true)
-            .apply()
-    }
-
-    // ---- Laboratorio (visor y exportación en memoria; nada se guarda en disco ni se envía)
-    fun laboratorio(c: Context): Boolean = p(c).getBoolean("laboratorio", false)
-    fun setLaboratorio(c: Context, v: Boolean) = p(c).edit().putBoolean("laboratorio", v).apply()
-
-    /** Reglas de ruta propias del MitM, una por línea: «dominio.com/ruta/» seguido de asterisco opcional. Solo se aplican con el descifrado activo. */
-    fun rutasExtra(c: Context): String = p(c).getString("rutas_extra", "") ?: ""
-    fun setRutasExtra(c: Context, v: String) = p(c).edit().putString("rutas_extra", v).apply()
 
     // ---- Modo Profundo (MitM) · solo AdBlock Soberano+
     fun mitmActivo(c: Context): Boolean = p(c).getBoolean("mitm_activo", false)
@@ -156,6 +118,20 @@ object Ajustes {
     // ---- dominios propios
     fun bloqueExtra(c: Context): String = p(c).getString("bloque_extra", "") ?: ""
     fun setBloqueExtra(c: Context, v: String) = p(c).edit().putString("bloque_extra", v).apply()
+
+    fun agregarBloqueo(c: Context, dominio: String) {
+        val actual = bloqueExtra(c)
+        if (actual.split('\n').any { it.trim() == dominio }) return
+        setBloqueExtra(c, if (actual.isBlank()) dominio else actual.trimEnd() + "\n" + dominio)
+    }
+
+    // ---- DNS cifrado (DoT/DoH)
+    fun bloquearDnsCifrado(c: Context): Boolean = p(c).getBoolean("bloquear_dns_cifrado", false)
+    fun setBloquearDnsCifrado(c: Context, v: Boolean) = p(c).edit().putBoolean("bloquear_dns_cifrado", v).apply()
+
+    // ---- Registro DNS por app (solo memoria; esta preferencia solo guarda si está activado)
+    fun registroDns(c: Context): Boolean = p(c).getBoolean("registro_dns", false)
+    fun setRegistroDns(c: Context, v: Boolean) = p(c).edit().putBoolean("registro_dns", v).apply()
 
     fun permitidosExtra(c: Context): String = p(c).getString("permitidos_extra", "") ?: ""
     fun setPermitidosExtra(c: Context, v: String) = p(c).edit().putString("permitidos_extra", v).apply()
