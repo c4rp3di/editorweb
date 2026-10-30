@@ -325,6 +325,10 @@ abstract class NucleoVpnService : VpnService() {
         val uid = if (detalle) resolverUid(origenIp, puertoOrigen) else -1
 
         val filtro = cfg.filtro
+        if (q != null && q.tipo == 28 && filtro.filtrarAaaa()) {
+            escribirTunel(ej, Paquetes.construirUdp(IP_DNS_INT, origenIp, 53, puertoOrigen, DnsParser.construirSinDatos(consulta)))
+            return
+        }
         if (q != null && filtro.hayDominios && filtro.dominioBloqueadoEnDns(q.nombre)) {
             val respuesta = DnsParser.construirBloqueo(consulta, cfg.respuestaBloqueo)
             escribirTunel(ej, Paquetes.construirUdp(IP_DNS_INT, origenIp, 53, puertoOrigen, respuesta))
