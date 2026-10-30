@@ -13,66 +13,9 @@ class FiltroProfundo(private val base: FiltroTrafico) : FiltroTrafico by base {
     override fun dominioBloqueadoEnDns(nombre: String): Boolean = false
 }
 
-/**
- * Reglas de ruta del usuario (de NetLens 2.6): una por línea, «dominio.com/ruta/» (con asterisco final opcional). El host incluye sus subdominios.
- * Sin «*» la ruta debe coincidir exacta; «*» al final = prefijo; «*» intermedio = comodín. La query (?…) no se evalúa.
- * Las líneas vacías o que empiezan por # se ignoran.
- */
-class ReglasRuta private constructor(private val reglas: List<Regla>) {
-
-    private class Regla(val host: String, val patron: String) {
-        val regex: Regex? =
-            if (patron.endsWith("*") || !patron.contains('*')) null
-            else Regex(patron.split('*').joinToString(".*") { Regex.escape(it) })
-
-        fun coincideRuta(ruta: String): Boolean {
-            if (patron == "/") return true
-            if (patron.endsWith("*")) return ruta.startsWith(patron.dropLast(1))
-            val re = regex ?: return ruta == patron
-            return re.matches(ruta)
-        }
-    }
-
-    val cantidad: Int get() = reglas.size
-
-    /** [host] en minúsculas y sin puerto; [ruta] con o sin query. */
-    fun coincide(host: String, ruta: String): Boolean {
-        if (reglas.isEmpty()) return false
-        val r = ruta.substringBefore('?')
-        for (regla in reglas) {
-            if ((host == regla.host || host.endsWith("." + regla.host)) && regla.coincideRuta(r)) return true
-        }
-        return false
-    }
-
-    companion object {
-        val VACIAS = ReglasRuta(emptyList())
-
-        fun parsear(texto: String): ReglasRuta {
-            val lista = ArrayList<Regla>()
-            for (cruda in texto.split('\n')) {
-                val linea = cruda.trim().lowercase()
-                if (linea.isEmpty() || linea.startsWith("#")) continue
-                val corte = linea.indexOf('/')
-                if (corte <= 0) continue
-                val host = linea.substring(0, corte).trimEnd('.')
-                if (host.isEmpty() || !host.contains('.')) continue
-                val patron = linea.substring(corte)
-                lista.add(Regla(host, patron))
-            }
-            return if (lista.isEmpty()) VACIAS else ReglasRuta(lista)
-        }
-    }
-}
-
-class FiltroContenidoAdBlock(
-    private val base: FiltroAdBlock,
-    private val propias: ReglasRuta = ReglasRuta.VACIAS
-) : FiltroContenido {
+class FiltroContenidoAdBlock(private val base: FiltroAdBlock) : FiltroContenido {
 
     override fun bloquear(host: String, ruta: String, tipo: TipoRecurso): Boolean {
-        // Tus reglas mandan sobre todo lo demás (también sobre las navegaciones directas).
-        if (propias.coincide(host, ruta)) return true
         // Una navegación directa a un dominio de anuncios no se vacía: el usuario la pidió.
         if (tipo != TipoRecurso.DOCUMENTO && base.dominioBloqueado(host)) return true
         val r = ruta.substringBefore('?').lowercase()
@@ -98,10 +41,27 @@ class FiltroContenidoAdBlock(
     }
 }
 
+/** Contadores del Modo Profundo desde que arrancó la protección; la pantalla principal los muestra. */
+object MitmEstado {
+    @Volatile var activo = false
+    val descifradas = java.util.concurrent.atomic.AtomicInteger()
+    val vaciados = java.util.concurrent.atomic.AtomicInteger()
+    val paginasLimpias = java.util.concurrent.atomic.AtomicInteger()
+    val rechazos = java.util.concurrent.atomic.AtomicInteger()
+
+    fun reiniciar() {
+        descifradas.set(0); vaciados.set(0); paginasLimpias.set(0); rechazos.set(0)
+    }
+}
+
 /** Cuenta los bloqueos del MitM en las mismas estadísticas que el DNS. */
 object EventosAdBlock : EventosMitm {
     override fun alBloquear(host: String, ruta: String, tipo: TipoRecurso) {
+        MitmEstado.vaciados.incrementAndGet()
         Estadisticas.registrar(host)
-        Laboratorio.nota("MITM " + tipo.name, "descifrado", host + ruta.substringBefore('?').take(80) + " → 200 vacío", true)
     }
+
+    override fun alInyectarCss(host: String) { MitmEstado.paginasLimpias.incrementAndGet() }
+    override fun alConexionDescifrada(host: String) { MitmEstado.descifradas.incrementAndGet() }
+    override fun alFallbackPinning(app: String, host: String, motivo: String) { MitmEstado.rechazos.incrementAndGet() }
 }
