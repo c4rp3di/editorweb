@@ -1,0 +1,36 @@
+name: contracts-tests
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Tests unitarios del modulo contracts (T002)
+        run: gradle --no-daemon :contracts:test
+
+      - name: Smoke build del APK debug (T003)
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Publicar APK debug como artefacto
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: navegador-nia-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
