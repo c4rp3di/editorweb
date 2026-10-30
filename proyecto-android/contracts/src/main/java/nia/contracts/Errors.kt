@@ -69,7 +69,8 @@ sealed class Outcome<out T> {
 }
 
 inline fun <T> Outcome<T>.onSuccess(block: (T) -> Unit): Outcome<T> {
-    if (this is Outcome.Success) block(value)
+    if 
+(this is Outcome.Success) block(value)
     return this
 }
 
