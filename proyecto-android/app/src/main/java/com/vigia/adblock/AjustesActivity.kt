@@ -192,7 +192,7 @@ class AjustesActivity : ActividadBase() {
         }
 
         m.addView(Vistas.boton(this, "Exportar certificado CA (.crt)", TipoBoton.TONAL) {
-            conCa { guardarCa.launch("AdBlockSoberanoPlus-CA.crt") }
+            conCa { guardarCa.launch("AntiAds-CA.crt") }
         }, Vistas.anchoCompleto(this, 8))
         m.addView(Vistas.boton(this, "Abrir ajustes de seguridad de Android", TipoBoton.TONAL) {
             try {
