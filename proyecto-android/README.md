@@ -3,7 +3,7 @@
 Navegador Android con motor HTML/CSS/layout y JavaScript **propios** (sin
 WebView, GeckoView, Chromium, WebKit ni JS externo). Este ZIP corrige la
 baseline inicial (código R0001) tras los fallos de compilación en GitHub
-Actions diagnosticados en la revisión R0005 del plan maestro (NIA-MAESTRO):
+Actions diagnosticados en las revisiones R0005–R0007 del plan maestro (NIA-MAESTRO):
 
 - **contracts-tests** ejecutaba `gradle` en la raíz del repo, donde no hay
   proyecto (16 runs fallidos). Ahora usa `working-directory: proyecto-android`.
@@ -15,6 +15,7 @@ Actions diagnosticados en la revisión R0005 del plan maestro (NIA-MAESTRO):
   (`org.jetbrains.kotlin:kotlin-test-junit`) en vez de `kotlin('test')`,
   que es sintaxis del DSL Kotlin, no de Groovy.
 - `buildTypes` se declara una sola vez en `app/build.gradle`.
+- **R0007**: el primer `:contracts:compileKotlin` real (run #350) destapó dos bugs del código, nunca compilado antes: entradas de enum sin calificar en `when` y fábricas `Outcome.success`/`Outcome.failure` ausentes. Corregidos en `Errors.kt`.
 
 Incluye:
 
