@@ -22,11 +22,11 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.vigia.adblocklab"
+        applicationId "com.vigia.antiads"
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "v4.0"
+        versionCode 4
+        versionName "v6.0"
     }
 
     compileOptions {
