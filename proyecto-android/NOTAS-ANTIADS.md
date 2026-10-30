@@ -18,3 +18,7 @@ Solo puede haber una VPN activa: desactiva el Soberano+ antes de usar AntiAds.
 - Los anuncios metidos en el propio flujo de vídeo (SSAI) no se tocan, salvo HLS con marcas CUE-OUT/CUE-IN.
 - La app de YouTube no acepta nuestra CA: solo YouTube web en Chrome.
 - Sin probar en dispositivo: los scripts sustitutos y el de YouTube están escritos de memoria sobre cómo se comportan GPT, IMA y el reproductor.
+
+## Hallazgos de la primera prueba (es.pornhub.com en Chrome)
+- Sus anuncios NO usan VAST/IMA/GPT: el reproductor pide los vídeos (.mp4) y las imágenes a adtng.com / trafficjunky.net y envía eventos a etahub.com. Por eso vast/stubs no actuaban.
+- Se añadió la técnica «juguete»: esos .mp4 se sustituyen por un MP4 válido de 0,3 s (assets/anuncio_vacio.mp4).
