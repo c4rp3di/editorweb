@@ -14,7 +14,7 @@ class FiltroProfundo(private val base: FiltroTrafico) : FiltroTrafico by base {
 }
 
 /**
- * Reglas de ruta del usuario (de NetLens 2.6): una por línea, «dominio.com/ruta/*». El host incluye sus subdominios.
+ * Reglas de ruta del usuario (de NetLens 2.6): una por línea, «dominio.com/ruta/» (con asterisco final opcional). El host incluye sus subdominios.
  * Sin «*» la ruta debe coincidir exacta; «*» al final = prefijo; «*» intermedio = comodín. La query (?…) no se evalúa.
  * Las líneas vacías o que empiezan por # se ignoran.
  */
