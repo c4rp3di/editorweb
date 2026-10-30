@@ -54,6 +54,8 @@ interface EventosMitm {
     fun alInyectarCss(host: String) {}
     /** El cliente aceptó nuestro certificado: la conexión está siendo descifrada. */
     fun alConexionDescifrada(host: String) {}
+    /** Resumen de cada respuesta HTTP que pasa por el proxy (para diagnóstico). [longitud] = -1 si no se conoce. */
+    fun alPeticion(host: String, ruta: String, codigo: Int, tipo: String, longitud: Long) {}
     /** Una técnica del laboratorio actuó sobre esta petición o página. */
     fun alTecnica(tecnica: String, host: String, ruta: String) {}
     fun alFallbackPinning(app: String, host: String, motivo: String) {}
