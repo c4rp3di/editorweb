@@ -108,9 +108,6 @@ object DnsParser {
         return r
     }
 
-    /** Tipos DNS que transportan la configuración ECH: SVCB (64) y HTTPS (65). */
-    fun esTipoEch(tipo: Int): Boolean = tipo == 64 || tipo == 65
-
     fun nombreTipo(tipo: Int): String {
         return when (tipo) {
             1 -> "A"
