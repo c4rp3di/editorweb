@@ -31,3 +31,8 @@ Solo puede haber una VPN activa: desactiva el Soberano+ antes de usar AntiAds.
 ## Tercera prueba: el pre-roll seguía saliendo
 - El diagnóstico solo anotaba lo que las técnicas modificaban; no se veía qué peticiones pasaban sin tocar. Nuevo interruptor del Laboratorio: «Registrar vídeo y audio (diagnóstico)», que anota (req) las peticiones de vídeo/audio/HLS/archivos grandes con código, tipo y tamaño.
 - El túnel solo enruta IPv4. Con el Modo Profundo activo, las consultas DNS de tipo AAAA se contestan «sin datos» (FiltroTrafico.filtrarAaaa) para que las apps usen IPv4 y pasen por el proxy.
+
+## Cuarta prueba: de dónde sale el pre-roll de Pornhub
+- Con «Registrar vídeo y audio» se vio: `evtubescms.phncdn.com/pre_videos/…/mp4_720.mp4` (206, 3,3 MB). El pre-roll lo sirve la propia CDN de Pornhub, así que ninguna lista de dominios lo cubre (y bloquear phncdn.com rompería el vídeo principal, que va por HLS en em-h.phncdn.com).
+- Nueva clave `juguete` en reglas.json: URLs que se sustituyen por el MP4 válido de 0,3 s. Por defecto: `phncdn.com/pre_videos/`.
+- Los vídeos inventados atienden Range (206/416), porque el navegador pide «bytes=0-».
