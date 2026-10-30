@@ -19,12 +19,9 @@ import kotlinx.coroutines.launch
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.net.DatagramPacket
-import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
-import java.net.SocketTimeoutException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.RejectedExecutionException
@@ -65,6 +62,7 @@ abstract class NucleoVpnService : VpnService() {
     private val bloqueoEscritura = Any()
     private val cacheApps = ConcurrentHashMap<Int, String>()
     private val fallosSeguidos = AtomicInteger(0)
+    private val dnsPool = DnsSocketPool { socket -> protect(socket) }
 
     @Volatile
     private var ejecucion: Ejecucion? = null
@@ -132,6 +130,7 @@ abstract class NucleoVpnService : VpnService() {
         }
         ejecucion = null
         VpnEstado.activa.value = false
+        dnsPool.cerrarTodo()
         scope.cancel()
         super.onDestroy()
     }
@@ -191,6 +190,16 @@ abstract class NucleoVpnService : VpnService() {
         if (cfg.modo == ModoVpn.CONEXIONES) {
             // Todo el tráfico IPv4 pasa por el túnel, salvo el de la propia app y las exclusiones pedidas.
             builder.addRoute("0.0.0.0", 0)
+            if (cfg.neutralizarIpv6) {
+                // Sin rutas IPv6 las apps dual-stack saldrían FUERA de la VPN. Se enrutan al túnel y procesar() las
+                // descarta (solo entiende IPv4), así que caen a IPv4 y pasan por el filtro.
+                try {
+                    builder.addAddress("fd00:77::1", 128)
+                    builder.addRoute("2000::", 3)
+                    builder.addRoute("fc00::", 7)
+                } catch (e: Exception) {
+                }
+            }
             try {
                 builder.addDisallowedApplication(packageName)
             } catch (e: Exception) {
@@ -324,6 +333,21 @@ abstract class NucleoVpnService : VpnService() {
         // Averiguar la app de origen cuesta una llamada al sistema por consulta: solo si alguien la quiere.
         val uid = if (detalle) resolverUid(origenIp, puertoOrigen) else -1
 
+        if (q != null && cfg.bloquearEch && DnsParser.esTipoEch(q.tipo)) {
+            // Sin registro HTTPS/SVCB el navegador no recibe la config ECH y el SNI queda visible. No cuenta como bloqueo de anuncio.
+            val vacia = DnsParser.construirBloqueo(consulta, RespuestaBloqueo.CERO)
+            escribirTunel(ej, Paquetes.construirUdp(IP_DNS_INT, origenIp, 53, puertoOrigen, vacia))
+            if (detalle && obs != null) {
+                obs.alDns(
+                    EventoDns(
+                        ts = ahora, uid = uid, app = nombreApp(uid), dominio = q.nombre,
+                        tipo = DnsParser.nombreTipo(q.tipo), respuesta = "vacía (anti-ECH)", bloqueado = true
+                    )
+                )
+            }
+            return
+        }
+
         val filtro = cfg.filtro
         if (q != null && filtro.hayDominios && filtro.dominioBloqueadoEnDns(q.nombre)) {
             val respuesta = DnsParser.construirBloqueo(consulta, cfg.respuestaBloqueo)
@@ -378,26 +402,16 @@ abstract class NucleoVpnService : VpnService() {
             val ordenada = if (pref == null) lista else lista.sortedBy { if (it.servidor == pref) 0 else 1 }
             for (c in ordenada) {
                 val host = c.servidor.hostAddress ?: "?"
-                try {
-                    val socket = DatagramSocket()
-                    try {
-                        val red = c.red
-                        if (red != null) red.bindSocket(socket) else protect(socket)
-                        socket.soTimeout = 2000
-                        socket.send(DatagramPacket(consulta, consulta.size, c.servidor, 53))
-                        val recibido = ByteArray(4096)
-                        val paquete = DatagramPacket(recibido, recibido.size)
-                        socket.receive(paquete)
-                        preferido = c.servidor
-                        return Resultado(recibido.copyOf(paquete.length), "")
-                    } finally {
-                        socket.close()
-                    }
-                } catch (e: SocketTimeoutException) {
-                    ultimoError = "sin respuesta de " + host + " (tiempo agotado)"
+                val respuesta = try {
+                    dnsPool.consultar(c.red, c.servidor, consulta, 2000L)
                 } catch (e: Exception) {
-                    ultimoError = "error de red con " + host + ": " + e.javaClass.simpleName + " " + (e.message ?: "")
+                    null
                 }
+                if (respuesta != null) {
+                    preferido = c.servidor
+                    return Resultado(respuesta, "")
+                }
+                ultimoError = "sin respuesta de " + host + " (tiempo agotado o error de red)"
             }
             pasada++
             if (pasada == 1) {
@@ -482,7 +496,9 @@ abstract class NucleoVpnService : VpnService() {
             alDns = { uid, aplicacion, consulta, respuesta -> registrarDnsExterno(ej, uid, aplicacion, consulta, respuesta) },
             alBloqueo = { dominio -> obs?.alBloqueo(dominio) },
             alFallar = { motivo -> alFallarReenvio(ej, motivo) },
-            desvioTcp = cfg.desvioTcp
+            desvioTcp = cfg.desvioTcp,
+            bloquearDot = cfg.bloquearDot,
+            bloquearEch = cfg.bloquearEch
         )
     }
 
