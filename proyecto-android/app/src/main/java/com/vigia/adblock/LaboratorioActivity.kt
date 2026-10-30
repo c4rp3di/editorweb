@@ -22,7 +22,6 @@ import com.vigia.core.ui.Dialogos
 import com.vigia.core.ui.TipoBoton
 import com.vigia.core.ui.Vistas
 import com.vigia.core.util.Formato
-import com.vigia.core.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
