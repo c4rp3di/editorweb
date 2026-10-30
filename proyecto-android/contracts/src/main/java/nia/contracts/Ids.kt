@@ -42,7 +42,8 @@ object Ids {
     fun parseSessionId(raw: String): SessionId = SessionId(checked("session", raw))
     fun parseTabId(raw: String): TabId = TabId(checked("tab", raw))
     fun parseFrameId(raw: String): FrameId = FrameId(checked("frame", raw))
-    fun parseDocumentId(raw: String): DocumentId = DocumentId(checked("doc", raw))
+    fun parseDocumentId(raw:
+ String): DocumentId = DocumentId(checked("doc", raw))
     fun parseNavigationId(raw: String): NavigationId = NavigationId(checked("nav", raw))
     fun parseRequestId(raw: String): RequestId = RequestId(checked("req", raw))
     fun parseNodeId(raw: String): NodeId = NodeId(checked("node", raw))
