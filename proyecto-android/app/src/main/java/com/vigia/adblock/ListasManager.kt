@@ -199,9 +199,6 @@ object ListasManager {
             val d = UtilRed.normalizarDominio(l) ?: continue
             bloqueo.agregar(HashDominio.completo(d))
         }
-        if (Ajustes.bloquearDnsCifrado(c)) {
-            for (d in DnsCifrado.DOMINIOS) bloqueo.agregar(HashDominio.completo(d))
-        }
         for (l in Ajustes.permitidosExtra(c).split('\n')) {
             val d = UtilRed.normalizarDominio(l) ?: continue
             permitido.agregar(HashDominio.completo(d))
