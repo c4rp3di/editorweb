@@ -113,7 +113,6 @@ class MitmProxy(
             val host = (hojas.nombreVisto(puertoCliente) ?: origen.ip).lowercase()
             ssl.soTimeout = 60_000
             remoto = conectarRemoto(origen, host)
-            eventos.alConexionDescifrada(host)
             bucle(ssl, remoto, host)
         } catch (e: Exception) {
             if (origen != null && e !is EOFException && e !is SocketTimeoutException) {
@@ -185,17 +184,9 @@ class MitmProxy(
             val cerrarTras = req.cab.contiene("Connection", "close") || req.version == "HTTP/1.0"
 
             // --- Bloqueo: 200 OK con 0 bytes, la conexión sigue viva y la web no se rompe.
-            val ruta = rutaDe(req.destino)
             if (!upgrade) {
                 val tipo = clasificar(req)
-                val falsa = filtro.responder(host, ruta, tipo, req.metodo, req.cab.get("Origin"))
-                if (falsa != null) {
-                    cuerpoReq.descartar()
-                    respuestaFalsa(cout, falsa, req)
-                    eventos.alTecnica(falsa.tecnica, host, ruta)
-                    if (cerrarTras) return
-                    continue
-                }
+                val ruta = rutaDe(req.destino)
                 if (filtro.bloquear(host, ruta, tipo)) {
                     cuerpoReq.descartar()
                     respuestaVacia(cout, tipo)
@@ -244,25 +235,22 @@ class MitmProxy(
 
             val cuerpoResp = HttpCodec.cuerpoRespuesta(rin, fin, req.metodo)
             val cerrarResp = cuerpoResp.encuadre == Encuadre.HASTA_CIERRE || fin.cab.contiene("Connection", "close")
-            val ok = responder(cout, fin, cuerpoResp, host, ruta)
+            val ok = responder(cout, fin, cuerpoResp, host)
             if (!ok || cerrarResp || cerrarTras) return
         }
     }
 
     /** @return false si la conexión no puede reutilizarse. */
-    private fun responder(cout: OutputStream, resp: CabezaRespuesta, cuerpo: Cuerpo, host: String, ruta: String): Boolean {
+    private fun responder(cout: OutputStream, resp: CabezaRespuesta, cuerpo: Cuerpo, host: String): Boolean {
         val ct = (resp.cab.get("Content-Type") ?: "").lowercase()
         val enc = (resp.cab.get("Content-Encoding") ?: "identity").trim().lowercase()
-        val encOk = enc == "identity" || enc == "gzip" || enc == "x-gzip" || enc == "deflate"
-        val tamOk = !(cuerpo.encuadre == Encuadre.LONGITUD && cuerpo.longitud > LIMITE_HTML)
-        val hayCuerpo = resp.codigo == 200 && cuerpo.encuadre != Encuadre.NINGUNO && encOk && tamOk
-        val esHtml = hayCuerpo && ct.startsWith("text/html") && !ct.contains("utf-16") && !ct.contains("utf-32")
-        val esM3u8 = hayCuerpo && (ct.contains("mpegurl") || ruta.substringBefore('?').endsWith(".m3u8"))
+        val esHtml = resp.codigo == 200 && ct.startsWith("text/html") && cuerpo.encuadre != Encuadre.NINGUNO &&
+            !ct.contains("utf-16") && !ct.contains("utf-32") &&
+            (enc == "identity" || enc == "gzip" || enc == "x-gzip" || enc == "deflate") &&
+            !(cuerpo.encuadre == Encuadre.LONGITUD && cuerpo.longitud > LIMITE_HTML)
         val css = if (esHtml) filtro.cssCosmetico(host) else null
-        val js = if (esHtml) filtro.scriptInicial(host) else null
-        val hls = esM3u8 && filtro.tratarHls(host, ruta)
 
-        if (css.isNullOrEmpty() && js.isNullOrEmpty() && !hls) {
+        if (css.isNullOrEmpty()) {
             HttpCodec.escribirRespuesta(cout, resp)
             HttpCodec.copiar(cuerpo, cout, cuerpo.encuadre == Encuadre.CHUNKED)
             cout.flush()
@@ -299,27 +287,12 @@ class MitmProxy(
         } catch (e: Exception) { desc = false }
 
         val nonce = nuevoNonce()
-        var nuevo: ByteArray? = null
-        if (desc && hls) {
-            val t = filtro.reescribirTexto(host, ruta, String(html, Charsets.UTF_8))
-            if (t != null) { nuevo = t.toByteArray(Charsets.UTF_8); eventos.alTecnica("hls", host, ruta) }
-        } else if (desc) {
-            var h: ByteArray = html
-            var cambio = false
-            if (!js.isNullOrEmpty()) {
-                val r = inyectarInicio(h, "<script data-antiads nonce=\"" + nonce + "\">" + js + "</script>")
-                if (r != null) { h = r; cambio = true; eventos.alTecnica("scriptlet", host, ruta) }
-            }
-            if (!css.isNullOrEmpty()) {
-                val r = inyectar(h, "<style data-adbp nonce=\"" + nonce + "\">" + css + "</style>")
-                if (r != null) { h = r; cambio = true; eventos.alInyectarCss(host) }
-            }
-            if (cambio) nuevo = h
-        }
+        val nuevo = if (desc) inyectar(html, "<style data-adbp nonce=\"" + nonce + "\">" + css + "</style>") else null
         val salida = nuevo ?: buf.toByteArray()
         if (nuevo != null) {
             resp.cab.quitar("Content-Encoding")
-            if (esHtml) relajarCsp(resp.cab, nonce, !js.isNullOrEmpty())
+            relajarCsp(resp.cab, nonce)
+            eventos.alInyectarCss(host)
         }
         resp.cab.quitar("Transfer-Encoding")
         resp.cab.poner("Content-Length", salida.size.toString())
@@ -348,73 +321,25 @@ class MitmProxy(
         return (s.substring(0, i) + bloque + s.substring(i)).toByteArray(Charsets.ISO_8859_1)
     }
 
-    /** Inserta [bloque] justo después de la etiqueta <head ...> (o de <html ...>). Null si no la encuentra. */
-    internal fun inyectarInicio(html: ByteArray, bloque: String): ByteArray? {
-        val s = String(html, Charsets.ISO_8859_1)
-        var i = s.indexOf("<head", ignoreCase = true)
-        if (i < 0 || (s.length > i + 5 && s[i + 5].isLetter())) i = s.indexOf("<html", ignoreCase = true)
-        if (i < 0) return null
-        val fin = s.indexOf('>', i)
-        if (fin < 0) return null
-        return (s.substring(0, fin + 1) + bloque + s.substring(fin + 1)).toByteArray(Charsets.ISO_8859_1)
-    }
-
-    /** Una CSP sin 'unsafe-inline' bloquearía nuestro <style> y nuestro <script>: se les añade nuestro nonce. */
-    private fun relajarCsp(cab: Cabeceras, nonce: String, conScript: Boolean) {
-        val nuevas = cab.lista.map { (n, v) ->
-            if (!n.equals("Content-Security-Policy", true)) Pair(n, v) else {
-                val dirs = v.split(';').map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
-                permitirNonce(dirs, listOf("style-src-elem", "style-src"), "style-src-elem", nonce)
-                if (conScript) permitirNonce(dirs, listOf("script-src-elem", "script-src"), "script-src-elem", nonce)
-                Pair(n, dirs.joinToString("; "))
-            }
-        }
-        cab.lista.clear()
-        cab.lista.addAll(nuevas)
-    }
-
-    private fun permitirNonce(dirs: MutableList<String>, nombres: List<String>, nuevoNombre: String, nonce: String) {
+    /** Una CSP con style-src sin 'unsafe-inline' bloquearía nuestro <style>: se le añade nuestro nonce. */
+    private fun relajarCsp(cab: Cabeceras, nonce: String) {
+        val v = cab.get("Content-Security-Policy") ?: return
+        val dirs = v.split(';').map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
         fun idx(n: String) = dirs.indexOfFirst { it.substringBefore(' ').equals(n, true) }
-        // Con 'unsafe-inline' a secas ya vale; pero 'strict-dynamic', un nonce o un hash lo anulan.
-        fun yaPermiteInline(d: String) =
-            d.contains("'unsafe-inline'") && !d.contains("'strict-dynamic'") && !d.contains("'nonce-") && !d.contains("'sha")
         val n = "'nonce-" + nonce + "'"
         var hecho = false
-        for (nombre in nombres) {
+        for (nombre in listOf("style-src-elem", "style-src")) {
             val i = idx(nombre)
             if (i >= 0) {
                 hecho = true
-                if (!yaPermiteInline(dirs[i])) dirs[i] = dirs[i] + " " + n
+                if (!dirs[i].contains("'unsafe-inline'")) dirs[i] = dirs[i] + " " + n
             }
         }
         if (!hecho) {
             val d = idx("default-src")
-            if (d >= 0 && !yaPermiteInline(dirs[d])) dirs.add(nuevoNombre + " " + dirs[d].substringAfter(' ', "") + " " + n)
+            if (d >= 0 && !dirs[d].contains("'unsafe-inline'")) dirs.add("style-src-elem " + dirs[d].substringAfter(' ', "") + " " + n)
         }
-    }
-
-    /** Respuesta inventada (VAST vacío, script sustituto…). Responde también al preflight CORS de las peticiones cruzadas. */
-    private fun respuestaFalsa(o: OutputStream, f: RespuestaFalsa, req: CabezaPeticion) {
-        val origen = req.cab.get("Origin")
-        val preflight = req.metodo == "OPTIONS" && req.cab.get("Access-Control-Request-Method") != null
-        val sb = StringBuilder()
-        sb.append(if (preflight) "HTTP/1.1 204 No Content\r\n" else "HTTP/1.1 " + f.codigo + " OK\r\nContent-Type: " + f.tipo + "\r\n")
-        sb.append("Content-Length: ").append(if (preflight) 0 else f.cuerpo.size).append("\r\n")
-        sb.append("Cache-Control: no-store\r\n")
-        if (origen != null) {
-            sb.append("Access-Control-Allow-Origin: ").append(origen).append("\r\n")
-            sb.append("Access-Control-Allow-Credentials: true\r\nVary: Origin\r\n")
-            if (preflight) {
-                sb.append("Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n")
-                sb.append("Access-Control-Allow-Headers: ").append(req.cab.get("Access-Control-Request-Headers") ?: "*").append("\r\n")
-                sb.append("Access-Control-Max-Age: 600\r\n")
-            }
-        }
-        for ((n, v) in f.cabeceras) sb.append(n).append(": ").append(v).append("\r\n")
-        sb.append("\r\n")
-        o.write(sb.toString().toByteArray(Charsets.ISO_8859_1))
-        if (!preflight && req.metodo != "HEAD") o.write(f.cuerpo)
-        o.flush()
+        cab.poner("Content-Security-Policy", dirs.joinToString("; "))
     }
 
     private fun nuevoNonce(): String = ByteArray(12).also { azar.nextBytes(it) }.let { Base64.encodeToString(it, Base64.NO_WRAP) }
