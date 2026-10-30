@@ -56,8 +56,7 @@ internal class CancellationState(private val clock: WallClock) {
         }
         val id = nextListenerId
         nextListenerId += 1
-        listeners[id
-] = listener
+        listeners[id] = listener
         return id
     }
 
