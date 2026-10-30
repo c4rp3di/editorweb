@@ -1,8 +1,7 @@
-// Raíz del proyecto. La versión de AGP que se declara aquí la lee el
-// pipeline de compilación (Fusion/Actions) para elegir su versión de
-// Gradle: 8.7.x exige Gradle 8.9 o superior.
+// Raíz del proyecto. Versiones alineadas (R0005) con la combinación que
+// el pipeline de Fusion/Actions ya compiló con éxito (ADR-001, R0005).
 plugins {
-    id 'com.android.application' version '8.7.3' apply false
-    id 'org.jetbrains.kotlin.android' version '2.0.21' apply false
-    id 'org.jetbrains.kotlin.jvm' version '2.0.21' apply false
+    id 'com.android.application' version '8.5.0' apply false
+    id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
+    id 'org.jetbrains.kotlin.jvm' version '1.9.24' apply false
 }
