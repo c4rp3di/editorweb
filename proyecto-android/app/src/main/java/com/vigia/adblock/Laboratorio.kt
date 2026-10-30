@@ -74,7 +74,8 @@ class Reglas(
     val vast: List<String>,
     val stubs: List<Pair<String, String>>,
     val sitios: List<Pair<String, Set<String>>>,
-    val permitir: List<String> = emptyList()
+    val permitir: List<String> = emptyList(),
+    val juguete: List<String> = emptyList()
 ) {
 
     /** Técnicas de página para [host]: las de «*» más las del sitio que mejor encaje (sufijo de dominio). */
@@ -110,7 +111,9 @@ class Reglas(
             }
             val permitir = ArrayList<String>()
             j.optJSONArray("permitir")?.let { for (i in 0 until it.length()) permitir.add(it.getString(i).lowercase()) }
-            return Reglas(vast, stubs, sitios, permitir)
+            val juguete = ArrayList<String>()
+            j.optJSONArray("juguete")?.let { for (i in 0 until it.length()) juguete.add(it.getString(i).lowercase()) }
+            return Reglas(vast, stubs, sitios, permitir, juguete)
         }
 
         fun archivo(c: Context) = File(c.filesDir, "reglas.json")
@@ -154,8 +157,11 @@ class MotorReglas(contexto: Context, private val base: FiltroAdBlock) : FiltroCo
         val url = (host + ruta).lowercase()
         val r = reglas()
         Laboratorio.activa(c, "peticiones") // solo para que el valor esté leído cuando lo mire EventosLab
+        // Vídeo de anuncio: o está en un dominio de la lista (y es .mp4), o la URL encaja con un patrón de «juguete»
+        // de las reglas (anuncios que se sirven desde el mismo dominio que el contenido, como /pre_videos/ de phncdn.com).
+        val esVideoDeLista = ruta.substringBefore('?').lowercase().endsWith(".mp4") && base.dominioBloqueado(host)
         if (tipo != TipoRecurso.DOCUMENTO && Laboratorio.activa(c, "juguete") &&
-            ruta.substringBefore('?').lowercase().endsWith(".mp4") && base.dominioBloqueado(host)
+            (esVideoDeLista || r.juguete.any { url.contains(it) })
         ) {
             val v = juguete
             if (v != null) return RespuestaFalsa("juguete", "video/mp4", v)
