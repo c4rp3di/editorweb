@@ -152,6 +152,12 @@ class FiltroAdBlock : FiltroTrafico {
 
     override fun destinoBloqueado(ip: Int, puerto: Int): Boolean = bloquearDnsCifrado && DnsCifrado.bloquea(ip, puerto)
 
+    /** En modo MitM se ocultan las direcciones IPv6 para que todo el tráfico entre por el túnel (IPv4). */
+    @Volatile
+    var ocultarIpv6 = false
+
+    override fun filtrarAaaa(): Boolean = ocultarIpv6
+
     override fun dominioBloqueado(nombre: String): Boolean {
         val t = tablas ?: return false
         return evaluar(t, nombre) == BLOQUEADO
