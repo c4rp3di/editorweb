@@ -399,10 +399,35 @@ class MitmProxy(
     private fun respuestaFalsa(o: OutputStream, f: RespuestaFalsa, req: CabezaPeticion) {
         val origen = req.cab.get("Origin")
         val preflight = req.metodo == "OPTIONS" && req.cab.get("Access-Control-Request-Method") != null
+        var cuerpo = f.cuerpo
+        var estado = "HTTP/1.1 " + f.codigo + " OK"
+        val extra = StringBuilder()
+        if (!preflight && f.tipo.startsWith("video/")) {
+            // Un <video> pide «bytes=0-» y espera un 206; un 200 completo lo aceptan algunos reproductores y otros no.
+            extra.append("Accept-Ranges: bytes\r\n")
+            val m = Regex("bytes=(\\d*)-(\\d*)").find(req.cab.get("Range") ?: "")
+            if (m != null) {
+                val n = f.cuerpo.size
+                val ini = m.groupValues[1]
+                val fin = m.groupValues[2]
+                val desde = if (ini.isEmpty()) maxOf(0, n - (fin.toIntOrNull() ?: n)) else (ini.toIntOrNull() ?: 0)
+                val hasta = if (ini.isEmpty() || fin.isEmpty()) n - 1 else minOf(n - 1, fin.toIntOrNull() ?: (n - 1))
+                if (desde >= n || hasta < desde) {
+                    estado = "HTTP/1.1 416 Range Not Satisfiable"
+                    extra.append("Content-Range: bytes */").append(n).append("\r\n")
+                    cuerpo = ByteArray(0)
+                } else {
+                    estado = "HTTP/1.1 206 Partial Content"
+                    extra.append("Content-Range: bytes ").append(desde).append('-').append(hasta).append('/').append(n).append("\r\n")
+                    cuerpo = f.cuerpo.copyOfRange(desde, hasta + 1)
+                }
+            }
+        }
         val sb = StringBuilder()
-        sb.append(if (preflight) "HTTP/1.1 204 No Content\r\n" else "HTTP/1.1 " + f.codigo + " OK\r\nContent-Type: " + f.tipo + "\r\n")
-        sb.append("Content-Length: ").append(if (preflight) 0 else f.cuerpo.size).append("\r\n")
+        sb.append(if (preflight) "HTTP/1.1 204 No Content\r\n" else estado + "\r\nContent-Type: " + f.tipo + "\r\n")
+        sb.append("Content-Length: ").append(if (preflight) 0 else cuerpo.size).append("\r\n")
         sb.append("Cache-Control: no-store\r\n")
+        sb.append(extra)
         if (origen != null) {
             sb.append("Access-Control-Allow-Origin: ").append(origen).append("\r\n")
             sb.append("Access-Control-Allow-Credentials: true\r\nVary: Origin\r\n")
@@ -415,22 +440,8 @@ class MitmProxy(
         for ((n, v) in f.cabeceras) sb.append(n).append(": ").append(v).append("\r\n")
         sb.append("\r\n")
         o.write(sb.toString().toByteArray(Charsets.ISO_8859_1))
-        if (!preflight && req.metodo != "HEAD") o.write(f.cuerpo)
+        if (!preflight && req.metodo != "HEAD") o.write(cuerpo)
         o.flush()
-    }
-
-    private fun nuevoNonce(): String = ByteArray(12).also { azar.nextBytes(it) }.let { Base64.encodeToString(it, Base64.NO_WRAP) }
-
-    /** 200 OK sin cuerpo. Lleva CORS y contesta al preflight: sin eso, una petición fetch/XHR a otro dominio parece FALLAR y la web la reintenta en bucle. */
-    private fun respuestaVacia(o: OutputStream, tipo: TipoRecurso, req: CabezaPeticion) {
-        val ct = when (tipo) {
-            TipoRecurso.SCRIPT -> "application/javascript"
-            TipoRecurso.IMAGEN -> "image/gif"
-            TipoRecurso.ESTILO -> "text/css"
-            TipoRecurso.DOCUMENTO -> "text/html; charset=utf-8"
-            TipoRecurso.OTRO -> "text/plain"
-        }
-        respuestaFalsa(o, RespuestaFalsa("clasico", ct, ByteArray(0)), req)
     }
 
     /** Origin-form (/ruta?q) tal cual; absolute-form (http://h/ruta) se reduce a /ruta. */
