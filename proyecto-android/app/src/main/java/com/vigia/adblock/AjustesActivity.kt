@@ -65,9 +65,6 @@ class AjustesActivity : ActividadBase() {
         val raiz = Vistas.columna(this, 16)
         raiz.addView(Vistas.titulo(this, "Ajustes"), Vistas.anchoCompleto(this, 12))
 
-        // --- Modo de protección (Ligero / Profundo) y lo que cuelga de él
-        construirModo(raiz)
-
         // --- Listas
         val l = seccion(raiz, "Listas de bloqueo")
         l.addView(Vistas.texto(this, "Los cambios se aplican al salir de esta pantalla. Mantén pulsada una lista propia para quitarla.", true), Vistas.anchoCompleto(this, 8))
@@ -108,7 +105,21 @@ class AjustesActivity : ActividadBase() {
         d.addView(Vistas.boton(this, "Dominios permitidos…", TipoBoton.TONAL) {
             editarTexto("Dominios permitidos (nunca se bloquean)", Ajustes.permitidosExtra(this)) { Ajustes.setPermitidosExtra(this, it); pendienteListas = true }
         }, Vistas.anchoCompleto(this, 8))
-        d.addView(Vistas.boton(this, "Comprobar un dominio", TipoBoton.TONAL) { comprobar() }, Vistas.anchoCompleto(this, 0))
+        d.addView(Vistas.boton(this, "Comprobar un dominio", TipoBoton.TONAL) { comprobar() }, Vistas.anchoCompleto(this, 8))
+        d.addView(
+            casilla(
+                "Registro DNS por app",
+                "Guarda en memoria qué dominios consulta cada app, para bloquear los de sus anuncios. Gasta algo más de batería.",
+                Ajustes.registroDns(this)
+            ) { v ->
+                Ajustes.setRegistroDns(this, v)
+                RegistroDns.activo = v
+                if (!v) RegistroDns.vaciar()
+            }, Vistas.anchoCompleto(this, 8)
+        )
+        d.addView(Vistas.boton(this, "Ver registro DNS por app", TipoBoton.TONAL) {
+            startActivity(Intent(this, RegistroDnsActivity::class.java))
+        }, Vistas.anchoCompleto(this, 0))
 
         // --- Red
         val r = seccion(raiz, "Red")
@@ -117,12 +128,26 @@ class AjustesActivity : ActividadBase() {
             Ajustes.setBloqueoNxdomain(this, v)
             reiniciarSiActiva()
         }, Vistas.anchoCompleto(this, 8))
+        val profundo = Ajustes.modoProfundo(this)
+        r.addView(
+            casilla(
+                "Bloquear DNS cifrado (DoT/DoH)",
+                "Cierra el atajo de apps que usan su propio DNS cifrado y se saltan el filtro. Los dominios de resolvedores " +
+                    "conocidos se bloquean siempre; el puerto 853 y sus IP solo en modo SNI o Profundo. Si en Android tienes " +
+                    "«DNS privado» en modo estricto, desactiva esto o te quedarás sin DNS.",
+                Ajustes.bloquearDnsCifrado(this)
+            ) { v ->
+                Ajustes.setBloquearDnsCifrado(this, v)
+                AdBlockEstado.filtro.bloquearDnsCifrado = v
+                ListasManager.reconstruirAsync(this)
+                reiniciarSiActiva()
+            }, Vistas.anchoCompleto(this, 8)
+        )
+        r.addView(Vistas.boton(this, "Bloqueo por SNI (experimental): " + (if (profundo) "activado" else "desactivado"), TipoBoton.TONAL) { alternarProfundo() }, Vistas.anchoCompleto(this, 8))
         r.addView(Vistas.boton(this, "Apps excluidas (" + Ajustes.excluidas(this).size + ")", TipoBoton.TONAL) { elegirExcluidas() }, Vistas.anchoCompleto(this, 0))
 
-        // --- Anti-evasión, descifrado HTTPS y laboratorio
-        construirAntiEvasion(raiz)
+        // --- Modo Profundo (MitM)
         construirMitm(raiz)
-        construirLaboratorio(raiz)
 
         // --- Sistema
         val s = seccion(raiz, "Sistema")
@@ -146,7 +171,7 @@ class AjustesActivity : ActividadBase() {
     // ------------------------------------------------------------------ Modo Profundo (MitM)
 
     private fun construirMitm(raiz: LinearLayout) {
-        val m = seccion(raiz, "Descifrado HTTPS (MitM) · parte del Modo Profundo")
+        val m = seccion(raiz, "Modo Profundo (MitM)")
         m.addView(
             Vistas.texto(
                 this,
@@ -157,18 +182,7 @@ class AjustesActivity : ActividadBase() {
             ), Vistas.anchoCompleto(this, 8)
         )
         val activo = Ajustes.mitmActivo(this)
-        m.addView(Vistas.boton(this, "Descifrado HTTPS (MitM): " + (if (activo) "activado" else "desactivado"), TipoBoton.TONAL) { alternarMitm(!activo) }, Vistas.anchoCompleto(this, 8))
-        val nRutas = ReglasRuta.parsear(Ajustes.rutasExtra(this)).cantidad
-        m.addView(Vistas.boton(this, "Reglas de ruta propias (" + nRutas + ")…", TipoBoton.TONAL) {
-            editarTexto(
-                "Reglas de ruta (solo con MitM)", Ajustes.rutasExtra(this),
-                "Una por línea: dominio.com/ruta/*  (* final = prefijo; # = comentario)"
-            ) {
-                Ajustes.setRutasExtra(this, it)
-                reiniciarSiActiva()
-                recreate()
-            }
-        }, Vistas.anchoCompleto(this, 8))
+        m.addView(Vistas.boton(this, "Modo Profundo (MitM): " + (if (activo) "activado" else "desactivado"), TipoBoton.TONAL) { alternarMitm(!activo) }, Vistas.anchoCompleto(this, 8))
 
         val estado = Vistas.texto(this, "Certificado CA: comprobando…", true)
         m.addView(estado, Vistas.anchoCompleto(this, 8))
@@ -178,7 +192,7 @@ class AjustesActivity : ActividadBase() {
         }
 
         m.addView(Vistas.boton(this, "Exportar certificado CA (.crt)", TipoBoton.TONAL) {
-            conCa { guardarCa.launch("AdBlockSoberanoLab-CA.crt") }
+            conCa { guardarCa.launch("AntiAds-CA.crt") }
         }, Vistas.anchoCompleto(this, 8))
         m.addView(Vistas.boton(this, "Abrir ajustes de seguridad de Android", TipoBoton.TONAL) {
             try {
@@ -218,7 +232,6 @@ class AjustesActivity : ActividadBase() {
         ) {
             conCa {
                 Ajustes.setMitmActivo(this, true)
-                Ajustes.aplicarRecomendadosUnaVez(this)
                 if (!CaManager.estaInstalada()) {
                     Dialogos.informar(
                         this, "Falta instalar el certificado",
@@ -251,11 +264,36 @@ class AjustesActivity : ActividadBase() {
             .show()
     }
 
+    /**
+     * Tarjeta plegable: el título es una cabecera que se toca para abrir o cerrar. Devuelve el contenedor del contenido,
+     * así que el resto del código añade vistas igual que antes. Empiezan todas cerradas; lo abierto se recuerda
+     * mientras dure el proceso (también tras recreate()).
+     */
     private fun seccion(raiz: LinearLayout, titulo: String): LinearLayout {
         val t = Vistas.tarjeta(this)
-        t.addView(Vistas.subtitulo(this, titulo), Vistas.anchoCompleto(this, 8))
+        val cab = Vistas.subtitulo(this, titulo)
+        cab.setPadding(0, Vistas.dp(this, 6), 0, Vistas.dp(this, 6))
+        val contenido = LinearLayout(this)
+        contenido.orientation = LinearLayout.VERTICAL
+        contenido.setPadding(0, Vistas.dp(this, 8), 0, 0)
+        fun pintar() {
+            val abierta = abiertas.contains(titulo)
+            cab.text = (if (abierta) "▾  " else "▸  ") + titulo
+            contenido.visibility = if (abierta) View.VISIBLE else View.GONE
+        }
+        cab.setOnClickListener {
+            if (!abiertas.add(titulo)) abiertas.remove(titulo)
+            pintar()
+        }
+        pintar()
+        t.addView(cab, Vistas.anchoCompleto(this, 0))
+        t.addView(contenido, Vistas.anchoCompleto(this, 0))
         raiz.addView(t, Vistas.anchoCompleto(this, 12))
-        return t
+        return contenido
+    }
+
+    companion object {
+        private val abiertas = HashSet<String>()
     }
 
     private fun casilla(texto: String, sub: String?, marcada: Boolean, alCambiar: (Boolean) -> Unit): LinearLayout {
@@ -317,126 +355,24 @@ class AjustesActivity : ActividadBase() {
         recreate()
     }
 
-    // ------------------------------------------------------------------ modo, anti-evasión y laboratorio
-
-    private fun construirModo(raiz: LinearLayout) {
-        val m = seccion(raiz, "Modo de protección")
-        val profundo = Ajustes.esProfundo(this)
-        m.addView(
-            Vistas.boton(this, (if (!profundo) "●  " else "○  ") + "Ligero · solo DNS", if (!profundo) TipoBoton.PRIMARIO else TipoBoton.TONAL) { elegirModo(false) },
-            Vistas.anchoCompleto(this, 4)
-        )
-        m.addView(
-            Vistas.texto(
-                this,
-                "Mira solo las consultas DNS. Es el mínimo consumo de batería y lo que menos rompe. Recomendado para llevarlo siempre activado.",
-                true
-            ), Vistas.anchoCompleto(this, 12)
-        )
-        m.addView(
-            Vistas.boton(this, (if (profundo) "●  " else "○  ") + "Profundo · todo el tráfico", if (profundo) TipoBoton.PRIMARIO else TipoBoton.TONAL) { elegirModo(true) },
-            Vistas.anchoCompleto(this, 4)
-        )
-        m.addView(
-            Vistas.texto(
-                this,
-                "Todo el tráfico IPv4 pasa por la app: además filtra por nombre TLS (SNI), bloquea QUIC y habilita las opciones " +
-                    "anti-evasión y el descifrado HTTPS. Consume más batería y puede fallar en algunas redes. Útil para apps con " +
-                    "DNS propio o para investigar qué hace una app.",
-                true
-            ), Vistas.anchoCompleto(this, 0)
-        )
-    }
-
-    private fun elegirModo(profundo: Boolean) {
-        if (profundo == Ajustes.esProfundo(this)) return
-        if (!profundo) {
-            val extra = if (Ajustes.mitmActivo(this)) " También se apagará el descifrado HTTPS (MitM)." else ""
-            Dialogos.confirmar(
-                this, "Modo Ligero",
-                "La protección volverá a mirar solo el DNS." + extra + " Las opciones anti-DoH y anti-ECH siguen aplicándose; el puerto 853 y IPv6 dejan de afectar.",
-                "Cambiar"
-            ) {
-                Ajustes.setProfundo(this, false)
-                reiniciarSiActiva()
-                recreate()
-            }
+    private fun alternarProfundo() {
+        if (Ajustes.modoProfundo(this)) {
+            Ajustes.setModoProfundo(this, false)
+            reiniciarSiActiva()
+            recreate()
             return
         }
         Dialogos.confirmar(
-            this, "Modo Profundo",
-            "Hace pasar todo el tráfico por la app: bloquea también por nombre de servidor TLS (SNI) y bloquea QUIC. " +
+            this, "Modo profundo (experimental)",
+            "Hace pasar todo el tráfico por la app para también bloquear por nombre de servidor TLS (SNI) y bloquear QUIC. " +
                 "Consume más batería y puede fallar con algunas redes. No sirve para anuncios que salen de los mismos " +
-                "dominios que el contenido (como YouTube) salvo con el descifrado HTTPS. La primera vez se activan las " +
-                "opciones anti-evasión recomendadas (puedes quitarlas después). ¿Activarlo?",
+                "dominios que el contenido (como YouTube). ¿Activarlo?",
             "Activar"
         ) {
-            Ajustes.setProfundo(this, true)
-            Ajustes.aplicarRecomendadosUnaVez(this)
+            Ajustes.setModoProfundo(this, true)
             reiniciarSiActiva()
             recreate()
         }
-    }
-
-    private fun construirAntiEvasion(raiz: LinearLayout) {
-        val a = seccion(raiz, "Anti-evasión")
-        a.addView(Vistas.texto(this, "Cierra los atajos con los que algunas apps se saltan el filtro por nombre.", true), Vistas.anchoCompleto(this, 8))
-        a.addView(
-            casilla(
-                "Bloquear DNS cifrado (anti-DoH)",
-                "Bloquea los resolutores DoH/DoT conocidos (dns.google, cloudflare-dns.com…) y, en Modo Profundo, el puerto 853. " +
-                    "Las apps con DNS propio vuelven al del sistema, que sí se filtra.",
-                Ajustes.antiDoh(this)
-            ) { v ->
-                Ajustes.setAntiDoh(this, v)
-                reiniciarSiActiva()
-            }, Vistas.anchoCompleto(this, 8)
-        )
-        a.addView(
-            casilla(
-                "Ocultar la configuración ECH (anti-ECH)",
-                "Responde vacío a las consultas HTTPS/SVCB para que el navegador no cifre el nombre del servidor y se pueda " +
-                    "filtrar por SNI. Funciona en ambos modos.",
-                Ajustes.antiEch(this)
-            ) { v ->
-                Ajustes.setAntiEch(this, v)
-                reiniciarSiActiva()
-            }, Vistas.anchoCompleto(this, 8)
-        )
-        a.addView(
-            casilla(
-                "Neutralizar IPv6 (solo Modo Profundo)",
-                "Evita que las apps con IPv6 salgan por fuera del filtro. Los sitios que solo existen en IPv6 no cargan mientras la " +
-                    "protección esté activa.",
-                Ajustes.neutralizarIpv6(this)
-            ) { v ->
-                Ajustes.setNeutralizarIpv6(this, v)
-                reiniciarSiActiva()
-            }, Vistas.anchoCompleto(this, 0)
-        )
-    }
-
-    private fun construirLaboratorio(raiz: LinearLayout) {
-        val l = seccion(raiz, "Laboratorio")
-        l.addView(
-            Vistas.texto(
-                this,
-                "Un visor para entender qué hace cada app: a qué dominios se conecta, cuánto tráfico mueve, qué permisos sensibles " +
-                    "tiene y cuáles de esos destinos están en tus listas de bloqueo. Todo queda en la memoria del móvil, se borra al " +
-                    "cerrarse la app y solo sale si tú exportas el CSV.",
-                true
-            ), Vistas.anchoCompleto(this, 8)
-        )
-        l.addView(
-            casilla(
-                "Registrar actividad",
-                "Gasta algo más de batería: el túnel averigua qué app abre cada conexión. Apágalo cuando no lo uses.",
-                Ajustes.laboratorio(this)
-            ) { v -> Laboratorio.activar(this, v) }, Vistas.anchoCompleto(this, 8)
-        )
-        l.addView(Vistas.boton(this, "Abrir Laboratorio", TipoBoton.TONAL) {
-            startActivity(Intent(this, LaboratorioActivity::class.java))
-        }, Vistas.anchoCompleto(this, 0))
     }
 
     private fun elegirExcluidas() {
@@ -465,10 +401,10 @@ class AjustesActivity : ActividadBase() {
             .show()
     }
 
-    private fun editarTexto(titulo: String, actual: String, pista: String = "Un dominio por línea", alGuardar: (String) -> Unit) {
+    private fun editarTexto(titulo: String, actual: String, alGuardar: (String) -> Unit) {
         val campo = EditText(this)
         campo.setText(actual)
-        campo.hint = pista
+        campo.hint = "Un dominio por línea"
         campo.minLines = 6
         campo.gravity = Gravity.TOP or Gravity.START
         campo.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
