@@ -36,3 +36,7 @@ Solo puede haber una VPN activa: desactiva el Soberano+ antes de usar AntiAds.
 - Con «Registrar vídeo y audio» se vio: `evtubescms.phncdn.com/pre_videos/…/mp4_720.mp4` (206, 3,3 MB). El pre-roll lo sirve la propia CDN de Pornhub, así que ninguna lista de dominios lo cubre (y bloquear phncdn.com rompería el vídeo principal, que va por HLS en em-h.phncdn.com).
 - Nueva clave `juguete` en reglas.json: URLs que se sustituyen por el MP4 válido de 0,3 s. Por defecto: `phncdn.com/pre_videos/`.
 - Los vídeos inventados atienden Range (206/416), porque el navegador pide «bytes=0-».
+
+## Quinta prueba: el pre-roll seguía y no había petición
+- No aparecía `pre_videos` en la red y `adroll_video_loadtime` marcaba 9-20 ms: casi seguro lo servía la caché de Chrome (se descargó en la prueba anterior). Probar en una pestaña de incognito o borrando la caché de Chrome.
+- Nuevo interruptor «Registrar TODAS las peticiones» por si no es la caché.
