@@ -26,6 +26,7 @@ object Laboratorio {
         Tecnica("yt", "YouTube: borrar datos de anuncios", "Script que quita adPlacements/playerAds de las respuestas del reproductor antes de que la web los lea.", true),
         Tecnica("skip", "Saltador por JavaScript", "Si un anuncio llega a sonar: lo silencia, lo adelanta al final y pulsa «Saltar». En YouTube y, de forma genérica, en otras webs.", true),
         Tecnica("css", "Ocultar huecos (CSS)", "Oculta los contenedores de anuncios que quedan vacíos.", true),
+        Tecnica("peticiones", "Registrar vídeo y audio (diagnóstico)", "No cambia nada: anota en el diagnóstico las peticiones de vídeo, audio, listas de reproducción y archivos grandes. Actívalo, reproduce el anuncio y comparte el informe: así se ve de dónde llega.", false),
         Tecnica("hls", "Limpiar listas HLS (experimental)", "Quita de las listas .m3u8 los tramos marcados como anuncio (CUE-OUT/CUE-IN). Solo sirve si el sitio los marca.", false)
     )
 
@@ -34,6 +35,9 @@ object Laboratorio {
 
     fun activa(c: Context, id: String): Boolean =
         cache.getOrPut(id) { prefs(c).getBoolean("t_" + id, TECNICAS.firstOrNull { it.id == id }?.porDefecto ?: false) }
+
+    /** Valor ya leído (sin Context), para el hilo del proxy; falso si todavía no se ha leído. */
+    fun activaCache(id: String): Boolean = cache[id] ?: false
 
     fun poner(c: Context, id: String, v: Boolean) {
         cache[id] = v
@@ -55,7 +59,7 @@ object Diagnostico {
     @Synchronized
     fun anotar(tipo: String, texto: String) {
         if (lineas.size >= MAX) lineas.removeFirst()
-        lineas.addLast(hora.format(Date()) + "  " + tipo.padEnd(10) + " " + texto.take(110))
+        lineas.addLast(hora.format(Date()) + "  " + tipo.padEnd(10) + " " + texto.take(170))
     }
 
     @Synchronized
@@ -66,7 +70,12 @@ object Diagnostico {
 }
 
 /** Reglas editables (JSON): patrones de peticiones y técnicas por sitio. */
-class Reglas(val vast: List<String>, val stubs: List<Pair<String, String>>, val sitios: List<Pair<String, Set<String>>>) {
+class Reglas(
+    val vast: List<String>,
+    val stubs: List<Pair<String, String>>,
+    val sitios: List<Pair<String, Set<String>>>,
+    val permitir: List<String> = emptyList()
+) {
 
     /** Técnicas de página para [host]: las de «*» más las del sitio que mejor encaje (sufijo de dominio). */
     fun tecnicasPara(host: String): Set<String> {
@@ -99,7 +108,9 @@ class Reglas(val vast: List<String>, val stubs: List<Pair<String, String>>, val 
                     sitios.add(Pair(o.getString("host").lowercase(), t))
                 }
             }
-            return Reglas(vast, stubs, sitios)
+            val permitir = ArrayList<String>()
+            j.optJSONArray("permitir")?.let { for (i in 0 until it.length()) permitir.add(it.getString(i).lowercase()) }
+            return Reglas(vast, stubs, sitios, permitir)
         }
 
         fun archivo(c: Context) = File(c.filesDir, "reglas.json")
@@ -142,6 +153,7 @@ class MotorReglas(contexto: Context, private val base: FiltroAdBlock) : FiltroCo
     override fun responder(host: String, ruta: String, tipo: TipoRecurso, metodo: String, origen: String?): RespuestaFalsa? {
         val url = (host + ruta).lowercase()
         val r = reglas()
+        Laboratorio.activa(c, "peticiones") // solo para que el valor esté leído cuando lo mire EventosLab
         if (tipo != TipoRecurso.DOCUMENTO && Laboratorio.activa(c, "juguete") &&
             ruta.substringBefore('?').lowercase().endsWith(".mp4") && base.dominioBloqueado(host)
         ) {
@@ -171,8 +183,16 @@ class MotorReglas(contexto: Context, private val base: FiltroAdBlock) : FiltroCo
         return null
     }
 
-    override fun bloquear(host: String, ruta: String, tipo: TipoRecurso): Boolean =
-        Laboratorio.activa(c, "clasico") && clasico.bloquear(host, ruta, tipo)
+    override fun bloquear(host: String, ruta: String, tipo: TipoRecurso): Boolean {
+        if (!Laboratorio.activa(c, "clasico")) return false
+        // Lista «permitir» de las reglas: se deja pasar al servidor real (p. ej. el script que detecta bloqueadores).
+        val url = (host + ruta).lowercase()
+        if (reglas().permitir.any { url.contains(it) }) {
+            Diagnostico.anotar("permitido", host + ruta)
+            return false
+        }
+        return clasico.bloquear(host, ruta, tipo)
+    }
 
     override fun cssCosmetico(host: String): String? {
         if (!Laboratorio.activa(c, "css")) return null
@@ -240,6 +260,16 @@ object EventosLab : EventosMitm {
     override fun alTecnica(tecnica: String, host: String, ruta: String) {
         Laboratorio.contar(tecnica.substringBefore(':'))
         Diagnostico.anotar(tecnica, host + ruta)
+    }
+
+    override fun alPeticion(host: String, ruta: String, codigo: Int, tipo: String, longitud: Long) {
+        if (!Laboratorio.activaCache("peticiones")) return
+        val r = ruta.substringBefore('?').lowercase()
+        val multimedia = codigo == 101 || tipo.startsWith("video/") || tipo.startsWith("audio/") || tipo.contains("mpegurl") ||
+            tipo.contains("dash") || tipo.contains("octet-stream") || longitud >= 300_000L ||
+            r.endsWith(".mp4") || r.endsWith(".m4s") || r.endsWith(".ts") || r.endsWith(".m3u8") || r.endsWith(".webm") || r.endsWith(".mpd")
+        if (!multimedia) return
+        Diagnostico.anotar("req", codigo.toString() + " " + tipo.take(22) + " " + (if (longitud >= 0) (longitud / 1024).toString() + "KB" else "?KB") + "  " + host + ruta)
     }
 
     override fun alError(host: String, mensaje: String) { Diagnostico.anotar("error", host + " " + mensaje) }
