@@ -36,10 +36,6 @@
             android:exported="false" />
 
         <activity
-            android:name=".RegistroDnsActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".LaboratorioActivity"
             android:exported="false" />
 
