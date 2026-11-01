@@ -3,14 +3,11 @@ package com.fusion.compila
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
-import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Base64
 import android.webkit.JavascriptInterface
@@ -34,21 +31,20 @@ import java.io.FileInputStream
 import java.io.InputStream
 
 /**
- * Compila: Fusion dentro de un WebView + receptor de .zip.
+ * Compila: app dedicada a compilar proyectos Android desde un .zip.
  *
- * - Fusion (assets/fusion.html, o el archivo que elijas en Ajustes) se sirve desde un origen propio
- *   (https://compila.local/) para que IndexedDB y localStorage se comporten como en un navegador.
- * - Un .zip abierto con «Abrir con» o compartido a la app se guarda en memoria; Fusion lo recoge por el
- *   puente window.AndroidCompila y hace el resto (diagnóstico, mezcla y compilación) con su propio código.
- * - window.AndroidPuente (descargar, descargarBase64, pegar) es el mismo puente que usan los APK de Fusion.
+ * - La pantalla (assets/compilar.html, o el archivo que elijas en Ajustes) se sirve desde un origen propio
+ *   (https://compila.local/) para que localStorage y fetch se comporten como en un navegador.
+ * - Un .zip abierto con «Abrir con» o compartido a la app se guarda en memoria; la pantalla lo recoge por el
+ *   puente window.AndroidCompila y hace el resto (diagnóstico, mezcla y compilación en GitHub Actions).
  */
 class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val HOST = "compila.local"
-        private const val URL_FUSION = "https://compila.local/fusion.html"
-        private const val ASSET_FUSION = "fusion.html"
-        private const val ARCHIVO_FUSION = "fusion-personalizado.html"
+        private const val URL_APP = "https://compila.local/compilar.html"
+        private const val ASSET_HTML = "compilar.html"
+        private const val ARCHIVO_HTML = "compilar-personalizado.html"
     }
 
     private lateinit var webView: WebView
@@ -64,8 +60,8 @@ class MainActivity : AppCompatActivity() {
         filePathCallback = null
     }
 
-    private val selectorFusion = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) copiarFusion(uri)
+    private val selectorHtml = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) copiarHtml(uri)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,7 +72,7 @@ class MainActivity : AppCompatActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                // Si Fusion tiene algo que cerrar (pantalla de Compilar), lo cierra; si no, sale de la app.
+                // Si la pantalla tiene algo que cerrar (ajustes, recepción…), lo cierra; si no, sale de la app.
                 webView.evaluateJavascript(
                     "(function(){try{return window.__compilaAtras?window.__compilaAtras():false}catch(e){return false}})()"
                 ) { resultado ->
@@ -86,7 +82,7 @@ class MainActivity : AppCompatActivity() {
         })
 
         manejarIntent(intent)
-        webView.loadUrl(URL_FUSION)
+        webView.loadUrl(URL_APP)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -106,7 +102,6 @@ class MainActivity : AppCompatActivity() {
         ajustes.allowContentAccess = false
         ajustes.mediaPlaybackRequiresUserGesture = false
 
-        webView.addJavascriptInterface(PuenteDescargas(), "AndroidPuente")
         webView.addJavascriptInterface(PuenteCompila(), "AndroidCompila")
 
         webView.webViewClient = object : WebViewClient() {
@@ -114,8 +109,8 @@ class MainActivity : AppCompatActivity() {
                 val uri = request.url
                 if (uri.host == HOST) {
                     val ruta = uri.path ?: "/"
-                    return if (ruta == "/" || ruta == "/fusion.html" || ruta == "/index.html") {
-                        WebResourceResponse("text/html", "UTF-8", abrirFusion())
+                    return if (ruta == "/" || ruta == "/compilar.html" || ruta == "/index.html") {
+                        WebResourceResponse("text/html", "UTF-8", abrirHtml())
                     } else {
                         WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", emptyMap(), "".byteInputStream())
                     }
@@ -194,36 +189,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Fusion personalizado (elegido en Ajustes) si existe; si no, el incluido en la app. */
-    private fun abrirFusion(): InputStream {
-        val personalizado = File(filesDir, ARCHIVO_FUSION)
+    /** compilar.html elegido en Ajustes si existe; si no, el incluido en la app. */
+    private fun abrirHtml(): InputStream {
+        val personalizado = File(filesDir, ARCHIVO_HTML)
         if (personalizado.exists() && personalizado.length() > 0) {
             try {
                 return FileInputStream(personalizado)
             } catch (_: Exception) {
             }
         }
-        return assets.open(ASSET_FUSION)
+        return assets.open(ASSET_HTML)
     }
 
-    private fun copiarFusion(uri: Uri) {
+    private fun copiarHtml(uri: Uri) {
         try {
-            val temporal = File(filesDir, "$ARCHIVO_FUSION.tmp")
+            val temporal = File(filesDir, "$ARCHIVO_HTML.tmp")
             contentResolver.openInputStream(uri)?.use { entrada ->
                 temporal.outputStream().use { salida -> entrada.copyTo(salida) }
             } ?: throw IllegalStateException("No se pudo abrir el archivo")
-            if (temporal.length() < 100_000L) {
+            if (temporal.length() < 20_000L) {
                 temporal.delete()
-                Toast.makeText(this, "El archivo no parece un Fusion (es demasiado pequeño)", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "El archivo no parece el compilar.html (es demasiado pequeño)", Toast.LENGTH_LONG).show()
                 return
             }
-            val destino = File(filesDir, ARCHIVO_FUSION)
+            val destino = File(filesDir, ARCHIVO_HTML)
             destino.delete()
             temporal.renameTo(destino)
-            Toast.makeText(this, "Fusion actualizado (" + destino.length() / 1024 + " KB)", Toast.LENGTH_SHORT).show()
-            webView.loadUrl(URL_FUSION)
+            Toast.makeText(this, "Compilar actualizado (" + destino.length() / 1024 + " KB)", Toast.LENGTH_SHORT).show()
+            webView.loadUrl(URL_APP)
         } catch (e: Exception) {
-            Toast.makeText(this, "No se pudo copiar Fusion: " + e.message, Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "No se pudo copiar el archivo: " + e.message, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -248,7 +243,7 @@ class MainActivity : AppCompatActivity() {
                 ?: throw IllegalStateException("No se pudo leer el archivo")
             zipBytes = bytes
             zipNombre = nombreDe(uri)
-            // Si Fusion ya está cargado, avisa; si aún arranca, lo recogerá él al terminar de iniciarse.
+            // Si la pantalla ya está cargada, avisa; si aún arranca, lo recogerá ella al iniciarse.
             webView.evaluateJavascript("window.__compilaNuevoZip&&window.__compilaNuevoZip()", null)
         } catch (e: Exception) {
             Toast.makeText(this, "No se pudo leer el ZIP: " + e.message, Toast.LENGTH_LONG).show()
@@ -269,27 +264,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------------------------------------------------------------- Puentes JS
-
-    /** Mismo contrato que el puente de los APK de Fusion: descargar texto, y aquí también binarios y pegar. */
-    inner class PuenteDescargas {
-        @JavascriptInterface
-        fun descargar(nombre: String, contenido: String) {
-            guardarEnDescargas(nombre, contenido.toByteArray(Charsets.UTF_8))
-        }
-
-        @JavascriptInterface
-        fun descargarBase64(nombre: String, base64: String) {
-            guardarEnDescargas(nombre, Base64.decode(base64, Base64.DEFAULT))
-        }
-
-        @JavascriptInterface
-        fun pegar(): String {
-            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clip = cm.primaryClip
-            if (clip == null || clip.itemCount == 0) return ""
-            return clip.getItemAt(0).coerceToText(this@MainActivity)?.toString() ?: ""
-        }
-    }
 
     inner class PuenteCompila {
         @JavascriptInterface
@@ -348,67 +322,27 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun elegirFusion() {
-            runOnUiThread { selectorFusion.launch(arrayOf("text/html", "*/*")) }
+        fun elegirHtml() {
+            runOnUiThread { selectorHtml.launch(arrayOf("text/html", "*/*")) }
         }
 
         @JavascriptInterface
-        fun restaurarFusion() {
+        fun restaurarHtml() {
             runOnUiThread {
-                File(filesDir, ARCHIVO_FUSION).delete()
-                webView.loadUrl(URL_FUSION)
+                File(filesDir, ARCHIVO_HTML).delete()
+                webView.loadUrl(URL_APP)
             }
         }
 
         @JavascriptInterface
         fun info(): String {
-            val personalizado = File(filesDir, ARCHIVO_FUSION)
+            val personalizado = File(filesDir, ARCHIVO_HTML)
             val texto = if (personalizado.exists() && personalizado.length() > 0) {
                 "archivo elegido (" + personalizado.length() / 1024 + " KB)"
             } else {
                 "incluido en la app"
             }
-            return JSONObject().put("fusion", texto).put("app", "1.0").toString()
-        }
-    }
-
-    // ---------------------------------------------------------------- Descargas
-
-    private fun guardarEnDescargas(nombre: String, bytes: ByteArray) {
-        val limpio = nombre.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-        try {
-            val destino: String
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val valores = ContentValues()
-                valores.put(MediaStore.MediaColumns.DISPLAY_NAME, limpio)
-                valores.put(MediaStore.MediaColumns.MIME_TYPE, mimeDe(limpio))
-                valores.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, valores)
-                    ?: throw IllegalStateException("No se pudo crear el archivo en Descargas")
-                contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
-                destino = "Descargas/$limpio"
-            } else {
-                // Antes de Android 10 se evita pedir permisos: se guarda en la carpeta propia de la app.
-                val carpeta = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: filesDir
-                carpeta.mkdirs()
-                File(carpeta, limpio).writeBytes(bytes)
-                destino = carpeta.absolutePath + "/" + limpio
-            }
-            runOnUiThread { Toast.makeText(this, "Guardado en $destino", Toast.LENGTH_LONG).show() }
-        } catch (e: Exception) {
-            runOnUiThread { Toast.makeText(this, "No se pudo guardar: " + e.message, Toast.LENGTH_LONG).show() }
-        }
-    }
-
-    private fun mimeDe(nombre: String): String {
-        val n = nombre.lowercase()
-        return when {
-            n.endsWith(".zip") -> "application/zip"
-            n.endsWith(".html") || n.endsWith(".htm") -> "text/html"
-            n.endsWith(".json") -> "application/json"
-            n.endsWith(".txt") -> "text/plain"
-            n.endsWith(".apk") -> "application/vnd.android.package-archive"
-            else -> "application/octet-stream"
+            return JSONObject().put("html", texto).put("app", "1.0").toString()
         }
     }
 }
