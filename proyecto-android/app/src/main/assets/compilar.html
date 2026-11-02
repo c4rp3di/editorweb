@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta name="compila-app" content="1">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Compilar</title>
 <style>
@@ -3551,6 +3552,7 @@ kotlin.code.style=official
 
     cargarRegistro();
     renderInicio();
+    try { if (window.AndroidCompila && typeof window.AndroidCompila.listo === 'function') window.AndroidCompila.listo(); } catch (_) {}
     await comprobarZipPendiente();
 })();
 </script>
