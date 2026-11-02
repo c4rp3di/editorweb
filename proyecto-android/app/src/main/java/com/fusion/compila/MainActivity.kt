@@ -26,9 +26,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.InputStream
 
 /**
@@ -65,24 +65,27 @@ class MainActivity : AppCompatActivity() {
         if (uri != null) copiarHtml(uri)
     }
 
-    // Guardado de archivos generados por la pantalla (p. ej. el ZIP para Fusion): se acumula en memoria
-    // y se escribe donde el usuario elija con el selector del sistema (no requiere permisos).
-    private var guardadoBuffer: ByteArrayOutputStream? = null
+    // Guardado de archivos generados por la pantalla (p. ej. el ZIP para Fusion). Los datos se acumulan en un
+    // archivo temporal (no en memoria): mientras el selector del sistema está abierto, la app puede quedar en
+    // segundo plano y el sistema recrearla o matarla; con el archivo temporal la escritura final no se pierde
+    // (antes quedaba un archivo de 0 B). Se escribe donde el usuario elija con el selector (sin permisos).
+    private fun archivoPendiente() = File(cacheDir, "guardado-pendiente.tmp")
     private val guardarDocumento = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        val datos = guardadoBuffer?.toByteArray()
-        guardadoBuffer = null
-        if (uri == null || datos == null) return@registerForActivityResult
+        val tmp = archivoPendiente()
+        if (uri == null) { tmp.delete(); return@registerForActivityResult }
+        if (!tmp.exists() || tmp.length() == 0L) {
+            Toast.makeText(this, "No quedaron datos pendientes que guardar: repite la exportación", Toast.LENGTH_LONG).show()
+            return@registerForActivityResult
+        }
         try {
-            // «wt» trunca y escribe; se fuerza el volcado a disco antes de cerrar para que el tamaño que ve el resto
-            // de apps (selectores de archivos, Fusion) sea el real y no el 0 B del archivo recién creado.
-            var escritos = 0
+            var escritos = 0L
             contentResolver.openOutputStream(uri, "wt")?.use { out ->
-                out.write(datos)
+                FileInputStream(tmp).use { entrada -> escritos = entrada.copyTo(out) }
                 out.flush()
                 (out as? java.io.FileOutputStream)?.fd?.sync()
-                escritos = datos.size
             }
             val tam = contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+            tmp.delete()
             Toast.makeText(this, "Guardado: " + (escritos / 1024) + " KB escritos, " + (if (tam >= 0) (tam / 1024).toString() + " KB en el archivo" else "tamaño no comprobado"), Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             Toast.makeText(this, "No se pudo guardar: " + (e.message ?: ""), Toast.LENGTH_LONG).show()
@@ -348,13 +351,13 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun guardarInicio() {
-            guardadoBuffer = ByteArrayOutputStream()
+            archivoPendiente().delete()
         }
 
         /** Añade un trozo (base64) al archivo que se va a guardar. */
         @JavascriptInterface
         fun guardarTrozo(base64: String) {
-            guardadoBuffer?.write(Base64.decode(base64, Base64.DEFAULT))
+            FileOutputStream(archivoPendiente(), true).use { it.write(Base64.decode(base64, Base64.DEFAULT)) }
         }
 
         /** Abre el selector del sistema para elegir dónde guardar lo acumulado. */
@@ -364,7 +367,7 @@ class MainActivity : AppCompatActivity() {
                 try {
                     guardarDocumento.launch(nombre)
                 } catch (e: Exception) {
-                    guardadoBuffer = null
+                    archivoPendiente().delete()
                     Toast.makeText(this@MainActivity, "No se pudo abrir el selector", Toast.LENGTH_LONG).show()
                 }
             }
