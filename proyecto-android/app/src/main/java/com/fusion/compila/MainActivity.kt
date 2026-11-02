@@ -3,11 +3,13 @@ package com.fusion.compila
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Base64
 import android.webkit.JavascriptInterface
@@ -360,9 +362,45 @@ class MainActivity : AppCompatActivity() {
             FileOutputStream(archivoPendiente(), true).use { it.write(Base64.decode(base64, Base64.DEFAULT)) }
         }
 
-        /** Abre el selector del sistema para elegir dónde guardar lo acumulado. */
+        /**
+         * Guarda lo acumulado. En Android 10+ se escribe directamente en Descargas con MediaStore (IS_PENDING),
+         * así el índice del sistema recibe el tamaño real y los selectores de otras apps (p. ej. el de Fusion)
+         * no lo ven como un archivo de 0 B. En versiones anteriores se usa el selector del sistema.
+         */
         @JavascriptInterface
         fun guardarFin(nombre: String) {
+            if (Build.VERSION.SDK_INT >= 29) {
+                Thread {
+                    val tmp = archivoPendiente()
+                    try {
+                        if (!tmp.exists() || tmp.length() == 0L) throw IllegalStateException("no hay datos pendientes: repite la exportación")
+                        val valores = ContentValues().apply {
+                            put(MediaStore.MediaColumns.DISPLAY_NAME, nombre)
+                            put(MediaStore.MediaColumns.MIME_TYPE, "application/zip")
+                            put(MediaStore.MediaColumns.RELATIVE_PATH, "Download")
+                            put(MediaStore.MediaColumns.IS_PENDING, 1)
+                        }
+                        val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, valores)
+                            ?: throw IllegalStateException("no se pudo crear el archivo en Descargas")
+                        var escritos = 0L
+                        contentResolver.openOutputStream(uri, "w")?.use { out ->
+                            FileInputStream(tmp).use { entrada -> escritos = entrada.copyTo(out) }
+                            out.flush()
+                        }
+                        val fin = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
+                        contentResolver.update(uri, fin, null, null)
+                        tmp.delete()
+                        runOnUiThread {
+                            Toast.makeText(this@MainActivity, "Guardado en Descargas: " + (escritos / 1024) + " KB", Toast.LENGTH_LONG).show()
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread {
+                            Toast.makeText(this@MainActivity, "No se pudo guardar: " + (e.message ?: ""), Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }.start()
+                return
+            }
             runOnUiThread {
                 try {
                     guardarDocumento.launch(nombre)
