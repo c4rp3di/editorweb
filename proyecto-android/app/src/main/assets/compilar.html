@@ -122,8 +122,8 @@ code { background:#0d0d18; padding:1px 5px; border-radius:5px; }
     const pedirEleccionHtml = (titulo, html, opciones) => modal({ titulo, html, botones: [{ t: 'Cancelar', v: null }].concat(opciones.map((t, i) => ({ t, v: i, primario: i === 0 }))) });
     const mostrarInformeAnalisis = (titulo, html) => modal({ titulo, html, botones: [{ t: 'Cerrar', v: true, primario: true }] });
 
-    // ===== Código copiado literalmente de Fusion-23-1.html (2026-11-01) por construir_compilar.js — NO editar a mano =====
-    // Funciones: escaparTextoAnalisis, crc32, base64ABytes, dataUrlABytes, esArchivoBinarioGuardadoComoDataUrl, ZIP_IMP_LIMITE_ZIP_BYTES, ZIP_IMP_LIMITE_ENTRADA_BYTES, ZIP_IMP_LIMITE_TOTAL_BYTES, ZIP_IMP_LIMITE_ENTRADAS, ZIP_IMP_EXT_TEXTO, ZIP_IMP_EXT_BINARIO, ZIP_IMP_MIME, zipImpLeerDirectorio, zipImpInflarNativo, zipImpTablasFijas, zipImpInflarJS, zipImpInflar, zipImpExtraerEntrada, zipImpLimpiarRuta, zipImpEsBasura, zipImpExtension, zipImpEsTexto, zipImpDecodificarTexto, zipImpADataUrl, zipImpPrefijoRaizComun, zipImpDetectarTipo, zipImpLeerArchivo, zipImpConstruirAndroid, HIST_PUBLICACIONES_KEY, cargarHistorialPublicaciones, guardarHistorialPublicaciones, registrarPublicacion, GH_CONFIG_KEY, cargarConfigGitHub, guardarConfigGitHub, configGitHubCompleta, GH_REPOS_DEDICADOS_KEY, cargarReposDedicados, guardarReposDedicados, cfgGitHubDeProyecto, cabecerasApiGitHub, crearRepoDedicadoGitHub, copiarKeystoreARepoDedicado, borrarRepoDedicadoGitHub, slugPublicar, mensajeErrorPermisoGitHub, contentsApiGitHub, subirArchivoGitHubConReintento, sha1BytesJS, sha1BlobGit, subirArchivoTextoGitHub, subirArchivoBinarioGitHub, APK_NATIVO_CARPETA, proyectoNecesitaNdk, generarWorkflowApkNativo, plantillaSettingsGradle, plantillaBuildGradleRaiz, REGEX_WF_PERMITIDO, esRutaEspecialDeProyecto, rutaRepoDeArchivoEspecial, REGEX_RAIZ_EXTRA, REGEX_WF_EXTRA, plantillaGradleProperties, RUTAS_RAIZ_DEL_MODULO, PREFIJO_MODULO_EXTRA, mapearArchivoProyectoAndroid, asegurarWorkflowApkNativo, asegurarWorkflowGenerico, listarArchivosEnRepo, eliminarArchivoGitHub, limpiarHuerfanosProyectoAndroid, inyectarVersionEnBuildGradle, inyectarFirmaEnBuildGradle, inyectarCacheEnGradleProperties, subirArchivosProyectoAndroid, ESPERA_REINTENTO_DISPARO_MS, mensajeWorkflowSinDispatch, dispararWorkflow, dispararWorkflowApkNativo, esperarWorkflow, esperarBuildApkNativo, compilarProyectoAndroidDirecto, REGEX_PAQUETE_ANDROID, paqueteValido, sanearSegmentoPaquete, sugerirIdentidadAndroid, verificarPrerrequisitos, buscarUltimoApkPublicado, MODIFICADORES_KOTLIN, tokenizarKotlin, escrubarKotlin, calcularProfundidadesKotlin, encontrarCierreLlaveKotlin, numeroDeLineaKotlin, coincideEnKotlin, extraerModificadoresPreviosKotlin, extraerAnotacionesPreviasKotlin, extraerComentarioCabeceraKotlin, dividirPorComasNivelSuperiorKotlin, analizarUnParametroKotlin, dividirParametrosKotlin, analizarFirmaFuncionKotlin, analizarHerenciaKotlin, analizarTipoDetalladoKotlin, extraerFirmaFuncionKotlin, extraerNombreTrasPalabraKotlin, extraerNombreFuncionKotlin, valorInicialSimpleKotlin, tipoDeClaseKotlin, parsearBloqueKotlin, escaparRegexKotlin, detectarLateinitSinInicializarKotlin, detectarImportsNoUsadosKotlin, parsearKotlin, escrubarXMLComentarios, numeroDeLineaXML, extraerAtributosXML, buscarElementosXML, parsearManifest, extraerBloqueGradle, escrubarSoloComentariosGradle, parsearGradleSettings, parsearGradleBuild, CATALOGO_DEPENDENCIAS_ANDROID, PERMISOS_POR_API_ANDROID, GRADLE_MINIMO_POR_AGP, GRADLE_DEL_WORKFLOW_ANDROID, extraerVersionAgp, versionGradleParaProyecto, diagnosticoAndroidCompilacion
+    // ===== Código copiado literalmente de Fusion-23-1.html (2026-11-02) por construir_compilar.js — NO editar a mano =====
+    // Funciones: escaparTextoAnalisis, crc32, base64ABytes, dataUrlABytes, esArchivoBinarioGuardadoComoDataUrl, crearZip, ZIP_IMP_LIMITE_ZIP_BYTES, ZIP_IMP_LIMITE_ENTRADA_BYTES, ZIP_IMP_LIMITE_TOTAL_BYTES, ZIP_IMP_LIMITE_ENTRADAS, ZIP_IMP_EXT_TEXTO, ZIP_IMP_EXT_BINARIO, ZIP_IMP_MIME, zipImpLeerDirectorio, zipImpInflarNativo, zipImpTablasFijas, zipImpInflarJS, zipImpInflar, zipImpExtraerEntrada, zipImpLimpiarRuta, zipImpEsBasura, zipImpExtension, zipImpEsTexto, zipImpDecodificarTexto, zipImpADataUrl, zipImpPrefijoRaizComun, zipImpDetectarTipo, zipImpLeerArchivo, zipImpConstruirAndroid, HIST_PUBLICACIONES_KEY, cargarHistorialPublicaciones, guardarHistorialPublicaciones, registrarPublicacion, GH_CONFIG_KEY, cargarConfigGitHub, guardarConfigGitHub, configGitHubCompleta, GH_REPOS_DEDICADOS_KEY, cargarReposDedicados, guardarReposDedicados, cfgGitHubDeProyecto, cabecerasApiGitHub, crearRepoDedicadoGitHub, copiarKeystoreARepoDedicado, borrarRepoDedicadoGitHub, slugPublicar, mensajeErrorPermisoGitHub, contentsApiGitHub, subirArchivoGitHubConReintento, sha1BytesJS, sha1BlobGit, subirArchivoTextoGitHub, subirArchivoBinarioGitHub, APK_NATIVO_CARPETA, proyectoNecesitaNdk, generarWorkflowApkNativo, plantillaSettingsGradle, plantillaBuildGradleRaiz, REGEX_WF_PERMITIDO, esRutaEspecialDeProyecto, rutaRepoDeArchivoEspecial, REGEX_RAIZ_EXTRA, REGEX_WF_EXTRA, plantillaGradleProperties, RUTAS_RAIZ_DEL_MODULO, PREFIJO_MODULO_EXTRA, mapearArchivoProyectoAndroid, asegurarWorkflowApkNativo, asegurarWorkflowGenerico, listarArchivosEnRepo, eliminarArchivoGitHub, limpiarHuerfanosProyectoAndroid, inyectarVersionEnBuildGradle, inyectarFirmaEnBuildGradle, inyectarCacheEnGradleProperties, subirArchivosProyectoAndroid, ESPERA_REINTENTO_DISPARO_MS, mensajeWorkflowSinDispatch, dispararWorkflow, dispararWorkflowApkNativo, esperarWorkflow, esperarBuildApkNativo, compilarProyectoAndroidDirecto, REGEX_PAQUETE_ANDROID, paqueteValido, sanearSegmentoPaquete, sugerirIdentidadAndroid, verificarPrerrequisitos, buscarUltimoApkPublicado, MODIFICADORES_KOTLIN, tokenizarKotlin, escrubarKotlin, calcularProfundidadesKotlin, encontrarCierreLlaveKotlin, numeroDeLineaKotlin, coincideEnKotlin, extraerModificadoresPreviosKotlin, extraerAnotacionesPreviasKotlin, extraerComentarioCabeceraKotlin, dividirPorComasNivelSuperiorKotlin, analizarUnParametroKotlin, dividirParametrosKotlin, analizarFirmaFuncionKotlin, analizarHerenciaKotlin, analizarTipoDetalladoKotlin, extraerFirmaFuncionKotlin, extraerNombreTrasPalabraKotlin, extraerNombreFuncionKotlin, valorInicialSimpleKotlin, tipoDeClaseKotlin, parsearBloqueKotlin, escaparRegexKotlin, detectarLateinitSinInicializarKotlin, detectarImportsNoUsadosKotlin, parsearKotlin, escrubarXMLComentarios, numeroDeLineaXML, extraerAtributosXML, buscarElementosXML, parsearManifest, extraerBloqueGradle, escrubarSoloComentariosGradle, parsearGradleSettings, parsearGradleBuild, CATALOGO_DEPENDENCIAS_ANDROID, PERMISOS_POR_API_ANDROID, GRADLE_MINIMO_POR_AGP, GRADLE_DEL_WORKFLOW_ANDROID, extraerVersionAgp, versionGradleParaProyecto, diagnosticoAndroidCompilacion
     function escaparTextoAnalisis(valor) {
         return String(valor ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
@@ -157,6 +157,84 @@ code { background:#0d0d18; padding:1px 5px; border-radius:5px; }
         const i = valor.indexOf(';base64,');
         if (i < 0 || i > 100) return false;
         return !ZIP_IMP_EXT_TEXTO.has(zipImpExtension(ruta));
+    }
+
+    function crearZip(archivos) {
+        const encoder = new TextEncoder();
+        let offset = 0;
+        const localParts = [];
+        const centralParts = [];
+        const fechaDos = 0x21;
+
+        archivos.forEach(archivo => {
+            const nombreBytes = encoder.encode(archivo.nombre);
+            const datos = (archivo.bytes instanceof Uint8Array) ? archivo.bytes : encoder.encode(archivo.contenido);
+            const crc = crc32(datos);
+            const size = datos.length;
+
+            const local = new Uint8Array(30 + nombreBytes.length + size);
+            const view = new DataView(local.buffer);
+            view.setUint32(0, 0x04034b50, true);
+            view.setUint16(4, 20, true);
+            view.setUint16(6, 0, true);
+            view.setUint16(8, 0, true);
+            view.setUint16(10, 0, true);
+            view.setUint16(12, fechaDos, true);
+            view.setUint32(14, crc, true);
+            view.setUint32(18, size, true);
+            view.setUint32(22, size, true);
+            view.setUint16(26, nombreBytes.length, true);
+            view.setUint16(28, 0, true);
+            local.set(nombreBytes, 30);
+            local.set(datos, 30 + nombreBytes.length);
+            localParts.push(local);
+
+            const central = new Uint8Array(46 + nombreBytes.length);
+            const cview = new DataView(central.buffer);
+            cview.setUint32(0, 0x02014b50, true);
+            cview.setUint16(4, 20, true);
+            cview.setUint16(6, 20, true);
+            cview.setUint16(8, 0, true);
+            cview.setUint16(10, 0, true);
+            cview.setUint16(12, fechaDos, true);
+            cview.setUint32(16, crc, true);
+            cview.setUint32(20, size, true);
+            cview.setUint32(24, size, true);
+            cview.setUint16(28, nombreBytes.length, true);
+            cview.setUint16(30, 0, true);
+            cview.setUint16(32, 0, true);
+            cview.setUint16(34, 0, true);
+            cview.setUint16(36, 0, true);
+            cview.setUint32(38, 0, true);
+            cview.setUint32(42, offset, true);
+            central.set(nombreBytes, 46);
+            centralParts.push(central);
+
+            offset += local.length;
+        });
+
+        const centralStart = offset;
+        let centralSize = 0;
+        centralParts.forEach(c => { centralSize += c.length; });
+
+        const end = new Uint8Array(22);
+        const eview = new DataView(end.buffer);
+        eview.setUint32(0, 0x06054b50, true);
+        eview.setUint16(4, 0, true);
+        eview.setUint16(6, 0, true);
+        eview.setUint16(8, archivos.length, true);
+        eview.setUint16(10, archivos.length, true);
+        eview.setUint32(12, centralSize, true);
+        eview.setUint32(16, centralStart, true);
+        eview.setUint16(20, 0, true);
+
+        const total = new Uint8Array(offset + centralSize + end.length);
+        let p = 0;
+        localParts.forEach(l => { total.set(l, p); p += l.length; });
+        centralParts.forEach(c => { total.set(c, p); p += c.length; });
+        total.set(end, p);
+
+        return new Blob([total], { type: 'application/zip' });
     }
 
     const ZIP_IMP_LIMITE_ZIP_BYTES = 50 * 1024 * 1024;
@@ -3036,7 +3114,7 @@ kotlin.code.style=official
             </div>
             <div class="bloque">
                 <h2>Proyectos</h2>
-                ${nombres.length ? nombres.map((n, i) => { const p = proyectos[n]; return '<p><b>' + esc(n) + '</b><br><small>' + esc(p.paquete || '') + ' · versionCode ' + esc(p.versionCode || 1) + (p.repoDedicado ? ' · 📦 ' + esc(p.repoDedicado.owner + '/' + p.repoDedicado.repo) : ' · repo compartido') + '</small></p><div class="botones">' + (p.repoDedicado ? '<button data-a="abrir-repo" data-i="' + i + '">🗗 Repo en GitHub</button><button class="peligro" data-a="borrar-repo" data-i="' + i + '">🗑 Borrar repositorio</button>' : '') + '<button data-a="olvidar" data-i="' + i + '">Olvidar proyecto</button></div>'; }).join('') : '<p class="suave">Sin proyectos.</p>'}
+                ${nombres.length ? nombres.map((n, i) => { const p = proyectos[n]; return '<p><b>' + esc(n) + '</b><br><small>' + esc(p.paquete || '') + ' · versionCode ' + esc(p.versionCode || 1) + (p.repoDedicado ? ' · 📦 ' + esc(p.repoDedicado.owner + '/' + p.repoDedicado.repo) : ' · repo compartido') + '</small></p><div class="botones">' + (p.repoDedicado ? '<button data-a="abrir-repo" data-i="' + i + '">🗗 Repo en GitHub</button><button data-a="exportar-fusion" data-i="' + i + '">📤 ZIP para Fusion</button><button class="peligro" data-a="borrar-repo" data-i="' + i + '">🗑 Borrar repositorio</button>' : '') + '<button data-a="olvidar" data-i="' + i + '">Olvidar proyecto</button></div>'; }).join('') : '<p class="suave">Sin proyectos.</p>'}
                 <p class="suave"><small>«Olvidar» solo quita el proyecto de esta app; no toca GitHub.</small></p>
             </div>
             <div class="bloque">
@@ -3219,6 +3297,7 @@ kotlin.code.style=official
         else if (a === 'elegir-html' && P()) P().elegirHtml();
         else if (a === 'restaurar-html' && P()) { if (await pedirConfirmacion('↩️ Restaurar', 'Se volverá a la pantalla incluida en la app y se recargará. Tus proyectos y el token no se tocan. ¿Continuar?')) P().restaurarHtml(); }
         else if (a === 'abrir-repo') { const p = proyectos[nombres[i]]; if (p && p.repoDedicado && P()) P().abrirUrl('https://github.com/' + p.repoDedicado.owner + '/' + p.repoDedicado.repo); }
+        else if (a === 'exportar-fusion') { const n = nombres[i]; if (n) exportarAFusion(n); }
         else if (a === 'olvidar') { const n = nombres[i]; if (n && await pedirConfirmacion('Olvidar proyecto', '«' + n + '» se quitará de esta app. No se toca GitHub. ¿Continuar?')) { delete proyectos[n]; await guardarProyectos(); renderAjustes(); } }
         else if (a === 'borrar-repo') {
             const p = proyectos[nombres[i]]; if (!p || !p.repoDedicado) return;
@@ -3232,6 +3311,59 @@ kotlin.code.style=official
         }
     });
     $('btnAjustes').addEventListener('click', () => { if (C.compilando) return; if (C.pantalla === 'ajustes') (C.construido ? renderRecepcion() : renderInicio()); else renderAjustes(); });
+    // Exporta el código actual del repositorio dedicado de un proyecto como .zip (disposición de Android Studio)
+    // para importarlo en Fusion con «Importar .zip» como versión nueva del proyecto (no pisa nada).
+    async function exportarAFusion(nombre) {
+        const p = proyectos[nombre];
+        if (!p || !p.repoDedicado || !p.repoDedicado.repo) { mostrarToast('⚠️ Solo se puede exportar un proyecto con repositorio dedicado'); return; }
+        const cfg = cfgGitHubDeProyecto(p);
+        const tokenGlobal = cargarConfigGitHub().token;
+        if (!cfg.token) cfg.token = tokenGlobal;
+        try {
+            mostrarToast('⏳ Leyendo el repositorio…');
+            const lista = (await listarArchivosEnRepo(cfg, APK_NATIVO_CARPETA))
+                .filter(f => !/^(apk-build\/|build\/|\.gradle\/|local\.properties$)/.test(f.relativa) && !/(^|\/)build\//.test(f.relativa));
+            if (!lista.length) { mostrarToast('⚠️ El repositorio no tiene proyecto-android'); return; }
+            if (lista.truncado) mostrarToast('⚠️ El árbol del repositorio es muy grande: puede faltar algún archivo');
+            const entradas = new Array(lista.length);
+            let sig = 0, hechos = 0;
+            const trabajador = async () => {
+                while (sig < lista.length) {
+                    const k = sig++;
+                    const res = await contentsApiGitHub(cfg, 'git/blobs/' + lista[k].sha);
+                    if (!res.ok) throw new Error('No se pudo leer ' + lista[k].relativa + ' (HTTP ' + res.status + ')');
+                    const d = await res.json();
+                    entradas[k] = { nombre: lista[k].relativa, bytes: base64ABytes(String(d.content || '').replace(/\s/g, '')) };
+                    hechos++;
+                }
+            };
+            await Promise.all([trabajador(), trabajador(), trabajador(), trabajador(), trabajador()]);
+            const zip = new Uint8Array(await crearZip(entradas).arrayBuffer());
+            const eg = entradas.find(e => e.nombre === 'app/build.gradle');
+            const vcm = eg && /versionCode\s*=?\s*(\d+)/.exec(new TextDecoder().decode(eg.bytes));
+            const nombreZip = (slugPublicar(nombre) || 'proyecto') + '-vc' + (vcm ? vcm[1] : (p.versionCode || 1)) + '-para-fusion.zip';
+            const puente = P();
+            if (puente && typeof puente.guardarInicio === 'function') {
+                puente.guardarInicio();
+                const TROZO = 3 * 128 * 1024; // múltiplo de 3 para no romper el base64
+                for (let o = 0; o < zip.length; o += TROZO) {
+                    let b = ''; const fin = Math.min(zip.length, o + TROZO);
+                    for (let q = o; q < fin; q += 0x8000) b += String.fromCharCode.apply(null, zip.subarray(q, Math.min(fin, q + 0x8000)));
+                    puente.guardarTrozo(btoa(b));
+                }
+                puente.guardarFin(nombreZip);
+            } else {
+                const url = URL.createObjectURL(new Blob([zip], { type: 'application/zip' }));
+                const a = document.createElement('a'); a.href = url; a.download = nombreZip;
+                document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 10000);
+            }
+            mostrarToast('📦 ZIP listo (' + hechos + ' archivos). Impórtalo en Fusion con «Importar .zip»');
+        } catch (e) {
+            mostrarToast('❌ ' + (e && e.message ? e.message : e));
+        }
+    }
+    window.__compilaPruebas = { zipImpLeerArchivo, zipImpConstruirAndroid }; // solo para las pruebas automáticas
     // Importa el archivo «Exportar para Compila» de Fusion: datos de GitHub + fichas de proyectos Android.
     async function importarDeFusion(file) {
         try {
