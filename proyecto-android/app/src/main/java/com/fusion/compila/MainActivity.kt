@@ -9,6 +9,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Base64
@@ -51,6 +53,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var webView: WebView
+
+    // Autorrecuperación: si se sirve una pantalla personalizada y no avisa de que arrancó (AndroidCompila.listo()),
+    // se borra y se vuelve a la incluida en la app.
+    @Volatile private var pantallaListo = false
+    private val manejador = Handler(Looper.getMainLooper())
 
     @Volatile private var zipBytes: ByteArray? = null
     @Volatile private var zipNombre: String = "proyecto.zip"
@@ -224,6 +231,14 @@ class MainActivity : AppCompatActivity() {
         val personalizado = File(filesDir, ARCHIVO_HTML)
         if (personalizado.exists() && personalizado.length() > 0) {
             try {
+                pantallaListo = false
+                manejador.postDelayed({
+                    if (!pantallaListo && personalizado.exists()) {
+                        personalizado.delete()
+                        Toast.makeText(this, "La pantalla elegida no arrancó: se restauró la incluida", Toast.LENGTH_LONG).show()
+                        webView.loadUrl(URL_APP)
+                    }
+                }, 8000)
                 return FileInputStream(personalizado)
             } catch (_: Exception) {
             }
@@ -240,6 +255,16 @@ class MainActivity : AppCompatActivity() {
             if (temporal.length() < 20_000L) {
                 temporal.delete()
                 Toast.makeText(this, "El archivo no parece el compilar.html (es demasiado pequeño)", Toast.LENGTH_LONG).show()
+                return
+            }
+            // Solo se aceptan pantallas de Compila: texto HTML con la marca <meta name="compila-app">. Así un .zip, un APK
+            // u otro HTML cualquiera no pueden sustituir la pantalla y dejar la app inservible.
+            val cabeza = temporal.readBytes()
+            val texto = String(cabeza, Charsets.ISO_8859_1)
+            val esZip = cabeza.size > 1 && cabeza[0] == 'P'.code.toByte() && cabeza[1] == 'K'.code.toByte()
+            if (esZip || !texto.contains("<html", ignoreCase = true) || !texto.contains("name=\"compila-app\"")) {
+                temporal.delete()
+                Toast.makeText(this, "Ese archivo no es una pantalla de Compila: no se importó nada", Toast.LENGTH_LONG).show()
                 return
             }
             val destino = File(filesDir, ARCHIVO_HTML)
@@ -349,6 +374,12 @@ class MainActivity : AppCompatActivity() {
                 envio.putExtra(Intent.EXTRA_TEXT, url)
                 startActivity(Intent.createChooser(envio, "Compartir enlace del APK"))
             }
+        }
+
+        /** La pantalla avisa de que arrancó bien (cancela la autorrecuperación). */
+        @JavascriptInterface
+        fun listo() {
+            pantallaListo = true
         }
 
         @JavascriptInterface
