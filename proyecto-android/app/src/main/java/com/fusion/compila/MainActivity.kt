@@ -26,6 +26,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
@@ -62,6 +63,21 @@ class MainActivity : AppCompatActivity() {
 
     private val selectorHtml = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) copiarHtml(uri)
+    }
+
+    // Guardado de archivos generados por la pantalla (p. ej. el ZIP para Fusion): se acumula en memoria
+    // y se escribe donde el usuario elija con el selector del sistema (no requiere permisos).
+    private var guardadoBuffer: ByteArrayOutputStream? = null
+    private val guardarDocumento = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        val datos = guardadoBuffer?.toByteArray()
+        guardadoBuffer = null
+        if (uri == null || datos == null) return@registerForActivityResult
+        try {
+            contentResolver.openOutputStream(uri)?.use { it.write(datos) }
+            Toast.makeText(this, "Guardado", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "No se pudo guardar: " + (e.message ?: ""), Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -318,6 +334,30 @@ class MainActivity : AppCompatActivity() {
                 envio.type = "text/plain"
                 envio.putExtra(Intent.EXTRA_TEXT, url)
                 startActivity(Intent.createChooser(envio, "Compartir enlace del APK"))
+            }
+        }
+
+        @JavascriptInterface
+        fun guardarInicio() {
+            guardadoBuffer = ByteArrayOutputStream()
+        }
+
+        /** Añade un trozo (base64) al archivo que se va a guardar. */
+        @JavascriptInterface
+        fun guardarTrozo(base64: String) {
+            guardadoBuffer?.write(Base64.decode(base64, Base64.DEFAULT))
+        }
+
+        /** Abre el selector del sistema para elegir dónde guardar lo acumulado. */
+        @JavascriptInterface
+        fun guardarFin(nombre: String) {
+            runOnUiThread {
+                try {
+                    guardarDocumento.launch(nombre)
+                } catch (e: Exception) {
+                    guardadoBuffer = null
+                    Toast.makeText(this@MainActivity, "No se pudo abrir el selector", Toast.LENGTH_LONG).show()
+                }
             }
         }
 
