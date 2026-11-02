@@ -73,8 +73,17 @@ class MainActivity : AppCompatActivity() {
         guardadoBuffer = null
         if (uri == null || datos == null) return@registerForActivityResult
         try {
-            contentResolver.openOutputStream(uri)?.use { it.write(datos) }
-            Toast.makeText(this, "Guardado", Toast.LENGTH_SHORT).show()
+            // «wt» trunca y escribe; se fuerza el volcado a disco antes de cerrar para que el tamaño que ve el resto
+            // de apps (selectores de archivos, Fusion) sea el real y no el 0 B del archivo recién creado.
+            var escritos = 0
+            contentResolver.openOutputStream(uri, "wt")?.use { out ->
+                out.write(datos)
+                out.flush()
+                (out as? java.io.FileOutputStream)?.fd?.sync()
+                escritos = datos.size
+            }
+            val tam = contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+            Toast.makeText(this, "Guardado: " + (escritos / 1024) + " KB escritos, " + (if (tam >= 0) (tam / 1024).toString() + " KB en el archivo" else "tamaño no comprobado"), Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             Toast.makeText(this, "No se pudo guardar: " + (e.message ?: ""), Toast.LENGTH_LONG).show()
         }
