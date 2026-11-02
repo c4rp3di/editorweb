@@ -51,6 +51,7 @@ code { background:#0d0d18; padding:1px 5px; border-radius:5px; }
 </div>
 <div id="modal"><div class="caja"><h3 id="mTitulo"></h3><div id="mCuerpo"></div><input type="text" id="mInput" style="display:none;margin-top:8px;"><div class="botones" id="mBotones"></div></div></div>
 <div id="toast"></div>
+<input type="file" id="selectorFusion" accept=".json,application/json,text/plain" style="display:none;">
 <input type="file" id="selectorZip" accept=".zip,application/zip,application/x-zip-compressed" style="display:none;">
 
 <script>
@@ -3016,9 +3017,15 @@ kotlin.code.style=official
                 <label class="campo">Repositorio compartido</label><input type="text" id="gRepo" value="${esc(cfg.repo)}" autocomplete="off" autocapitalize="off">
                 <label class="campo">Rama</label><input type="text" id="gBranch" value="${esc(cfg.branch || 'main')}" autocomplete="off" autocapitalize="off">
                 <label class="campo">Token</label><input type="password" id="gToken" value="${esc(cfg.token)}" autocomplete="off">
+                <div class="botones"><button data-a="ver-token">👁 Mostrar token</button></div>
                 <p class="suave"><small>Permisos: Contents, Actions y Workflows (Read and write). Para repositorios dedicados: acceso a todos tus repositorios y Administration (Read and write). El token se guarda solo en este dispositivo.</small></p>
                 <div class="botones"><button class="primario" data-a="guardar-gh">💾 Guardar</button><button data-a="probar-gh">🔎 Probar token</button></div>
                 <p id="ghEstado" class="suave"></p>
+            </div>
+            <div class="bloque">
+                <h2>📥 Importar desde Fusion</h2>
+                <p class="suave"><small>En Fusion: Ajustes → GitHub → «Exportar para Compila». Elige aquí ese archivo .json: se cargan tus proyectos Android y los datos de GitHub (token incluido).</small></p>
+                <div class="botones"><button class="primario" data-a="importar-fusion">📥 Importar archivo de Fusion</button></div>
             </div>
             <div class="bloque">
                 <h2>Preferencias</h2>
@@ -3206,6 +3213,8 @@ kotlin.code.style=official
         else if (a === 'compartir' && u && P()) P().compartirUrl(u);
         else if (a === 'guardar-gh') { guardarCamposGitHub(); mostrarToast('💾 GitHub guardado'); }
         else if (a === 'probar-gh') probarToken();
+        else if (a === 'ver-token') { const t = $('gToken'); const oculto = t.type === 'password'; t.type = oculto ? 'text' : 'password'; el.textContent = oculto ? '🙈 Ocultar token' : '👁 Mostrar token'; }
+        else if (a === 'importar-fusion') $('selectorFusion').click();
         else if (a === 'guardar-prefs') { const rr = document.querySelector('input[name="pRepo"]:checked'); guardarPrefs({ confirmar: $('pConfirmar').checked, repoPorDefecto: rr ? rr.value : 'dedicado' }); mostrarToast('💾 Preferencias guardadas'); }
         else if (a === 'elegir-html' && P()) P().elegirHtml();
         else if (a === 'restaurar-html' && P()) { if (await pedirConfirmacion('↩️ Restaurar', 'Se volverá a la pantalla incluida en la app y se recargará. Tus proyectos y el token no se tocan. ¿Continuar?')) P().restaurarHtml(); }
@@ -3223,6 +3232,32 @@ kotlin.code.style=official
         }
     });
     $('btnAjustes').addEventListener('click', () => { if (C.compilando) return; if (C.pantalla === 'ajustes') (C.construido ? renderRecepcion() : renderInicio()); else renderAjustes(); });
+    // Importa el archivo «Exportar para Compila» de Fusion: datos de GitHub + fichas de proyectos Android.
+    async function importarDeFusion(file) {
+        try {
+            const d = JSON.parse(await file.text());
+            if (!d || d.tipo !== 'fusion-para-compila' || typeof d.proyectos !== 'object') { mostrarToast('⚠️ Ese archivo no es una exportación de Fusion para Compila'); return; }
+            const nombres = Object.keys(d.proyectos || {});
+            const traeToken = !!(d.github && d.github.token);
+            const ok = await pedirConfirmacion('📥 Importar desde Fusion', 'Se importarán ' + nombres.length + ' proyecto(s) Android' + (traeToken ? ' y los datos de GitHub (usuario ' + (d.github.owner || '?') + ', con su token), que sustituyen a los actuales' : ' (el archivo no trae token)') + '. ¿Continuar?');
+            if (!ok) return;
+            let nuevos = 0, actualizados = 0;
+            nombres.forEach(n => {
+                const f = d.proyectos[n] || {};
+                const previo = proyectos[n];
+                const ficha = { tipo: 'android', paquete: String(f.paquete || (previo && previo.paquete) || ''), nombreApp: String(f.nombreApp || (previo && previo.nombreApp) || n), versionCode: Math.max(Number(f.versionCode) || 1, previo ? Number(previo.versionCode) || 1 : 1), ultimaVersion: String(f.ultimaVersion || (previo && previo.ultimaVersion) || 'v1.0'), fecha: String(f.fecha || '') };
+                const rd = f.repoDedicado || (previo && previo.repoDedicado);
+                if (rd && rd.repo) ficha.repoDedicado = { owner: String(rd.owner || (d.github && d.github.owner) || ''), repo: String(rd.repo), branch: String(rd.branch || 'main') };
+                if (previo) actualizados++; else nuevos++;
+                proyectos[n] = ficha;
+            });
+            await guardarProyectos();
+            if (traeToken) guardarConfigGitHub({ owner: String(d.github.owner || ''), repo: String(d.github.repo || ''), branch: String(d.github.branch || 'main'), token: String(d.github.token) });
+            mostrarToast('✅ Importado: ' + nuevos + ' nuevo(s), ' + actualizados + ' actualizado(s)' + (traeToken ? ' · GitHub configurado' : ''));
+            renderAjustes();
+        } catch (e) { mostrarToast('❌ No se pudo leer el archivo: ' + (e && e.message ? e.message : e)); }
+    }
+    $('selectorFusion').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) importarDeFusion(f); });
     $('selectorZip').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) procesarZip(f); });
 
     // Llamadas desde la app nativa
