@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity() {
     // segundo plano y el sistema recrearla o matarla; con el archivo temporal la escritura final no se pierde
     // (antes quedaba un archivo de 0 B). Se escribe donde el usuario elija con el selector (sin permisos).
     private fun archivoPendiente() = File(cacheDir, "guardado-pendiente.tmp")
-    private val guardarDocumento = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+    private val guardarDocumento = registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
         val tmp = archivoPendiente()
         if (uri == null) { tmp.delete(); return@registerForActivityResult }
         if (!tmp.exists() || tmp.length() == 0L) {
@@ -400,6 +400,12 @@ class MainActivity : AppCompatActivity() {
          */
         @JavascriptInterface
         fun guardarFin(nombre: String) {
+            guardarFinTipo(nombre, "application/zip")
+        }
+
+        /** Igual que guardarFin pero con el tipo MIME real (p. ej. text/plain para un informe .txt). */
+        @JavascriptInterface
+        fun guardarFinTipo(nombre: String, mime: String) {
             if (Build.VERSION.SDK_INT >= 29) {
                 Thread {
                     val tmp = archivoPendiente()
@@ -407,7 +413,7 @@ class MainActivity : AppCompatActivity() {
                         if (!tmp.exists() || tmp.length() == 0L) throw IllegalStateException("no hay datos pendientes: repite la exportación")
                         val valores = ContentValues().apply {
                             put(MediaStore.MediaColumns.DISPLAY_NAME, nombre)
-                            put(MediaStore.MediaColumns.MIME_TYPE, "application/zip")
+                            put(MediaStore.MediaColumns.MIME_TYPE, mime)
                             put(MediaStore.MediaColumns.RELATIVE_PATH, "Download")
                             put(MediaStore.MediaColumns.IS_PENDING, 1)
                         }
