@@ -46,6 +46,8 @@ details.col > summary::-webkit-details-marker { display:none; }
 details.col > summary::after { content:'▸'; position:absolute; right:12px; top:50%; transform:translateY(-50%); color:var(--suave); transition:transform .15s; }
 details.col[open] > summary::after { transform:translateY(-50%) rotate(90deg); }
 details.col > summary .t { font-size:.95rem; }
+.fav { display:inline-block; min-width:1.6em; padding:2px 4px 2px 0; cursor:pointer; opacity:.55; }
+.fav.on { opacity:1; }
 details.col > .cuerpo { padding:0 12px 12px; }
 details.col.sub { background:#15152a; margin:10px 0 0; }
 .barra-fija { position:sticky; bottom:0; margin:12px -12px calc(-16px - env(safe-area-inset-bottom)); padding:10px 12px calc(10px + env(safe-area-inset-bottom)); background:var(--panel); border-top:1px solid var(--borde); display:flex; gap:8px; z-index:5; }
@@ -3144,14 +3146,15 @@ kotlin.code.style=official
     // Orden y búsqueda de la lista de proyectos. Con texto de búsqueda: solo coincidencias, las mejores primero.
     function listaOrdenada(q) {
         const u = ui();
-        let n = Object.keys(proyectos).filter(x => u.filtro === 'dedicados' ? !!(proyectos[x].repoDedicado && proyectos[x].repoDedicado.repo) : u.filtro === 'compartidos' ? !(proyectos[x].repoDedicado && proyectos[x].repoDedicado.repo) : true);
+        let n = Object.keys(proyectos).filter(x => u.filtro === 'favoritos' ? !!proyectos[x].favorito : u.filtro === 'dedicados' ? !!(proyectos[x].repoDedicado && proyectos[x].repoDedicado.repo) : u.filtro === 'compartidos' ? !(proyectos[x].repoDedicado && proyectos[x].repoDedicado.repo) : true);
         q = (q || '').trim().toLowerCase();
         if (q) {
             const sc = x => { const p = proyectos[x], nm = x.toLowerCase(); if (nm.startsWith(q)) return 0; if (nm.includes(q)) return 1; if ((p.paquete || '').toLowerCase().includes(q)) return 2; if ((p.nombreApp || '').toLowerCase().includes(q)) return 3; return 9; };
-            return n.filter(x => sc(x) < 9).sort((a, b) => sc(a) - sc(b) || a.localeCompare(b, 'es'));
+            return n.filter(x => sc(x) < 9).sort((a, b) => (proyectos[b].favorito ? 1 : 0) - (proyectos[a].favorito ? 1 : 0) || sc(a) - sc(b) || a.localeCompare(b, 'es'));
         }
         const clave = { nombre: x => x.toLowerCase(), compilacion: x => (proyectos[x].ultimaCompilacion && proyectos[x].ultimaCompilacion.fecha) || '', version: x => Number(proyectos[x].versionCode) || 0, creacion: x => proyectos[x].creado || proyectos[x].fecha || '' }[u.orden] || (x => x.toLowerCase());
         n.sort((a, b) => {
+            const fa = proyectos[a].favorito ? 1 : 0, fb = proyectos[b].favorito ? 1 : 0; if (fa !== fb) return fb - fa; // favoritos siempre primero
             const ka = clave(a), kb = clave(b);
             let c = typeof ka === 'number' ? ka - kb : String(ka).localeCompare(String(kb), 'es');
             if (u.orden !== 'nombre') c = -c; // fechas y versiones: lo más reciente / alto primero
@@ -3165,7 +3168,7 @@ kotlin.code.style=official
         const p = proyectos[n], uc = p.ultimaCompilacion;
         const rd = p.repoDedicado && p.repoDedicado.repo;
         const est = uc ? (uc.ok ? '✅ ' : '❌ ') + fmtFecha(uc.fecha) : 'sin compilar';
-        return '<details class="col" data-proy="' + esc(n) + '"' + (C.abiertos.has(n) ? ' open' : '') + '><summary><span class="t">' + (rd ? '🟢' : '⚪') + ' <b>' + esc(n) + '</b></span><small>v' + esc(p.versionCode || 1) + ' · ' + est + '</small></summary><div class="cuerpo">' +
+        return '<details class="col" data-proy="' + esc(n) + '"' + (C.abiertos.has(n) ? ' open' : '') + '><summary><span class="t"><span class="fav' + (p.favorito ? ' on' : '') + '" data-a="fav" data-n="' + esc(n) + '" role="button" aria-label="Favorito">' + (p.favorito ? '⭐' : '☆') + '</span>' + (rd ? '🟢' : '⚪') + ' <b>' + esc(n) + '</b></span><small>v' + esc(p.versionCode || 1) + ' · ' + est + '</small></summary><div class="cuerpo">' +
             (p.icono ? '<img alt="" src="data:image/png;base64,' + p.icono + '" style="width:44px;height:44px;border-radius:10px;float:right;margin:0 0 6px 8px;">' : '') +
             '<p><small>' + esc(p.paquete || '') + ' · ' + (rd ? '📦 ' + esc(p.repoDedicado.owner + '/' + p.repoDedicado.repo) : 'repo compartido') + '</small></p>' +
             (uc && !uc.ok ? '<p class="mal"><small>Último intento fallido: ' + esc(uc.error || '') + '</small></p>' : '') +
@@ -3187,6 +3190,7 @@ kotlin.code.style=official
         const n = Object.keys(proyectos).length;
         const cfg = cargarConfigGitHub();
         const u = ui();
+        const nFav = Object.keys(proyectos).filter(x => proyectos[x].favorito).length;
         const nDed = Object.keys(proyectos).filter(x => proyectos[x].repoDedicado && proyectos[x].repoDedicado.repo).length;
         pantalla('inicio', `
             <div class="bloque">
@@ -3200,7 +3204,7 @@ kotlin.code.style=official
                 <div class="cuerpo">
                     <div class="botones" style="margin-top:2px;"><button data-a="buscar-gh">🔎 Buscar proyectos en GitHub</button></div>
                     ${n ? '<input type="text" id="buscaProy" placeholder="🔍 Buscar por nombre o paquete" autocomplete="off" autocapitalize="off">' +
-                        '<div class="chips">' + [['todos', 'Todos (' + n + ')'], ['dedicados', '🟢 Dedicados (' + nDed + ')'], ['compartidos', '⚪ Compartidos (' + (n - nDed) + ')']].map(f => '<button data-a="filtro" data-v="' + f[0] + '"' + (u.filtro === f[0] ? ' class="sel"' : '') + '>' + f[1] + '</button>').join('') + '</div>' +
+                        '<div class="chips">' + [['todos', 'Todos (' + n + ')'], ['dedicados', '🟢 Dedicados (' + nDed + ')'], ['favoritos', '<span id="chipFav">⭐ Favoritos (' + nFav + ')</span>'], ['compartidos', '⚪ Compartidos (' + (n - nDed) + ')']].map(f => '<button data-a="filtro" data-v="' + f[0] + '"' + (u.filtro === f[0] ? ' class="sel"' : '') + '>' + f[1] + '</button>').join('') + '</div>' +
                         '<div class="barra-orden"><div class="menu"><button id="ordenBtn" data-a="orden-menu"><span>' + esc(ORDENES[u.orden] || ORDENES.nombre) + '</span><span>▾</span></button><div class="menu-lista" id="ordenMenu" hidden>' + Object.keys(ORDENES).map(k => '<button data-a="orden-op" data-v="' + k + '"' + (u.orden === k ? ' class="sel"' : '') + '>' + esc(ORDENES[k]) + '</button>').join('') + '</div></div><button id="ordenInv" data-a="orden-inv" title="Invertir orden">' + (u.inv ? '⬆️' : '⬇️') + '</button></div>' : ''}
                     <div id="listaProy"></div>
                 </div>
@@ -3353,6 +3357,35 @@ kotlin.code.style=official
         }
     }
 
+    // ---------- Nombre visible de la app (bajo el icono): solo texto de recursos, el paquete y la firma no cambian ----------
+    const RE_APPNAME = /(<string\s+name="app_name"[^>]*>)([^<]*)(<\/string>)/;
+    const RUTA_STRINGS = k => /(^|\/)res\/values(-[\w+-]+)?\/strings\.xml$/.test(k);
+    const RUTA_MANIFEST = k => /(^|\/)AndroidManifest\.xml$/.test(k);
+    const escNombreRecurso = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/^([@?])/, '\\$1');
+    const escNombreAtributo = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // Dónde está el nombre en el proyecto: [{ruta, tipo}] (strings.xml con app_name, y etiqueta literal del manifest).
+    function sitiosNombreApp(archivos) {
+        const out = [];
+        Object.keys(archivos || {}).forEach(k => {
+            const t = archivos[k]; if (typeof t !== 'string') return;
+            if (RUTA_STRINGS(k) && RE_APPNAME.test(t)) out.push({ ruta: k, tipo: 'strings' });
+            else if (RUTA_MANIFEST(k) && /<application\b[^>]*\sandroid:label\s*=\s*"(?!@)[^"]*"/.test(t)) out.push({ ruta: k, tipo: 'manifest' });
+        });
+        return out;
+    }
+    // Cambia el nombre en todos los sitios encontrados (devuelve las rutas tocadas).
+    function aplicarNombreApp(archivos, nombre) {
+        const tocadas = [];
+        sitiosNombreApp(archivos).forEach(x => {
+            const t = archivos[x.ruta];
+            const n = x.tipo === 'strings'
+                ? t.replace(RE_APPNAME, (_, a, __, c) => a + escNombreRecurso(nombre) + c)
+                : t.replace(/(<application\b[^>]*\sandroid:label\s*=\s*")(?!@)[^"]*(")/, (_, a, c) => a + escNombreAtributo(nombre) + c);
+            if (n !== t) { archivos[x.ruta] = n; tocadas.push(x.ruta); }
+        });
+        return tocadas;
+    }
+
     function renderRecepcion() {
         const c = C.construido;
         if (!c) { renderInicio(); return; }
@@ -3389,6 +3422,7 @@ kotlin.code.style=official
                 <div id="nuevoNombre" ${coincide ? 'style="display:none"' : ''}><label class="campo">Nombre del proyecto</label><input type="text" id="inNombre" value="${esc(c.nombreApp || c.paquete || 'proyecto')}"></div>
                 ${otros.length ? '<details class="col sub"><summary>Otros con el mismo paquete (' + otros.length + ')</summary><div class="cuerpo">' + otros.map(n => fila(n, false)).join('') + '</div></details>' : ''}
                 ${avisoPref}${avisoVc}
+                ${sitiosNombreApp(c.archivos).length ? '<label class="campo">Nombre de la app <small>(el que sale bajo el icono)</small></label><input type="text" id="inNombreApp" data-detectado="' + esc(c.nombreApp || '') + '" value="' + esc((coincide && proyectos[coincide].nombreVisible) || c.nombreApp || '') + '"><p class="suave"><small>Solo cambia el texto visible: el paquete y la firma no cambian, así que se actualiza encima de la instalada.</small></p>' : '<p class="suave"><small>ℹ️ No se encontró el nombre de la app en el ZIP (res/values/strings.xml), así que no se puede cambiar desde aquí.</small></p>'}
                 ${nombres.length && !mismos.length ? '<p class="aviso"><small>Ningún proyecto tiene el paquete «' + esc(c.paquete) + '».</small></p>' : ''}
                 ${distintos > 0 && mismos.length ? '<p class="suave"><small>' + distintos + ' proyecto(s) con otro paquete no se muestran.</small></p>' : ''}
             </div>
@@ -3412,7 +3446,8 @@ kotlin.code.style=official
                 <button class="primario" data-a="compilar">🔀 Mezclar y compilar</button>
                 <button data-a="inicio">↩️ Cancelar</button>
             </div>`);
-        document.querySelectorAll('input[name="dest"]').forEach(r => r.addEventListener('change', () => { const nuevo = document.querySelector('input[name="dest"]:checked'); $('nuevoNombre').style.display = nuevo && nuevo.value === '__nuevo__' ? 'block' : 'none'; }));
+        document.querySelectorAll('input[name="dest"]').forEach(r => r.addEventListener('change', () => { const nuevo = document.querySelector('input[name="dest"]:checked'); $('nuevoNombre').style.display = nuevo && nuevo.value === '__nuevo__' ? 'block' : 'none'; const ia = $('inNombreApp'); if (ia && !ia.dataset.editado) ia.value = (nuevo && proyectos[nuevo.value] && proyectos[nuevo.value].nombreVisible) || ia.dataset.detectado || ''; }));
+        if ($('inNombreApp')) $('inNombreApp').addEventListener('input', () => { $('inNombreApp').dataset.editado = '1'; });
         if (coincide) comprobarRepoExistente(coincide);
         document.querySelectorAll('input[name="repo"]').forEach(r => r.addEventListener('change', () => { const rr = document.querySelector('input[name="repo"]:checked'); $('repoResumen').textContent = repoTxt(rr ? rr.value : 'dedicado'); }));
     }
@@ -3542,7 +3577,7 @@ kotlin.code.style=official
             const dur = duracionRun(r);
             return '<div class="rel"><b>' + ICONO_RUN(r) + ' #' + esc(r.run_number) + '</b> <small>' + esc(r.name || '') + '</small><br>' + esc(msg.slice(0, 120)) +
                 '<br><small>' + esc((EVENTO_RUN[r.event] || r.event || '') + ' · ' + (r.head_branch || '') + ' · ' + String(r.head_sha || '').slice(0, 7) + ' · ' + ((r.actor && r.actor.login) || (r.triggering_actor && r.triggering_actor.login) || '') + ' · ' + fmtFecha(r.created_at) + (dur ? ' · ' + dur : '') + ' · id ' + r.id) + '</small>' +
-                '<div class="botones"><button class="primario" data-a="run-ver" data-i="' + i + '">🧾 Registro</button><button data-a="abrir" data-u="' + esc(r.html_url || '') + '">🗗 GitHub</button></div></div>';
+                '<div class="botones"><button class="primario" data-a="run-ver" data-i="' + i + '">🧾 Registro</button>' + (r.status === 'completed' && r.conclusion !== 'success' && r.conclusion !== 'skipped' ? '<button data-a="run-copiar" data-i="' + i + '">📋 Copiar errores</button>' : '') + '<button data-a="abrir" data-u="' + esc(r.html_url || '') + '">🗗 GitHub</button></div></div>';
         }).join('');
         pantalla('actions', `
             <div class="bloque">
@@ -3561,8 +3596,8 @@ kotlin.code.style=official
     const rutaCorta = r => String(r || '').replace(/^.*\/proyecto-android\//, '').replace(/^file:\/\//, '');
     // Tipo de una línea de registro: 'e' error, 'w' aviso, 'g' grupo/paso, 'ok' éxito, null normal.
     function tipoLinea(l) {
-        if (/^e: |##\[error\]|^\* What went wrong|AAPT: error|error: (resource|attribute|style|failed linking)|Manifest merger failed|Execution failed for task|Could not (resolve|find|download|get)|Unresolved reference|Duplicate class|OutOfMemoryError|FAILURE: Build failed|^BUILD FAILED/.test(l)) return 'e';
-        if (/^w: |##\[warning\]|warning:|WARNING:|Deprecated Gradle features|is deprecated|will be removed/.test(l)) return 'w';
+        if (/^e: |##\[error\]|^\* What went wrong|AAPT: error|error: (resource|attribute|style|failed linking)|Manifest merger failed|Execution failed for task|Could not (resolve|find|download|get)|Unresolved reference|Duplicate class|OutOfMemoryError|FAILURE: Build failed|^BUILD FAILED|^not ok |^\s*✖|AssertionError|npm ERR!|Cannot find module|^FAIL |Tests:.*[1-9]\d* failed|^# fail [1-9]|^(Type|Reference|Syntax|Range)Error\b/.test(l)) return 'e';
+        if (/^w: |##\[warning\]|warning:|WARNING:|Deprecated Gradle features|is deprecated|will be removed|^npm warn/i.test(l)) return 'w';
         if (/##\[group\]|^> Task |^Run /.test(l)) return 'g';
         if (/BUILD SUCCESSFUL|^✔|✔ /.test(l)) return 'ok';
         return null;
@@ -3577,7 +3612,10 @@ kotlin.code.style=official
             if (/^ERRORES\b/.test(l)) { sec = 'e'; return spanLinea('e', l).replace('l-e', 'l-e l-b'); }
             if (/^AVISOS\b/.test(l)) { sec = 'w'; return spanLinea('w', l).replace('l-w', 'l-w l-b'); }
             if (/^PASOS\b/.test(l)) { sec = 'p'; return spanLinea('g', l).replace('l-g', 'l-g l-b'); }
+            if (/^(FINAL DEL REGISTRO)\b/.test(l)) { sec = 'r'; return spanLinea('g', l).replace('l-g', 'l-g l-b'); }
+            if (/^(COMMIT|RESUMEN)\b/.test(l)) { sec = 'c'; return spanLinea('g', l).replace('l-g', 'l-g l-b'); }
             if (/^REGISTRO\b/.test(l)) { sec = 'r'; return spanLinea('g', l).replace('l-g', 'l-g l-b'); }
+            if (i === 0 && /^#\d+ /.test(l)) return '<span class="l-b">' + esc(l) + '</span>';
             if (/^INFORME DE COMPILACIÓN/.test(l)) return '<span class="l-b">' + esc(l) + '</span>';
             if (sec === 'c') return /^Resultado: FALLÓ/.test(l) ? spanLinea('e', l) : /^Resultado: correcto/.test(l) ? spanLinea('ok', l) : /^Nota:/.test(l) ? spanLinea('w', l) : spanLinea('d', l);
             if (sec === 'e') return l.trim() ? spanLinea('e', l) : esc(l);
@@ -3609,6 +3647,8 @@ kotlin.code.style=official
             if (/##\[error\]/.test(l)) { add(errores, { n: i + 1, tipo: 'actions', texto: l.replace(/^.*##\[error\]/, '') }); continue; }
             if (/##\[warning\]/.test(l)) { add(avisos, { n: i + 1, tipo: 'actions', texto: l.replace(/^.*##\[warning\]/, '') }); continue; }
             if (/AAPT: error|error: (resource|attribute|style|failed linking)|Manifest merger failed|Execution failed for task|Could not (resolve|find|download|get)|Unresolved reference|Duplicate class|OutOfMemoryError|Task .* not found|Plugin .* was not found|No matching (variant|client)/.test(l)) { add(errores, { n: i + 1, tipo: 'build', texto: l.trim() }); continue; }
+            if (/^not ok |^\s*✖ |^FAIL |npm ERR! (?!A complete log|code |path |errno |syscall |command |This is |Log files)|AssertionError|Cannot find module|^(Type|Reference|Syntax|Range)Error\b|^\s*(Uncaught )?Error: /.test(l)) { add(errores, { n: i + 1, tipo: 'test', texto: l.trim().slice(0, 400) }); continue; }
+            if (/^npm warn/i.test(l)) { add(avisos, { n: i + 1, tipo: 'npm', texto: l.trim().slice(0, 300) }); continue; }
             if (/warning:|WARNING:|Deprecated Gradle features|is deprecated|will be removed/.test(l)) { add(avisos, { n: i + 1, tipo: 'build', texto: l.trim() }); continue; }
         }
         // Limpieza: lo ya contenido en un bloque «What went wrong» no se repite, y «Process completed» solo vale si no hay nada más.
@@ -3621,14 +3661,45 @@ kotlin.code.style=official
         const ub = e.ruta ? e.ruta + (e.linea ? ':' + e.linea : '') + ' — ' : '';
         return '[' + e.tipo + '] ' + ub + e.texto + (e.n ? '  (línea ' + e.n + ' del registro)' : '');
     }
+    const commitTitulo = r => String((r.head_commit && r.head_commit.message) || r.display_title || '').split('\n')[0].slice(0, 200);
     // Texto del informe según la vista elegida. Es el mismo que se ve, se copia y se guarda.
     function textoInforme(R, vista) {
         const A = R.analisis;
-        const cab = ['INFORME DE COMPILACIÓN', 'Proyecto: ' + (R.nombre || '—') + (R.paquete ? ' (' + R.paquete + ')' : ''), 'Resultado: ' + (R.ok ? 'correcto' : 'FALLÓ' + (R.conclusion ? ' (' + R.conclusion + ')' : '')) + (R.pasoFallido ? ' · paso: ' + R.pasoFallido : ''),
-            'Ejecución: ' + (R.run && (R.run.html_url || R.run.id) || '—') + (R.run && R.run.created_at ? ' · ' + R.run.created_at : ''), 'Errores: ' + A.errores.length + ' · Avisos: ' + A.avisos.length, ''];
+        const run = R.run || {};
+        const tituloRun = run.run_number ? '#' + run.run_number + ' ' + (run.name || run.display_title || '') + (commitTitulo(run) ? ' / ' + commitTitulo(run) : '') : '';
+        const metaRun = run.run_number ? [EVENTO_RUN[run.event] || run.event || '', run.head_branch || '', String(run.head_sha || '').slice(0, 7), (run.actor && run.actor.login) || (run.triggering_actor && run.triggering_actor.login) || '', fmtFecha(run.created_at), duracionRun(run), run.id ? 'id ' + run.id : ''].filter(Boolean).join(' · ') : '';
+        const cab = [].concat(run.run_number ? [tituloRun, metaRun, ''] : ['INFORME DE COMPILACIÓN'], ['Proyecto: ' + (R.nombre || '—') + (R.paquete ? ' (' + R.paquete + ')' : ''), 'Resultado: ' + (R.ok ? 'correcto' : 'FALLÓ' + (R.conclusion ? ' (' + R.conclusion + ')' : '')) + (R.pasoFallido ? ' · paso: ' + R.pasoFallido : ''),
+            'Ejecución: ' + (R.run && (R.run.html_url || R.run.id) || '—') + (R.run && R.run.created_at ? ' · ' + R.run.created_at : ''), 'Errores: ' + A.errores.length + ' · Avisos: ' + A.avisos.length, '']);
         if (R.nota) cab.push('Nota: ' + R.nota, '');
         const pasos = R.pasos.length ? ['PASOS', ...R.pasos.map(s => ' ' + (s.conclusion === 'success' ? '✔' : s.conclusion === 'failure' ? '✘' : s.conclusion === 'skipped' ? '–' : '·') + ' ' + s.name + (s.conclusion && s.conclusion !== 'success' ? ' [' + s.conclusion + ']' : '')), ''] : [];
         const bloque = (tit, arr) => arr.length ? [tit + ' (' + arr.length + ')', ...arr.map((e, i) => (i + 1) + '. ' + lineaInforme(e)), ''] : [tit + ': ninguno', ''];
+        if (vista === 'compartir') {
+            const out = [].concat(run.run_number ? [tituloRun, metaRun] : ['INFORME DE COMPILACIÓN'], ['']);
+            out.push('Repositorio: ' + (R.repo || '—') + (run.head_sha ? ' @ ' + run.head_sha : ''));
+            out.push('Resultado: ' + (R.ok ? 'correcto' : 'FALLÓ' + (R.conclusion ? ' (' + R.conclusion + ')' : '')) + (R.jobNombre ? ' · job: ' + R.jobNombre : '') + (R.pasoFallido ? ' · paso fallido: ' + R.pasoFallido : ''));
+            if (run.html_url) out.push('Ejecución: ' + run.html_url);
+            const cuerpo = String((run.head_commit && run.head_commit.message) || '').split('\n').slice(1).join('\n').trim();
+            if (cuerpo) out.push('', 'COMMIT', cuerpo.slice(0, 800));
+            if (R.nota) out.push('', 'Nota: ' + R.nota);
+            const resumen = A.lineas.filter(l => /^\s*(Tests:|Test Suites:|# (tests|pass|fail)\b|ℹ (tests|pass|fail)\b|\d+ (passing|failing)|BUILD (FAILED|SUCCESSFUL)|Process completed with exit code)/.test(l)).slice(-12);
+            if (resumen.length) out.push('', 'RESUMEN', ...resumen.map(l => ' ' + l.trim()));
+            out.push('', A.errores.length ? 'ERRORES (' + A.errores.length + ')' : 'ERRORES: ninguno detectado');
+            let ultN = -99;
+            A.errores.slice(0, 40).forEach((e, i) => {
+                out.push((i + 1) + '. ' + lineaInforme(e));
+                const cerca = e.n && Math.abs(e.n - ultN) <= 6; if (e.n) ultN = e.n;
+                if (e.n && e.tipo !== 'gradle' && !cerca) {
+                    const ctx = A.lineas.slice(Math.max(0, e.n - 1 - 3), Math.min(A.lineas.length, e.n + 4)).filter(x => x.trim());
+                    if (ctx.length > 1) out.push(...ctx.map(x => '     | ' + x.slice(0, 300)));
+                }
+            });
+            if (A.errores.length > 40) out.push('… y ' + (A.errores.length - 40) + ' errores más (ver el registro completo)');
+            if (pasos.length) out.push('', ...pasos);
+            if (A.avisos.length) out.push('AVISOS (' + A.avisos.length + '; primeros 8)', ...A.avisos.slice(0, 8).map((e, i) => (i + 1) + '. ' + lineaInforme(e)), '');
+            const cola = A.lineas.filter(l => l.trim()).slice(-40);
+            if (cola.length) out.push('FINAL DEL REGISTRO (últimas ' + cola.length + ' líneas)', '', ...cola.map(l => l.slice(0, 400)));
+            return out.join('\n');
+        }
         if (vista === 'errores') return cab.concat(bloque('ERRORES', A.errores)).join('\n');
         if (vista === 'avisos') return cab.concat(bloque('AVISOS', A.avisos)).join('\n');
         if (vista === 'registro') {
@@ -3646,7 +3717,9 @@ kotlin.code.style=official
             const rj = await contentsApiGitHub(cfg, 'actions/runs/' + run.id + '/jobs');
             if (rj.ok) { const dj = await rj.json(); const jobs = dj.jobs || []; job = jobs.find(j => j.conclusion === 'failure') || jobs[jobs.length - 1] || null; }
         } catch (_) {}
+        R.repo = cfg.owner + '/' + cfg.repo;
         if (job) {
+            R.jobNombre = job.name || '';
             R.pasos = (job.steps || []).map(s => ({ name: s.name, conclusion: s.conclusion }));
             const pf = R.pasos.find(s => s.conclusion === 'failure'); R.pasoFallido = pf ? pf.name : '';
             try { const ra = await contentsApiGitHub(cfg, 'check-runs/' + job.id + '/annotations'); if (ra.ok) R.anotaciones = await ra.json(); } catch (_) {}
@@ -3665,9 +3738,9 @@ kotlin.code.style=official
     function renderInforme() {
         const R = C.informe; if (!R) { renderInicio(); return; }
         const A = R.analisis;
-        const vista = R.vista || (A.errores.length ? 'errores' : 'todo');
+        const vista = R.vista || (!R.ok && R.run && R.run.status === 'completed' ? 'compartir' : A.errores.length ? 'errores' : 'todo');
         R.vista = vista;
-        const chips = [['errores', '❌ Errores (' + A.errores.length + ')'], ['avisos', '⚠️ Avisos (' + A.avisos.length + ')'], ['todo', 'Resumen'], ['registro', '🧾 Registro']];
+        const chips = [['compartir', '📤 Compartir'], ['errores', '❌ Errores (' + A.errores.length + ')'], ['avisos', '⚠️ Avisos (' + A.avisos.length + ')'], ['todo', 'Resumen'], ['registro', '🧾 Registro']];
         const volver = R.volver === 'compilacion' ? ['recepcion', 'inicio'] : R.volver === 'actions' ? ['actions', 'inicio'] : ['inicio'];
         pantalla('informe', `
             <div class="bloque">
@@ -3677,7 +3750,7 @@ kotlin.code.style=official
                 ${R.nota ? '<p class="aviso"><small>ℹ️ ' + esc(R.nota) + '</small></p>' : ''}
                 <div class="chips">${chips.map(c => '<button data-a="inf-vista" data-v="' + c[0] + '"' + (vista === c[0] ? ' class="sel"' : '') + '>' + c[1] + '</button>').join('')}</div>
                 <pre class="log" id="infTexto" style="max-height:52vh;">${colorearInforme(textoInforme(R, vista))}</pre>
-                <div class="botones"><button class="primario" data-a="inf-copiar">📋 Copiar</button><button data-a="inf-guardar">💾 Guardar .txt</button>${R.run && R.run.html_url ? '<button data-a="abrir" data-u="' + esc(R.run.html_url) + '">🗗 Abrir en GitHub</button>' : ''}</div>
+                <div class="botones"><button class="primario" data-a="inf-copiar">${vista === 'compartir' ? '📋 Copiar para compartir' : '📋 Copiar'}</button><button data-a="inf-guardar">💾 Guardar .txt</button>${R.run && R.run.html_url ? '<button data-a="abrir" data-u="' + esc(R.run.html_url) + '">🗗 Abrir en GitHub</button>' : ''}</div>
                 ${botones(volver)}
             </div>`, R.nombre || '');
     }
@@ -3856,10 +3929,19 @@ kotlin.code.style=official
             if (r === null) return;
         }
 
-        C.ultimaOrden = { sel: nombre, repoElegido }; // para «Reintentar»
+        const campoNombre = $('inNombreApp');
+        const nombreVisible = params && params.nombreApp !== undefined ? params.nombreApp : (campoNombre ? campoNombre.value.trim() : '');
+        C.ultimaOrden = { sel: nombre, repoElegido, nombreApp: nombreVisible }; // para «Reintentar»
         const existente = sel !== '__nuevo__';
         const p = existente ? proyectos[nombre] : { tipo: 'android', paquete: c.paquete, nombreApp: c.nombreApp, versionCode: Math.max(1, Number(c.versionCode) || 1), ultimaVersion: 'v1.0', fecha: '', creado: new Date().toISOString() };
         p.archivos = JSON.parse(JSON.stringify(c.archivos));
+        if (nombreVisible && sitiosNombreApp(p.archivos).length) {
+            if (nombreVisible !== (c.nombreApp || '')) {
+                const t = aplicarNombreApp(p.archivos, nombreVisible);
+                p.nombreVisible = nombreVisible; p.nombreApp = nombreVisible;
+                if (t.length) mostrarToast('🏷 Nombre de la app: «' + nombreVisible + '»');
+            } else if (existente && p.nombreVisible) { delete p.nombreVisible; p.nombreApp = nombreVisible; }
+        }
         p.nombreApp = p.nombreApp || c.nombreApp;
         p.versionCode = Math.max(Number(p.versionCode) || 1, existente ? 1 : Number(c.versionCode) || 1);
         p.fecha = new Date().toISOString().slice(0, 10);
@@ -4047,6 +4129,14 @@ kotlin.code.style=official
         if (!el) return;
         ev.preventDefault();
         const a = el.dataset.a, u = el.dataset.u || '', i = el.dataset.i;
+        if (a === 'fav') {
+            ev.preventDefault(); const nf = el.dataset.n; const pf = proyectos[nf]; if (!pf) return;
+            if (pf.favorito) delete pf.favorito; else pf.favorito = true;
+            await guardarProyectos(); pintarLista();
+            const ch = $('chipFav'); if (ch) ch.textContent = '⭐ Favoritos (' + Object.keys(proyectos).filter(x => proyectos[x].favorito).length + ')';
+            mostrarToast(pf.favorito ? '⭐ «' + nf + '» marcado como favorito' : '☆ «' + nf + '» ya no es favorito');
+            return;
+        }
         if (a === 'filtro') { guardarUI({ filtro: el.dataset.v }); document.querySelectorAll('.chips button').forEach(b => b.classList.toggle('sel', b.dataset.v === el.dataset.v)); pintarLista(); }
         else if (a === 'registro-ultimo') informeUltimaEjecucion(el.dataset.n);
         else if (a === 'registro-compila') informeLogCompila();
@@ -4055,7 +4145,18 @@ kotlin.code.style=official
         else if (a === 'actions-filtro') { if (C.actions) { C.actions.filtro = el.dataset.v; renderActions(); } }
         else if (a === 'actions-mas') { if (C.actions && !C.actions.fin) { el.disabled = true; el.textContent = '⏳ Cargando…'; try { await cargarMasRuns(); } catch (e) { mostrarToast('❌ ' + (e && e.message ? e.message : e)); } renderActions(); } }
         else if (a === 'run-ver') { const A = C.actions; const r = A && A.runs[Number(el.dataset.i)]; if (r) mostrarInforme(A.cfg, r, { nombre: A.nombre, paquete: A.paquete, volver: 'actions' }); }
-        else if (a === 'reintentar') { if (C.construido && C.ultimaOrden) compilar({ sel: C.ultimaOrden.sel, repoElegido: C.ultimaOrden.repoElegido }); else renderInicio(); }
+        else if (a === 'run-copiar') {
+            const A = C.actions; const r = A && A.runs[Number(el.dataset.i)]; if (!r) return;
+            const txt = el.textContent; el.disabled = true; el.textContent = '⏳ Leyendo…';
+            try {
+                const R = await cargarInforme(A.cfg, r, { nombre: A.nombre, paquete: A.paquete, volver: 'actions' });
+                const tx = textoInforme(R, 'compartir');
+                const ok = await copiarTexto(tx.length > 400000 ? tx.slice(-400000) : tx);
+                mostrarToast(ok ? '📋 Errores copiados (#' + r.run_number + ')' : '⚠️ No se pudo copiar');
+            } catch (e) { mostrarToast('❌ ' + (e && e.message ? e.message : e)); }
+            el.disabled = false; el.textContent = txt;
+        }
+        else if (a === 'reintentar') { if (C.construido && C.ultimaOrden) compilar({ sel: C.ultimaOrden.sel, repoElegido: C.ultimaOrden.repoElegido, nombreApp: C.ultimaOrden.nombreApp }); else renderInicio(); }
         else if (a === 'reanudar') { if (C.reanudar) reanudarEspera(C.reanudar); else mostrarToast('ℹ️ Usa «Registro de la última compilación» en el proyecto'); }
         else if (a === 'inf-vista') { if (C.informe) { C.informe.vista = el.dataset.v; renderInforme(); } }
         else if (a === 'inf-copiar') { if (C.informe) { const tx = textoInforme(C.informe, C.informe.vista); const ok = await copiarTexto(tx.length > 400000 ? tx.slice(-400000) : tx); mostrarToast(ok ? '📋 Informe copiado' + (tx.length > 400000 ? ' (últimos 400 000 caracteres)' : '') : '⚠️ No se pudo copiar'); } }
@@ -4180,6 +4281,8 @@ kotlin.code.style=official
                 const f = d.proyectos[n] || {};
                 const previo = proyectos[n];
                 const ficha = { tipo: 'android', paquete: String(f.paquete || (previo && previo.paquete) || ''), nombreApp: String(f.nombreApp || (previo && previo.nombreApp) || n), versionCode: Math.max(Number(f.versionCode) || 1, previo ? Number(previo.versionCode) || 1 : 1), ultimaVersion: String(f.ultimaVersion || (previo && previo.ultimaVersion) || 'v1.0'), fecha: String(f.fecha || '') };
+                if (previo && previo.favorito) ficha.favorito = true;
+                if (previo && previo.nombreVisible) ficha.nombreVisible = previo.nombreVisible;
                 const rd = f.repoDedicado || (previo && previo.repoDedicado);
                 if (rd && rd.repo) ficha.repoDedicado = { owner: String(rd.owner || (d.github && d.github.owner) || ''), repo: String(rd.repo), branch: String(rd.branch || 'main') };
                 if (previo) actualizados++; else nuevos++;
@@ -4203,12 +4306,26 @@ kotlin.code.style=official
         catch (e) { pantalla('error', '<div class="bloque"><p class="mal">❌ No se pudo recibir el ZIP: ' + esc(e && e.message ? e.message : e) + '</p>' + botones(['inicio', 'elegir']) + '</div>'); }
     }
     window.__compilaNuevoZip = comprobarZipPendiente;
+    // Botón «atrás» del móvil: retrocede a la pantalla anterior; en el inicio primero pliega lo abierto y solo sale con una segunda pulsación.
+    let ultimoAtras = 0;
+    function atrasSalir(msg) { const ahora = Date.now(); if (ahora - ultimoAtras < 2000) return false; ultimoAtras = ahora; mostrarToast(msg); return true; }
     window.__compilaAtras = function () {
-        if (C.compilando) { mostrarToast('⏳ Compilando… sigue en GitHub aunque salgas'); return false; }
-        if ($('modal').classList.contains('v')) return true;
-        if (C.pantalla === 'ajustes') { C.construido ? renderRecepcion() : renderInicio(); return true; }
-        if (C.pantalla !== 'inicio') { renderInicio(); return true; }
-        return false;
+        if ($('modal').classList.contains('v')) { const b = $('mBotones').querySelector('button'); if (b) b.click(); return true; } // cierra el aviso (el primer botón es «Cancelar»)
+        if (C.compilando) return atrasSalir('⏳ Compilando… sigue en GitHub. Pulsa atrás otra vez para salir');
+        switch (C.pantalla) {
+            case 'ajustes': case 'error': C.construido ? renderRecepcion() : renderInicio(); return true;
+            case 'informe': case 'informe-cargando': {
+                const v = C.informe && C.informe.volver;
+                if (v === 'actions' && C.actions) renderActions(); else if (v === 'compilacion' && C.construido) renderRecepcion(); else renderInicio();
+                return true;
+            }
+            case 'inicio': {
+                const abiertos = [...document.querySelectorAll('#pantalla details[open]')];
+                if (abiertos.length) { const hojas = abiertos.filter(d => !d.querySelector('details[open]')); (hojas[hojas.length - 1] || abiertos[abiertos.length - 1]).open = false; return true; }
+                return atrasSalir('Pulsa atrás otra vez para salir');
+            }
+            default: renderInicio(); return true;
+        }
     };
 
     cargarRegistro();
