@@ -68,6 +68,8 @@ details.col.sub { background:#15152a; margin:10px 0 0; }
 .menu-lista[hidden] { display:none; }
 .menu-lista button { display:block; width:100%; text-align:left; border:0; border-radius:8px; padding:10px 12px; }
 .menu-lista button.sel { background:rgba(108,92,231,.35); }
+.l-e { color:#ff8a8a; } .l-w { color:#e5c07b; } .l-ok { color:#7ee0a0; } .l-g { color:#8ab4ff; } .l-d { color:#7c7ca0; } .l-b { font-weight:700; color:var(--texto); }
+.pasos div { padding:3px 0; }
 </style>
 </head>
 <body>
@@ -125,6 +127,27 @@ details.col.sub { background:#15152a; margin:10px 0 0; }
         try { return Object.assign(def, JSON.parse(localStorage.getItem(COMPILA_PREFS_KEY) || '{}')); } catch (_) { return def; }
     }
     function guardarPrefs(p) { try { localStorage.setItem(COMPILA_PREFS_KEY, JSON.stringify(p)); } catch (_) {} }
+
+    // fetch con reintentos para las lecturas (GET): ante un «Failed to fetch» puntual (cambio de red, app en segundo plano) o un 5xx se
+    // reintenta hasta 4 veces. Las escrituras (PUT/POST/DELETE) NO se reintentan aquí: ya tienen su propia lógica y repetir un
+    // disparo de workflow lanzaría dos compilaciones.
+    const esperar = ms => new Promise(r => setTimeout(r, ms));
+    const ESPERAS_RED = [1500, 3000, 6000, 10000];
+    const fetch = async (url, opts) => {
+        const reintentable = ((opts && opts.method) || 'GET').toUpperCase() === 'GET';
+        for (let i = 0; ; i++) {
+            try {
+                const r = await window.fetch(url, opts);
+                if (reintentable && r.status >= 500 && r.status < 600 && i < ESPERAS_RED.length) { await esperar(ESPERAS_RED[i]); continue; }
+                return r;
+            } catch (e) {
+                if (!reintentable || i >= ESPERAS_RED.length) throw e;
+                if (i === 0) mostrarToast('📶 Sin conexión con GitHub: reintentando…');
+                await esperar(ESPERAS_RED[i]);
+            }
+        }
+    };
+    const esErrorDeRed = e => !!e && (e instanceof TypeError || /failed to fetch|networkerror|load failed|network request failed|err_internet|err_network|timeout/i.test(String(e.message || e)));
 
     // ---------- Ventana modal sencilla (sustituye a los pedir* de Fusion) ----------
     function modal({ titulo, html, input, botones }) {
@@ -218,7 +241,7 @@ details.col.sub { background:#15152a; margin:10px 0 0; }
         }
         return { DENSIDADES, VARIANTES, rutaRelativa, rutasRelativas, desdeArchivo, desdeBytes, desdeBase64, inyectarEnManifest };
     })();
-    // ===== Código copiado literalmente de Fusion-23-1.html (2026-11-03) por construir_compilar.js — NO editar a mano =====
+    // ===== Código copiado literalmente de Fusion-23-1.html (2026-11-04) por construir_compilar.js — NO editar a mano =====
     // Funciones: escaparTextoAnalisis, crc32, base64ABytes, dataUrlABytes, esArchivoBinarioGuardadoComoDataUrl, crearZip, ZIP_IMP_LIMITE_ZIP_BYTES, ZIP_IMP_LIMITE_ENTRADA_BYTES, ZIP_IMP_LIMITE_TOTAL_BYTES, ZIP_IMP_LIMITE_ENTRADAS, ZIP_IMP_EXT_TEXTO, ZIP_IMP_EXT_BINARIO, ZIP_IMP_MIME, zipImpLeerDirectorio, zipImpInflarNativo, zipImpTablasFijas, zipImpInflarJS, zipImpInflar, zipImpExtraerEntrada, zipImpLimpiarRuta, zipImpEsBasura, zipImpExtension, zipImpEsTexto, zipImpDecodificarTexto, zipImpADataUrl, zipImpPrefijoRaizComun, zipImpDetectarTipo, zipImpLeerArchivo, zipImpConstruirAndroid, HIST_PUBLICACIONES_KEY, cargarHistorialPublicaciones, guardarHistorialPublicaciones, registrarPublicacion, GH_CONFIG_KEY, cargarConfigGitHub, guardarConfigGitHub, configGitHubCompleta, GH_REPOS_DEDICADOS_KEY, cargarReposDedicados, guardarReposDedicados, cfgGitHubDeProyecto, cabecerasApiGitHub, crearRepoDedicadoGitHub, copiarKeystoreARepoDedicado, borrarRepoDedicadoGitHub, slugPublicar, mensajeErrorPermisoGitHub, contentsApiGitHub, subirArchivoGitHubConReintento, sha1BytesJS, sha1BlobGit, subirArchivoTextoGitHub, subirArchivoBinarioGitHub, APK_NATIVO_CARPETA, proyectoNecesitaNdk, generarWorkflowApkNativo, plantillaSettingsGradle, plantillaBuildGradleRaiz, REGEX_WF_PERMITIDO, esRutaEspecialDeProyecto, rutaRepoDeArchivoEspecial, REGEX_RAIZ_EXTRA, REGEX_WF_EXTRA, plantillaGradleProperties, RUTAS_RAIZ_DEL_MODULO, PREFIJO_MODULO_EXTRA, mapearArchivoProyectoAndroid, asegurarWorkflowApkNativo, asegurarWorkflowGenerico, listarArchivosEnRepo, eliminarArchivoGitHub, limpiarHuerfanosProyectoAndroid, subirIconosProyectoAndroid, inyectarVersionEnBuildGradle, inyectarFirmaEnBuildGradle, inyectarCacheEnGradleProperties, subirArchivosProyectoAndroid, ESPERA_REINTENTO_DISPARO_MS, mensajeWorkflowSinDispatch, dispararWorkflow, dispararWorkflowApkNativo, esperarWorkflow, esperarBuildApkNativo, compilarProyectoAndroidDirecto, REGEX_PAQUETE_ANDROID, paqueteValido, sanearSegmentoPaquete, sugerirIdentidadAndroid, verificarPrerrequisitos, buscarUltimoApkPublicado, MODIFICADORES_KOTLIN, tokenizarKotlin, escrubarKotlin, calcularProfundidadesKotlin, encontrarCierreLlaveKotlin, numeroDeLineaKotlin, coincideEnKotlin, extraerModificadoresPreviosKotlin, extraerAnotacionesPreviasKotlin, extraerComentarioCabeceraKotlin, dividirPorComasNivelSuperiorKotlin, analizarUnParametroKotlin, dividirParametrosKotlin, analizarFirmaFuncionKotlin, analizarHerenciaKotlin, analizarTipoDetalladoKotlin, extraerFirmaFuncionKotlin, extraerNombreTrasPalabraKotlin, extraerNombreFuncionKotlin, valorInicialSimpleKotlin, tipoDeClaseKotlin, parsearBloqueKotlin, escaparRegexKotlin, detectarLateinitSinInicializarKotlin, detectarImportsNoUsadosKotlin, parsearKotlin, escrubarXMLComentarios, numeroDeLineaXML, extraerAtributosXML, buscarElementosXML, parsearManifest, extraerBloqueGradle, escrubarSoloComentariosGradle, parsearGradleSettings, parsearGradleBuild, CATALOGO_DEPENDENCIAS_ANDROID, PERMISOS_POR_API_ANDROID, GRADLE_MINIMO_POR_AGP, GRADLE_DEL_WORKFLOW_ANDROID, extraerVersionAgp, versionGradleParaProyecto, diagnosticoAndroidCompilacion
     function escaparTextoAnalisis(valor) {
         return String(valor ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -3110,6 +3133,7 @@ kotlin.code.style=official
     function botones(lista) {
         const b = {
             inicio: '<button data-a="inicio">↩️ Inicio</button>',
+            actions: '<button data-a="actions-volver">↩️ Ejecuciones</button>',
             elegir: '<button class="primario" data-a="elegir-zip">📂 Elegir un .zip</button>',
             recepcion: '<button class="primario" data-a="recepcion">↻ Volver al ZIP</button>',
             cerrar: '<button data-a="cerrar">✕ Cerrar app</button>'
@@ -3145,7 +3169,7 @@ kotlin.code.style=official
             (p.icono ? '<img alt="" src="data:image/png;base64,' + p.icono + '" style="width:44px;height:44px;border-radius:10px;float:right;margin:0 0 6px 8px;">' : '') +
             '<p><small>' + esc(p.paquete || '') + ' · ' + (rd ? '📦 ' + esc(p.repoDedicado.owner + '/' + p.repoDedicado.repo) : 'repo compartido') + '</small></p>' +
             (uc && !uc.ok ? '<p class="mal"><small>Último intento fallido: ' + esc(uc.error || '') + '</small></p>' : '') +
-            '<div class="botones"><button class="primario" data-a="apk-ultimo" data-n="' + esc(n) + '">⬇️ Último APK</button><button data-a="compilar-proy" data-n="' + esc(n) + '">🔀 Compilar un ZIP</button><button data-a="icono-proy" data-n="' + esc(n) + '">🖼 ' + (p.icono ? 'Cambiar icono' : 'Poner icono') + '</button><button data-a="registro-ultimo" data-n="' + esc(n) + '">🧾 Registro de la última compilación</button></div>' +
+            '<div class="botones"><button class="primario" data-a="apk-ultimo" data-n="' + esc(n) + '">⬇️ Último APK</button><button data-a="compilar-proy" data-n="' + esc(n) + '">🔀 Compilar un ZIP</button><button data-a="icono-proy" data-n="' + esc(n) + '">🖼 ' + (p.icono ? 'Cambiar icono' : 'Poner icono') + '</button><button data-a="actions" data-n="' + esc(n) + '">📜 Ejecuciones de Actions</button><button data-a="registro-ultimo" data-n="' + esc(n) + '">🧾 Última ejecución en GitHub</button>' + (p.ultimaCompilacion && !p.ultimaCompilacion.ok ? '<button data-a="registro-compila">🧾 Último intento de Compila</button>' : '') + '</div>' +
             '<div class="botones">' + (rd ? '<button data-a="abrir-repo" data-n="' + esc(n) + '">🗗 Repo</button><button data-a="exportar-fusion" data-n="' + esc(n) + '">📤 ZIP para Fusion</button>' : '') + '<button data-a="olvidar" data-n="' + esc(n) + '">Olvidar</button>' + (rd ? '<button class="peligro" data-a="borrar-repo" data-n="' + esc(n) + '">🗑 Borrar repo</button>' : '') + '</div>' +
             (rd ? '<details class="col sub" data-rel="' + esc(n) + '"><summary>📦 Releases en GitHub</summary><div class="cuerpo relcont"></div></details>' : '') +
             '</div></details>';
@@ -3181,7 +3205,8 @@ kotlin.code.style=official
                     <div id="listaProy"></div>
                 </div>
             </details>
-            <details class="col" data-rel="__compartido__"><summary>📦 Releases del repositorio compartido</summary><div class="cuerpo relcont"></div></details>`, '');
+            <details class="col" data-rel="__compartido__"><summary>📦 Releases del repositorio compartido</summary><div class="cuerpo relcont"></div></details>
+            ${configGitHubCompleta(cfg) ? '<div class="botones"><button data-a="actions" data-n="__compartido__">📜 Ejecuciones de Actions del repositorio compartido</button></div>' : ''}`, '');
         pintarLista();
         if ($('buscaProy')) $('buscaProy').addEventListener('input', pintarLista);
     }
@@ -3422,10 +3447,145 @@ kotlin.code.style=official
             '<div class="botones"><button data-a="inicio">↩️ Volver</button></div>', 'Ajustes');
     }
 
+    // ---------- Seguimiento en directo de la ejecución (pasos y registro de GitHub) ----------
+    function pintarPasosVivo(steps) {
+        const e = $('vivoPasos'); if (!e) return;
+        const ahora = Date.now();
+        e.innerHTML = (steps || []).map(s => {
+            let ic = '⚪', cls = 'l-d', extra = '';
+            if (s.status === 'completed') { if (s.conclusion === 'success') { ic = '✅'; cls = 'l-ok'; } else if (s.conclusion === 'skipped') { ic = '➖'; cls = 'l-d'; } else { ic = '❌'; cls = 'l-e'; } }
+            else if (s.status === 'in_progress') { ic = '⏳'; cls = 'l-b'; if (s.started_at) { const sg = Math.max(0, Math.floor((ahora - new Date(s.started_at).getTime()) / 1000)); extra = ' <small>· ' + Math.floor(sg / 60) + ':' + String(sg % 60).padStart(2, '0') + '</small>'; } }
+            return '<div class="' + cls + '">' + ic + ' ' + esc(s.name) + extra + '</div>';
+        }).join('') || '<p class="suave"><small>Esperando a que GitHub arranque el job…</small></p>';
+    }
+    function pintarRegistroVivo(texto, nota) {
+        const pre = $('vivoLog'), res = $('vivoResumen'); if (!pre) return;
+        if (texto == null) { pre.innerHTML = '<span class="l-d">' + esc(nota || '') + '</span>'; return; }
+        const lineas = texto.split(/\r?\n/);
+        const cola = lineas.slice(-300);
+        const cerca = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 60;
+        pre.innerHTML = colorearLog(cola.join('\n'));
+        if (cerca) pre.scrollTop = pre.scrollHeight;
+        const ultima = limpiarLineaLog(lineas.filter(x => x.trim()).pop() || '');
+        if (res) res.textContent = ultima.slice(0, 70);
+    }
+    // Consulta cada pocos segundos la ejecución disparada desde tDesde. Devuelve {stop}.
+    function iniciarSeguimiento(cfg, tDesde) {
+        const S = { stop: false };
+        (async () => {
+            let run = null;
+            while (!S.stop) {
+                try {
+                    if (!run) {
+                        const r = await contentsApiGitHub(cfg, 'actions/workflows/build-apk-nativo.yml/runs?per_page=5');
+                        if (r.ok) { const d = await r.json(); run = ((d.workflow_runs || []).filter(x => new Date(x.created_at).getTime() >= tDesde - 5000))[0] || null; }
+                    }
+                    if (run && !S.stop) {
+                        const rj = await contentsApiGitHub(cfg, 'actions/runs/' + run.id + '/jobs');
+                        if (rj.ok) {
+                            const dj = await rj.json(); const job = (dj.jobs || [])[dj.jobs.length - 1];
+                            if (job && !S.stop) {
+                                pintarPasosVivo(job.steps);
+                                try {
+                                    const rl = await contentsApiGitHub(cfg, 'actions/jobs/' + job.id + '/logs');
+                                    if (S.stop) break;
+                                    if (rl.ok) pintarRegistroVivo(await rl.text()); else pintarRegistroVivo(null, 'GitHub aún no entrega el registro (HTTP ' + rl.status + '). Se verá entero al terminar.');
+                                } catch (_) { pintarRegistroVivo(null, 'El navegador no pudo leer el registro en directo. Se verá entero al terminar.'); }
+                            }
+                        }
+                    }
+                } catch (_) {}
+                await new Promise(r => setTimeout(r, 5000));
+            }
+        })();
+        return S;
+    }
+
+    // ---------- Historial de Actions (todas las ejecuciones del repositorio, vengan de Compila, Fusion o GitHub) ----------
+    const ICONO_RUN = r => r.status !== 'completed' ? (r.status === 'in_progress' ? '⏳' : '🕒') : ({ success: '✅', failure: '❌', cancelled: '⏹', skipped: '➖', timed_out: '⌛' }[r.conclusion] || '❔');
+    const EVENTO_RUN = { push: 'push', workflow_dispatch: 'manual', schedule: 'programada', pull_request: 'pull request' };
+    function duracionRun(r) {
+        const a = new Date(r.run_started_at || r.created_at).getTime(), b = new Date(r.updated_at).getTime();
+        if (!a || !b || b < a) return '';
+        const sg = Math.round((b - a) / 1000); return Math.floor(sg / 60) + ':' + String(sg % 60).padStart(2, '0');
+    }
+    function cfgDeNombre(nombre) {
+        const p = proyectos[nombre];
+        const cfg = (p && p.repoDedicado && p.repoDedicado.repo) ? cfgGitHubDeProyecto(p) : cargarConfigGitHub();
+        if (!cfg.token) cfg.token = cargarConfigGitHub().token;
+        return cfg;
+    }
+    async function cargarMasRuns() {
+        const A = C.actions;
+        const r = await contentsApiGitHub(A.cfg, 'actions/runs?per_page=20&page=' + A.pagina);
+        if (!r.ok) { const ed = await r.json().catch(() => null); throw new Error((ed && ed.message) || ('HTTP ' + r.status)); }
+        const d = await r.json(); const lista = d.workflow_runs || [];
+        A.runs = A.runs.concat(lista); A.pagina++;
+        if (lista.length < 20) A.fin = true;
+    }
+    async function abrirActions(nombre) {
+        const p = proyectos[nombre];
+        const cfg = cfgDeNombre(nombre);
+        if (!configGitHubCompleta(cfg)) { mostrarToast('⚠️ Configura GitHub primero'); return; }
+        C.actions = { nombre: nombre === '__compartido__' ? 'Repositorio compartido' : nombre, paquete: p && p.paquete, cfg, runs: [], pagina: 1, fin: false, filtro: 'todos' };
+        pantalla('actions-cargando', '<div class="bloque"><p>🔎 Leyendo las ejecuciones de GitHub Actions…</p></div>', C.actions.nombre);
+        try { await cargarMasRuns(); renderActions(); }
+        catch (e) { pantalla('error', '<div class="bloque"><p class="mal">❌ ' + esc(e && e.message ? e.message : e) + '</p>' + botones(['inicio']) + '</div>'); }
+    }
+    function renderActions() {
+        const A = C.actions; if (!A) { renderInicio(); return; }
+        const pasa = r => A.filtro === 'ok' ? r.conclusion === 'success' : A.filtro === 'fallos' ? (r.status === 'completed' && r.conclusion !== 'success' && r.conclusion !== 'skipped') : A.filtro === 'curso' ? r.status !== 'completed' : true;
+        const n = { todos: A.runs.length, ok: A.runs.filter(r => r.conclusion === 'success').length, fallos: A.runs.filter(r => r.status === 'completed' && r.conclusion !== 'success' && r.conclusion !== 'skipped').length, curso: A.runs.filter(r => r.status !== 'completed').length };
+        const chips = [['todos', 'Todas (' + n.todos + ')'], ['ok', '✅ Correctas (' + n.ok + ')'], ['fallos', '❌ Fallidas (' + n.fallos + ')'], ['curso', '⏳ En curso (' + n.curso + ')']];
+        const items = A.runs.map((r, i) => ({ r, i })).filter(x => pasa(x.r)).map(({ r, i }) => {
+            const msg = String((r.head_commit && r.head_commit.message) || r.display_title || r.name || '').split('\n')[0];
+            const dur = duracionRun(r);
+            return '<div class="rel"><b>' + ICONO_RUN(r) + ' #' + esc(r.run_number) + '</b> <small>' + esc(r.name || '') + '</small><br>' + esc(msg.slice(0, 120)) +
+                '<br><small>' + esc((EVENTO_RUN[r.event] || r.event || '') + ' · ' + (r.head_branch || '') + ' · ' + String(r.head_sha || '').slice(0, 7) + ' · ' + ((r.actor && r.actor.login) || (r.triggering_actor && r.triggering_actor.login) || '') + ' · ' + fmtFecha(r.created_at) + (dur ? ' · ' + dur : '') + ' · id ' + r.id) + '</small>' +
+                '<div class="botones"><button class="primario" data-a="run-ver" data-i="' + i + '">🧾 Registro</button><button data-a="abrir" data-u="' + esc(r.html_url || '') + '">🗗 GitHub</button></div></div>';
+        }).join('');
+        pantalla('actions', `
+            <div class="bloque">
+                <h2>📜 Ejecuciones de GitHub Actions</h2>
+                <p><small>${esc(A.cfg.owner + '/' + A.cfg.repo)} · todas las ejecuciones del repositorio, se hayan lanzado desde Compila, Fusion o GitHub.</small></p>
+                <div class="chips">${chips.map(c => '<button data-a="actions-filtro" data-v="' + c[0] + '"' + (A.filtro === c[0] ? ' class="sel"' : '') + '>' + c[1] + '</button>').join('')}</div>
+                ${items || '<p class="suave">' + (A.runs.length ? 'Ninguna ejecución con este filtro.' : 'Este repositorio aún no tiene ejecuciones.') + '</p>'}
+                ${A.fin ? '' : '<div class="botones"><button data-a="actions-mas">⬇️ Cargar más</button></div>'}
+                ${botones(['inicio'])}
+            </div>`, A.nombre);
+    }
+
     // ---------- Informe de la compilación (errores, avisos y registro; copiar y guardar) ----------
     const RE_ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
     const limpiarLineaLog = l => l.replace(RE_ANSI, '').replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z ?/, '');
     const rutaCorta = r => String(r || '').replace(/^.*\/proyecto-android\//, '').replace(/^file:\/\//, '');
+    // Tipo de una línea de registro: 'e' error, 'w' aviso, 'g' grupo/paso, 'ok' éxito, null normal.
+    function tipoLinea(l) {
+        if (/^e: |##\[error\]|^\* What went wrong|AAPT: error|error: (resource|attribute|style|failed linking)|Manifest merger failed|Execution failed for task|Could not (resolve|find|download|get)|Unresolved reference|Duplicate class|OutOfMemoryError|FAILURE: Build failed|^BUILD FAILED/.test(l)) return 'e';
+        if (/^w: |##\[warning\]|warning:|WARNING:|Deprecated Gradle features|is deprecated|will be removed/.test(l)) return 'w';
+        if (/##\[group\]|^> Task |^Run /.test(l)) return 'g';
+        if (/BUILD SUCCESSFUL|^✔|✔ /.test(l)) return 'ok';
+        return null;
+    }
+    const spanLinea = (cls, txt) => cls ? '<span class="l-' + cls + '">' + esc(txt) + '</span>' : esc(txt);
+    // Registro en bruto -> HTML con colores (cuenta cada línea tal cual; no altera el texto).
+    function colorearLog(texto) { return String(texto).split('\n').map(l => { const c = limpiarLineaLog(l); return spanLinea(tipoLinea(c), c); }).join('\n'); }
+    // Informe -> HTML con colores según la sección (el texto plano sigue siendo el mismo para copiar y guardar).
+    function colorearInforme(texto) {
+        let sec = 'c';
+        return texto.split('\n').map((l, i) => {
+            if (/^ERRORES\b/.test(l)) { sec = 'e'; return spanLinea('e', l).replace('l-e', 'l-e l-b'); }
+            if (/^AVISOS\b/.test(l)) { sec = 'w'; return spanLinea('w', l).replace('l-w', 'l-w l-b'); }
+            if (/^PASOS\b/.test(l)) { sec = 'p'; return spanLinea('g', l).replace('l-g', 'l-g l-b'); }
+            if (/^REGISTRO\b/.test(l)) { sec = 'r'; return spanLinea('g', l).replace('l-g', 'l-g l-b'); }
+            if (/^INFORME DE COMPILACIÓN/.test(l)) return '<span class="l-b">' + esc(l) + '</span>';
+            if (sec === 'c') return /^Resultado: FALLÓ/.test(l) ? spanLinea('e', l) : /^Resultado: correcto/.test(l) ? spanLinea('ok', l) : /^Nota:/.test(l) ? spanLinea('w', l) : spanLinea('d', l);
+            if (sec === 'e') return l.trim() ? spanLinea('e', l) : esc(l);
+            if (sec === 'w') return l.trim() ? spanLinea('w', l) : esc(l);
+            if (sec === 'p') return /✘/.test(l) ? spanLinea('e', l) : /✔/.test(l) ? spanLinea('ok', l) : spanLinea('d', l);
+            return spanLinea(tipoLinea(limpiarLineaLog(l)), l);
+        }).join('\n');
+    }
     // Clasifica las líneas del registro de GitHub Actions / Gradle / Kotlin / AAPT en errores y avisos.
     function analizarLog(texto) {
         const lineas = String(texto || '').split(/\r?\n/).map(limpiarLineaLog);
@@ -3508,15 +3668,15 @@ kotlin.code.style=official
         const vista = R.vista || (A.errores.length ? 'errores' : 'todo');
         R.vista = vista;
         const chips = [['errores', '❌ Errores (' + A.errores.length + ')'], ['avisos', '⚠️ Avisos (' + A.avisos.length + ')'], ['todo', 'Resumen'], ['registro', '🧾 Registro']];
-        const volver = R.volver === 'compilacion' ? ['recepcion', 'inicio'] : ['inicio'];
+        const volver = R.volver === 'compilacion' ? ['recepcion', 'inicio'] : R.volver === 'actions' ? ['actions', 'inicio'] : ['inicio'];
         pantalla('informe', `
             <div class="bloque">
-                <h2>${R.ok ? '✅ Compilación correcta' : '❌ La compilación falló'}</h2>
+                <h2>${R.run && R.run.status && R.run.status !== 'completed' ? '⏳ Compilación en curso' : R.ok ? '✅ Compilación correcta' : '❌ La compilación falló'}</h2>
                 <p><small>${esc(R.nombre || '')}${R.pasoFallido ? ' · paso «' + esc(R.pasoFallido) + '»' : ''}</small></p>
                 ${R.mensaje && !R.ok ? '<p class="mal"><small>' + esc(R.mensaje) + '</small></p>' : ''}
                 ${R.nota ? '<p class="aviso"><small>ℹ️ ' + esc(R.nota) + '</small></p>' : ''}
                 <div class="chips">${chips.map(c => '<button data-a="inf-vista" data-v="' + c[0] + '"' + (vista === c[0] ? ' class="sel"' : '') + '>' + c[1] + '</button>').join('')}</div>
-                <pre class="log" id="infTexto" style="max-height:52vh;">${esc(textoInforme(R, vista))}</pre>
+                <pre class="log" id="infTexto" style="max-height:52vh;">${colorearInforme(textoInforme(R, vista))}</pre>
                 <div class="botones"><button class="primario" data-a="inf-copiar">📋 Copiar</button><button data-a="inf-guardar">💾 Guardar .txt</button>${R.run && R.run.html_url ? '<button data-a="abrir" data-u="' + esc(R.run.html_url) + '">🗗 Abrir en GitHub</button>' : ''}</div>
                 ${botones(volver)}
             </div>`, R.nombre || '');
@@ -3671,11 +3831,11 @@ kotlin.code.style=official
         }
     }
 
-    async function compilar() {
+    async function compilar(params) {
         if (C.compilando) return;
         const c = C.construido; if (!c) return;
-        const sel = (document.querySelector('input[name="dest"]:checked') || {}).value;
-        const repoElegido = (document.querySelector('input[name="repo"]:checked') || {}).value || 'dedicado';
+        const sel = params ? params.sel : (document.querySelector('input[name="dest"]:checked') || {}).value;
+        const repoElegido = params ? params.repoElegido : ((document.querySelector('input[name="repo"]:checked') || {}).value || 'dedicado');
         const cfg0 = cargarConfigGitHub();
         if (!configGitHubCompleta(cfg0)) { mostrarToast('⚠️ Configura GitHub primero'); renderAjustes(); return; }
         if (!c.paquete) { mostrarToast('⚠️ No se pudo detectar el paquete del ZIP'); return; }
@@ -3688,7 +3848,7 @@ kotlin.code.style=official
             let base = nombre, n = 2; while (proyectos[nombre]) nombre = base + ' ' + n++;
         }
         const pr = prefs(); pr.repoPorDefecto = repoElegido; guardarPrefs(pr);
-        if (pr.confirmar) {
+        if (pr.confirmar && !params) {
             const existe = sel !== '__nuevo__';
             const r = await pedirEleccionHtml('Mezclar y compilar',
                 '<p>' + (existe ? 'Se añadirá el ZIP «' + esc(C.nombreZip) + '» a <b>' + esc(nombre) + '</b>.' : 'Se creará el proyecto <b>' + esc(nombre) + '</b> con «' + esc(C.nombreZip) + '».') + '</p>' +
@@ -3696,6 +3856,7 @@ kotlin.code.style=official
             if (r === null) return;
         }
 
+        C.ultimaOrden = { sel: nombre, repoElegido }; // para «Reintentar»
         const existente = sel !== '__nuevo__';
         const p = existente ? proyectos[nombre] : { tipo: 'android', paquete: c.paquete, nombreApp: c.nombreApp, versionCode: Math.max(1, Number(c.versionCode) || 1), ultimaVersion: 'v1.0', fecha: '', creado: new Date().toISOString() };
         p.archivos = JSON.parse(JSON.stringify(c.archivos));
@@ -3708,19 +3869,29 @@ kotlin.code.style=official
 
         C.compilando = true;
         const FASES = ['Preparar repositorio', 'Subir archivos', 'Compilar en GitHub', 'Terminado'];
-        let faseActual = 0, t0 = Date.now(), temporizador = null;
+        let faseActual = 0, t0 = Date.now(), temporizador = null, seguimiento = null, lanzado = false; // lanzado: el workflow ya se disparó en GitHub
+        const tInicio = Date.now();
         const pintarFases = () => {
             const e = $('fases'); if (!e) return;
             const seg = Math.floor((Date.now() - t0) / 1000);
             e.innerHTML = FASES.map((f, k) => '<div class="fase ' + (k < faseActual ? 'hecha' : k === faseActual ? 'activa' : '') + '">' + (k < faseActual ? '✅' : k === faseActual ? '⏳' : '⚪') + ' ' + f + (k === faseActual && k === 2 ? ' <small>· ' + Math.floor(seg / 60) + ':' + String(seg % 60).padStart(2, '0') + '</small>' : '') + '</div>').join('');
         };
         const irAFase = k => { if (k > faseActual) { faseActual = k; t0 = Date.now(); } pintarFases(); };
-        pantalla('progreso', '<div class="bloque"><h2>⚙️ Compilando «' + esc(nombre) + '»</h2><div id="fases"></div><p class="suave"><small>Puedes salir de la app: la compilación sigue en GitHub.</small></p></div><details class="col"><summary><span class="t">🧾 Registro</span></summary><div class="cuerpo"><pre class="log" id="log"></pre></div></details>', nombre);
+        pantalla('progreso', '<div class="bloque"><h2>⚙️ Compilando «' + esc(nombre) + '»</h2><div id="fases"></div><p class="suave"><small>Puedes salir de la app: la compilación sigue en GitHub.</small></p></div>' +
+            '<div class="bloque" id="vivoBloque" style="display:none"><h2>⚙️ Pasos en GitHub</h2><div class="pasos" id="vivoPasos"></div></div>' +
+            '<details class="col" id="vivoDet" style="display:none"><summary><span class="t">🧾 <b>Registro en directo</b></span><small id="vivoResumen">esperando…</small></summary><div class="cuerpo"><pre class="log" id="vivoLog" style="max-height:48vh;"></pre></div></details>' +
+            '<details class="col"><summary><span class="t">🧾 Registro de Compila</span></summary><div class="cuerpo"><pre class="log" id="log"></pre></div></details>', nombre);
         pintarFases();
         temporizador = setInterval(pintarFases, 1000);
+        C.logLineas = [];
         logHook = msg => {
+            C.logLineas.push('[' + new Date().toLocaleTimeString('es-ES') + '] ' + msg);
             const l = $('log'); if (l) { l.textContent += '[' + new Date().toLocaleTimeString('es-ES') + '] ' + msg + '\n'; l.scrollTop = l.scrollHeight; }
-            if (/Compilando…|Workflow creado/.test(String(msg))) irAFase(2);
+            if (/Compilando…/.test(String(msg))) lanzado = true;
+            if (/Compilando…|Workflow creado/.test(String(msg))) {
+                irAFase(2);
+                if (!seguimiento) { seguimiento = iniciarSeguimiento(cfg, tInicio); if ($('vivoBloque')) $('vivoBloque').style.display = ''; if ($('vivoDet')) $('vivoDet').style.display = ''; }
+            }
         };
         let cfg = cfg0;
         try {
@@ -3735,35 +3906,115 @@ kotlin.code.style=official
             }
             irAFase(1);
             p.ultimaVersion = 'v' + p.versionCode + '.0';
-            const { url } = await compilarProyectoAndroidDirecto(nombre, p, cfg, { sinLimpiar: aditivo });
-            clearInterval(temporizador);
+            let intento = 0, resultado = null;
+            for (;;) {
+                try { resultado = await compilarProyectoAndroidDirecto(nombre, p, cfg, { sinLimpiar: aditivo }); break; }
+                catch (e1) {
+                    // Antes de lanzar la compilación en GitHub (subida de archivos) un fallo puntual se reintenta solo; ya con la compilación
+                    // en marcha no se vuelve a lanzar (se retomaría la espera, ver abajo).
+                    if ((e1 && e1.runFallido) || lanzado || ++intento > 2) throw e1;
+                    logHook('⚠️ ' + (e1 && e1.message ? e1.message : e1) + ' — reintento ' + intento + '/2 en 4 s (solo se vuelve a subir lo que falte)');
+                    await esperar(4000);
+                }
+            }
+            const url = resultado.url;
+            clearInterval(temporizador); if (seguimiento) seguimiento.stop = true;
             C.compilando = false; logHook = null;
             C.construido = null; C.destinoPreferido = null;
             p.ultimaCompilacion = { fecha: new Date().toISOString(), ok: true, url, vc: p.versionCode };
-            await guardarProyectos();
-            pantalla('resultado', `<div class="bloque"><h2>✅ APK listo</h2>
-                <p><small>${esc(nombre)} · versionCode ${esc(p.versionCode)}</small></p>
-                <p><a href="#" data-a="abrir" data-u="${esc(url)}">${esc(url)}</a></p>
-                <div class="botones">
-                    <button class="primario" data-a="abrir" data-u="${esc(url)}">⬇️ Descargar APK</button>
-                    <button data-a="copiar" data-u="${esc(url)}">📋 Copiar</button>
-                    <button data-a="compartir" data-u="${esc(url)}">📤 Compartir</button>
-                    <button data-a="registro-ultimo" data-n="${esc(nombre)}">🧾 Ver registro</button>
-                    <button data-a="inicio">↩️ Inicio</button>
-                    <button data-a="cerrar">✕ Cerrar app</button>
-                </div></div>`, nombre);
+            await guardarProyectos(); guardarUltimoLog(nombre, true);
+            mostrarResultadoOk(nombre, p, url);
+            return;
         } catch (e) {
             console.error(e);
-            clearInterval(temporizador);
+            clearInterval(temporizador); if (seguimiento) seguimiento.stop = true;
             C.compilando = false; logHook = null;
+            const msg = String(e && e.message ? e.message : e);
             const run = e && e.runFallido;
-            p.ultimaCompilacion = { fecha: new Date().toISOString(), ok: false, error: String(e && e.message ? e.message : e).slice(0, 200) };
-            await guardarProyectos();
-            if (run && run.id) { await mostrarInforme(cfg, run, { nombre, paquete: p.paquete, mensaje: String(e && e.message ? e.message : e), volver: 'compilacion' }); return; }
-            pantalla('error', '<div class="bloque"><p class="mal">❌ ' + esc(e && e.message ? e.message : e) + '</p>' +
-                (run && run.html_url ? '<p><a href="#" data-a="abrir" data-u="' + esc(run.html_url) + '">Ver el registro de la compilación en GitHub</a></p>' : '') +
-                botones(['recepcion', 'inicio']) + '</div>', nombre);
+            const ctx = { cfg, nombre, p, tInicio };
+            p.ultimaCompilacion = { fecha: new Date().toISOString(), ok: false, error: msg.slice(0, 200) };
+            await guardarProyectos(); guardarUltimoLog(nombre, false, msg);
+            if (run && run.id) { await mostrarInforme(cfg, run, { nombre, paquete: p.paquete, mensaje: msg, volver: 'compilacion' }); return; }
+            // Conexión perdida con la compilación ya lanzada en GitHub: se retoma la espera en vez de dar la compilación por fallida.
+            if (esErrorDeRed(e) && lanzado) { await reanudarEspera(ctx); return; }
+            pantallaErrorCompilacion(nombre, msg, esErrorDeRed(e));
         }
+    }
+
+    function guardarUltimoLog(nombre, ok, error) {
+        try { localStorage.setItem('compilaUltimoLog', JSON.stringify({ nombre, ok, fecha: new Date().toISOString(), error: error || '', texto: (C.logLineas || []).join('\n').slice(-60000) })); } catch (_) {}
+    }
+    function mostrarResultadoOk(nombre, p, url) {
+        pantalla('resultado', `<div class="bloque"><h2>✅ APK listo</h2>
+            <p><small>${esc(nombre)} · versionCode ${esc(p.versionCode)}</small></p>
+            <p><a href="#" data-a="abrir" data-u="${esc(url)}">${esc(url)}</a></p>
+            <div class="botones">
+                <button class="primario" data-a="abrir" data-u="${esc(url)}">⬇️ Descargar APK</button>
+                <button data-a="copiar" data-u="${esc(url)}">📋 Copiar</button>
+                <button data-a="compartir" data-u="${esc(url)}">📤 Compartir</button>
+                <button data-a="registro-ultimo" data-n="${esc(nombre)}">🧾 Ver registro</button>
+                <button data-a="inicio">↩️ Inicio</button>
+                <button data-a="cerrar">✕ Cerrar app</button>
+            </div></div>`, nombre);
+    }
+    // Pantalla de error cuando la compilación falla sin que GitHub llegue a ejecutarla (subida, conexión, permisos…).
+    function pantallaErrorCompilacion(nombre, msg, red) {
+        pantalla('error', '<div class="bloque"><p class="mal">❌ ' + esc(msg) + '</p>' +
+            (red ? '<p class="aviso"><small>Parece un problema de conexión (sin datos, cambio de red o la app estuvo en segundo plano). «Reintentar» solo vuelve a subir lo que falte; si GitHub ya había lanzado la compilación, se retoma.</small></p>' : '') +
+            '<div class="botones"><button class="primario" data-a="reintentar">🔄 Reintentar</button><button data-a="registro-compila">🧾 Ver informe</button></div>' +
+            botones(['recepcion', 'inicio']) + '</div>', nombre);
+    }
+    // Retoma la espera de una compilación ya lanzada (tras perder la conexión): busca su ejecución y espera a que termine.
+    async function reanudarEspera(ctx) {
+        C.reanudar = ctx; C.compilando = true;
+        pantalla('progreso', '<div class="bloque"><h2>📶 Reconectando con GitHub</h2><p id="reanuda" class="suave">Buscando la ejecución…</p><p class="suave"><small>La compilación sigue en GitHub aunque la conexión se cortara.</small></p></div>', ctx.nombre);
+        const { cfg, nombre, p, tInicio } = ctx;
+        const t0 = Date.now(); let run = null;
+        while (Date.now() - t0 < 25 * 60000) {
+            try {
+                if (!run) {
+                    const r = await contentsApiGitHub(cfg, 'actions/workflows/build-apk-nativo.yml/runs?per_page=5');
+                    if (r.ok) { const d = await r.json(); run = ((d.workflow_runs || []).filter(x => new Date(x.created_at).getTime() >= tInicio - 5000))[0] || null; }
+                } else if (run.status !== 'completed') {
+                    const r = await contentsApiGitHub(cfg, 'actions/runs/' + run.id);
+                    if (r.ok) run = await r.json();
+                }
+                if (run && run.status === 'completed') break;
+                if ($('reanuda')) $('reanuda').textContent = run ? 'GitHub sigue compilando… (' + (run.status === 'in_progress' ? 'en curso' : run.status) + ')' : 'Buscando la ejecución…';
+            } catch (_) { if ($('reanuda')) $('reanuda').textContent = 'Sin conexión… reintentando'; }
+            await esperar(6000);
+        }
+        C.compilando = false;
+        if (!run || run.status !== 'completed') {
+            pantalla('error', '<div class="bloque"><p class="mal">⚠️ No se pudo comprobar cómo terminó la compilación.</p><p class="suave"><small>Puede que siga en marcha o que la conexión no haya vuelto.</small></p><div class="botones"><button class="primario" data-a="reanudar">🔄 Verificar de nuevo</button><button data-a="registro-ultimo" data-n="' + esc(nombre) + '">🧾 Ver última ejecución</button></div>' + botones(['inicio']) + '</div>', nombre);
+            return;
+        }
+        if (run.conclusion === 'success') {
+            try {
+                const url = await buscarUltimoApkPublicado(cfg);
+                p.versionCode = (p.versionCode || 1) + 1;
+                p.ultimaCompilacion = { fecha: new Date().toISOString(), ok: true, url, vc: p.versionCode - 1 };
+                C.construido = null; C.destinoPreferido = null; C.reanudar = null;
+                await guardarProyectos(); guardarUltimoLog(nombre, true);
+                mostrarResultadoOk(nombre, p, url);
+            } catch (e) {
+                pantalla('error', '<div class="bloque"><p class="mal">⚠️ La compilación terminó bien pero no se pudo leer el APK: ' + esc(e && e.message ? e.message : e) + '</p><div class="botones"><button class="primario" data-a="reanudar">🔄 Verificar de nuevo</button></div>' + botones(['inicio']) + '</div>', nombre);
+            }
+        } else {
+            p.ultimaCompilacion = { fecha: new Date().toISOString(), ok: false, error: 'La compilación falló (' + run.conclusion + ')' };
+            await guardarProyectos();
+            await mostrarInforme(cfg, run, { nombre, paquete: p.paquete, mensaje: 'La compilación falló (' + run.conclusion + ').', volver: 'compilacion' });
+        }
+    }
+    // Informe con el registro propio de Compila del último intento (subida, errores de red, etc.).
+    function informeLogCompila() {
+        let L = null; try { L = JSON.parse(localStorage.getItem('compilaUltimoLog') || 'null'); } catch (_) {}
+        if (!L) { mostrarToast('ℹ️ Aún no hay ningún intento registrado'); return; }
+        const lineas = String(L.texto || '').split('\n');
+        const errores = L.error ? [{ tipo: 'compila', texto: L.error }] : [];
+        const avisos = lineas.filter(x => /⚠️|reintento|Sin conexión/.test(x)).map((x, i) => ({ tipo: 'compila', n: i + 1, texto: x }));
+        C.informe = { nombre: L.nombre, ok: !!L.ok, conclusion: L.ok ? 'success' : 'error', pasos: [], anotaciones: [], run: null, nota: 'Registro propio de Compila (' + fmtFecha(L.fecha) + '), no el de GitHub Actions.', analisis: { errores, avisos, lineas }, volver: 'inicio', vista: 'registro' };
+        renderInforme();
     }
 
     async function probarToken() {
@@ -3798,6 +4049,14 @@ kotlin.code.style=official
         const a = el.dataset.a, u = el.dataset.u || '', i = el.dataset.i;
         if (a === 'filtro') { guardarUI({ filtro: el.dataset.v }); document.querySelectorAll('.chips button').forEach(b => b.classList.toggle('sel', b.dataset.v === el.dataset.v)); pintarLista(); }
         else if (a === 'registro-ultimo') informeUltimaEjecucion(el.dataset.n);
+        else if (a === 'registro-compila') informeLogCompila();
+        else if (a === 'actions') abrirActions(el.dataset.n);
+        else if (a === 'actions-volver') renderActions();
+        else if (a === 'actions-filtro') { if (C.actions) { C.actions.filtro = el.dataset.v; renderActions(); } }
+        else if (a === 'actions-mas') { if (C.actions && !C.actions.fin) { el.disabled = true; el.textContent = '⏳ Cargando…'; try { await cargarMasRuns(); } catch (e) { mostrarToast('❌ ' + (e && e.message ? e.message : e)); } renderActions(); } }
+        else if (a === 'run-ver') { const A = C.actions; const r = A && A.runs[Number(el.dataset.i)]; if (r) mostrarInforme(A.cfg, r, { nombre: A.nombre, paquete: A.paquete, volver: 'actions' }); }
+        else if (a === 'reintentar') { if (C.construido && C.ultimaOrden) compilar({ sel: C.ultimaOrden.sel, repoElegido: C.ultimaOrden.repoElegido }); else renderInicio(); }
+        else if (a === 'reanudar') { if (C.reanudar) reanudarEspera(C.reanudar); else mostrarToast('ℹ️ Usa «Registro de la última compilación» en el proyecto'); }
         else if (a === 'inf-vista') { if (C.informe) { C.informe.vista = el.dataset.v; renderInforme(); } }
         else if (a === 'inf-copiar') { if (C.informe) { const tx = textoInforme(C.informe, C.informe.vista); const ok = await copiarTexto(tx.length > 400000 ? tx.slice(-400000) : tx); mostrarToast(ok ? '📋 Informe copiado' + (tx.length > 400000 ? ' (últimos 400 000 caracteres)' : '') : '⚠️ No se pudo copiar'); } }
         else if (a === 'inf-guardar') { if (C.informe) { const R = C.informe; guardarTextoComoArchivo('informe-' + (slugPublicar(R.nombre) || 'compilacion') + '-' + R.vista + '-' + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '') + '.txt', textoInforme(R, R.vista)); } }
