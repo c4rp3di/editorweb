@@ -59,6 +59,15 @@ details.col.sub { background:#15152a; margin:10px 0 0; }
 .rel { border:1px solid var(--borde); border-radius:8px; padding:8px; margin:8px 0; }
 .rel .botones { margin:6px 0 0; }
 .rel button { padding:6px 10px; font-size:.8rem; }
+.chips { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
+.chips button { padding:6px 12px; font-size:.82rem; border-radius:20px; border-width:1px; }
+.chips button.sel { background:var(--acento); border-color:#8a7af0; }
+.menu { position:relative; flex:1; }
+.menu > button { width:100%; text-align:left; display:flex; justify-content:space-between; gap:8px; }
+.menu-lista { position:absolute; left:0; right:0; top:calc(100% + 4px); background:#20203a; border:1px solid var(--borde); border-radius:12px; padding:4px; z-index:50; box-shadow:0 8px 24px rgba(0,0,0,.5); }
+.menu-lista[hidden] { display:none; }
+.menu-lista button { display:block; width:100%; text-align:left; border:0; border-radius:8px; padding:10px 12px; }
+.menu-lista button.sel { background:rgba(108,92,231,.35); }
 </style>
 </head>
 <body>
@@ -98,7 +107,6 @@ details.col.sub { background:#15152a; margin:10px 0 0; }
         if (logHook) logHook(mensaje);
     }
     function renderProyectos() {}
-    async function subirIconosProyectoAndroid() {}
 
     function cargarRegistro() {
         try { const o = JSON.parse(localStorage.getItem(COMPILA_PROY_KEY) || '{}'); proyectos = (o && typeof o === 'object') ? o : {}; } catch (_) { proyectos = {}; }
@@ -142,8 +150,76 @@ details.col.sub { background:#15152a; margin:10px 0 0; }
     const pedirEleccionHtml = (titulo, html, opciones) => modal({ titulo, html, botones: [{ t: 'Cancelar', v: null }].concat(opciones.map((t, i) => ({ t, v: i, primario: i === 0 }))) });
     const mostrarInformeAnalisis = (titulo, html) => modal({ titulo, html, botones: [{ t: 'Cerrar', v: true, primario: true }] });
 
-    // ===== Código copiado literalmente de Fusion-23-1.html (2026-11-02) por construir_compilar.js — NO editar a mano =====
-    // Funciones: escaparTextoAnalisis, crc32, base64ABytes, dataUrlABytes, esArchivoBinarioGuardadoComoDataUrl, crearZip, ZIP_IMP_LIMITE_ZIP_BYTES, ZIP_IMP_LIMITE_ENTRADA_BYTES, ZIP_IMP_LIMITE_TOTAL_BYTES, ZIP_IMP_LIMITE_ENTRADAS, ZIP_IMP_EXT_TEXTO, ZIP_IMP_EXT_BINARIO, ZIP_IMP_MIME, zipImpLeerDirectorio, zipImpInflarNativo, zipImpTablasFijas, zipImpInflarJS, zipImpInflar, zipImpExtraerEntrada, zipImpLimpiarRuta, zipImpEsBasura, zipImpExtension, zipImpEsTexto, zipImpDecodificarTexto, zipImpADataUrl, zipImpPrefijoRaizComun, zipImpDetectarTipo, zipImpLeerArchivo, zipImpConstruirAndroid, HIST_PUBLICACIONES_KEY, cargarHistorialPublicaciones, guardarHistorialPublicaciones, registrarPublicacion, GH_CONFIG_KEY, cargarConfigGitHub, guardarConfigGitHub, configGitHubCompleta, GH_REPOS_DEDICADOS_KEY, cargarReposDedicados, guardarReposDedicados, cfgGitHubDeProyecto, cabecerasApiGitHub, crearRepoDedicadoGitHub, copiarKeystoreARepoDedicado, borrarRepoDedicadoGitHub, slugPublicar, mensajeErrorPermisoGitHub, contentsApiGitHub, subirArchivoGitHubConReintento, sha1BytesJS, sha1BlobGit, subirArchivoTextoGitHub, subirArchivoBinarioGitHub, APK_NATIVO_CARPETA, proyectoNecesitaNdk, generarWorkflowApkNativo, plantillaSettingsGradle, plantillaBuildGradleRaiz, REGEX_WF_PERMITIDO, esRutaEspecialDeProyecto, rutaRepoDeArchivoEspecial, REGEX_RAIZ_EXTRA, REGEX_WF_EXTRA, plantillaGradleProperties, RUTAS_RAIZ_DEL_MODULO, PREFIJO_MODULO_EXTRA, mapearArchivoProyectoAndroid, asegurarWorkflowApkNativo, asegurarWorkflowGenerico, listarArchivosEnRepo, eliminarArchivoGitHub, limpiarHuerfanosProyectoAndroid, inyectarVersionEnBuildGradle, inyectarFirmaEnBuildGradle, inyectarCacheEnGradleProperties, subirArchivosProyectoAndroid, ESPERA_REINTENTO_DISPARO_MS, mensajeWorkflowSinDispatch, dispararWorkflow, dispararWorkflowApkNativo, esperarWorkflow, esperarBuildApkNativo, compilarProyectoAndroidDirecto, REGEX_PAQUETE_ANDROID, paqueteValido, sanearSegmentoPaquete, sugerirIdentidadAndroid, verificarPrerrequisitos, buscarUltimoApkPublicado, MODIFICADORES_KOTLIN, tokenizarKotlin, escrubarKotlin, calcularProfundidadesKotlin, encontrarCierreLlaveKotlin, numeroDeLineaKotlin, coincideEnKotlin, extraerModificadoresPreviosKotlin, extraerAnotacionesPreviasKotlin, extraerComentarioCabeceraKotlin, dividirPorComasNivelSuperiorKotlin, analizarUnParametroKotlin, dividirParametrosKotlin, analizarFirmaFuncionKotlin, analizarHerenciaKotlin, analizarTipoDetalladoKotlin, extraerFirmaFuncionKotlin, extraerNombreTrasPalabraKotlin, extraerNombreFuncionKotlin, valorInicialSimpleKotlin, tipoDeClaseKotlin, parsearBloqueKotlin, escaparRegexKotlin, detectarLateinitSinInicializarKotlin, detectarImportsNoUsadosKotlin, parsearKotlin, escrubarXMLComentarios, numeroDeLineaXML, extraerAtributosXML, buscarElementosXML, parsearManifest, extraerBloqueGradle, escrubarSoloComentariosGradle, parsearGradleSettings, parsearGradleBuild, CATALOGO_DEPENDENCIAS_ANDROID, PERMISOS_POR_API_ANDROID, GRADLE_MINIMO_POR_AGP, GRADLE_DEL_WORKFLOW_ANDROID, extraerVersionAgp, versionGradleParaProyecto, diagnosticoAndroidCompilacion
+    // window.IconoAndroid copiado literalmente de Fusion
+    window.IconoAndroid = (function () {
+        const DENSIDADES = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
+        const VARIANTES = [['ic_launcher', false], ['ic_launcher_round', true]];
+        const rutaRelativa = (dens, nombre) => 'app/src/main/res/mipmap-' + dens + '/' + nombre + '.png';
+        function rutasRelativas() {
+            const r = [];
+            Object.keys(DENSIDADES).forEach(dens => VARIANTES.forEach(v => r.push(rutaRelativa(dens, v[0]))));
+            return r;
+        }
+        function cargarImagen(src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error('No se pudo cargar la imagen'));
+                img.src = src;
+            });
+        }
+        function leerComoDataUrl(file) {
+            return new Promise((resolve, reject) => {
+                const lector = new FileReader();
+                lector.onload = () => resolve(lector.result);
+                lector.onerror = () => reject(new Error('No se pudo leer la imagen'));
+                lector.readAsDataURL(file);
+            });
+        }
+        // Recorta al centro (cuadrado) y reduce por mitades para que quede nítido con fotos grandes.
+        function dibujarCuadrado(img, lado, redondo) {
+            const ancho = img.naturalWidth || img.width, alto = img.naturalHeight || img.height;
+            let sl = Math.min(ancho, alto), sx = (ancho - sl) / 2, sy = (alto - sl) / 2, fuente = img;
+            while (sl > lado * 2) {
+                const nl = Math.max(Math.ceil(sl / 2), lado);
+                const c = document.createElement('canvas');
+                c.width = nl; c.height = nl;
+                const cx = c.getContext('2d');
+                cx.imageSmoothingQuality = 'high';
+                cx.drawImage(fuente, sx, sy, sl, sl, 0, 0, nl, nl);
+                fuente = c; sx = 0; sy = 0; sl = nl;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = lado; canvas.height = lado;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingQuality = 'high';
+            if (redondo) { ctx.beginPath(); ctx.arc(lado / 2, lado / 2, lado / 2, 0, Math.PI * 2); ctx.clip(); }
+            ctx.drawImage(fuente, sx, sy, sl, sl, 0, 0, lado, lado);
+            return canvas.toDataURL('image/png').split(',')[1];
+        }
+        async function desdeArchivo(file, lado) {
+            return dibujarCuadrado(await cargarImagen(await leerComoDataUrl(file)), lado || 192, false);
+        }
+        async function desdeBytes(bytes, lado) {
+            const url = URL.createObjectURL(new Blob([bytes]));
+            try { return dibujarCuadrado(await cargarImagen(url), lado || 192, false); }
+            finally { URL.revokeObjectURL(url); }
+        }
+        async function desdeBase64(b64, lado, redondo) {
+            return dibujarCuadrado(await cargarImagen('data:image/png;base64,' + b64), lado, !!redondo);
+        }
+        // Añade android:icon / roundIcon a <application> solo si el manifest aún no los declara.
+        function inyectarEnManifest(contenido) {
+            const c = String(contenido || '');
+            let extra = '';
+            if (!/android:icon\s*=/.test(c)) extra += '\n        android:icon="@mipmap/ic_launcher"';
+            if (!/android:roundIcon\s*=/.test(c)) extra += '\n        android:roundIcon="@mipmap/ic_launcher_round"';
+            return extra ? c.replace(/<application\b/, '<application' + extra) : c;
+        }
+        return { DENSIDADES, VARIANTES, rutaRelativa, rutasRelativas, desdeArchivo, desdeBytes, desdeBase64, inyectarEnManifest };
+    })();
+    // ===== Código copiado literalmente de Fusion-23-1.html (2026-11-03) por construir_compilar.js — NO editar a mano =====
+    // Funciones: escaparTextoAnalisis, crc32, base64ABytes, dataUrlABytes, esArchivoBinarioGuardadoComoDataUrl, crearZip, ZIP_IMP_LIMITE_ZIP_BYTES, ZIP_IMP_LIMITE_ENTRADA_BYTES, ZIP_IMP_LIMITE_TOTAL_BYTES, ZIP_IMP_LIMITE_ENTRADAS, ZIP_IMP_EXT_TEXTO, ZIP_IMP_EXT_BINARIO, ZIP_IMP_MIME, zipImpLeerDirectorio, zipImpInflarNativo, zipImpTablasFijas, zipImpInflarJS, zipImpInflar, zipImpExtraerEntrada, zipImpLimpiarRuta, zipImpEsBasura, zipImpExtension, zipImpEsTexto, zipImpDecodificarTexto, zipImpADataUrl, zipImpPrefijoRaizComun, zipImpDetectarTipo, zipImpLeerArchivo, zipImpConstruirAndroid, HIST_PUBLICACIONES_KEY, cargarHistorialPublicaciones, guardarHistorialPublicaciones, registrarPublicacion, GH_CONFIG_KEY, cargarConfigGitHub, guardarConfigGitHub, configGitHubCompleta, GH_REPOS_DEDICADOS_KEY, cargarReposDedicados, guardarReposDedicados, cfgGitHubDeProyecto, cabecerasApiGitHub, crearRepoDedicadoGitHub, copiarKeystoreARepoDedicado, borrarRepoDedicadoGitHub, slugPublicar, mensajeErrorPermisoGitHub, contentsApiGitHub, subirArchivoGitHubConReintento, sha1BytesJS, sha1BlobGit, subirArchivoTextoGitHub, subirArchivoBinarioGitHub, APK_NATIVO_CARPETA, proyectoNecesitaNdk, generarWorkflowApkNativo, plantillaSettingsGradle, plantillaBuildGradleRaiz, REGEX_WF_PERMITIDO, esRutaEspecialDeProyecto, rutaRepoDeArchivoEspecial, REGEX_RAIZ_EXTRA, REGEX_WF_EXTRA, plantillaGradleProperties, RUTAS_RAIZ_DEL_MODULO, PREFIJO_MODULO_EXTRA, mapearArchivoProyectoAndroid, asegurarWorkflowApkNativo, asegurarWorkflowGenerico, listarArchivosEnRepo, eliminarArchivoGitHub, limpiarHuerfanosProyectoAndroid, subirIconosProyectoAndroid, inyectarVersionEnBuildGradle, inyectarFirmaEnBuildGradle, inyectarCacheEnGradleProperties, subirArchivosProyectoAndroid, ESPERA_REINTENTO_DISPARO_MS, mensajeWorkflowSinDispatch, dispararWorkflow, dispararWorkflowApkNativo, esperarWorkflow, esperarBuildApkNativo, compilarProyectoAndroidDirecto, REGEX_PAQUETE_ANDROID, paqueteValido, sanearSegmentoPaquete, sugerirIdentidadAndroid, verificarPrerrequisitos, buscarUltimoApkPublicado, MODIFICADORES_KOTLIN, tokenizarKotlin, escrubarKotlin, calcularProfundidadesKotlin, encontrarCierreLlaveKotlin, numeroDeLineaKotlin, coincideEnKotlin, extraerModificadoresPreviosKotlin, extraerAnotacionesPreviasKotlin, extraerComentarioCabeceraKotlin, dividirPorComasNivelSuperiorKotlin, analizarUnParametroKotlin, dividirParametrosKotlin, analizarFirmaFuncionKotlin, analizarHerenciaKotlin, analizarTipoDetalladoKotlin, extraerFirmaFuncionKotlin, extraerNombreTrasPalabraKotlin, extraerNombreFuncionKotlin, valorInicialSimpleKotlin, tipoDeClaseKotlin, parsearBloqueKotlin, escaparRegexKotlin, detectarLateinitSinInicializarKotlin, detectarImportsNoUsadosKotlin, parsearKotlin, escrubarXMLComentarios, numeroDeLineaXML, extraerAtributosXML, buscarElementosXML, parsearManifest, extraerBloqueGradle, escrubarSoloComentariosGradle, parsearGradleSettings, parsearGradleBuild, CATALOGO_DEPENDENCIAS_ANDROID, PERMISOS_POR_API_ANDROID, GRADLE_MINIMO_POR_AGP, GRADLE_DEL_WORKFLOW_ANDROID, extraerVersionAgp, versionGradleParaProyecto, diagnosticoAndroidCompilacion
     function escaparTextoAnalisis(valor) {
         return String(valor ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
@@ -1358,6 +1434,29 @@ kotlin.code.style=official
         const restantes = existentes.filter(e => !borrados.has(e.path));
         restantes.truncado = existentes.truncado;
         return restantes;
+    }
+
+    async function subirIconosProyectoAndroid(cfg, proyecto, existentes) {
+        const U = window.IconoAndroid;
+        if (!proyecto.icono || !U) return 0;
+        const shas = new Map((existentes || []).map(e => [e.path, e.sha]));
+        let subidos = 0;
+        for (const dens of Object.keys(U.DENSIDADES)) {
+            for (const [nombre, redondo] of U.VARIANTES) {
+                const b64 = await U.desdeBase64(proyecto.icono, U.DENSIDADES[dens], redondo);
+                const rutaRepo = APK_NATIVO_CARPETA + '/' + U.rutaRelativa(dens, nombre);
+                const shaRemoto = shas.get(rutaRepo);
+                if (shaRemoto) {
+                    try {
+                        const bytes = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+                        if ((await sha1BlobGit(bytes)) === shaRemoto) continue; // sin cambios
+                    } catch (_) {}
+                }
+                await subirArchivoBinarioGitHub(cfg, rutaRepo, b64, 'Icono ' + dens + ': ' + nombre);
+                subidos++;
+            }
+        }
+        return subidos;
     }
 
     function inyectarVersionEnBuildGradle(contenido, versionCode, versionName) {
@@ -2995,9 +3094,9 @@ kotlin.code.style=official
     //  Lógica propia de Compilar
     // =====================================================================================
     const P = () => (window.AndroidCompila && typeof window.AndroidCompila.hayZip === 'function') ? window.AndroidCompila : null;
-    const C = { construido: null, lectura: null, nombreZip: '', compilando: false, pantalla: 'inicio', abiertos: new Set(), destinoPreferido: null };
+    const C = { informe: null, construido: null, lectura: null, nombreZip: '', compilando: false, pantalla: 'inicio', abiertos: new Set(), destinoPreferido: null };
     const UI_KEY = 'compilaUI';
-    function ui() { const d = { orden: 'nombre', inv: false, ajustes: [] }; try { return Object.assign(d, JSON.parse(localStorage.getItem(UI_KEY) || '{}')); } catch (_) { return d; } }
+    function ui() { const d = { orden: 'nombre', inv: false, ajustes: [], filtro: 'todos', secProys: false }; try { return Object.assign(d, JSON.parse(localStorage.getItem(UI_KEY) || '{}')); } catch (_) { return d; } }
     function guardarUI(o) { try { localStorage.setItem(UI_KEY, JSON.stringify(Object.assign(ui(), o))); } catch (_) {} }
     const fmtFecha = iso => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? String(iso) : d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); };
     const fmtTam = b => { b = Number(b) || 0; return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; };
@@ -3021,7 +3120,7 @@ kotlin.code.style=official
     // Orden y búsqueda de la lista de proyectos. Con texto de búsqueda: solo coincidencias, las mejores primero.
     function listaOrdenada(q) {
         const u = ui();
-        let n = Object.keys(proyectos);
+        let n = Object.keys(proyectos).filter(x => u.filtro === 'dedicados' ? !!(proyectos[x].repoDedicado && proyectos[x].repoDedicado.repo) : u.filtro === 'compartidos' ? !(proyectos[x].repoDedicado && proyectos[x].repoDedicado.repo) : true);
         q = (q || '').trim().toLowerCase();
         if (q) {
             const sc = x => { const p = proyectos[x], nm = x.toLowerCase(); if (nm.startsWith(q)) return 0; if (nm.includes(q)) return 1; if ((p.paquete || '').toLowerCase().includes(q)) return 2; if ((p.nombreApp || '').toLowerCase().includes(q)) return 3; return 9; };
@@ -3043,9 +3142,10 @@ kotlin.code.style=official
         const rd = p.repoDedicado && p.repoDedicado.repo;
         const est = uc ? (uc.ok ? '✅ ' : '❌ ') + fmtFecha(uc.fecha) : 'sin compilar';
         return '<details class="col" data-proy="' + esc(n) + '"' + (C.abiertos.has(n) ? ' open' : '') + '><summary><span class="t">' + (rd ? '🟢' : '⚪') + ' <b>' + esc(n) + '</b></span><small>v' + esc(p.versionCode || 1) + ' · ' + est + '</small></summary><div class="cuerpo">' +
+            (p.icono ? '<img alt="" src="data:image/png;base64,' + p.icono + '" style="width:44px;height:44px;border-radius:10px;float:right;margin:0 0 6px 8px;">' : '') +
             '<p><small>' + esc(p.paquete || '') + ' · ' + (rd ? '📦 ' + esc(p.repoDedicado.owner + '/' + p.repoDedicado.repo) : 'repo compartido') + '</small></p>' +
             (uc && !uc.ok ? '<p class="mal"><small>Último intento fallido: ' + esc(uc.error || '') + '</small></p>' : '') +
-            '<div class="botones"><button class="primario" data-a="apk-ultimo" data-n="' + esc(n) + '">⬇️ Último APK</button><button data-a="compilar-proy" data-n="' + esc(n) + '">🔀 Compilar un ZIP</button></div>' +
+            '<div class="botones"><button class="primario" data-a="apk-ultimo" data-n="' + esc(n) + '">⬇️ Último APK</button><button data-a="compilar-proy" data-n="' + esc(n) + '">🔀 Compilar un ZIP</button><button data-a="icono-proy" data-n="' + esc(n) + '">🖼 ' + (p.icono ? 'Cambiar icono' : 'Poner icono') + '</button><button data-a="registro-ultimo" data-n="' + esc(n) + '">🧾 Registro de la última compilación</button></div>' +
             '<div class="botones">' + (rd ? '<button data-a="abrir-repo" data-n="' + esc(n) + '">🗗 Repo</button><button data-a="exportar-fusion" data-n="' + esc(n) + '">📤 ZIP para Fusion</button>' : '') + '<button data-a="olvidar" data-n="' + esc(n) + '">Olvidar</button>' + (rd ? '<button class="peligro" data-a="borrar-repo" data-n="' + esc(n) + '">🗑 Borrar repo</button>' : '') + '</div>' +
             (rd ? '<details class="col sub" data-rel="' + esc(n) + '"><summary>📦 Releases en GitHub</summary><div class="cuerpo relcont"></div></details>' : '') +
             '</div></details>';
@@ -3057,12 +3157,13 @@ kotlin.code.style=official
         cont.innerHTML = l.length ? l.map(htmlProyecto).join('') : '<p class="suave">' + (Object.keys(proyectos).length ? 'Ningún proyecto coincide con la búsqueda.' : 'Aún no hay proyectos. Se crean al compilar un ZIP.') + '</p>';
     }
 
+    const ORDENES = { nombre: 'Orden: nombre', compilacion: 'Orden: última compilación', creacion: 'Orden: fecha de creación', version: 'Orden: versionCode' };
     function renderInicio() {
         C.destinoPreferido = null;
         const n = Object.keys(proyectos).length;
         const cfg = cargarConfigGitHub();
         const u = ui();
-        const opt = (v, t) => '<option value="' + v + '"' + (u.orden === v ? ' selected' : '') + '>' + t + '</option>';
+        const nDed = Object.keys(proyectos).filter(x => proyectos[x].repoDedicado && proyectos[x].repoDedicado.repo).length;
         pantalla('inicio', `
             <div class="bloque">
                 <h2>Abre un .zip de proyecto Android</h2>
@@ -3070,16 +3171,101 @@ kotlin.code.style=official
                 ${configGitHubCompleta(cfg) ? '<p class="ok"><small>✅ GitHub configurado (' + esc(cfg.owner) + ')</small></p>' : '<p class="aviso">⚠️ Falta configurar GitHub (usuario, repositorio y token) en ⚙️ Ajustes.</p>'}
                 ${botones(['elegir'])}
             </div>
-            <div class="bloque">
-                <h2>Proyectos <span class="chip">${n}</span></h2>
-                ${n ? '<input type="text" id="buscaProy" placeholder="🔍 Buscar por nombre o paquete" autocomplete="off" autocapitalize="off"><div class="barra-orden"><select id="ordenProy">' + opt('nombre', 'Orden: nombre') + opt('compilacion', 'Orden: última compilación') + opt('creacion', 'Orden: fecha de creación') + opt('version', 'Orden: versionCode') + '</select><button id="ordenInv" title="Invertir orden">' + (u.inv ? '⬆️' : '⬇️') + '</button></div>' : ''}
-                <div id="listaProy"></div>
-            </div>
+            <details class="col" data-sec="proys"${u.secProys ? ' open' : ''}>
+                <summary><span class="t">📱 <b>Proyectos</b> <span class="chip">${n}</span></span><small>🟢 ${nDed} con repo dedicado · ⚪ ${n - nDed} con repo compartido</small></summary>
+                <div class="cuerpo">
+                    <div class="botones" style="margin-top:2px;"><button data-a="buscar-gh">🔎 Buscar proyectos en GitHub</button></div>
+                    ${n ? '<input type="text" id="buscaProy" placeholder="🔍 Buscar por nombre o paquete" autocomplete="off" autocapitalize="off">' +
+                        '<div class="chips">' + [['todos', 'Todos (' + n + ')'], ['dedicados', '🟢 Dedicados (' + nDed + ')'], ['compartidos', '⚪ Compartidos (' + (n - nDed) + ')']].map(f => '<button data-a="filtro" data-v="' + f[0] + '"' + (u.filtro === f[0] ? ' class="sel"' : '') + '>' + f[1] + '</button>').join('') + '</div>' +
+                        '<div class="barra-orden"><div class="menu"><button id="ordenBtn" data-a="orden-menu"><span>' + esc(ORDENES[u.orden] || ORDENES.nombre) + '</span><span>▾</span></button><div class="menu-lista" id="ordenMenu" hidden>' + Object.keys(ORDENES).map(k => '<button data-a="orden-op" data-v="' + k + '"' + (u.orden === k ? ' class="sel"' : '') + '>' + esc(ORDENES[k]) + '</button>').join('') + '</div></div><button id="ordenInv" data-a="orden-inv" title="Invertir orden">' + (u.inv ? '⬆️' : '⬇️') + '</button></div>' : ''}
+                    <div id="listaProy"></div>
+                </div>
+            </details>
             <details class="col" data-rel="__compartido__"><summary>📦 Releases del repositorio compartido</summary><div class="cuerpo relcont"></div></details>`, '');
         pintarLista();
         if ($('buscaProy')) $('buscaProy').addEventListener('input', pintarLista);
-        if ($('ordenProy')) $('ordenProy').addEventListener('change', e => { guardarUI({ orden: e.target.value }); pintarLista(); });
-        if ($('ordenInv')) $('ordenInv').addEventListener('click', e => { const inv = !ui().inv; guardarUI({ inv }); e.currentTarget.textContent = inv ? '⬆️' : '⬇️'; pintarLista(); });
+    }
+
+    // Recupera fichas desde GitHub: repos «fusion-*» con proyecto-android. Vincula el repo a la ficha existente de mismo nombre
+    // (aunque se hubiera perdido) o crea la ficha. No depende del JSON de Fusion.
+    async function buscarProyectosEnGitHub() {
+        const cfg0 = cargarConfigGitHub();
+        if (!configGitHubCompleta(cfg0)) { mostrarToast('⚠️ Configura GitHub primero'); renderAjustes(); return; }
+        mostrarToast('🔎 Buscando repositorios fusion-*…');
+        try {
+            const repos = [];
+            for (let pag = 1; pag <= 5; pag++) {
+                const res = await fetch('https://api.github.com/user/repos?per_page=100&affiliation=owner&sort=updated&page=' + pag, { headers: cabecerasApiGitHub(cfg0) });
+                const d = await res.json().catch(() => null);
+                if (!res.ok) throw new Error((d && d.message) || ('HTTP ' + res.status));
+                if (!Array.isArray(d) || !d.length) break;
+                d.forEach(r => { if (/^fusion-/.test(r.name)) repos.push(r); });
+                if (d.length < 100) break;
+            }
+            if (!repos.length) { mostrarToast('ℹ️ No hay repositorios fusion-* en tu cuenta'); return; }
+            const hallados = [];
+            let sig = 0;
+            const trabajador = async () => {
+                while (sig < repos.length) {
+                    const r = repos[sig++];
+                    const cfgR = { owner: (r.owner && r.owner.login) || cfg0.owner, repo: r.name, branch: r.default_branch || 'main', token: cfg0.token };
+                    try {
+                        const rg = await contentsApiGitHub(cfgR, 'contents/' + APK_NATIVO_CARPETA + '/app/build.gradle?ref=' + encodeURIComponent(cfgR.branch));
+                        if (!rg.ok) continue; // sin proyecto-android: no es un proyecto de Fusion/Compila
+                        const dg = await rg.json().catch(() => null);
+                        if (!dg || !dg.content) continue;
+                        const g = zipImpDecodificarTexto(base64ABytes(String(dg.content).replace(/\s/g, '')));
+                        const vc = /versionCode\s*=?\s*(\d+)/.exec(g);
+                        const pq = /applicationId\s*=?\s*['"]([\w.]+)['"]/.exec(g) || /namespace\s*=?\s*['"]([\w.]+)['"]/.exec(g);
+                        hallados.push({ cfg: cfgR, vc: vc ? Number(vc[1]) : 1, paquete: pq ? pq[1] : '' });
+                    } catch (_) {}
+                }
+            };
+            await Promise.all([trabajador(), trabajador(), trabajador(), trabajador()]);
+            let nuevos = 0, vinculados = 0, actualizados = 0;
+            const lineas = [];
+            hallados.sort((x, y) => x.cfg.repo.localeCompare(y.cfg.repo)).forEach(h => {
+                const rd = { owner: h.cfg.owner, repo: h.cfg.repo, branch: h.cfg.branch };
+                let nombre = Object.keys(proyectos).find(n => proyectos[n].repoDedicado && proyectos[n].repoDedicado.repo === h.cfg.repo);
+                if (nombre) {
+                    const p = proyectos[nombre];
+                    if (h.vc > (Number(p.versionCode) || 1)) { p.versionCode = h.vc; actualizados++; lineas.push('♻️ ' + nombre + ': versionCode ' + h.vc); }
+                    return;
+                }
+                nombre = Object.keys(proyectos).find(n => 'fusion-' + (slugPublicar(n) || 'proyecto') === h.cfg.repo);
+                if (nombre) {
+                    const p = proyectos[nombre];
+                    p.repoDedicado = rd; if (h.vc > (Number(p.versionCode) || 1)) p.versionCode = h.vc;
+                    vinculados++; lineas.push('🔗 ' + nombre + ' → ' + h.cfg.repo);
+                    return;
+                }
+                nombre = h.cfg.repo.replace(/^fusion-/, '');
+                let base = nombre, k = 2; while (proyectos[nombre]) nombre = base + ' ' + k++;
+                proyectos[nombre] = { tipo: 'android', paquete: h.paquete, nombreApp: nombre, versionCode: h.vc, ultimaVersion: 'v' + h.vc + '.0', fecha: new Date().toISOString().slice(0, 10), creado: new Date().toISOString(), repoDedicado: rd };
+                nuevos++; lineas.push('➕ ' + nombre + ' (' + (h.paquete || 'sin paquete') + ')');
+            });
+            await guardarProyectos();
+            renderInicio();
+            const det = document.querySelector('details[data-sec="proys"]'); if (det) det.open = true;
+            mostrarInformeAnalisis('🔎 Búsqueda en GitHub', '<p>' + hallados.length + ' repositorio(s) con proyecto Android: ' + nuevos + ' nuevo(s), ' + vinculados + ' vinculado(s) a fichas existentes, ' + actualizados + ' con versión actualizada.</p>' + (lineas.length ? '<ul>' + lineas.map(l => '<li>' + esc(l) + '</li>').join('') + '</ul>' : '<p class="suave">Todo estaba al día.</p>'));
+        } catch (e) { mostrarToast('❌ ' + (e && e.message ? e.message : e)); }
+    }
+
+    // En la pantalla de recepción: si el proyecto elegido no tiene repo dedicado anotado pero existe fusion-<nombre>, se avisa.
+    async function comprobarRepoExistente(nombre) {
+        const p = proyectos[nombre];
+        const marca = document.querySelector('[data-repoinfo]');
+        if (!p || !marca || p.repoDedicado) return;
+        const cfg0 = cargarConfigGitHub(); if (!configGitHubCompleta(cfg0)) return;
+        const repo = 'fusion-' + (slugPublicar(nombre) || 'proyecto');
+        try {
+            const cfgC = Object.assign({}, cfg0, { repo });
+            const r = await contentsApiGitHub(cfgC, 'contents/' + APK_NATIVO_CARPETA + '/app/build.gradle?ref=' + encodeURIComponent(cfg0.branch || 'main'));
+            let vc = ''; 
+            if (r.ok) { const d = await r.json().catch(() => null); const m = d && d.content ? /versionCode\s*=?\s*(\d+)/.exec(zipImpDecodificarTexto(base64ABytes(String(d.content).replace(/\s/g, '')))) : null; if (m) vc = ' · versionCode en el repo: ' + m[1]; }
+            else { const r2 = await contentsApiGitHub(cfgC, 'contents/' + APK_NATIVO_CARPETA); if (!r2.ok) return; }
+            if (document.querySelector('[data-repoinfo]') === marca) marca.textContent = '📦 existe ' + repo + ': se reutilizará (con su firma)' + vc;
+        } catch (_) {}
     }
 
     // ---------- Releases de GitHub (misma llamada que Fusion: releases?per_page=30) ----------
@@ -3160,13 +3346,13 @@ kotlin.code.style=official
         const pr = prefs();
         const fila = (n, marcado) => {
             const p = proyectos[n];
-            return '<label class="fila"><input type="radio" name="dest" value="' + esc(n) + '"' + (marcado ? ' checked' : '') + '><span><b>' + esc(n) + '</b><br><small>' + esc(p.paquete || '') + ' · v' + esc(p.versionCode || 1) + (p.repoDedicado ? ' · 📦 ' + esc(p.repoDedicado.repo) : ' · repo compartido') + '</small></span></label>';
+            return '<label class="fila"><input type="radio" name="dest" value="' + esc(n) + '"' + (marcado ? ' checked' : '') + '><span><b>' + esc(n) + '</b><br><small>' + esc(p.paquete || '') + ' · v' + esc(p.versionCode || 1) + (p.repoDedicado ? ' · 📦 ' + esc(p.repoDedicado.repo) : ' · <span data-repoinfo="' + esc(n) + '">repo compartido</span>') + '</small></span></label>';
         };
         // Aviso de versionCode: Compila no baja nunca del versionCode del proyecto (Android no deja instalar una versión menor encima).
         let avisoVc = '';
         if (coincide) {
             const vp = Number(proyectos[coincide].versionCode) || 1;
-            if ((Number(c.versionCode) || 1) < vp) avisoVc = '<p class="aviso"><small>⚠️ El ZIP trae versionCode ' + esc(c.versionCode) + ' y «' + esc(coincide) + '» ya va por ' + vp + '. Compila usará ' + vp + ' o más, para que Android permita actualizar la app instalada.</small></p>';
+            if ((Number(c.versionCode) || 1) < vp) avisoVc = '<p class="aviso"><small>⚠️ El ZIP trae versionCode ' + esc(c.versionCode) + ' y «' + esc(coincide) + '» ya va por ' + vp + '. Compila lo subirá (mínimo ' + vp + ', y por encima del versionCode del repo si es mayor) para que Android permita actualizar la app instalada.</small></p>';
         }
         const avisoPref = (C.destinoPreferido && !coincide) ? '<p class="aviso"><small>⚠️ El ZIP tiene otro paquete («' + esc(c.paquete) + '») que «' + esc(C.destinoPreferido) + '». No se puede mezclar con ese proyecto.</small></p>' : '';
         const repoTxt = v => v === 'dedicado' ? 'dedicado' : 'compartido';
@@ -3202,6 +3388,7 @@ kotlin.code.style=official
                 <button data-a="inicio">↩️ Cancelar</button>
             </div>`);
         document.querySelectorAll('input[name="dest"]').forEach(r => r.addEventListener('change', () => { const nuevo = document.querySelector('input[name="dest"]:checked'); $('nuevoNombre').style.display = nuevo && nuevo.value === '__nuevo__' ? 'block' : 'none'; }));
+        if (coincide) comprobarRepoExistente(coincide);
         document.querySelectorAll('input[name="repo"]').forEach(r => r.addEventListener('change', () => { const rr = document.querySelector('input[name="repo"]:checked'); $('repoResumen').textContent = repoTxt(rr ? rr.value : 'dedicado'); }));
     }
 
@@ -3233,6 +3420,200 @@ kotlin.code.style=official
                 <p class="suave"><small>Para actualizar Compilar sin recompilar el APK, elige un compilar.html nuevo. «Restaurar» vuelve al incluido.</small></p>
                 <div class="botones"><button data-a="elegir-html">📂 Actualizar desde un archivo</button><button data-a="restaurar-html">↩️ Restaurar el incluido</button></div>`) +
             '<div class="botones"><button data-a="inicio">↩️ Volver</button></div>', 'Ajustes');
+    }
+
+    // ---------- Informe de la compilación (errores, avisos y registro; copiar y guardar) ----------
+    const RE_ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
+    const limpiarLineaLog = l => l.replace(RE_ANSI, '').replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z ?/, '');
+    const rutaCorta = r => String(r || '').replace(/^.*\/proyecto-android\//, '').replace(/^file:\/\//, '');
+    // Clasifica las líneas del registro de GitHub Actions / Gradle / Kotlin / AAPT en errores y avisos.
+    function analizarLog(texto) {
+        const lineas = String(texto || '').split(/\r?\n/).map(limpiarLineaLog);
+        const errores = [], avisos = [], vistos = new Set();
+        const add = (arr, o) => { const k = (arr === errores ? 'e|' : 'w|') + o.texto + '|' + (o.ruta || '') + (o.linea || ''); if (vistos.has(k)) return; vistos.add(k); arr.push(o); };
+        for (let i = 0; i < lineas.length; i++) {
+            const l = lineas[i]; if (!l.trim()) continue;
+            let m;
+            if (/^\* What went wrong:/.test(l)) {
+                const bl = [];
+                for (let j = i + 1; j < lineas.length && !/^\* Try:|^\* Get more help|^BUILD FAILED/.test(lineas[j]) && bl.length < 15; j++) if (lineas[j].trim()) bl.push(lineas[j].trim());
+                add(errores, { n: i + 1, tipo: 'gradle', texto: bl.join('\n') });
+                continue;
+            }
+            if ((m = /^([ew]): (?:file:\/\/)?(\S+?):(\d+):(\d+)\s*:?\s*(.*)$/.exec(l))) {
+                add(m[1] === 'e' ? errores : avisos, { n: i + 1, tipo: 'kotlin', ruta: rutaCorta(m[2]), linea: Number(m[3]), texto: m[5] || l });
+                continue;
+            }
+            if (/^e: /.test(l)) { add(errores, { n: i + 1, tipo: 'kotlin', texto: l.slice(3) }); continue; }
+            if (/^w: /.test(l)) { add(avisos, { n: i + 1, tipo: 'kotlin', texto: l.slice(3) }); continue; }
+            if (/##\[error\]/.test(l)) { add(errores, { n: i + 1, tipo: 'actions', texto: l.replace(/^.*##\[error\]/, '') }); continue; }
+            if (/##\[warning\]/.test(l)) { add(avisos, { n: i + 1, tipo: 'actions', texto: l.replace(/^.*##\[warning\]/, '') }); continue; }
+            if (/AAPT: error|error: (resource|attribute|style|failed linking)|Manifest merger failed|Execution failed for task|Could not (resolve|find|download|get)|Unresolved reference|Duplicate class|OutOfMemoryError|Task .* not found|Plugin .* was not found|No matching (variant|client)/.test(l)) { add(errores, { n: i + 1, tipo: 'build', texto: l.trim() }); continue; }
+            if (/warning:|WARNING:|Deprecated Gradle features|is deprecated|will be removed/.test(l)) { add(avisos, { n: i + 1, tipo: 'build', texto: l.trim() }); continue; }
+        }
+        // Limpieza: lo ya contenido en un bloque «What went wrong» no se repite, y «Process completed» solo vale si no hay nada más.
+        const bloques = errores.filter(e => e.tipo === 'gradle').map(e => e.texto);
+        let util = errores.filter(e => !(e.tipo === 'build' && bloques.some(b => b.includes(e.texto))));
+        if (util.some(e => !(e.tipo === 'actions' && /^Process completed/.test(e.texto)))) util = util.filter(e => !(e.tipo === 'actions' && /^Process completed/.test(e.texto)));
+        return { errores: util, avisos, lineas };
+    }
+    function lineaInforme(e) {
+        const ub = e.ruta ? e.ruta + (e.linea ? ':' + e.linea : '') + ' — ' : '';
+        return '[' + e.tipo + '] ' + ub + e.texto + (e.n ? '  (línea ' + e.n + ' del registro)' : '');
+    }
+    // Texto del informe según la vista elegida. Es el mismo que se ve, se copia y se guarda.
+    function textoInforme(R, vista) {
+        const A = R.analisis;
+        const cab = ['INFORME DE COMPILACIÓN', 'Proyecto: ' + (R.nombre || '—') + (R.paquete ? ' (' + R.paquete + ')' : ''), 'Resultado: ' + (R.ok ? 'correcto' : 'FALLÓ' + (R.conclusion ? ' (' + R.conclusion + ')' : '')) + (R.pasoFallido ? ' · paso: ' + R.pasoFallido : ''),
+            'Ejecución: ' + (R.run && (R.run.html_url || R.run.id) || '—') + (R.run && R.run.created_at ? ' · ' + R.run.created_at : ''), 'Errores: ' + A.errores.length + ' · Avisos: ' + A.avisos.length, ''];
+        if (R.nota) cab.push('Nota: ' + R.nota, '');
+        const pasos = R.pasos.length ? ['PASOS', ...R.pasos.map(s => ' ' + (s.conclusion === 'success' ? '✔' : s.conclusion === 'failure' ? '✘' : s.conclusion === 'skipped' ? '–' : '·') + ' ' + s.name + (s.conclusion && s.conclusion !== 'success' ? ' [' + s.conclusion + ']' : '')), ''] : [];
+        const bloque = (tit, arr) => arr.length ? [tit + ' (' + arr.length + ')', ...arr.map((e, i) => (i + 1) + '. ' + lineaInforme(e)), ''] : [tit + ': ninguno', ''];
+        if (vista === 'errores') return cab.concat(bloque('ERRORES', A.errores)).join('\n');
+        if (vista === 'avisos') return cab.concat(bloque('AVISOS', A.avisos)).join('\n');
+        if (vista === 'registro') {
+            const cola = A.lineas.slice(-400);
+            return cab.concat(pasos, [A.lineas.length > 400 ? 'REGISTRO (últimas 400 de ' + A.lineas.length + ' líneas)' : 'REGISTRO', ''], cola).join('\n');
+        }
+        return cab.concat(pasos, bloque('ERRORES', A.errores), bloque('AVISOS', A.avisos)).join('\n');
+    }
+
+    // Descarga del registro de una ejecución (jobs, pasos, anotaciones y texto del job).
+    async function cargarInforme(cfg, run, meta) {
+        const R = Object.assign({ run, pasos: [], anotaciones: [], log: '', nota: '', ok: run.conclusion === 'success', conclusion: run.conclusion, pasoFallido: '' }, meta);
+        let job = null;
+        try {
+            const rj = await contentsApiGitHub(cfg, 'actions/runs/' + run.id + '/jobs');
+            if (rj.ok) { const dj = await rj.json(); const jobs = dj.jobs || []; job = jobs.find(j => j.conclusion === 'failure') || jobs[jobs.length - 1] || null; }
+        } catch (_) {}
+        if (job) {
+            R.pasos = (job.steps || []).map(s => ({ name: s.name, conclusion: s.conclusion }));
+            const pf = R.pasos.find(s => s.conclusion === 'failure'); R.pasoFallido = pf ? pf.name : '';
+            try { const ra = await contentsApiGitHub(cfg, 'check-runs/' + job.id + '/annotations'); if (ra.ok) R.anotaciones = await ra.json(); } catch (_) {}
+            try { const rl = await contentsApiGitHub(cfg, 'actions/jobs/' + job.id + '/logs'); if (rl.ok) R.log = (await rl.text()).slice(-1500000); else R.nota = 'GitHub no dejó leer el registro completo (HTTP ' + rl.status + '); se usan los pasos y las anotaciones.'; }
+            catch (_) { R.nota = 'El navegador bloqueó la descarga del registro completo; se usan los pasos y las anotaciones. Ábrelo en GitHub para verlo entero.'; }
+        } else R.nota = 'No se pudieron leer los trabajos de la ejecución.';
+        R.analisis = analizarLog(R.log);
+        if (!R.analisis.errores.length && Array.isArray(R.anotaciones)) {
+            R.anotaciones.filter(a => /failure|error/i.test(a.annotation_level || '') && !/^Process completed/i.test(a.message || '')).slice(0, 30).forEach(a => R.analisis.errores.push({ tipo: 'anotación', ruta: a.path && !String(a.path).startsWith('.github') ? rutaCorta(a.path) : '', linea: a.start_line || 0, texto: String(a.message || a.title || '').split('\n')[0].slice(0, 400) }));
+        }
+        if (!R.analisis.avisos.length && Array.isArray(R.anotaciones)) {
+            R.anotaciones.filter(a => /warning/i.test(a.annotation_level || '')).slice(0, 30).forEach(a => R.analisis.avisos.push({ tipo: 'anotación', ruta: a.path && !String(a.path).startsWith('.github') ? rutaCorta(a.path) : '', linea: a.start_line || 0, texto: String(a.message || a.title || '').split('\n')[0].slice(0, 400) }));
+        }
+        return R;
+    }
+    function renderInforme() {
+        const R = C.informe; if (!R) { renderInicio(); return; }
+        const A = R.analisis;
+        const vista = R.vista || (A.errores.length ? 'errores' : 'todo');
+        R.vista = vista;
+        const chips = [['errores', '❌ Errores (' + A.errores.length + ')'], ['avisos', '⚠️ Avisos (' + A.avisos.length + ')'], ['todo', 'Resumen'], ['registro', '🧾 Registro']];
+        const volver = R.volver === 'compilacion' ? ['recepcion', 'inicio'] : ['inicio'];
+        pantalla('informe', `
+            <div class="bloque">
+                <h2>${R.ok ? '✅ Compilación correcta' : '❌ La compilación falló'}</h2>
+                <p><small>${esc(R.nombre || '')}${R.pasoFallido ? ' · paso «' + esc(R.pasoFallido) + '»' : ''}</small></p>
+                ${R.mensaje && !R.ok ? '<p class="mal"><small>' + esc(R.mensaje) + '</small></p>' : ''}
+                ${R.nota ? '<p class="aviso"><small>ℹ️ ' + esc(R.nota) + '</small></p>' : ''}
+                <div class="chips">${chips.map(c => '<button data-a="inf-vista" data-v="' + c[0] + '"' + (vista === c[0] ? ' class="sel"' : '') + '>' + c[1] + '</button>').join('')}</div>
+                <pre class="log" id="infTexto" style="max-height:52vh;">${esc(textoInforme(R, vista))}</pre>
+                <div class="botones"><button class="primario" data-a="inf-copiar">📋 Copiar</button><button data-a="inf-guardar">💾 Guardar .txt</button>${R.run && R.run.html_url ? '<button data-a="abrir" data-u="' + esc(R.run.html_url) + '">🗗 Abrir en GitHub</button>' : ''}</div>
+                ${botones(volver)}
+            </div>`, R.nombre || '');
+    }
+    // Copia o guarda lo que se está viendo.
+    async function copiarTexto(texto) {
+        try { if (P()) P().copiarAlPortapapeles(texto); else await navigator.clipboard.writeText(texto); return true; } catch (_) { return false; }
+    }
+    function guardarTextoComoArchivo(nombre, texto) {
+        const bytes = new TextEncoder().encode(texto);
+        const puente = P();
+        if (puente) {
+            if (typeof puente.guardarFinTipo !== 'function') { mostrarToast('ℹ️ Para guardar el .txt recompila la app; mientras, usa «Copiar»'); return false; }
+            puente.guardarInicio();
+            const TROZO = 3 * 128 * 1024;
+            for (let o = 0; o < bytes.length; o += TROZO) {
+                const fin = Math.min(bytes.length, o + TROZO); let b = '';
+                for (let q = o; q < fin; q += 0x8000) b += String.fromCharCode.apply(null, bytes.subarray(q, Math.min(fin, q + 0x8000)));
+                puente.guardarTrozo(btoa(b));
+            }
+            puente.guardarFinTipo(nombre, 'text/plain');
+            return true;
+        }
+        const url = URL.createObjectURL(new Blob([bytes], { type: 'text/plain' }));
+        const a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        return true;
+    }
+    // Abre el informe de una ejecución. volver: 'compilacion' (tras un fallo) o 'inicio'.
+    async function mostrarInforme(cfg, run, meta) {
+        pantalla('informe-cargando', '<div class="bloque"><p>🔎 Leyendo el registro de la compilación…</p></div>', (meta && meta.nombre) || '');
+        try { C.informe = await cargarInforme(cfg, run, meta || {}); renderInforme(); }
+        catch (e) { pantalla('error', '<div class="bloque"><p class="mal">❌ No se pudo leer el registro: ' + esc(e && e.message ? e.message : e) + '</p>' + botones(['inicio']) + '</div>'); }
+    }
+    async function informeUltimaEjecucion(nombre) {
+        const p = proyectos[nombre]; if (!p) return;
+        const cfg = (p.repoDedicado && p.repoDedicado.repo) ? cfgGitHubDeProyecto(p) : cargarConfigGitHub();
+        if (!cfg.token) cfg.token = cargarConfigGitHub().token;
+        if (!configGitHubCompleta(cfg)) { mostrarToast('⚠️ Configura GitHub primero'); return; }
+        try {
+            const res = await contentsApiGitHub(cfg, 'actions/workflows/build-apk-nativo.yml/runs?per_page=1');
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const d = await res.json(); const run = (d.workflow_runs || [])[0];
+            if (!run) { mostrarToast('ℹ️ Aún no hay compilaciones en ese repositorio'); return; }
+            await mostrarInforme(cfg, run, { nombre, paquete: p.paquete, volver: 'inicio' });
+        } catch (e) { mostrarToast('❌ ' + (e && e.message ? e.message : e)); }
+    }
+
+    // ---------- Icono de la app ----------
+    // Abre el selector de imágenes del dispositivo. Devuelve el File o null si se cancela.
+    function elegirImagen() {
+        return new Promise(resolve => {
+            const inp = document.createElement('input');
+            inp.type = 'file'; inp.accept = 'image/*'; inp.style.display = 'none';
+            let hecho = false;
+            const fin = f => { if (hecho) return; hecho = true; inp.remove(); resolve(f); };
+            inp.addEventListener('change', () => fin((inp.files && inp.files[0]) || null));
+            inp.addEventListener('cancel', () => fin(null));
+            document.body.appendChild(inp);
+            inp.click();
+        });
+    }
+    async function iconoDesdeImagen(file) {
+        if (!window.IconoAndroid) throw new Error('No se puede procesar imágenes aquí');
+        return await window.IconoAndroid.desdeArchivo(file, 192); // PNG 192x192 en base64, igual que Fusion
+    }
+    // Si el repositorio ya tiene un icono (compilaciones anteriores, p. ej. hechas desde Fusion) lo recupera para no perderlo.
+    async function recuperarIconoDelRepo(cfg) {
+        try {
+            const r = await contentsApiGitHub(cfg, 'contents/' + APK_NATIVO_CARPETA + '/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png?ref=' + encodeURIComponent(cfg.branch || 'main'));
+            if (!r.ok) return null;
+            const d = await r.json().catch(() => null);
+            const b64 = d && d.content ? String(d.content).replace(/\s/g, '') : null;
+            if (!b64) return null;
+            await window.IconoAndroid.desdeBase64(b64, 192, false); // valida que sea una imagen usable
+            return b64;
+        } catch (_) { return null; }
+    }
+    // Antes de compilar: asegura que el proyecto tenga icono. Devuelve false si el usuario cancela.
+    async function asegurarIcono(nombre, p, c, repoElegido, cfg0) {
+        if (p.icono) return true;
+        if (c.iconoBytes && window.IconoAndroid) {
+            try { p.icono = await window.IconoAndroid.desdeBytes(c.iconoBytes, 192); mostrarToast('🖼 Icono tomado del ZIP'); return true; } catch (_) {}
+        }
+        let cfgRepo = cfg0;
+        if (repoElegido === 'dedicado' || (p.repoDedicado && p.repoDedicado.repo)) cfgRepo = (p.repoDedicado && p.repoDedicado.repo) ? cfgGitHubDeProyecto(p) : Object.assign({}, cfg0, { repo: 'fusion-' + (slugPublicar(nombre) || 'proyecto') });
+        if (!cfgRepo.token) cfgRepo.token = cfg0.token;
+        const delRepo = await recuperarIconoDelRepo(cfgRepo);
+        if (delRepo) { p.icono = delRepo; mostrarToast('🖼 Icono recuperado del repositorio'); return true; }
+        if (p.sinIconoOk) return true;
+        const r = await pedirEleccionHtml('🖼 Sin icono', '<p>«' + esc(nombre) + '» no tiene icono: ni el ZIP ni el repositorio traen uno, y el icono que tuvieras en Fusion no viaja en el ZIP.</p><p>Sin icono, la app saldrá con el icono genérico de Android. ¿Quieres elegir una imagen de tu dispositivo?</p>', ['🖼 Elegir imagen', 'Compilar sin icono']);
+        if (r === null) return false;
+        if (r === 1) { p.sinIconoOk = true; return true; }
+        const f = await elegirImagen();
+        if (!f) { mostrarToast('Sin imagen: no se compila. Vuelve a pulsar «Mezclar y compilar».'); return false; }
+        try { p.icono = await iconoDesdeImagen(f); delete p.sinIconoOk; mostrarToast('🖼 Icono listo'); return true; }
+        catch (e) { mostrarToast('❌ ' + (e && e.message ? e.message : e)); return false; }
     }
 
     // ---------- Compilación ----------
@@ -3321,6 +3702,7 @@ kotlin.code.style=official
         p.nombreApp = p.nombreApp || c.nombreApp;
         p.versionCode = Math.max(Number(p.versionCode) || 1, existente ? 1 : Number(c.versionCode) || 1);
         p.fecha = new Date().toISOString().slice(0, 10);
+        if (!(await asegurarIcono(nombre, p, c, repoElegido, cfg0))) return;
         if (!existente) proyectos[nombre] = p;
         await guardarProyectos();
 
@@ -3366,6 +3748,7 @@ kotlin.code.style=official
                     <button class="primario" data-a="abrir" data-u="${esc(url)}">⬇️ Descargar APK</button>
                     <button data-a="copiar" data-u="${esc(url)}">📋 Copiar</button>
                     <button data-a="compartir" data-u="${esc(url)}">📤 Compartir</button>
+                    <button data-a="registro-ultimo" data-n="${esc(nombre)}">🧾 Ver registro</button>
                     <button data-a="inicio">↩️ Inicio</button>
                     <button data-a="cerrar">✕ Cerrar app</button>
                 </div></div>`, nombre);
@@ -3376,6 +3759,7 @@ kotlin.code.style=official
             const run = e && e.runFallido;
             p.ultimaCompilacion = { fecha: new Date().toISOString(), ok: false, error: String(e && e.message ? e.message : e).slice(0, 200) };
             await guardarProyectos();
+            if (run && run.id) { await mostrarInforme(cfg, run, { nombre, paquete: p.paquete, mensaje: String(e && e.message ? e.message : e), volver: 'compilacion' }); return; }
             pantalla('error', '<div class="bloque"><p class="mal">❌ ' + esc(e && e.message ? e.message : e) + '</p>' +
                 (run && run.html_url ? '<p><a href="#" data-a="abrir" data-u="' + esc(run.html_url) + '">Ver el registro de la compilación en GitHub</a></p>' : '') +
                 botones(['recepcion', 'inicio']) + '</div>', nombre);
@@ -3406,11 +3790,28 @@ kotlin.code.style=official
 
     // ---------- Eventos ----------
     document.addEventListener('click', async ev => {
+        const menuAbierto = $('ordenMenu');
+        if (menuAbierto && !menuAbierto.hidden && !(ev.target.closest && ev.target.closest('.menu'))) menuAbierto.hidden = true;
         const el = ev.target.closest && ev.target.closest('[data-a]');
         if (!el) return;
         ev.preventDefault();
         const a = el.dataset.a, u = el.dataset.u || '', i = el.dataset.i;
-        if (a === 'inicio') { if (!C.compilando) renderInicio(); }
+        if (a === 'filtro') { guardarUI({ filtro: el.dataset.v }); document.querySelectorAll('.chips button').forEach(b => b.classList.toggle('sel', b.dataset.v === el.dataset.v)); pintarLista(); }
+        else if (a === 'registro-ultimo') informeUltimaEjecucion(el.dataset.n);
+        else if (a === 'inf-vista') { if (C.informe) { C.informe.vista = el.dataset.v; renderInforme(); } }
+        else if (a === 'inf-copiar') { if (C.informe) { const tx = textoInforme(C.informe, C.informe.vista); const ok = await copiarTexto(tx.length > 400000 ? tx.slice(-400000) : tx); mostrarToast(ok ? '📋 Informe copiado' + (tx.length > 400000 ? ' (últimos 400 000 caracteres)' : '') : '⚠️ No se pudo copiar'); } }
+        else if (a === 'inf-guardar') { if (C.informe) { const R = C.informe; guardarTextoComoArchivo('informe-' + (slugPublicar(R.nombre) || 'compilacion') + '-' + R.vista + '-' + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '') + '.txt', textoInforme(R, R.vista)); } }
+        else if (a === 'icono-proy') {
+            const n = el.dataset.n; const p = proyectos[n]; if (!p) return;
+            const f = await elegirImagen(); if (!f) return;
+            try { p.icono = await iconoDesdeImagen(f); delete p.sinIconoOk; await guardarProyectos(); C.abiertos.add(n); renderInicio(); const det = document.querySelector('details[data-sec="proys"]'); if (det) det.open = true; mostrarToast('🖼 Icono guardado: se usará en la próxima compilación'); }
+            catch (e) { mostrarToast('❌ ' + (e && e.message ? e.message : e)); }
+        }
+        else if (a === 'buscar-gh') buscarProyectosEnGitHub();
+        else if (a === 'orden-menu') { const m = $('ordenMenu'); if (m) m.hidden = !m.hidden; }
+        else if (a === 'orden-op') { guardarUI({ orden: el.dataset.v }); $('ordenMenu').hidden = true; $('ordenBtn').firstChild.textContent = ORDENES[el.dataset.v]; document.querySelectorAll('#ordenMenu button').forEach(b => b.classList.toggle('sel', b.dataset.v === el.dataset.v)); pintarLista(); }
+        else if (a === 'orden-inv') { const inv = !ui().inv; guardarUI({ inv }); el.textContent = inv ? '⬆️' : '⬇️'; pintarLista(); }
+        else if (a === 'inicio') { if (!C.compilando) renderInicio(); }
         else if (a === 'elegir-zip') $('selectorZip').click();
         else if (a === 'recepcion') renderRecepcion();
         else if (a === 'compilar') compilar();
@@ -3444,6 +3845,7 @@ kotlin.code.style=official
     // Paneles plegables: proyectos abiertos, releases bajo demanda y ajustes como acordeón (se recuerda el último abierto).
     document.addEventListener('toggle', ev => {
         const d = ev.target; if (!d || !d.matches || !d.matches('details')) return;
+        if (d.dataset.sec === 'proys') guardarUI({ secProys: d.open });
         if (d.dataset.proy !== undefined) { if (d.open) C.abiertos.add(d.dataset.proy); else C.abiertos.delete(d.dataset.proy); }
         if (d.dataset.rel !== undefined && d.open) cargarReleases(d);
         if (d.dataset.aj !== undefined) {
