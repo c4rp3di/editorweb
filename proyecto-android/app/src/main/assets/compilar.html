@@ -3516,7 +3516,8 @@ kotlin.code.style=official
                 <label class="fila"><input type="radio" name="pRepo" value="dedicado"${pr.repoPorDefecto === 'dedicado' ? ' checked' : ''}><span>Repositorio por defecto: dedicado</span></label>
                 <label class="fila"><input type="radio" name="pRepo" value="compartido"${pr.repoPorDefecto === 'compartido' ? ' checked' : ''}><span>Repositorio por defecto: compartido</span></label>
                 <div class="botones"><button data-a="guardar-prefs">💾 Guardar preferencias</button></div>`) +
-            panel('app', '🧩 Esta app', esc(info.html || 'incluida en la app'), `
+            panel('app', '🧩 Esta app', esc(info.html || 'incluida en la app') + ' · descarga directa: ' + (P() && typeof P().descargarApk === 'function' ? '✅' : '❌ app antigua'), `
+                <p class="${P() && typeof P().descargarApk === 'function' ? 'ok' : 'aviso'}"><small>${P() && typeof P().descargarApk === 'function' ? '✅ Esta versión de la app descarga los APK por sí misma.' : '⚠️ Esta versión de la app es anterior a la descarga directa: los APK se abren en el navegador. Recompila la app con Compila.zip e instálala encima.'}</small></p>
                 <p class="suave"><small>Para actualizar Compilar sin recompilar el APK, elige un compilar.html nuevo. «Restaurar» vuelve al incluido.</small></p>
                 <div class="botones"><button data-a="elegir-html">📂 Actualizar desde un archivo</button><button data-a="restaurar-html">↩️ Restaurar el incluido</button></div>`) +
             '<div class="botones"><button data-a="inicio">↩️ Volver</button></div>', 'Ajustes');
