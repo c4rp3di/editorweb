@@ -4,11 +4,15 @@ import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ContentValues
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.IntentFilter
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
@@ -29,6 +33,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
@@ -101,8 +106,96 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ---------------------------------------------------------------- Descarga directa de APK (sin pasar por el navegador)
+
+    private val prefsDescargas by lazy { getSharedPreferences("descargas", Context.MODE_PRIVATE) }
+
+    private fun avisarJs(msg: String) {
+        runOnUiThread {
+            webView.evaluateJavascript("window.__compilaAviso&&window.__compilaAviso(" + JSONObject.quote(msg) + ")", null)
+        }
+    }
+
+    private fun existeUri(uri: Uri): Boolean = try {
+        contentResolver.openFileDescriptor(uri, "r")?.use { true } ?: false
+    } catch (_: Exception) {
+        false
+    }
+
+    private fun abrirApkDescargado(uri: Uri) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) {
+            avisarJs("📂 Descargado: ábrelo desde Descargas o desde la notificación para instalarlo")
+        }
+    }
+
+    // Una sola descarga por enlace: si ya se está bajando, no se repite; si ya está en Descargas, se abre ese archivo
+    // (instalador) en vez de crear otra copia «nombre (1).apk».
+    private fun descargarDirecto(url: String, nombreIn: String) {
+        val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val nombre = nombreIn.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "app.apk" }
+        val previo = prefsDescargas.getLong(url, -1L)
+        if (previo != -1L) {
+            dm.query(DownloadManager.Query().setFilterById(previo))?.use { c ->
+                if (c.moveToFirst()) {
+                    val estado = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                    if (estado == DownloadManager.STATUS_RUNNING || estado == DownloadManager.STATUS_PENDING || estado == DownloadManager.STATUS_PAUSED) {
+                        avisarJs("⏳ «" + nombre + "» ya se está descargando")
+                        return
+                    }
+                    if (estado == DownloadManager.STATUS_SUCCESSFUL) {
+                        val uri = dm.getUriForDownloadedFile(previo)
+                        if (uri != null && existeUri(uri)) {
+                            avisarJs("📦 «" + nombre + "» ya estaba en Descargas: se abre sin bajar otra copia")
+                            abrirApkDescargado(uri)
+                            return
+                        }
+                    }
+                }
+            }
+        }
+        try {
+            val req = DownloadManager.Request(Uri.parse(url))
+                .setTitle(nombre)
+                .setDescription("Compila")
+                .setMimeType("application/vnd.android.package-archive")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, nombre)
+            val id = dm.enqueue(req)
+            prefsDescargas.edit().putLong(url, id).putLong("id:" + id, id).putString("n:" + id, nombre).apply()
+            avisarJs("⬇️ Descargando «" + nombre + "» en Descargas…")
+        } catch (e: Exception) {
+            avisarJs("❌ No se pudo descargar aquí (" + (e.message ?: "error") + "): se abre en el navegador")
+            try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) { }
+        }
+    }
+
+    private val receptorDescargas = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+            if (id == -1L || !prefsDescargas.contains("id:" + id)) return
+            val nombre = prefsDescargas.getString("n:" + id, "APK") ?: "APK"
+            val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            dm.query(DownloadManager.Query().setFilterById(id))?.use { c ->
+                if (c.moveToFirst()) {
+                    val estado = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                    if (estado == DownloadManager.STATUS_SUCCESSFUL) avisarJs("✅ «" + nombre + "» descargado: toca la notificación para instalarlo")
+                    else avisarJs("❌ Falló la descarga de «" + nombre + "»")
+                }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        try { unregisterReceiver(receptorDescargas) } catch (_: Exception) { }
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ContextCompat.registerReceiver(this, receptorDescargas, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), ContextCompat.RECEIVER_EXPORTED)
         setContentView(R.layout.activity_main)
         webView = findViewById(R.id.webview)
         configurarWebView()
@@ -345,6 +438,12 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun cerrarApp() {
             runOnUiThread { finishAndRemoveTask() }
+        }
+
+        @JavascriptInterface
+        fun descargarApk(url: String, nombre: String) {
+            if (!url.startsWith("https://")) return
+            runOnUiThread { descargarDirecto(url, nombre) }
         }
 
         @JavascriptInterface
