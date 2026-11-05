@@ -34,6 +34,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import com.google.android.material.snackbar.Snackbar
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
@@ -122,6 +124,26 @@ class MainActivity : AppCompatActivity() {
         false
     }
 
+    // Aviso inferior con «Abrir»: lanza el selector normal de Android (sin forzar ninguna app), que ofrece «Solo una vez / Siempre»
+    // y recuerda la elección.
+    private var pendienteAbrir: Pair<Uri, String>? = null
+
+    override fun onResume() {
+        super.onResume()
+        pendienteAbrir?.let { pendienteAbrir = null; ofrecerAbrir(it.first, it.second) }
+    }
+
+    private fun ofrecerAbrir(uri: Uri, texto: String) {
+        runOnUiThread {
+            // Si la app está en segundo plano, el aviso se muestra al volver a ella.
+            if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) { pendienteAbrir = Pair(uri, texto); return@runOnUiThread }
+            Snackbar.make(findViewById(android.R.id.content), texto, Snackbar.LENGTH_INDEFINITE)
+                .setDuration(12000)
+                .setAction("ABRIR") { abrirApkDescargado(uri) }
+                .show()
+        }
+    }
+
     private fun abrirApkDescargado(uri: Uri) {
         try {
             startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
@@ -148,8 +170,7 @@ class MainActivity : AppCompatActivity() {
                     if (estado == DownloadManager.STATUS_SUCCESSFUL) {
                         val uri = dm.getUriForDownloadedFile(previo)
                         if (uri != null && existeUri(uri)) {
-                            avisarJs("📦 «" + nombre + "» ya estaba en Descargas: se abre sin bajar otra copia")
-                            abrirApkDescargado(uri)
+                            ofrecerAbrir(uri, "«" + nombre + "» ya estaba en Descargas")
                             return
                         }
                     }
@@ -181,7 +202,10 @@ class MainActivity : AppCompatActivity() {
             dm.query(DownloadManager.Query().setFilterById(id))?.use { c ->
                 if (c.moveToFirst()) {
                     val estado = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                    if (estado == DownloadManager.STATUS_SUCCESSFUL) avisarJs("✅ «" + nombre + "» descargado: toca la notificación para instalarlo")
+                    if (estado == DownloadManager.STATUS_SUCCESSFUL) {
+                        val uri = dm.getUriForDownloadedFile(id)
+                        if (uri != null) ofrecerAbrir(uri, "«" + nombre + "» descargado") else avisarJs("✅ «" + nombre + "» descargado en Descargas")
+                    }
                     else avisarJs("❌ Falló la descarga de «" + nombre + "»")
                 }
             }
