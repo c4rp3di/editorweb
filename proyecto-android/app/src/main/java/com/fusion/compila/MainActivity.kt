@@ -5,6 +5,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ContentValues
 import android.app.DownloadManager
+import android.app.PendingIntent
+import android.content.pm.PackageInstaller
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.IntentFilter
@@ -34,6 +36,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import com.google.android.material.snackbar.Snackbar
 import org.json.JSONObject
@@ -126,30 +129,108 @@ class MainActivity : AppCompatActivity() {
 
     // Aviso inferior con «Abrir»: lanza el selector normal de Android (sin forzar ninguna app), que ofrece «Solo una vez / Siempre»
     // y recuerda la elección.
-    private var pendienteAbrir: Pair<Uri, String>? = null
+    private var pendienteAbrir: Pair<Long, String>? = null
 
     override fun onResume() {
         super.onResume()
         pendienteAbrir?.let { pendienteAbrir = null; ofrecerAbrir(it.first, it.second) }
     }
 
-    private fun ofrecerAbrir(uri: Uri, texto: String) {
+    private fun ofrecerAbrir(id: Long, texto: String) {
         runOnUiThread {
             // Si la app está en segundo plano, el aviso se muestra al volver a ella.
-            if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) { pendienteAbrir = Pair(uri, texto); return@runOnUiThread }
+            if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) { pendienteAbrir = Pair(id, texto); return@runOnUiThread }
             Snackbar.make(findViewById(android.R.id.content), texto, Snackbar.LENGTH_INDEFINITE)
                 .setDuration(12000)
-                .setAction("ABRIR") { abrirApkDescargado(uri) }
+                .setAction("INSTALAR") { instalarApk(id) }
                 .show()
         }
     }
 
-    private fun abrirApkDescargado(uri: Uri) {
+    // Uri que el instalador pueda leer: el archivo propio de Descargas servido con FileProvider (lo normal); si no, el que da el gestor.
+    private fun uriParaAbrir(id: Long, dm: DownloadManager): Uri? {
+        try {
+            dm.query(DownloadManager.Query().setFilterById(id))?.use { c ->
+                if (c.moveToFirst()) {
+                    val i = c.getColumnIndex(DownloadManager.COLUMN_LOCAL_FILENAME)
+                    val ruta = if (i >= 0) c.getString(i) else null
+                    if (ruta != null) {
+                        val f = File(ruta)
+                        if (f.exists() && f.canRead()) return FileProvider.getUriForFile(this, packageName + ".fileprovider", f)
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return dm.getUriForDownloadedFile(id)
+    }
+
+    // Instalación con el instalador de paquetes de Android (PackageInstaller): no depende de que ninguna app resuelva un «abrir»;
+    // el sistema pide confirmar (y, la primera vez, permitir a Compila instalar apps) y los fallos se cuentan en un aviso.
+    private val ACCION_INSTALACION by lazy { packageName + ".INSTALACION" }
+
+    private val receptorInstalacion = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val estado = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
+            val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: ""
+            when (estado) {
+                PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                    @Suppress("DEPRECATION")
+                    val confirmar = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+                    if (confirmar != null) {
+                        try { startActivity(confirmar.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        catch (e: Exception) { Toast.makeText(this@MainActivity, "No se pudo abrir el instalador: " + (e.message ?: ""), Toast.LENGTH_LONG).show() }
+                    }
+                }
+                PackageInstaller.STATUS_SUCCESS -> Toast.makeText(this@MainActivity, "✅ Instalada", Toast.LENGTH_LONG).show()
+                PackageInstaller.STATUS_FAILURE_ABORTED -> Toast.makeText(this@MainActivity, "Instalación cancelada", Toast.LENGTH_SHORT).show()
+                else -> Toast.makeText(this@MainActivity, "❌ No se pudo instalar (código " + estado + "): " + msg, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun instalarApk(id: Long) {
+        val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        try {
+            val uri = dm.getUriForDownloadedFile(id)
+            var entrada: InputStream? = null
+            dm.query(DownloadManager.Query().setFilterById(id))?.use { c ->
+                if (c.moveToFirst()) {
+                    val i = c.getColumnIndex(DownloadManager.COLUMN_LOCAL_FILENAME)
+                    val ruta = if (i >= 0) c.getString(i) else null
+                    if (ruta != null && File(ruta).canRead()) entrada = FileInputStream(File(ruta))
+                }
+            }
+            if (entrada == null && uri != null) entrada = contentResolver.openInputStream(uri)
+            val ins = entrada
+            if (ins == null) { Toast.makeText(this, "No se encuentra el archivo en Descargas (¿se borró?)", Toast.LENGTH_LONG).show(); return }
+            val instalador = packageManager.packageInstaller
+            val sid = instalador.createSession(PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL))
+            instalador.openSession(sid).use { sesion ->
+                ins.use { origen -> sesion.openWrite("app.apk", 0, -1).use { salida -> origen.copyTo(salida); sesion.fsync(salida) } }
+                val pi = PendingIntent.getBroadcast(this, sid, Intent(ACCION_INSTALACION).setPackage(packageName),
+                    PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0))
+                sesion.commit(pi.intentSender)
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "No se pudo preparar la instalación (" + (e.message ?: "error") + "): se prueba con «Abrir con»", Toast.LENGTH_LONG).show()
+            abrirApkDescargado(id)
+        }
+    }
+
+    // Se lanza el «Abrir con» normal del sistema (sin forzar app): si hay varias apps ofrece «Solo una vez / Siempre»; si solo hay una, abre esa.
+    private fun abrirApkDescargado(id: Long) {
+        val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val uri = uriParaAbrir(id, dm)
+        if (uri == null) {
+            Toast.makeText(this, "No se encuentra el archivo en Descargas (¿se borró?)", Toast.LENGTH_LONG).show()
+            return
+        }
         try {
             startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (_: Exception) {
-            avisarJs("📂 Descargado: ábrelo desde Descargas o desde la notificación para instalarlo")
+        } catch (e: Exception) {
+            Toast.makeText(this, "No se pudo abrir: " + (e.message ?: "ninguna app lo admite") + ". Ábrelo desde Descargas.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -170,7 +251,7 @@ class MainActivity : AppCompatActivity() {
                     if (estado == DownloadManager.STATUS_SUCCESSFUL) {
                         val uri = dm.getUriForDownloadedFile(previo)
                         if (uri != null && existeUri(uri)) {
-                            ofrecerAbrir(uri, "«" + nombre + "» ya estaba en Descargas")
+                            ofrecerAbrir(previo, "«" + nombre + "» ya estaba en Descargas")
                             return
                         }
                     }
@@ -203,10 +284,8 @@ class MainActivity : AppCompatActivity() {
                 if (c.moveToFirst()) {
                     val estado = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                     if (estado == DownloadManager.STATUS_SUCCESSFUL) {
-                        val uri = dm.getUriForDownloadedFile(id)
-                        if (uri != null) ofrecerAbrir(uri, "«" + nombre + "» descargado") else avisarJs("✅ «" + nombre + "» descargado en Descargas")
-                    }
-                    else avisarJs("❌ Falló la descarga de «" + nombre + "»")
+                        ofrecerAbrir(id, "«" + nombre + "» descargado")
+                    } else avisarJs("❌ Falló la descarga de «" + nombre + "»")
                 }
             }
         }
@@ -214,11 +293,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         try { unregisterReceiver(receptorDescargas) } catch (_: Exception) { }
+        try { unregisterReceiver(receptorInstalacion) } catch (_: Exception) { }
         super.onDestroy()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ContextCompat.registerReceiver(this, receptorInstalacion, IntentFilter(packageName + ".INSTALACION"), ContextCompat.RECEIVER_NOT_EXPORTED)
         ContextCompat.registerReceiver(this, receptorDescargas, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), ContextCompat.RECEIVER_EXPORTED)
         setContentView(R.layout.activity_main)
         webView = findViewById(R.id.webview)
