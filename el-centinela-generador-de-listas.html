@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Centinela · Generador de Listas</title>
+    <style>
+        :root {
+            --bg: #0D1117; --card: #161B22; --text: #E6EDF3; --muted: #8B949E;
+            --accent: #58A6FF; --red: #F85149; --green: #3FB950;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg); color: var(--text);
+            margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center;
+        }
+        .container { max-width: 600px; width: 100%; }
+        h1 { color: var(--accent); text-align: center; font-size: 24px; }
+        .card {
+            background: var(--card); border-radius: 12px; padding: 20px;
+            margin-bottom: 15px; border: 1px solid #30363D;
+        }
+        h2 { font-size: 16px; margin-top: 0; border-bottom: 1px solid #30363D; padding-bottom: 8px; }
+        label { display: flex; align-items: center; margin-bottom: 8px; font-size: 14px; }
+        input[type="checkbox"] { margin-right: 10px; width: 18px; height: 18px; }
+        textarea {
+            width: 100%; height: 100px; background: var(--bg); color: var(--text);
+            border: 1px solid #30363D; border-radius: 8px; padding: 10px; box-sizing: border-box;
+            font-family: monospace; resize: vertical;
+        }
+        button {
+            width: 100%; padding: 14px; background: var(--accent); color: var(--bg);
+            border: none; border-radius: 8px; font-weight: bold; font-size: 16px;
+            cursor: pointer; margin-top: 10px;
+        }
+        button:active { opacity: 0.8; }
+        button:disabled { background: var(--muted); cursor: not-allowed; }
+        #status { text-align: center; margin-top: 10px; font-size: 13px; color: var(--muted); }
+        .stats { display: flex; justify-content: space-between; margin-top: 10px; font-size: 14px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ Generador de Listas</h1>
+        <p style="text-align:center; font-size:13px; color:var(--muted);">Selecciona las fuentes, añade las tuyas y genera un archivo limpio para El Centinela.</p>
+
+        <div class="card">
+            <h2>1. Fuentes Públicas (Recomendadas)</h2>
+            <label><input type="checkbox" id="src_openphish" checked> OpenPhish (Phishing activo)</label>
+            <label><input type="checkbox" id="src_phishingarmy" checked> Phishing Army (Lista masiva)</label>
+            <label><input type="checkbox" id="src_stevenblack" checked> StevenBlack (Malware y Ads)</label>
+            <label><input type="checkbox" id="src_urlhaus"> URLhaus (Distribución de malware)</label>
+        </div>
+
+        <div class="card">
+            <h2>2. Añadir Dominios Manualmente</h2>
+            <p style="font-size:12px; color:var(--muted); margin-top:0;">Escribe un dominio por línea (ej: banco-falso.xyz)</p>
+            <textarea id="manual" placeholder="dominio1.com&#10;dominio2.net"></textarea>
+        </div>
+
+        <button id="btnGenerar" onclick="generarLista()">⚙️ Generar y Descargar Lista</button>
+        <div id="status"></div>
+        <div class="stats" id="stats" style="display:none;">
+            <span id="total">0 dominios</span>
+            <span style="color:var(--green);">✔ Lista generada</span>
+        </div>
+    </div>
+
+    <script>
+        // URLs de las listas (deben permitir CORS)
+        const FUENTES = {
+            src_openphish: "https://raw.githubusercontent.com/mitchellkrogza/Phishing.Database/master/phishing-domains-ACTIVE.txt",
+            src_phishingarmy: "https://phishing.army/download/phishing_army_blocklist_extended.txt",
+            src_stevenblack: "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts",
+            src_urlhaus: "https://urlhaus.abuse.ch/downloads/text/"
+        };
+
+        async function generarLista() {
+            const btn = document.getElementById('btnGenerar');
+            const status = document.getElementById('status');
+            const stats = document.getElementById('stats');
+            const total = document.getElementById('total');
+            
+            btn.disabled = true;
+            status.innerText = "Iniciando conexiones...";
+            stats.style.display = 'none';
+
+            const setDominios = new Set(); // Set elimina duplicados automáticamente
+
+            // 1. Procesar checkboxes
+            for (const [id, url] of Object.entries(FUENTES)) {
+                if (document.getElementById(id).checked) {
+                    status.innerText = `Descargando: ${id.replace('src_', '')}...`;
+                    try {
+                        const res = await fetch(url);
+                        if (!res.ok) throw new Error("Error HTTP " + res.status);
+                        const text = await res.text();
+                        
+                        const lineas = text.split('\n');
+                        for (let l of lineas) {
+                            l = l.trim();
+                            if (l && !l.startsWith('#')) {
+                                // Limpiamos el formato de StevenBlack (0.0.0.0 dominio.com)
+                                let dominio = l.split(' ').pop().trim();
+                                if (dominio && dominio.includes('.')) setDominios.add(dominio);
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Fallo en " + id, e);
+                    }
+                }
+            }
+
+            // 2. Procesar entrada manual
+            status.innerText = "Procesando dominios manuales...";
+            const manual = document.getElementById('manual').value;
+            if (manual) {
+                for (let l of manual.split('\n')) {
+                    l = l.trim();
+                    if (l && l.includes('.')) setDominios.add(l);
+                }
+            }
+
+            if (setDominios.size === 0) {
+                status.innerText = "No se han cargado dominios.";
+                btn.disabled = false;
+                return;
+            }
+
+            // 3. Generar archivo final
+            status.innerText = "Generando archivo final...";
+            const arrayFinal = Array.from(setDominios).sort();
+            const contenido = arrayFinal.join('\n');
+            
+            // Crear Blob y descargar
+            const blob = new Blob([contenido], { type: 'text/plain' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `centinela_lista_${new Date().toISOString().slice(0,10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // Actualizar UI
+            total.innerText = `${arrayFinal.length.toLocaleString()} dominios únicos`;
+            stats.style.display = 'flex';
+            status.innerText = "¡Descarga completada! Importa este archivo en El Centinela.";
+            btn.disabled = false;
+        }
+    </script>
+</body>
+</html>
