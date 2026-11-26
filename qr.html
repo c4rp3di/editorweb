@@ -20,7 +20,8 @@ button,select{font:inherit;min-height:48px;border-radius:12px;border:1.5px solid
 button{flex:1;cursor:pointer}
 button.main{background:var(--acc);border-color:var(--acc);color:var(--accink)}
 button:active{transform:scale(.98)}
-.qr{margin:18px 0 6px;background:#fff;border-radius:16px;padding:12px;display:flex;justify-content:center;border:1.5px solid var(--line)}
+button:disabled{opacity:.55;cursor:not-allowed}
+.qr{margin:18px 0 6px;background:#fff;border-radius:16px;padding:12px;display:flex;justify-content:center;border:1.5px solid var(--line);cursor:pointer}
 canvas{width:100%;max-width:320px;height:auto;aspect-ratio:1;image-rendering:pixelated;display:block}
 .empty{margin:18px 0 6px;padding:40px 16px;text-align:center;color:var(--mute);border:1.5px dashed var(--line);border-radius:16px}
 .msg{min-height:1.4em;margin:8px 2px;color:var(--mute);font-size:.95rem}
@@ -35,6 +36,25 @@ canvas{width:100%;max-width:320px;height:auto;aspect-ratio:1;image-rendering:pix
 .res{margin:10px 0;padding:14px;background:var(--card);border:1.5px solid var(--line);border-radius:12px}
 .restxt{white-space:pre-wrap;word-break:break-word;-webkit-user-select:text;user-select:text;font-size:1.05rem}
 [hidden]{display:none!important}
+
+/* Menú de acciones del QR */
+.hint{text-align:center;color:var(--mute);font-size:.9rem;margin:8px 2px 0}
+.hint::before{content:"👆 "}
+.menu-w{position:fixed;inset:0;z-index:200}
+.menu-bg{position:absolute;inset:0;background:rgba(0,0,0,.45);animation:fadeIn .15s ease}
+.menu-sheet{
+  position:absolute;left:0;right:0;bottom:0;margin:0 auto;max-width:480px;
+  background:var(--card);border-radius:18px 18px 0 0;
+  padding:18px 16px max(16px,env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;gap:8px;
+  box-shadow:0 -6px 28px rgba(0,0,0,.28);
+  border:1.5px solid var(--line);border-bottom:none;
+  animation:slideUp .22s cubic-bezier(.2,.8,.2,1);
+}
+.menu-sheet button{width:100%;min-height:52px;text-align:left;padding:0 18px;font-size:1rem;display:flex;align-items:center;gap:10px;flex:none}
+.menu-sheet button.menu-cancel{text-align:center;justify-content:center;color:var(--mute);font-weight:500;background:transparent}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 </style>
 </head>
 <body>
@@ -65,9 +85,13 @@ canvas{width:100%;max-width:320px;height:auto;aspect-ratio:1;image-rendering:pix
 
   <div id="vacio" class="empty">Escribe o pega un texto y el código QR aparece aquí.</div>
   <div id="caja" class="qr" hidden><canvas id="cv" role="img" aria-label="Código QR generado"></canvas></div>
+  <p id="hintQR" class="hint" hidden>Toca el código para copiar, descargar o compartir</p>
   <div id="msg" class="msg" role="status" aria-live="polite"></div>
 
-  <div class="row"><button id="copiar" class="main" type="button" disabled>Copiar texto o enlace</button></div>
+  <div class="row">
+    <button id="copiar" class="main" type="button" disabled>Copiar</button>
+    <button id="descargar" type="button" disabled>Descargar</button>
+  </div>
 
   <div class="opt">
     <label for="nivel" style="margin:0;font-weight:500">Corrección de errores</label>
@@ -75,6 +99,16 @@ canvas{width:100%;max-width:320px;height:auto;aspect-ratio:1;image-rendering:pix
   </div>
   </section>
 </main>
+
+<div id="menuQR" class="menu-w" hidden>
+  <div class="menu-bg" id="menuBg"></div>
+  <div class="menu-sheet" role="dialog" aria-modal="true" aria-label="Opciones del código QR">
+    <button type="button" id="mCopy">📋 Copiar texto o enlace</button>
+    <button type="button" id="mDown">⬇️ Descargar imagen (PNG)</button>
+    <button type="button" id="mShare">🔗 Compartir…</button>
+    <button type="button" id="mCancel" class="menu-cancel">Cancelar</button>
+  </div>
+</div>
 
 <script>
 /* ===== Codificador QR (modo byte, UTF-8, versiones 1-40) — sin dependencias ===== */
@@ -111,7 +145,6 @@ var QR=(function(){
     put(0,Math.min(4,cap-bits.length));put(0,(8-bits.length%8)%8);
     for(var pad=0xEC;bits.length<cap;pad^=0xEC^0x11)put(pad,8);
     var data=[];for(var i=0;i<bits.length;i+=8){var b=0;for(var k=0;k<8;k++)b=(b<<1)|bits[i+k];data.push(b)}
-    /* bloques + Reed-Solomon */
     var nb=BLK[o][v],el=ECC[o][v],rc=Math.floor(raw(v)/8),ns=nb-rc%nb,sl=Math.floor(rc/nb),dv=divisor(el),blocks=[];
     for(var bi=0,p=0;bi<nb;bi++){
       var d=data.slice(p,p+sl-el+(bi<ns?0:1));p+=d.length;
@@ -119,7 +152,6 @@ var QR=(function(){
     }
     var all=[];
     for(i=0;i<blocks[0].length;i++)blocks.forEach(function(bl,j){if(i!=sl-el||j>=ns)all.push(bl[i])});
-    /* matriz */
     var size=v*4+17,m=[],fn=[],y,x;
     for(y=0;y<size;y++){m.push(new Array(size).fill(false));fn.push(new Array(size).fill(false))}
     function set(x,y,c){m[y][x]=c;fn[y][x]=true}
@@ -149,7 +181,6 @@ var QR=(function(){
     format(0);
     if(v>=7){var rr=v,k2;for(k2=0;k2<12;k2++)rr=(rr<<1)^((rr>>>11)*0x1F25);
       var vb=(v<<12)|rr;for(k2=0;k2<18;k2++){var c=bit(vb,k2),a=size-11+k2%3,b2=Math.floor(k2/3);set(a,b2,c);set(b2,a,c)}}
-    /* datos en zigzag */
     var n=0;
     for(var right=size-1;right>=1;right-=2){
       if(right==6)right=5;
@@ -194,7 +225,6 @@ var QRD=(function(){
   function gm(a,b){return a&&b?EXP[LOG[a]+LOG[b]]:0}
   function gd(a,b){return a?EXP[(LOG[a]+255-LOG[b])%255]:0}
   function synd(m,ns){var S=[],bad=false,i,j,s;for(i=0;i<ns;i++){s=0;for(j=0;j<m.length;j++)s=gm(s,EXP[i])^m[j];S.push(s);if(s)bad=true}return bad?S:null}
-  /* Reed-Solomon: corrige errores (Berlekamp-Massey + Forney) */
   function rs(msg,ns){
     var n=msg.length,S=synd(msg,ns),i,j,k;
     if(!S)return msg;
@@ -221,7 +251,6 @@ var QRD=(function(){
     }
     return synd(out,ns)?null:out;
   }
-  /* binarizado con umbral local */
   function binarize(img,w,h){
     var g=new Uint8Array(w*h),n=w*h,p,x,y,row;
     for(i=0,p=0;i<n;i++,p+=4)g[i]=(img[p]*77+img[p+1]*150+img[p+2]*29)>>8;
@@ -293,7 +322,6 @@ var QRD=(function(){
     var h=[];for(i=0;i<n;i++)h.push(A[i][n]/A[i][i]);return h}
   function map(h,u,v){var d=h[6]*u+h[7]*v+1;return[(h[0]*u+h[1]*v+h[2])/d,(h[3]*u+h[4]*v+h[5])/d]}
   function at(bin,w,h,p){var x=Math.round(p[0]),y=Math.round(p[1]);return x>=0&&y>=0&&x<w&&y<h?bin[y*w+x]:0}
-  /* patrón de alineación (versión >= 2) para corregir la perspectiva */
   function findAP(bin,w,h,aff,um,vm,s,F){
     var pc=aff(um,vm),ex=[(F[1].x-F[0].x)/s,(F[1].y-F[0].y)/s],ey=[(F[2].x-F[0].x)/s,(F[2].y-F[0].y)/s],bs=0,hits=[],du,dv,r,c;
     for(du=-3;du<=3;du+=0.25)for(dv=-3;dv<=3;dv+=0.25){
@@ -395,25 +423,33 @@ var QRD=(function(){
 })();
 /*DEC-END*/
 
-
 /* ===== Interfaz ===== */
 (function(){
   var $=function(id){return document.getElementById(id)};
-  var txt=$("txt"),cv=$("cv"),caja=$("caja"),vacio=$("vacio"),msg=$("msg"),copiar=$("copiar"),nivel=$("nivel"),t=null,tm=null;
+  var txt=$("txt"),cv=$("cv"),caja=$("caja"),vacio=$("vacio"),msg=$("msg"),
+      copiar=$("copiar"),descargar=$("descargar"),nivel=$("nivel"),
+      hintQR=$("hintQR"),t=null,tm=null;
+
+  var menuQR=$("menuQR"),menuBg=$("menuBg");
 
   function aviso(texto,tipo){msg.textContent=texto||"";msg.className="msg"+(tipo?" "+tipo:"");
     clearTimeout(tm);if(tipo==="ok")tm=setTimeout(function(){msg.textContent="";msg.className="msg"},2200)}
 
   function dibujar(){
     var s=txt.value;
-    if(!s.trim()){caja.hidden=true;vacio.hidden=false;copiar.disabled=true;aviso("");return}
+    if(!s.trim()){
+      caja.hidden=true;vacio.hidden=false;copiar.disabled=true;descargar.disabled=true;hintQR.hidden=true;aviso("");return;
+    }
     try{
       var m=QR.encode(s,nivel.value),n=m.length,quiet=4,px=Math.max(4,Math.floor(1024/(n+quiet*2))),dim=(n+quiet*2)*px;
       cv.width=cv.height=dim;var g=cv.getContext("2d");
       g.fillStyle="#fff";g.fillRect(0,0,dim,dim);g.fillStyle="#000";
       for(var y=0;y<n;y++)for(var x=0;x<n;x++)if(m[y][x])g.fillRect((x+quiet)*px,(y+quiet)*px,px,px);
-      caja.hidden=false;vacio.hidden=true;copiar.disabled=false;aviso("");
-    }catch(e){caja.hidden=true;vacio.hidden=false;copiar.disabled=true;aviso("Texto demasiado largo para un QR. Acórtalo o baja la corrección de errores.","err")}
+      caja.hidden=false;vacio.hidden=true;copiar.disabled=false;descargar.disabled=false;hintQR.hidden=false;aviso("");
+    }catch(e){
+      caja.hidden=true;vacio.hidden=false;copiar.disabled=true;descargar.disabled=true;hintQR.hidden=true;
+      aviso("Texto demasiado largo para un QR. Acórtalo o baja la corrección de errores.","err");
+    }
   }
   function programar(){clearTimeout(t);t=setTimeout(dibujar,120)}
 
@@ -427,10 +463,80 @@ var QRD=(function(){
       if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(s).then(ok,viejo)}else viejo()
     })}
 
-  copiar.addEventListener("click",function(){
+  function copiarActual(){
     var s=txt.value;if(!s)return;
     copiarTexto(s).then(function(){aviso("Copiado","ok")},function(){
-      txt.focus();txt.select();aviso("No se pudo copiar solo. El texto está seleccionado: mantén pulsado y elige Copiar.","err")})});
+      txt.focus();txt.select();
+      aviso("No se pudo copiar solo. El texto está seleccionado: mantén pulsado y elige Copiar.","err")});
+  }
+  copiar.addEventListener("click",copiarActual);
+
+  function nombreQR(){
+    var s=txt.value.trim();
+    var m=s.match(/^https?:\/\/([^\/\s?#]+)/i);
+    if(m)return "qr-"+m[1].replace(/[^a-z0-9.-]/gi,"-").toLowerCase().slice(0,32)+".png";
+    return "codigo-qr.png";
+  }
+
+  function descargarQR(){
+    cerrarMenu();
+    if(!txt.value.trim())return;
+    if(typeof cv.toBlob!=="function"){
+      var url=cv.toDataURL("image/png"),a=document.createElement("a");
+      a.href=url;a.download=nombreQR();
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      aviso("Imagen descargada","ok");return;
+    }
+    cv.toBlob(function(blob){
+      if(!blob){aviso("No se pudo crear la imagen","err");return}
+      var url=URL.createObjectURL(blob),a=document.createElement("a");
+      a.href=url;a.download=nombreQR();
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(function(){URL.revokeObjectURL(url)},2000);
+      aviso("Imagen descargada","ok");
+    },"image/png");
+  }
+  descargar.addEventListener("click",descargarQR);
+
+  function compartirQR(){
+    cerrarMenu();
+    var s=txt.value;if(!s)return;
+    var finalizar=function(msgOK,msgErr){if(msgOK)aviso(msgOK,"ok");else if(msgErr)aviso(msgErr,"err")};
+    var soloTexto=function(){
+      if(navigator.share){
+        navigator.share({title:"Código QR",text:s}).catch(function(){});return true;
+      }
+      return false;
+    };
+    if(typeof cv.toBlob!=="function"){soloTexto();return}
+    cv.toBlob(function(blob){
+      var file=null;
+      try{file=new File([blob],"codigo-qr.png",{type:"image/png"})}catch(e){}
+      if(file&&navigator.canShare&&navigator.canShare({files:[file]})&&navigator.share){
+        navigator.share({files:[file],title:"Código QR"}).catch(function(){});
+        return;
+      }
+      if(soloTexto())return;
+      copiarTexto(s).then(function(){finalizar("No se puede compartir aquí. Texto copiado.")},
+        function(){finalizar(null,"Este navegador no permite compartir")});
+    },"image/png");
+  }
+
+  /* ===== Menú de acciones del QR ===== */
+  function abrirMenu(){menuQR.hidden=false}
+  function cerrarMenu(){menuQR.hidden=true}
+  menuBg.addEventListener("click",cerrarMenu);
+  $("mCancel").addEventListener("click",cerrarMenu);
+  document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!menuQR.hidden)cerrarMenu()});
+
+  caja.addEventListener("click",function(){if(txt.value.trim())abrirMenu()});
+  caja.addEventListener("keydown",function(e){
+    if((e.key==="Enter"||e.key===" ")&&txt.value.trim()){e.preventDefault();abrirMenu()}});
+  caja.setAttribute("tabindex","0");
+
+  $("mCopy").addEventListener("click",function(){cerrarMenu();copiarActual()});
+  $("mDown").addEventListener("click",descargarQR);
+  $("mShare").addEventListener("click",compartirQR);
 
   $("pegar").addEventListener("click",function(){
     function poner(s){if(s){txt.value=s;dibujar()}else aviso("El portapapeles está vacío","err")}
@@ -444,9 +550,11 @@ var QRD=(function(){
   $("borrar").addEventListener("click",function(){txt.value="";dibujar();txt.focus()});
   txt.addEventListener("input",programar);
   nivel.addEventListener("change",dibujar);
+
   /* ===== Leer QR ===== */
-  var vid=$("vid"),camBox=$("camBox"),camBtn=$("camBtn"),resBox=$("resBox"),resTxt=$("resTxt"),resCopy=$("resCopy"),msg2=$("msg2"),
-      foto=$("foto"),stream=null,scanning=false,loopT=null,tm2=null,bd=null,
+  var vid=$("vid"),camBox=$("camBox"),camBtn=$("camBtn"),resBox=$("resBox"),resTxt=$("resTxt"),
+      resCopy=$("resCopy"),msg2=$("msg2"),foto=$("foto"),stream=null,scanning=false,
+      loopT=null,tm2=null,bd=null,
       work=document.createElement("canvas"),wctx=work.getContext("2d");
   try{if("BarcodeDetector" in window)bd=new BarcodeDetector({formats:["qr_code"]})}catch(e){bd=null}
 
@@ -481,7 +589,8 @@ var QRD=(function(){
       .catch(function(){parar();aviso2("No se pudo abrir la cámara. Revisa el permiso o usa «Leer desde foto».","err")})});
 
   resCopy.addEventListener("click",function(){
-    copiarTexto(resTxt.textContent).then(function(){aviso2("Copiado","ok")},function(){aviso2("No se pudo copiar. Mantén pulsado el texto y elige Copiar.","err")})});
+    copiarTexto(resTxt.textContent).then(function(){aviso2("Copiado","ok")},function(){
+      aviso2("No se pudo copiar. Mantén pulsado el texto y elige Copiar.","err")})});
 
   $("fotoBtn").addEventListener("click",function(){foto.click()});
   foto.addEventListener("change",function(){
